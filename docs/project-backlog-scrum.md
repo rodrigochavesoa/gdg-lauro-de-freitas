@@ -171,7 +171,8 @@ Uma história só entra no sprint quando possui objetivo, critérios de aceitaç
 Uma história é concluída quando:
 
 - critérios de aceitação foram verificados;
-- código revisado e aprovado em PR;
+- código revisado e aprovado em PR (**branch → `main`**, sem push direto em `main`);
+- commits e título de squash merge seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/);
 - testes relevantes passam e não há regressão conhecida;
 - RLS e validação de entrada foram avaliadas para qualquer alteração que lide com dados;
 - documentação e variáveis de ambiente foram atualizadas;
@@ -255,7 +256,11 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 ## Plano de sprints
 
-**Executor técnico padrão:** Agente GDGJobs. O agente implementa, testa, documenta e prepara PRs; não toma decisões de negócio, não cria contas externas, não configura segredos reais nem aprova produção sem direção explícita dos responsáveis.
+**Executor técnico padrão:** Agente GDGJobs. O agente implementa, testa, documenta e **abre Pull Requests**; não toma decisões de negócio, não cria contas externas, não configura segredos reais nem aprova produção sem direção explícita dos responsáveis.
+
+**Git:** o Executor **nunca** faz push em `main`. Fluxo: branch → PR → squash merge pelo mantenedor. Ver [`docs/contributing.md`](contributing.md).
+
+**Commits:** mensagens no padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o) (`tipo(escopo): descrição`). Ex.: `docs(lgpd): add S1-03 personal data inventory for DPO review`.
 
 **Shell obrigatório no Windows:** executar comandos em **PowerShell (`pwsh`)**, não em WSL. Chamadas Linux via WSL neste ambiente ficam lentas e atrasam lint, testes, install e build. Preferir `pnpm`, `git` e scripts nativos do Windows no `pwsh`. Só usar WSL se o comando for impossível no PowerShell e houver autorização explícita.
 
@@ -263,7 +268,22 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente:** executar **S1-03** (inventário LGPD). Em seguida: **S1-04** convenções de PR e evidência. Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+**Primeira ação do agente (após merge de S1-03):** S1-04 em branch dedicada (branch protection no GitHub é ação humana). Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+
+#### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
+
+| Critério | Resultado |
+|---|---|
+| Inventário | `docs/lgpd-data-inventory.md` — 21 itens (P-01 a P-21) |
+| Seis controles | Lacunas explícitas na tabela do gate |
+| Protótipo + migration + planejado | Coberto; risco `match-jobs`/Gemini (P-16) documentado |
+| Credenciais / dados reais | Ausentes |
+| Escopo | Nenhum controle LGPD implementado |
+| Git | Branch `docs/s1-03-lgpd-inventory`; PR para `main` (correto) |
+| Qualidade | `pnpm lint`, 7 testes e `pnpm run build` verdes no `pwsh` |
+| Commits | Commit `36ce67c` fora do Conventional Commits — usar título `docs(lgpd): add S1-03 personal data inventory for DPO review` no squash merge |
+
+**Pendente humano (não bloqueia aprovação técnica):** DPO aceitar bases legais candidatas.
 
 #### Revisão Tech Lead — S1-02 (aprovada em 2026-08-15)
 
@@ -297,8 +317,8 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 |---|---|---|---|---|
 | S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
-| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | Pronta para execução |
-| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | Pode seguir S1-01; complementar S1-03 |
+| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | **Aprovada** pelo Tech Lead (2026-08-15); bases legais aguardam DPO |
+| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | Parcial — `docs/contributing.md`, Conventional Commits e PR template; falta branch protection (humano) |
 | S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
@@ -324,11 +344,13 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 - **Escopo:** documento em `docs/` listando dados pessoais já visíveis no protótipo, previstos na migration e planejados (perfil, candidatura, consentimento, auditoria, embeddings). Classificar finalidade, base legal candidata, retenção sugerida, risco e controle do gate correspondente. Dados atuais são fictícios.
 - **Fora:** não implementar consentimento, RLS em ambiente real, exportação nem protocolo operacional.
 - **Aceite:** tabela revisável pelo DPO; lacunas dos seis controles explícitas; nenhuma credencial no documento.
+- **Revisão:** aprovada. Evidência em `docs/lgpd-data-inventory.md`; qualidade verde no `pwsh`. Merge do PR com título Conventional Commits.
 
 #### S1-04 — Convenções de PR e evidência
 
-- **Escopo:** template em `.github/PULL_REQUEST_TEMPLATE.md` alinhado ao fluxo abaixo; checklist de evidência (build, testes, captura de UI quando houver mudança visual, citação a DS-06 em PRs de interface).
-- **Aceite:** template versionado; DoD do Sprint 1 exige CI verde e evidência proporcional.
+- **Escopo:** [`docs/contributing.md`](contributing.md) (branch, PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)), `.github/PULL_REQUEST_TEMPLATE.md`, checklist de evidência.
+- **Aceite:** guia e template versionados; DoD exige PR + Conventional Commits + CI verde.
+- **Estado:** guia, template e regras no backlog; falta branch protection no GitHub (humano).
 
 #### S1-05 — Hospedagem e ambiente (humano)
 
@@ -354,13 +376,15 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 ## Fluxo de Pull Request
 
-1. Criar uma issue ou item do backlog com critérios de aceitação (`S1-01`, história ou bug).
-2. Abrir branch curta: `feat/<id>-descricao`, `fix/<id>-descricao` ou `chore/<id>-descricao`.
-3. Desenvolver uma única entrega coesa; não misturar refatorações extensas com alteração de produto.
-4. Abrir PR contra `main` com o template abaixo.
-5. CI deve executar lint, testes e build. Mudanças de banco precisam incluir migration reversível ou plano de rollback.
-6. Solicitar pelo menos uma revisão. PRs envolvendo RLS, autenticação, secrets ou IA exigem revisão técnica de segurança.
-7. Após aprovação e checks verdes, realizar squash merge e vincular a entrega à Sprint Review.
+**Regras:** sem push direto em `main`; commits em [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/). Ver [`docs/contributing.md`](contributing.md).
+
+1. Criar issue ou item do backlog com critérios de aceitação (`S1-03`, história ou bug).
+2. Atualizar `main` e criar branch: `feat/`, `fix/`, `chore/` ou `docs/<id>-descricao`.
+3. Desenvolver uma única entrega coesa; mensagens de commit no padrão `tipo(escopo): descrição`.
+4. Push da branch; PR **base: `main`** ← compare: `<branch>`.
+5. CI executa lint, testes e build no PR.
+6. Revisão humana; PRs de RLS, auth, secrets ou IA exigem revisão de segurança.
+7. Mantenedor faz **squash merge** com título Conventional Commits e vincula à Sprint Review.
 
 ### Critérios de evidência (obrigatórios)
 
@@ -372,41 +396,17 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 | LGPD | Inventário ou controle atualizado; nenhum dado pessoal real em fixture |
 | IA | Confirmação de que nenhum dado pessoal foi enviado ao modelo |
 
-Sem CI verde, a história do Sprint 1 não entra em Done.
+Sem CI verde no PR, a história do Sprint 1 não entra em Done.
 
-### Template de PR
-
-```md
-## Contexto
-<!-- Qual história ou problema este PR resolve? -->
-
-## Alterações
--
-
-## Como validar
-1.
-
-## Segurança e dados
-- [ ] Não introduz segredo no repositório
-- [ ] RLS/policies revisadas, quando aplicável
-- [ ] Entrada validada no servidor, quando aplicável
-
-## Evidências
-- [ ] Testes automatizados
-- [ ] Captura de tela ou vídeo do fluxo
-- [ ] Migration e rollback, quando aplicável
-
-## Checklist
-- [ ] Critérios de aceitação atendidos
-- [ ] Documentação atualizada
-- [ ] Sem mudanças fora do escopo
-```
+Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md). Fluxo Git e Conventional Commits: [`docs/contributing.md`](contributing.md).
 
 ## Próximas etapas imediatas
 
-1. **Executor Agent (S1-03):** inventário de dados pessoais e riscos LGPD. Em seguida S1-04.
-2. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
-3. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
-4. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
-5. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
-6. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
+1. **Mantenedor:** merge do PR `docs/s1-03-lgpd-inventory` com título `docs(lgpd): add S1-03 personal data inventory for DPO review` após CI verde.
+2. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
+3. **Executor (S1-04):** branch protection no GitHub (humano); demais itens de S1-04 já parcialmente atendidos.
+4. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
+5. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
+6. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
+7. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
+8. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
