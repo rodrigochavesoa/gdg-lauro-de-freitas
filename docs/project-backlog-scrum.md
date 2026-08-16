@@ -263,7 +263,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente:** executar **S1-03** (inventário LGPD). Em seguida: **S1-04** convenções de PR e evidência. Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+**Primeira ação do agente (após merge de S1-03):** S1-04 convenções de PR e evidência, em branch dedicada. Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
 
 #### Revisão Tech Lead — S1-02 (aprovada em 2026-08-15)
 
@@ -297,7 +297,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 |---|---|---|---|---|
 | S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
-| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | Pronta para execução |
+| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | Inventário em PR — aguarda DPO |
 | S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | Pode seguir S1-01; complementar S1-03 |
 | S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
 
@@ -324,6 +324,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 - **Escopo:** documento em `docs/` listando dados pessoais já visíveis no protótipo, previstos na migration e planejados (perfil, candidatura, consentimento, auditoria, embeddings). Classificar finalidade, base legal candidata, retenção sugerida, risco e controle do gate correspondente. Dados atuais são fictícios.
 - **Fora:** não implementar consentimento, RLS em ambiente real, exportação nem protocolo operacional.
 - **Aceite:** tabela revisável pelo DPO; lacunas dos seis controles explícitas; nenhuma credencial no documento.
+- **Resultado:** `docs/lgpd-data-inventory.md`. Nenhum controle implementado. Bases legais são candidatas até aceite do DPO.
 
 #### S1-04 — Convenções de PR e evidência
 
@@ -404,7 +405,7 @@ Sem CI verde, a história do Sprint 1 não entra em Done.
 
 ## Próximas etapas imediatas
 
-1. **Executor Agent (S1-03):** inventário de dados pessoais e riscos LGPD. Em seguida S1-04.
+1. **DPO:** revisar `docs/lgpd-data-inventory.md` e aceitar ou substituir as bases legais candidatas. Mantenedor faz merge do PR S1-03 após CI e revisão. Em seguida S1-04 (se ainda pendente).
 2. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
 3. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
 4. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
