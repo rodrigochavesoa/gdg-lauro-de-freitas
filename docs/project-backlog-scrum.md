@@ -270,7 +270,14 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente:** Sprint 2 — aplicar migration no Supabase de desenvolvimento (credenciais humanas). Preview Vercel só após credenciais e configuração de ambiente. Não iniciar OAuth, Gemini, deploy público ou curadoria sem as decisões deste documento.
+**Primeira ação do agente:** Sprint 2 — catálogo real no Supabase **de teste** (credenciais humanas). Ver [`docs/supabase-dev-env.md`](supabase-dev-env.md) e [`.env.example`](../.env.example). Preview Vercel só após catálogo local ok e autorização. Não iniciar OAuth, Gemini, deploy público ou curadoria sem as decisões deste documento.
+
+#### Sprint 2 — ambiente Supabase de teste
+
+- **Escopo:** migration + seed fictício, RLS testada, `@supabase/supabase-js@2` pinado, Home/detalhe conectados; `.env.local` preenchido a partir de `.env.example`.
+- **Chaves:** preferir **publishable** (`sb_publishable_...`); fallback **Legacy anon** (`eyJ...`) se o client falhar — registrar no PR.
+- **Git:** commitar **somente** `.env.example`; **nunca** `.env` / `.env.local` com valores.
+- **Aceite:** visitante vê só vagas `approved`; RLS documentada; sem secrets no repo; CI verde.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -372,7 +379,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 #### S1-05 — Hospedagem e ambiente (humano)
 
 - **C-01:** **Vercel** — decidido em 2026-08-16 (PO + Tech Lead).
-- **Pendente:** projeto/credenciais Supabase de desenvolvimento; C-02 (plano Vercel) antes do deploy público.
+- **Pendente:** projeto/credenciais Supabase **de teste**; ver [`docs/supabase-dev-env.md`](supabase-dev-env.md). C-02 (plano Vercel) antes do deploy público.
 - Executor não provisiona contas sem autorização; configura preview Vercel no Sprint 2 quando houver credenciais.
 
 **Validação obrigatória em toda entrega do agente:** build de produção, critérios de aceite da história, documentação atualizada e evidência visual para mudanças de interface. Para UI, consultar `docs/design-system-communication.md` e as referências antes de criar ou alterar componentes.
@@ -420,8 +427,8 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Sprint 2:** credenciais Supabase de desenvolvimento (bloqueador principal). C-01 **Vercel** fechado; C-02 antes do deploy público.
-2. **Responsável técnico do Supabase:** criar projeto de desenvolvimento e fornecer variáveis seguras (sem secrets no repo).
+1. **Sprint 2:** credenciais Supabase **de teste** (bloqueador). Guia: [`docs/supabase-dev-env.md`](supabase-dev-env.md); template: [`.env.example`](../.env.example). C-01 Vercel fechado.
+2. **Responsável Supabase:** criar projeto dev, aplicar migration, entregar URL + publishable key (canal seguro; **não** no Git).
 3. **Executor Agent:** migration, seed, RLS e catálogo real (Sprint 2); preview Vercel quando autorizado.
 4. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
 5. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4.

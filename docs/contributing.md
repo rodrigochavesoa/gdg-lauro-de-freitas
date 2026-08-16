@@ -80,3 +80,9 @@ Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test an
 
 Evidência: [`docs/s1-04-branch-protection.md`](s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
 
+## Variáveis de ambiente (Sprint 2+)
+
+- **Commitado:** [`.env.example`](../.env.example) (nomes apenas) e [`docs/supabase-dev-env.md`](supabase-dev-env.md).
+- **Não commitado:** `.env`, `.env.local` — valores do Supabase de teste (ver `.gitignore`).
+- **Nunca no frontend:** secret key / `service_role`.
+

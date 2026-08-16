@@ -101,4 +101,4 @@ pnpm test
 pnpm run build
 ```
 
-Contribuição (branch + PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)): [`docs/contributing.md`](docs/contributing.md). CI e qualidade: [`docs/quality-ci.md`](docs/quality-ci.md).
+Contribuição (branch + PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)): [`docs/contributing.md`](docs/contributing.md). CI: [`docs/quality-ci.md`](docs/quality-ci.md). Supabase teste: [`docs/supabase-dev-env.md`](docs/supabase-dev-env.md) e [`.env.example`](.env.example) (copiar para `.env.local`).
