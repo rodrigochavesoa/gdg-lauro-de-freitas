@@ -188,13 +188,13 @@ Uma história é concluída quando:
 | P0 | Design System | Alinhar o MVP à referência visual do DevFest Lauro e criar tokens globais de UI | V1 | DS-02 implementada; DS-01 e DS-05 pendentes de revisão formal |
 | P1 | Design System | Consolidar biblioteca oficial no Figma, revisão colaborativa e handoff para produção | Transversal | Bloqueado: equipe ainda não possui acesso aos componentes Figma |
 | P0 | LGPD | Consentimento granular e registro de preferências por finalidade | Transversal | Não iniciado — bloqueia produção |
-| P0 | LGPD | Aplicar e testar RLS por perfil de acesso | Transversal | Código preparado; não aplicado |
+| P0 | LGPD | Aplicar e testar RLS por perfil de acesso | Transversal | Visitante (anon) validado no projeto de teste; candidato/admin no Sprint 5+ |
 | P0 | LGPD | Exportação, correção e exclusão de dados pessoais | Transversal | Não iniciado — bloqueia produção |
 | P0 | LGPD | Auditoria de operações sobre dados pessoais | Transversal | Não iniciado — bloqueia produção |
 | P0 | LGPD | Anonimização/minimização de dados usados em ML | V3 | Não iniciado — bloqueia funcionalidades de ML com dados pessoais |
 | P0 | LGPD | Protocolo, registro e comunicação de incidentes | Transversal | Não iniciado — bloqueia produção |
-| P0 | Dados | Aplicar migration, configurar RLS, buckets de Storage e dados de exemplo | V1 | Código preparado; não aplicado |
-| P0 | Vagas públicas | Conectar listagem, filtros e detalhe ao banco com apenas vagas aprovadas | V1 | Protótipo pronto; integração pendente |
+| P0 | Dados | Aplicar migration, configurar RLS, buckets de Storage e dados de exemplo | V1 | Migrations + seed fictício aplicáveis; RLS visitante ok; **Storage (logos) adiado** |
+| P0 | Vagas públicas | Conectar listagem, filtros e detalhe ao banco com apenas vagas aprovadas | V1 | **Sprint 2 aprovada** — Home/detalhe via Supabase; PR #4 |
 | P0 | Administração | Autenticação administrativa e CRUD validado de vagas/empresas | V1 | Interface pronta; backend pendente |
 | P1 | Ingestão | Modelar origem da vaga, submissão de empresas, conectores de API, fila, deduplicação e tratamento de falhas | V1/V2 | Novo — solicitado pelo Tech Lead |
 | P1 | Ingestão | Avaliar scrapers por fonte, termos de uso, base legal e manutenção antes de construir conectores | V1/V2 | Novo — depende de aprovação de fontes |
@@ -269,7 +269,25 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente:** Sprint 2 — catálogo `approved` no Supabase de teste. Credenciais só em `.env.local` / `docs-local/`. Não iniciar OAuth, Gemini, deploy público ou curadoria sem as decisões deste documento.
+**Primeira ação do agente:** Sprint 3 — CRUD administrativo de vagas/empresas com validação e trilha de testes. Credenciais só em `.env.local` / `docs-local/`. Não iniciar OAuth real, Gemini, deploy público ou curadoria sem as decisões deste documento.
+
+#### Revisão Tech Lead — Sprint 2 (aprovada em 2026-08-16)
+
+| Critério | Resultado |
+|---|---|
+| Migration + seed | `202608160002_seed_fictitious_catalog.sql` — 4 approved + 1 pending fictícios |
+| RLS visitante | `pnpm test:rls` verde no `pwsh`; vaga pending invisível; profiles/applications vazios |
+| Home / detalhe | `loadApprovedJobs()` + `mapJob()`; estados loading/erro/empty; detalhe via card selecionado |
+| Segredos | Nenhum token real no diff; `.env.example` só com nomes |
+| Chave frontend | Publishable (`VITE_SUPABASE_PUBLISHABLE_KEY`) validada no projeto de teste |
+| Qualidade | CI verde no PR #4; `pnpm lint`, 12 testes e `pnpm run build` verdes no `pwsh` |
+| Documentação | `docs/s2-catalog-rls.md`, `docs/supabase-dev-env.md`, `docs/security-and-documentation.md` |
+| Git | Branch `feat/s2-catalog-approved-jobs`; commit `feat(jobs): connect home listing to approved jobs` |
+| Escopo | Sem OAuth, Gemini, deploy, Storage buckets nem curadoria |
+
+**Observações (não bloqueiam merge):** (1) PR #4 inclui docs também presentes no PR #3 — reconciliar ao mergear (fechar #3 como duplicado ou rebase). (2) Buckets de Storage para `logo_path` ficam para Sprint 3+. (3) `GRANT SELECT` em `profiles`/`applications` para `anon` é redundante com RLS — considerar restringir grants em hardening futuro. (4) P-03 (`location` texto livre vs. decomposição) permanece decisão humana.
+
+**Pendente humano:** reconciliar PR #3; C-03 (orçamento Supabase); P-03.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -334,8 +352,14 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 | S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | **Concluída** — merge `86e590e` em `main`; bases legais aguardam DPO |
-| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | **Aprovada** pelo Tech Lead (2026-08-16); merge do PR `chore/s1-04-branch-protection` pendente |
-| S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
+| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | **Concluída** — merge `2cf7195` em `main` |
+| S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | C-01: **Vercel** (2026-08-16); projeto Supabase de teste operacional |
+
+### Sprint 2 — catálogo público (entrega única)
+
+| ID | Tipo | Perfil | Objetivo | Estado |
+|---|---|---|---|---|
+| S2-01 | Dados / integração | Fullstack Engineer | Migration/seed fictício, RLS visitante, Home e detalhe ligados a vagas `approved` | **Concluída** — merge via PR #4 |
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
 
@@ -418,7 +442,8 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Sprint 2:** aplicar migrations no projeto de teste (SQL Editor) e preencher `.env.local` via canal seguro. PR `feat/s2-catalog-approved-jobs`. Evidência RLS: [`docs/s2-catalog-rls.md`](s2-catalog-rls.md).
-2. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
-3. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
-4. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
+1. **Mantenedor:** reconciliar PR #3 (fechar como duplicado ou rebase mínimo após merge do #4).
+2. **Executor (Sprint 3):** CRUD admin de vagas/empresas com auth administrativa preparatória e validação de entrada.
+3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
+4. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; P-03 (`location`) e C-03 (orçamento Supabase).
+5. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
