@@ -74,6 +74,9 @@ Commits iniciais em `main` (S1-01/S1-02) foram exceção autorizada. Da S1-03 em
 - PR aberto; CI verde
 - Revisão humana e squash merge pelo mantenedor
 
-## Proteção recomendada em `main` (GitHub)
+## Proteção de `main` (GitHub) — habilitada em 2026-08-16
 
-Ação humana: exigir PR, status check **CI**, bloquear push direto, preferir squash merge.
+Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. Squash merge é o único método permitido no repositório.
+
+Evidência: [`docs/s1-04-branch-protection.md`](s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
+

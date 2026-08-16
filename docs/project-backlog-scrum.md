@@ -268,7 +268,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente (após merge de S1-03):** S1-04 em branch dedicada (branch protection no GitHub é ação humana). Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+**Primeira ação do agente (após merge de S1-04):** Sprint 2 só começa com C-01 e credenciais de Supabase de desenvolvimento. Não iniciar OAuth, Gemini, deploy ou alterações de curadoria sem as decisões humanas deste documento.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -284,6 +284,21 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 | Commits | Commit `36ce67c` fora do Conventional Commits — usar título `docs(lgpd): add S1-03 personal data inventory for DPO review` no squash merge |
 
 **Pendente humano (não bloqueia aprovação técnica):** DPO aceitar bases legais candidatas.
+
+#### Revisão Tech Lead — S1-04 (aprovada em 2026-08-16)
+
+| Critério | Resultado |
+|---|---|
+| `docs/contributing.md` | Branch, PR, Conventional Commits, DoD Git |
+| `.github/PULL_REQUEST_TEMPLATE.md` | Checklist com evidências e Conventional Commits |
+| Branch protection | Ruleset **Protect main** (`20903173`) ativo via API |
+| Evidência | `docs/s1-04-branch-protection.md` + `.github/branch-protection-main.ruleset.json` |
+| Regras | PR obrigatório, CI **Lint, test and build**, sem force-push/delete em `main` |
+| Git | Branch `chore/s1-04-branch-protection`; commit `chore(process): document branch protection on main` |
+| Qualidade | CI verde no PR; `pnpm lint`, 7 testes e build verdes no `pwsh` |
+| Escopo | Processo/documentação; sem alteração de produto |
+
+**Observação:** zero aprovações obrigatórias no ruleset (mantenedor único); revisão humana permanece no DoD. Reavaliar quando houver segundo mantenedor.
 
 #### Revisão Tech Lead — S1-02 (aprovada em 2026-08-15)
 
@@ -317,8 +332,8 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 |---|---|---|---|---|
 | S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
-| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | **Aprovada** pelo Tech Lead (2026-08-15); bases legais aguardam DPO |
-| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | Parcial — `docs/contributing.md`, Conventional Commits e PR template; falta branch protection (humano) |
+| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | **Concluída** — merge `86e590e` em `main`; bases legais aguardam DPO |
+| S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | **Aprovada** pelo Tech Lead (2026-08-16); merge do PR `chore/s1-04-branch-protection` pendente |
 | S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
@@ -350,7 +365,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 - **Escopo:** [`docs/contributing.md`](contributing.md) (branch, PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)), `.github/PULL_REQUEST_TEMPLATE.md`, checklist de evidência.
 - **Aceite:** guia e template versionados; DoD exige PR + Conventional Commits + CI verde.
-- **Estado:** guia, template e regras no backlog; falta branch protection no GitHub (humano).
+- **Revisão:** aprovada. Ruleset ativo; evidência em `docs/s1-04-branch-protection.md`. Squash merge: `chore(process): document branch protection on main`.
 
 #### S1-05 — Hospedagem e ambiente (humano)
 
@@ -402,9 +417,9 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Mantenedor:** merge do PR `docs/s1-03-lgpd-inventory` com título `docs(lgpd): add S1-03 personal data inventory for DPO review` após CI verde.
-2. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
-3. **Executor (S1-04):** branch protection no GitHub (humano); demais itens de S1-04 já parcialmente atendidos.
+1. **Mantenedor:** squash merge do PR #2 (`chore/s1-04-branch-protection`) com título `chore(process): document branch protection on main`; apagar a branch após merge.
+2. **Sprint 1 encerrado** (S1-01 a S1-04). **Sprint 2 bloqueado** até C-01 e credenciais Supabase de desenvolvimento.
+3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
 4. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
 5. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
 6. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
