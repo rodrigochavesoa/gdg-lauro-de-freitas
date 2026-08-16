@@ -188,14 +188,14 @@ Uma história é concluída quando:
 | P0 | Design System | Alinhar o MVP à referência visual do DevFest Lauro e criar tokens globais de UI | V1 | DS-02 implementada; DS-01 e DS-05 pendentes de revisão formal |
 | P1 | Design System | Consolidar biblioteca oficial no Figma, revisão colaborativa e handoff para produção | Transversal | Bloqueado: equipe ainda não possui acesso aos componentes Figma |
 | P0 | LGPD | Consentimento granular e registro de preferências por finalidade | Transversal | Não iniciado — bloqueia produção |
-| P0 | LGPD | Aplicar e testar RLS por perfil de acesso | Transversal | Visitante (anon) validado; admin/candidato — Sprint 3+ / Sprint 5 |
+| P0 | LGPD | Aplicar e testar RLS por perfil de acesso | Transversal | Visitante (anon) + admin autenticado validados (`pnpm test:rls`); candidato OAuth — Sprint 5 |
 | P0 | LGPD | Exportação, correção e exclusão de dados pessoais | Transversal | Não iniciado — bloqueia produção |
 | P0 | LGPD | Auditoria de operações sobre dados pessoais | Transversal | Não iniciado — bloqueia produção |
 | P0 | LGPD | Anonimização/minimização de dados usados em ML | V3 | Não iniciado — bloqueia funcionalidades de ML com dados pessoais |
 | P0 | LGPD | Protocolo, registro e comunicação de incidentes | Transversal | Não iniciado — bloqueia produção |
 | P0 | Dados | Aplicar migration, configurar RLS, buckets de Storage e dados de exemplo | V1 | Migrations + seed fictício aplicáveis; RLS visitante ok; **Storage (logos) adiado** |
 | P0 | Vagas públicas | Conectar listagem, filtros e detalhe ao banco com apenas vagas aprovadas | V1 | **Concluída** — merge `19ffd1c` (PR #4) |
-| P0 | Administração | Autenticação administrativa e CRUD validado de vagas/empresas | V1 | UI mockada; **S3-01** em execução — backend + auth admin mínima |
+| P0 | Administração | Autenticação administrativa e CRUD validado de vagas/empresas | V1 | **Concluída** — merge `4fbf0bc` (PR #10); auth e-mail/senha + CRUD `pending` |
 | P1 | Ingestão | Modelar origem da vaga, submissão de empresas, conectores de API, fila, deduplicação e tratamento de falhas | V1/V2 | Novo — solicitado pelo Tech Lead |
 | P1 | Ingestão | Avaliar scrapers por fonte, termos de uso, base legal e manutenção antes de construir conectores | V1/V2 | Novo — depende de aprovação de fontes |
 | P1 | Curadoria | Fluxo pendente → aprovação/rejeição, histórico e publicação Realtime | V1 | Não iniciado |
@@ -269,7 +269,26 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** Home e detalhe consomem vagas `approved` via Supabase (`loadApprovedJobs`, `mapJob`). Login, Admin, candidatura e curadoria permanecem mockados ou desconectados. Admin UI existe (DS-02); RLS com `is_admin()` já está na migration `0001`.
 
-**Primeira ação do agente:** Sprint 3 — história **S3-01**: auth admin mínima (e-mail/senha no projeto de teste; sem Google OAuth), CRUD de empresas/vagas com validação, persistência `pending`, testes e `docs/s3-admin-crud.md` no PR `feat/s3-admin-crud`. Credenciais só em `.env.local` / `docs-local/`. Revisão Tech Lead e atualizações deste backlog vão em PR de governança separado (`docs/backlog-…`). Não iniciar curadoria (Sprint 4), OAuth candidato (Sprint 5), Gemini, deploy público.
+**Primeira ação do agente:** Sprint 4 — curadoria (aprovação/rejeição de vagas `pending`, histórico e publicação). Branch e ONE-LINER a definir após fechamento de D-01 a D-06 pelo PO. Não iniciar OAuth candidato (Sprint 5), Gemini, deploy público.
+
+#### Revisão Tech Lead — Sprint 3 / S3-01 (aprovada em 2026-08-16)
+
+| Critério | Resultado |
+|---|---|
+| Auth admin | E-mail/senha; gate `profiles.role = 'admin'`; não-admin deslogado |
+| CRUD | `INSERT`/`UPDATE`/`SELECT` em `companies` e `jobs`; novas vagas sempre `pending` |
+| RLS | `pnpm test:rls` verde — anon só `approved`; admin vê pending+approved e cadastra pending |
+| Migration | `202608160003_admin_write_grants.sql` + rollback em `docs/s3-admin-crud.md` |
+| UI | Layout Admin mockado preservado (DS-06); `Admin.jsx` extraído de `App.jsx` |
+| Segredos | Nenhum token real no diff; credenciais admin só em `docs-local/` |
+| Qualidade | CI verde no PR #10; `pnpm lint`, 16 testes, `pnpm run build` e `test:rls` verdes no `pwsh` |
+| Documentação | `docs/s3-admin-crud.md` no PR funcional |
+| Git | Merge `4fbf0bc` — PR #10 `feat(admin): connect admin CRUD to Supabase with pending jobs` |
+| Escopo | Sem OAuth, curadoria, Gemini, deploy, Storage buckets nem `service_role` no browser |
+
+**Observações (registro):** PR ~456 linhas — limite superior do “médio”, coeso. Erros na UI usam classe `success` (polish futuro). Teste RLS não cobre candidato autenticado não-admin (policy `is_admin()` já protege). Usuário admin de homologação criado pelo humano (`docs-local/admin-test-user.md`).
+
+**Pendente humano:** C-03 (orçamento Supabase); P-03 (`location`); D-01 a D-06 antes do Sprint 4; DPO — bases legais em `docs/lgpd-data-inventory.md`.
 
 #### Revisão Tech Lead — Sprint 2 (aprovada em 2026-08-16)
 
@@ -287,7 +306,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Observações (registro):** PR #3 fechado como duplicado. Buckets de Storage para `logo_path` adiados. `GRANT SELECT` amplo em `profiles`/`applications` — hardening futuro. P-03 (`location`) permanece decisão humana.
 
-**Pendente humano:** C-03 (orçamento Supabase); P-03; usuário admin de teste no Supabase (`profiles.role = 'admin'`).
+**Pendente humano:** C-03 (orçamento Supabase); P-03.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -365,7 +384,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 | ID | Tipo | Perfil | Objetivo | Estado |
 |---|---|---|---|---|
-| S3-01 | Admin / backend | Fullstack Engineer | Auth admin mínima + CRUD empresas/vagas (`pending`), validação, testes, doc da feature | **Em execução** — branch `feat/s3-admin-crud` |
+| S3-01 | Admin / backend | Fullstack Engineer | Auth admin mínima + CRUD empresas/vagas (`pending`), validação, testes, doc da feature | **Concluída** — merge `4fbf0bc` (PR #10) |
 
 #### S3-01 — CRUD administrativo
 
@@ -461,8 +480,8 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Executor (S3-01):** branch `feat/s3-admin-crud` — auth admin mínima + CRUD + `docs/s3-admin-crud.md`; PR funcional separado de governança.
-2. **Humano:** criar usuário admin de teste no Supabase (`profiles.role = 'admin'`); registrar em `docs-local/` (gitignored).
+1. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4 (curadoria).
+2. **Tech Lead:** ONE-LINER Sprint 4 ao Executor após gates humanos.
 3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
-4. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; P-03 (`location`) e C-03 (orçamento Supabase).
+4. **Humano:** P-03 (`location`) e C-03 (orçamento Supabase).
 5. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
