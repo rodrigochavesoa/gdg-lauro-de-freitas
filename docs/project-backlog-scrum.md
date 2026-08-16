@@ -85,9 +85,9 @@ O deploy público só pode ocorrer quando C-01 a C-06 estiverem decididos, houve
 - Marca dinâmica no Login com indicador “VAGAS”, respeitando `prefers-reduced-motion` para desativar animações quando solicitado pelo sistema do usuário.
 - Menu hamburger funcional e acessível no mobile: abre/fecha, navega, devolve o foco ao botão de origem e não usa `aria-hidden` em elementos focados.
 - Rodapé mobile preserva a assinatura da comunidade em segunda linha; metadados PWA incluem `mobile-web-app-capable` e suporte Apple legado.
-- Pacotes visuais de referência adicionados em `docs/design-system/referencias/`; há uma cópia aninhada acidental de `favicons_package` a ser removida em uma tarefa de organização, sem impacto no runtime.
+- Pacotes visuais de referência em `docs/design-system/referencias/`. A cópia aninhada de `favicons_package` foi inventariada (SHA-256) e removida em S1-02; `public/` e a pasta pai permaneceram intactos. Inventário: `docs/favicons-inventory.md`.
 
-Arquivos: `src/main.jsx`, `src/styles.css` e `package.json`.
+Arquivos: `src/main.jsx` (entrada), `src/App.jsx` (protótipo), `src/lib/filter-jobs.js`, `src/styles.css` e `package.json`.
 
 ### Dados, segurança e IA preparados
 
@@ -107,7 +107,7 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 - Supabase, Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
 - Firebase Auth e Firebase Hosting não foram configurados.
 - Não há API Routes, validação Zod ou ambiente de produção.
-- S1-01 entregue: ESLint, Vitest (busca/filtros + smoke de renderização), scripts `lint`/`test` e GitHub Actions com lint, testes e build. Comandos em `README.md` e `docs/quality-ci.md`.
+- **S1-01 aprovada pelo Tech Lead (2026-08-15):** ESLint 9, Vitest 3 (6 testes de busca/filtros + 1 smoke da Home), scripts `lint`/`test`/`test:watch`, `packageManager` pnpm 10.30.1, `.gitignore` e GitHub Actions (`.github/workflows/ci.yml`) com `pnpm install --frozen-lockfile`, lint, test e build. Evidência local em `pwsh`: 7 testes verdes e `vite build` ok. CI remoto ainda depende de Git/Actions. Runtime continua com `latest` — não ampliar esse padrão.
 
 ## Decisões técnicas pendentes
 
@@ -181,7 +181,7 @@ Uma história é concluída quando:
 
 | Prioridade | Épico | História / entrega | Versão | Estado |
 |---:|---|---|---|---|
-| P0 | Fundação | Definir ambiente local, lint, testes e CI | V1 | S1-01 implementada; CI remoto depende de repositório Git e Actions |
+| P0 | Fundação | Definir ambiente local, lint, testes e CI | V1 | **S1-01 aprovada** (2026-08-15); CI remoto pendente de Git/Actions |
 | P0 | Fundação | Configurar Supabase Auth com Google OAuth e definir a hospedagem | V1/V2 | Autenticação decidida; configuração pendente |
 | P0 | Design System | Alinhar o MVP à referência visual do DevFest Lauro e criar tokens globais de UI | V1 | DS-02 implementada; DS-01 e DS-05 pendentes de revisão formal |
 | P1 | Design System | Consolidar biblioteca oficial no Figma, revisão colaborativa e handoff para produção | Transversal | Bloqueado: equipe ainda não possui acesso aos componentes Figma |
@@ -263,15 +263,41 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente:** executar **S1-01** (lint, testes e CI). Em seguida, nesta ordem: **S1-02** ativos duplicados → **S1-03** inventário LGPD → **S1-04** convenções de PR e evidência. Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+**Primeira ação do agente:** executar **S1-03** (inventário LGPD). Em seguida: **S1-04** convenções de PR e evidência. Não iniciar Supabase, OAuth, Gemini, deploy ou alterações de curadoria sem o ambiente, credenciais e decisões humanas indicadas neste documento.
+
+#### Revisão Tech Lead — S1-02 (aprovada em 2026-08-15)
+
+| Critério | Resultado |
+|---|---|
+| Inventário com hashes | `docs/favicons-inventory.md` — 9 arquivos, SHA-256 documentados |
+| Pasta aninhada | Removida; `Test-Path` confirma ausência |
+| Pasta pai | 9 arquivos intactos em `docs/design-system/referencias/favicons_package/` |
+| `public/` | Intacto; hashes distintos do pacote de referência (correto) |
+| Referências de runtime | `index.html`, `App.jsx`, `site.webmanifest` apontam só para `/public` |
+| Qualidade | `pnpm lint`, `pnpm test` (7) e `pnpm run build` verdes no `pwsh` |
+| Escopo | Sem alteração de UI, tokens, lint/CI ou integrações |
+
+#### Revisão Tech Lead — S1-01 (aprovada em 2026-08-15)
+
+| Critério | Resultado |
+|---|---|
+| `pnpm lint` em `pwsh` | Passou |
+| `pnpm test` | 7 testes em 2 arquivos |
+| `pnpm run build` | Vite 8, `dist/` gerado |
+| Scripts e deps de qualidade pinadas | Atendido; runtime ainda `latest` (dívida conhecida, fora do S1-02) |
+| Workflow CI | `.github/workflows/ci.yml` em push/PR; Node 22; pnpm 10.30.1; `--frozen-lockfile` |
+| Documentação | `README.md` e `docs/quality-ci.md` |
+| Escopo | Extração de `filterJobs`/`App` sem mudança de Design System nem integrações |
+
+**Não bloqueia S1-02:** Actions ainda não validado em PR real; `supabase/**` fora do ESLint; dependências de runtime não pinadas.
 
 ### Sprint 1 — histórias executáveis
 
 | ID | Tipo | Perfil | Objetivo | Estado |
 |---|---|---|---|---|
-| S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | Implementada localmente; CI remoto depende de Git/Actions |
-| S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | Bloqueada por S1-01 |
-| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | Bloqueada por S1-01; não implementa controles |
+| S1-01 | Qualidade / DevOps | DevOps/Quality Engineer | Lint, testes básicos e pipeline CI que falha PR com erro de lint, teste ou build | **Aprovada** pelo Tech Lead (2026-08-15) |
+| S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
+| S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | Pronta para execução |
 | S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | Pode seguir S1-01; complementar S1-03 |
 | S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
 
@@ -283,11 +309,15 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 - **Fora:** não conectar serviços externos; não alterar tokens visuais; não extrair Design System novo; não rodar a validação local via WSL.
 - **Riscos:** `package.json` usa `latest` em runtime — não ampliar esse padrão; CI sem repositório remoto não valida PRs reais.
 - **Aceite:** `pnpm lint`, `pnpm test` e `pnpm run build` passam localmente; workflow em `.github/workflows/` falha o PR se qualquer um falhar; README ou `docs/` documenta os comandos.
+- **Revisão:** aprovada. Evidência reexecutada pelo Tech Lead em `pwsh` (lint, 7 testes, build).
 
 #### S1-02 — Ativos duplicados
 
-- **Escopo:** mapear `docs/design-system/referencias/favicons_package/favicons_package/` versus a pasta pai e os arquivos em `public/`; propor remoção apenas da cópia aninhada se for idêntica e não referenciada.
-- **Aceite:** inventário no PR; nenhum arquivo de runtime removido; build inalterado; exclusão só da duplicata validada.
+- **Escopo:** comparar byte a byte (ou hash) `docs/design-system/referencias/favicons_package/favicons_package/` com a pasta pai e com `public/` (`favicon.svg`, `site.webmanifest` e demais ícones de runtime). Registrar o inventário em `docs/` (arquivo curto). Remover **somente** a pasta aninhada se for cópia idêntica e **não referenciada** por HTML, CSS, JSX ou manifest. Não apagar `public/` nem a pasta pai sem prova.
+- **Fora:** não alterar tokens, componentes, PWA em runtime, lint/CI nem Design System.
+- **Riscos:** apagar ícone usado em `index.html` ou `site.webmanifest` quebra favicon/PWA; WSL deixa `Get-FileHash`/`pnpm` mais lentos — usar `pwsh`.
+- **Aceite:** inventário versionado com hashes/caminhos; exclusão só da duplicata validada; `public/` intacto; `pnpm lint`, `pnpm test` e `pnpm run build` verdes no `pwsh`.
+- **Revisão:** aprovada. Pasta aninhada idêntica à pai (9/9 SHA-256); sem referência de runtime; removida. Evidência em `docs/favicons-inventory.md`; hash do pai (`862FEC07…`) conferido pelo Tech Lead.
 
 #### S1-03 — Inventário LGPD
 
@@ -374,7 +404,7 @@ Sem CI verde, a história do Sprint 1 não entra em Done.
 
 ## Próximas etapas imediatas
 
-1. **Executor Agent (após S1-01):** S1-02, S1-03 e S1-04. Lint, testes e workflow CI já estão no repositório; o check remoto só fica verde após existir Git remoto e Actions autorizado.
+1. **Executor Agent (S1-03):** inventário de dados pessoais e riscos LGPD. Em seguida S1-04.
 2. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
 3. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
 4. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.

@@ -1,5 +1,7 @@
 # Qualidade local e CI — S1-01
 
+**Status:** aprovada pelo Tech Lead em 2026-08-15. Evidência local reexecutada em PowerShell: `pnpm lint`, 7 testes Vitest e `pnpm run build` passaram.
+
 Validação do frontend Vite/React. Execute os comandos em **PowerShell (`pwsh`)**, sem WSL.
 
 ## Pré-requisitos
