@@ -16,12 +16,14 @@ Este repositório centraliza as definições, arquitetura e planejamento estrat�
 
 O ecossistema foi desenhado para operar com **Custo Zero ($0/mês) até atingir 10.000 usuários ativos**, alavancando os planos gratuitos (*free tiers*) das tecnologias modernas.
 
-*   **Frontend:** Next.js 14 (App Router), Tailwind CSS e shadcn/ui.
-*   **Backend & Infra:** Next.js API Routes, Supabase Edge Functions e Vercel Edge Runtime.
-*   **Autenticação:** Firebase Auth (com Login Google em 1-click).
+**MVP atual:** frontend **React/Vite** com CSS e tokens do Design System. Evolução planejada para Next.js, Tailwind CSS e shadcn/ui.
+
+*   **Frontend:** React/Vite (MVP); evolução para Next.js 14 (App Router), Tailwind CSS e shadcn/ui.
+*   **Backend & Infra:** Supabase (PostgreSQL, Edge Functions, Storage, Realtime).
+*   **Autenticação:** **Supabase Auth** com Google OAuth (login em 1 clique).
 *   **Banco de Dados & Armazenamento:** PostgreSQL (Supabase), Supabase Storage e Realtime subscriptions.
-*   **Hospedagem & CI/CD:** Firebase Hosting e GitHub Actions.
-*   **Inteligência Artificial & Dados:** Gemini API, Xenova/ONNX (browser ML), scikit-learn e `pgvector`.
+*   **Hospedagem & CI/CD:** **Vercel** (decisão C-01) e GitHub Actions.
+*   **Inteligência Artificial & Dados:** Gemini API (Edge Functions), `pgvector` e roadmap para Xenova/ONNX e scikit-learn.
 
 ---
 

@@ -34,7 +34,7 @@ Princípios do produto:
 
 | Serviço | Uso permitido nesta fase | Limite operacional |
 |---|---|---|
-| Vercel ou Firebase Hosting | Prévia, validação visual e homologação interna | Escolher apenas uma plataforma antes do deploy público. |
+| Vercel (C-01) | Prévia, validação visual e homologação interna | Plano free tier; C-02 valida Hobby vs comercial antes do deploy público. |
 | Supabase Free | Dados fictícios ou autorizados, RLS e Edge Functions em teste | Banco, Storage e egress dentro das franquias; projeto pode pausar por inatividade. |
 | Gemini Free | Testes com vagas fictícias ou textos públicos, sem dados pessoais de candidatos | Não enviar perfis, currículo, e-mails ou identificadores. |
 | Resend Free | Testes de template para endereços da equipe | Respeitar os limites de envio diário e mensal. |
@@ -46,7 +46,7 @@ Princípios do produto:
 
 | Componente | Decisão ou ação obrigatória antes da produção |
 |---|---|
-| Hospedagem | Confirmar Vercel ou Firebase Hosting. Caso seja Vercel, validar se o plano gratuito é elegível para a natureza do GDGJobs; caso contrário, provisionar plano comercial. |
+| Hospedagem | **Vercel** (C-01, 2026-08-16). Validar plano Hobby vs comercial (C-02) antes do deploy público. |
 | Supabase | Configurar projeto de produção, alertas de uso, backup, política de retenção e plano de upgrade para além das franquias. |
 | Gemini | Definir modelo, região, limites, orçamento e condições de tratamento de dados. Dados pessoais não podem seguir para IA sem os controles LGPD aprovados. |
 | Resend | Estimar volume de e-mails por evento, configurar domínio, SPF/DKIM/DMARC e escolher plano compatível com a projeção. |
@@ -57,7 +57,7 @@ Princípios do produto:
 
 | ID | Decisão | Responsável | Prazo |
 |---|---|---|---|
-| C-01 | Escolher hospedagem: Vercel ou Firebase Hosting. | Product Owner + Tech Lead | Sprint 1 |
+| C-01 | **Vercel** — hospedagem do frontend (decidido 2026-08-16). Preview/homologação; C-02 valida plano Hobby vs comercial. | Product Owner + Tech Lead | Sprint 1 — fechado |
 | C-02 | Definir se o plano de produção pode usar Vercel Hobby ou requer plano comercial. | Tech Lead + responsável financeiro | Antes do primeiro deploy público |
 | C-03 | Definir orçamento mensal, alertas de 50/80/100% e responsável por aprovar upgrade. | Product Owner + financeiro | Sprint 2 |
 | C-04 | Definir política de uso do Gemini em produção, incluindo dados permitidos, limites de tokens e retenção. | DPO/privacidade + Tech Lead | Antes do Sprint 9 |
@@ -105,7 +105,7 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 ### Limites atuais
 
 - Supabase, Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
-- Firebase Auth e Firebase Hosting não foram configurados.
+- Hospedagem **Vercel** decidida (C-01); conta e preview ainda não provisionados. Firebase Auth e Firebase Hosting **fora do escopo**.
 - Não há API Routes, validação Zod ou ambiente de produção.
 - **S1-01 aprovada pelo Tech Lead (2026-08-15):** ESLint 9, Vitest 3 (6 testes de busca/filtros + 1 smoke da Home), scripts `lint`/`test`/`test:watch`, `packageManager` pnpm 10.30.1, `.gitignore` e GitHub Actions (`.github/workflows/ci.yml`) com `pnpm install --frozen-lockfile`, lint, test e build. Evidência local em `pwsh`: 7 testes verdes e `vite build` ok. CI remoto ainda depende de Git/Actions. Runtime continua com `latest` — não ampliar esse padrão.
 
@@ -113,11 +113,13 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 
 Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 
-1. **Hospedagem:** Vercel para frontend e rotas/Edge Functions, ou Firebase Hosting. A recomendação é Vercel se a aplicação evoluir para Next.js; Firebase Hosting é suficiente para um frontend Vite estático.
+1. **Hospedagem (C-01 — fechado):** **Vercel** para frontend (MVP React/Vite estático; evolução compatível com Next.js). Firebase Hosting descartado para GDGJobs.
 2. **UI:** migrar o CSS atual para Tailwind CSS e componentes shadcn/ui, como definido no escopo inicial.
 3. **Curadoria:** definir quem aprova, quantos votos são necessários, prazo de análise e regra para rejeição/recadastro.
 
 ### Decisão registrada
+
+**C-01 — Hospedagem: Vercel** (Product Owner + Tech Lead, 2026-08-16). Preview/homologação do frontend React/Vite via Vercel; backend permanece no Supabase. C-02 (plano Hobby vs comercial) pendente antes do deploy público.
 
 **Autenticação aprovada: Supabase Auth com Google OAuth.** Firebase Auth não fará parte do escopo. A tabela `profiles` permanece vinculada a `auth.users`, e o Sprint 5 deverá concluir o onboarding e a autenticação real.
 
@@ -268,7 +270,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente (após merge de S1-04):** Sprint 2 só começa com C-01 e credenciais de Supabase de desenvolvimento. Não iniciar OAuth, Gemini, deploy ou alterações de curadoria sem as decisões humanas deste documento.
+**Primeira ação do agente:** Sprint 2 — aplicar migration no Supabase de desenvolvimento (credenciais humanas). Preview Vercel só após credenciais e configuração de ambiente. Não iniciar OAuth, Gemini, deploy público ou curadoria sem as decisões deste documento.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -334,7 +336,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 | S1-02 | Organização | Fullstack Engineer | Inventariar e tratar a cópia aninhada de `favicons_package` sem apagar arquivo sem validação | **Aprovada** pelo Tech Lead (2026-08-15) |
 | S1-03 | Privacidade | Security & LGPD Engineer | Inventário de dados pessoais e riscos LGPD com base no protótipo e na migration preparada | **Concluída** — merge `86e590e` em `main`; bases legais aguardam DPO |
 | S1-04 | Processo | DevOps/Quality Engineer | Formalizar convenções de PR, evidência e Definition of Done no repositório | **Aprovada** pelo Tech Lead (2026-08-16); merge do PR `chore/s1-04-branch-protection` pendente |
-| S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar se haverá projeto Supabase de desenvolvimento | Fora do Executor |
+| S1-05 | Decisão | Humano (PO + Tech Lead) | Fechar C-01 (Vercel vs Firebase Hosting) e confirmar Supabase de desenvolvimento | **C-01 fechado (Vercel)**; credenciais Supabase ainda pendentes |
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
 
@@ -369,14 +371,15 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 #### S1-05 — Hospedagem e ambiente (humano)
 
-- C-01 permanece com Product Owner + Tech Lead.
-- Executor não provisiona Vercel, Firebase nem Supabase.
+- **C-01:** **Vercel** — decidido em 2026-08-16 (PO + Tech Lead).
+- **Pendente:** projeto/credenciais Supabase de desenvolvimento; C-02 (plano Vercel) antes do deploy público.
+- Executor não provisiona contas sem autorização; configura preview Vercel no Sprint 2 quando houver credenciais.
 
 **Validação obrigatória em toda entrega do agente:** build de produção, critérios de aceite da história, documentação atualizada e evidência visual para mudanças de interface. Para UI, consultar `docs/design-system-communication.md` e as referências antes de criar ou alterar componentes.
 
 | Sprint | Meta | Entregas principais | Executor técnico | Dependência humana / critério de saída |
 |---|---|---|---|---|
-| 1 | Preparar base confiável | Lint, testes, CI, inventário de dados pessoais, organização de ativos duplicados e definição de convenções de PR | Agente GDGJobs | Tech Lead/PO escolhem hospedagem (C-01); pipeline valida build, lint e testes |
+| 1 | Preparar base confiável | Lint, testes, CI, inventário de dados pessoais, organização de ativos duplicados e definição de convenções de PR | Agente GDGJobs | C-01 Vercel fechado; pipeline valida build, lint e testes |
 | 2 | Publicar catálogo real | Aplicar migration em Supabase de desenvolvimento, seed, Storage, RLS testada e conectar listagem/detalhe | Agente GDGJobs | Responsável fornece projeto/credenciais de desenvolvimento; visitante vê apenas vagas aprovadas |
 | 3 | Administrar vagas | Autenticação administrativa, CRUD com validação de entrada e trilha de testes | Agente GDGJobs | PO fecha D-01 a D-06 até o encerramento; admin cadastra vaga pendente com segurança |
 | 4 | Curar e publicar | Aprovação/rejeição, histórico, auditoria e Realtime | Agente GDGJobs | PO/Comunidade aprovam regras de curadoria; vaga aprovada aparece no catálogo sem recarregar |
@@ -417,11 +420,9 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Mantenedor:** squash merge do PR #2 (`chore/s1-04-branch-protection`) com título `chore(process): document branch protection on main`; apagar a branch após merge.
-2. **Sprint 1 encerrado** (S1-01 a S1-04). **Sprint 2 bloqueado** até C-01 e credenciais Supabase de desenvolvimento.
-3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
-4. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
-5. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
-6. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
-7. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
-8. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
+1. **Sprint 2:** credenciais Supabase de desenvolvimento (bloqueador principal). C-01 **Vercel** fechado; C-02 antes do deploy público.
+2. **Responsável técnico do Supabase:** criar projeto de desenvolvimento e fornecer variáveis seguras (sem secrets no repo).
+3. **Executor Agent:** migration, seed, RLS e catálogo real (Sprint 2); preview Vercel quando autorizado.
+4. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
+5. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4.
+6. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD antes de produção.
