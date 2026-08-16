@@ -1,3 +1,26 @@
+<p align="center">
+  <img src="docs/assets/kickoff-cover.png" alt="Kick-off de Projetos – GDG Lauro de Freitas" width="100%" />
+</p>
+
+<p align="center">
+  <a href="https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/actions/workflows/ci.yml">
+    <img src="https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/actions/workflows/ci.yml/badge.svg" alt="CI — lint, test and build" />
+  </a>
+  <a href="https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/">
+    <img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?style=flat&logo=conventionalcommits&logoColor=white" alt="Conventional Commits" />
+  </a>
+  <br />
+  <img src="https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/Vite-646CFF?style=flat&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Supabase-3FCF8E?style=flat&logo=supabase&logoColor=white" alt="Supabase" />
+  <img src="https://img.shields.io/badge/Vercel-000000?style=flat&logo=vercel&logoColor=white" alt="Vercel" />
+  <img src="https://img.shields.io/badge/pnpm-10.30.1-F69220?style=flat&logo=pnpm&logoColor=white" alt="pnpm 10.30.1" />
+  <img src="https://img.shields.io/badge/Node.js-22-339933?style=flat&logo=nodedotjs&logoColor=white" alt="Node.js 22" />
+  <br />
+  <img src="https://img.shields.io/badge/LGPD-por%20design-2563EB?style=flat" alt="LGPD by design" />
+  <img src="https://img.shields.io/badge/GDG-Lauro%20de%20Freitas-4285F4?style=flat&logo=google&logoColor=white" alt="GDG Lauro de Freitas" />
+</p>
+
 # GDG Lauro de Freitas - Ecossistema de Projetos
 
 Este repositório centraliza as definições, arquitetura e planejamento estratégico para o desenvolvimento da plataforma digital do Google Developer Group (GDG) Lauro de Freitas. O ecossistema é composto por três projetos principais voltados para o impacto e engajamento da comunidade local.
@@ -14,14 +37,55 @@ Este repositório centraliza as definições, arquitetura e planejamento estrat�
 
 ## 🏗️ Arquitetura e Stack Técnica (GDGLAURO Jobs)
 
-O ecossistema foi desenhado para operar com **Custo Zero ($0/mês) até atingir 10.000 usuários ativos**, alavancando os planos gratuitos (*free tiers*) das tecnologias modernas.
+O kick-off do ecossistema GDG descreveu uma stack **completa** (Next.js, Tailwind, shadcn, Gemini, ML, etc.). O repositório **hoje** entrega o **MVP de homologação** em outra combinação — de propósito. Abaixo: o que está em uso, a visão alvo e **quando** cada tecnologia do escopo passa a fazer sentido.
 
-*   **Frontend:** Next.js 14 (App Router), Tailwind CSS e shadcn/ui.
-*   **Backend & Infra:** Next.js API Routes, Supabase Edge Functions e Vercel Edge Runtime.
-*   **Autenticação:** Firebase Auth (com Login Google em 1-click).
-*   **Banco de Dados & Armazenamento:** PostgreSQL (Supabase), Supabase Storage e Realtime subscriptions.
-*   **Hospedagem & CI/CD:** Firebase Hosting e GitHub Actions.
-*   **Inteligência Artificial & Dados:** Gemini API, Xenova/ONNX (browser ML), scikit-learn e `pgvector`.
+**Fase 1 (atual):** buscar **$0/mês** em desenvolvimento/homologação, com dados fictícios ou autorizados — sem promessa de escala de produção. Detalhes de custo: [`docs/project-backlog-scrum.md`](docs/project-backlog-scrum.md).
+
+### MVP atual — o que roda neste repositório (Sprints 1–3+)
+
+| Camada | Stack em uso | Papel |
+|---|---|---|
+| **Frontend** | React 19 + **Vite 8**, CSS com tokens do Design System (DS-02) | SPA: Home, detalhe, Admin mockado, Login |
+| **Dados & auth** | **Supabase** — PostgreSQL, RLS, Auth (preparação admin; Google OAuth no Sprint 5) | Catálogo `approved`, policies, Edge Functions preparadas |
+| **Cliente** | `@supabase/supabase-js` (publishable/anon no browser) | Leitura pública e futuro CRUD admin — **sem** `service_role` no frontend |
+| **Qualidade** | ESLint 9, Vitest 3, GitHub Actions | `lint`, `test`, `build` em todo PR |
+| **Hospedagem (decidida C-01)** | **Vercel** — deploy de `dist/` estático | Preview/homologação; produção pública só após gates LGPD |
+| **IA / ML** | Migration + Edge Functions **preparadas**; Gemini **não conectado** | Sprint 9+ |
+
+**Por que Vite (e não Next.js) nesta fase:**
+
+1. **Herança do protótipo** — a UI (Home, detalhe, Admin, DS-02) já existia em React/Vite antes das Sprints 1–2; migrar framework agora atrasaria catálogo, RLS e admin sem ganho imediato.
+2. **Backend no Supabase** — regras de negócio, RLS e Edge Functions ficam no Supabase; o browser consome API REST/RPC. Não precisamos de API Routes ou SSR do Next para o MVP.
+3. **Custo e simplicidade** — build estático (`pnpm run build` → `dist/`), CI verde, deploy na Vercel com fricção mínima na Fase 1.
+4. **Escopo de sprint** — S1 (CI), S2 (catálogo), S3 (admin CRUD) foram planejados sobre Vite; troca de framework não está no backlog imediato.
+
+Autenticação: **Supabase Auth** (não Firebase Auth). Google OAuth entra no Sprint 5.
+
+### Visão alvo — stack do escopo do ecossistema (pós-MVP)
+
+Stack solicitada no planejamento estratégico do GDG Lauro — **não descartada**, **não totalmente implementada**:
+
+| Tecnologia | Papel na visão | Quando adotar |
+|---|---|---|
+| **Next.js 14+ (App Router)** | Site unificado, rotas server-side, SEO de vagas públicas, middleware de auth | Quando houver necessidade de **SEO indexável**, integração forte com Site GDG ou BFF server-side — **decisão de PO/Tech Lead**, provavelmente pós-Sprint 6 ou produção inicial |
+| **Tailwind CSS + shadcn/ui** | UI escalável alinhada ao escopo inicial | Quando PO fechar migração de UI (pendência no backlog); preferível **antes** ou **junto** de migração Next, para não refatorar duas vezes |
+| **Next.js API Routes / Vercel Edge** | Endpoints server-side complementares | Só se Supabase Edge Functions + RLS **não** cobrirem um fluxo; evitar duplicar backend |
+| **Supabase** (PostgreSQL, RLS, Storage, Realtime, `pgvector`) | Fonte de verdade, auth, arquivos, busca semântica | **Já em uso** — expande em S3–S12 (admin, curadoria, candidaturas, matching) |
+| **Gemini API** | Enriquecimento de vagas com revisão humana | Sprint 9+, após política C-04 e gate LGPD |
+| **Xenova/ONNX, scikit-learn, `pgvector`** | ML e recomendação V2/V3 | Sprints 10–12; fairness e ADR-001/002 |
+| **Resend** | E-mails transacionais | Sprint 7 |
+| **GitHub Actions** | CI/CD | **Já em uso** |
+
+### Critérios para sair do MVP Vite
+
+Migrar ou reescrever em Next.js **só** quando **pelo menos dois** destes gatilhos forem aceitos pelo Product Owner + Tech Lead:
+
+- Páginas de vaga precisam de **SEO** e compartilhamento social em produção.
+- **Site Oficial GDG** e GDGJobs devem compartilhar o mesmo App Router / layout.
+- Volume ou requisitos de **auth server-side** (middleware, cookies httpOnly) superarem o modelo SPA + Supabase Auth.
+- **Tailwind + shadcn** aprovados e orçados — migração visual + framework numa janela planejada.
+
+Até lá, evoluir o produto **no Vite atual** conforme [`docs/project-backlog-scrum.md`](docs/project-backlog-scrum.md).
 
 ---
 
@@ -88,9 +152,9 @@ Para dúvidas ou suporte, entre em contato através do e-mail oficial da comunid
 
 ---
 
-## Desenvolvimento local — protótipo GDGJobs (MVP)
+## Desenvolvimento local — GDGJobs (MVP Vite)
 
-O incremento atual neste repositório é um frontend **React/Vite** com catálogo no Supabase de **teste**. Use **PowerShell (`pwsh`)** no Windows (não use WSL).
+O incremento **em execução** neste repositório é o MVP **React/Vite** descrito acima — catálogo no Supabase de **teste** (Sprint 2 concluída). Use **PowerShell (`pwsh`)** no Windows (não use WSL).
 
 ```powershell
 Copy-Item .env.example .env.local
