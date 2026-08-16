@@ -6,3 +6,6 @@ dist
 !.env.example
 *.local
 coverage
+
+# Documentação operacional sensível — somente local (nunca commitar)
+docs-local/

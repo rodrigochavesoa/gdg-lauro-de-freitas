@@ -104,9 +104,10 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 
 ### Limites atuais
 
-- Supabase, Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
+- Catálogo público lê vagas `approved` no Supabase de **teste** (publishable/anon). Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
 - Firebase Auth e Firebase Hosting não foram configurados.
 - Não há API Routes, validação Zod ou ambiente de produção.
+- Home lê vagas `approved` via Supabase (publishable/anon). Seed fictício em `supabase/migrations/202608160002_seed_fictitious_catalog.sql`. RLS do visitante: `docs/s2-catalog-rls.md`.
 - **S1-01 aprovada pelo Tech Lead (2026-08-15):** ESLint 9, Vitest 3 (6 testes de busca/filtros + 1 smoke da Home), scripts `lint`/`test`/`test:watch`, `packageManager` pnpm 10.30.1, `.gitignore` e GitHub Actions (`.github/workflows/ci.yml`) com `pnpm install --frozen-lockfile`, lint, test e build. Evidência local em `pwsh`: 7 testes verdes e `vite build` ok. CI remoto ainda depende de Git/Actions. Runtime continua com `latest` — não ampliar esse padrão.
 
 ## Decisões técnicas pendentes
@@ -268,7 +269,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** o protótipo visual compila com `pnpm run build`; Home, detalhe, Login, Admin, navegação mobile, favicon/PWA e DS-02 estão implementados em modo demonstrativo. O array de vagas, autenticação, cadastro, candidatura e curadoria ainda são simulados no frontend.
 
-**Primeira ação do agente (após merge de S1-04):** Sprint 2 só começa com C-01 e credenciais de Supabase de desenvolvimento. Não iniciar OAuth, Gemini, deploy ou alterações de curadoria sem as decisões humanas deste documento.
+**Primeira ação do agente:** Sprint 2 — catálogo `approved` no Supabase de teste. Credenciais só em `.env.local` / `docs-local/`. Não iniciar OAuth, Gemini, deploy público ou curadoria sem as decisões deste documento.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -417,11 +418,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Mantenedor:** squash merge do PR #2 (`chore/s1-04-branch-protection`) com título `chore(process): document branch protection on main`; apagar a branch após merge.
-2. **Sprint 1 encerrado** (S1-01 a S1-04). **Sprint 2 bloqueado** até C-01 e credenciais Supabase de desenvolvimento.
-3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
-4. **Product Owner + Tech Lead:** decidir a hospedagem (C-01) em paralelo; sem essa decisão o Sprint 2 não inicia deploy, apenas pode receber credenciais de Supabase de desenvolvimento.
-5. **Responsável técnico do Supabase:** criar o projeto de desenvolvimento e fornecer variáveis de ambiente seguras; nenhum segredo deve ser registrado no repositório. Bloqueia o Sprint 2.
-6. **Executor Agent:** aplicar e testar a migration somente após receber o ambiente (Sprint 2), com cenários de visitante, candidato e administrador.
-7. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
-8. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
+1. **Sprint 2:** aplicar migrations no projeto de teste (SQL Editor) e preencher `.env.local` via canal seguro. PR `feat/s2-catalog-approved-jobs`. Evidência RLS: [`docs/s2-catalog-rls.md`](s2-catalog-rls.md).
+2. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
+3. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; o agente não deve inferir regras de curadoria.
+4. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.

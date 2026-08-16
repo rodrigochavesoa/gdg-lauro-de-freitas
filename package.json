@@ -10,9 +10,11 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:rls": "node scripts/check-rls.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.112.3",
     "@vitejs/plugin-react": "latest",
     "lucide-react": "latest",
     "react": "latest",
