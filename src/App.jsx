@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowUpRight, BadgeCheck, BriefcaseBusiness, Building2,
+  ArrowLeft, ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Clock3, Filter,
-  GraduationCap, LayoutDashboard, LogOut, MapPin, Menu, Plus,
+  GraduationCap, LogOut, MapPin, Menu,
   Search, Send, Sparkles, Users, X
 } from "lucide-react";
 import { filterJobs, toggleFilterValue } from "./lib/filter-jobs.js";
 import { loadApprovedJobs } from "./lib/jobs-api.js";
+import { Admin } from "./Admin.jsx";
 
 const levels = ["Estágio", "Júnior", "Pleno", "Sênior"];
 const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
@@ -52,7 +53,7 @@ export function App() {
     <Header page={page} setPage={setPage} logged={logged} setLogged={setLogged} />
     {page === "home" && <Home {...{ query, setQuery, tech, setTech, level, setLevel, filterOpen, setFilterOpen, filtered, catalogStatus, toggle, reset, openJob }} />}
     {page === "detail" && selectedJob && <JobDetail job={selectedJob} goBack={() => setPage("home")} logged={logged} setLogged={setLogged} applicationSent={applicationSent} setApplicationSent={setApplicationSent} />}
-    {page === "admin" && <Admin />}
+    {page === "admin" && <Admin setLogged={setLogged} />}
     {page === "login" && <Login onLogin={() => { setLogged(true); setPage("home"); }} />}
     <Footer />
   </>;
@@ -89,5 +90,4 @@ function ContentBlock({ title, children }) { return <section className="content-
 
 function Login({ onLogin }) { return <main className="login-page"><section className="login-panel"><button className="login-dynamic-brand" onClick={() => location.reload()} aria-label="Atualizar página de login"><img src="/gdg-jobs-dynamic-brand.svg" alt="GDGJobs — vagas em tempo real" /></button><img className="login-illustration" src="/login-gdg-illustration.svg" alt="" aria-hidden="true" /><div className="login-copy"><div className="eyebrow"><Sparkles size={15}/> Bem-vindo de volta</div><h1>Grandes oportunidades começam aqui.</h1><p>Acesse sua conta para salvar vagas e se candidatar com um clique.</p></div><div className="quote">“Uma comunidade feita por pessoas que acreditam no poder da tecnologia.”<span>— GDG Lauro de Freitas</span></div></section><section className="login-form"><div><h2>Entre na sua conta</h2><p>Use sua conta Google para continuar.</p></div><button className="google" onClick={onLogin}><img className="google-icon" src="/google-icon.svg" alt="" />Continuar com Google</button><div className="divider"><span/>ou<span/></div><label>E-mail<input type="email" placeholder="voce@email.com"/></label><button className="primary full" onClick={onLogin}>Continuar</button><p className="terms">Ao continuar, você concorda com nossos Termos de uso e Política de privacidade.</p></section></main> }
 
-function Admin() { const [saved, setSaved] = useState(false); return <main className="admin-page"><div className="shell admin-shell"><aside className="admin-side"><button className="brand"><span className="brand-mark"><img src="/favicon.svg" alt="" /></span><span>GDG<span>Jobs</span></span></button><div className="admin-user"><span className="avatar">AM</span><div><strong>Admin GDG</strong><small>administrador</small></div></div><nav><button className="active"><LayoutDashboard size={18}/> Visão geral</button><button><BriefcaseBusiness size={18}/> Vagas</button><button><Building2 size={18}/> Empresas</button></nav></aside><section className="admin-content"><div className="admin-title"><div><span className="eyebrow">Área administrativa</span><h1>Publicar nova vaga</h1><p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p></div><button className="outline"><BriefcaseBusiness size={16}/> Ver vagas</button></div><form className="job-form" onSubmit={e => { e.preventDefault(); setSaved(true); }}><div className="form-section"><h2>Informações da vaga</h2><div className="form-grid"><label className="wide">Título da vaga<input required placeholder="Ex.: Pessoa Desenvolvedora Front-end"/></label><label>Empresa<select><option>Selecione uma empresa</option><option>Zup Innovation</option><option>Cora</option></select></label><label>Nível<select><option>Selecione o nível</option><option>Júnior</option><option>Pleno</option><option>Sênior</option></select></label><label className="wide">Descrição<textarea required placeholder="Descreva a oportunidade, responsabilidades e requisitos..." rows="6"/></label></div></div><div className="form-section"><h2>Detalhes</h2><div className="form-grid"><label>Tecnologias<input placeholder="React, TypeScript, Next.js"/></label><label>Localidade<input placeholder="Ex.: Remoto · Brasil"/></label><label>Modelo<select><option>Remoto</option><option>Híbrido</option><option>Presencial</option></select></label><label>Tipo de contrato<select><option>CLT</option><option>PJ</option><option>Estágio</option></select></label></div></div>{saved && <div className="success"><Check size={18}/> Vaga cadastrada como pendente de curadoria.</div>}<div className="form-actions"><button type="button" className="ghost">Salvar rascunho</button><button className="primary" type="submit"><Plus size={17}/> Cadastrar para curadoria</button></div></form></section></div></main> }
 function Footer() { return <footer><div className="shell footer-inner"><span className="brand"><span className="brand-mark"><img src="/favicon.svg" alt="" /></span>GDG<span>Jobs</span></span><span>Feito com a comunidade GDG · 2026</span></div></footer> }
