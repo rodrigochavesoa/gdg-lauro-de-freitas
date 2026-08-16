@@ -55,7 +55,7 @@ As funções em `supabase/functions/` usam JWT de **sessão do usuário** em `Au
 |---|---|
 | `SUPABASE_SECRET_KEY` ou `SUPABASE_SERVICE_ROLE_KEY` | Scripts, seed server-side, Edge Functions |
 
-Entrega humana: responsável do Supabase envia valores **fora do Git** (canal seguro). O Executor preenche `.env.local` localmente.
+Entrega humana: responsável do Supabase envia valores **fora do Git** (canal seguro). O Executor preenche `.env.local` localmente. **Não** registrar chaves ou senhas em `docs/` commitados — anotações operacionais em [`docs-local/`](../docs-local.example/) (pasta gitignored). Política: [`security-and-documentation.md`](security-and-documentation.md).
 
 ## Vercel (preview — fim do Sprint 2, se autorizado)
 

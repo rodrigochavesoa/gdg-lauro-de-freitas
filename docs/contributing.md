@@ -86,3 +86,16 @@ Evidência: [`docs/s1-04-branch-protection.md`](s1-04-branch-protection.md). UI:
 - **Não commitado:** `.env`, `.env.local` — valores do Supabase de teste (ver `.gitignore`).
 - **Nunca no frontend:** secret key / `service_role`.
 
+## Documentação sensível — nunca no Git
+
+Informação sensível **não** entra em `docs/`, README, código, PRs nem issues.
+
+| Commitado (`docs/`) | Somente local (gitignored) |
+|---|---|
+| Processo, backlog, templates vazios | `docs-local/` — notas operacionais da equipe |
+| `.env.example` (sem valores) | `.env.local` com credenciais de teste |
+| Inventário LGPD com dados **fictícios** | Exports, senhas, tokens, PII real |
+
+Política completa: [`docs/security-and-documentation.md`](security-and-documentation.md). Modelo de pasta local: [`docs-local.example/`](../docs-local.example/) → copiar para `docs-local/`.
+
+**PR:** revisor rejeita diff com chaves, senhas, tokens ou dados pessoais reais.

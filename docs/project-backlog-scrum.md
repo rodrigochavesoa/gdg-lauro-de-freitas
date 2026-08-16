@@ -175,6 +175,7 @@ Uma história é concluída quando:
 - critérios de aceitação foram verificados;
 - código revisado e aprovado em PR (**branch → `main`**, sem push direto em `main`);
 - commits e título de squash merge seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/);
+- **nenhum segredo, senha, token ou dado pessoal real** em arquivos commitados ([`docs/security-and-documentation.md`](security-and-documentation.md));
 - testes relevantes passam e não há regressão conhecida;
 - RLS e validação de entrada foram avaliadas para qualquer alteração que lide com dados;
 - documentação e variáveis de ambiente foram atualizadas;
@@ -261,6 +262,8 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 **Executor técnico padrão:** Agente GDGJobs. O agente implementa, testa, documenta e **abre Pull Requests**; não toma decisões de negócio, não cria contas externas, não configura segredos reais nem aprova produção sem direção explícita dos responsáveis.
 
 **Git:** o Executor **nunca** faz push em `main`. Fluxo: branch → PR → squash merge pelo mantenedor. Ver [`docs/contributing.md`](contributing.md).
+
+**Documentação sensível:** senhas, chaves, tokens e dados pessoais reais **nunca** em arquivos commitados. Usar `.env.local` (gitignored) e pasta local `docs-local/` (gitignored); ver [`docs/security-and-documentation.md`](security-and-documentation.md).
 
 **Commits:** mensagens no padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o) (`tipo(escopo): descrição`). Ex.: `docs(lgpd): add S1-03 personal data inventory for DPO review`.
 

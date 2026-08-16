@@ -9,6 +9,7 @@
 
 ## Segurança e dados
 - [ ] Não introduz segredo no repositório
+- [ ] Nenhuma senha, API key, token ou dado pessoal real em `docs/`, código ou evidências do PR
 - [ ] RLS/policies revisadas, quando aplicável
 - [ ] Entrada validada no servidor, quando aplicável
 
