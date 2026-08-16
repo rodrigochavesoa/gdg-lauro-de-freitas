@@ -40,4 +40,4 @@ npx supabase migration list --linked
 npx supabase db push --linked --include-all --yes
 ```
 
-`--include-all` cobre o caso em que o remoto já tem versões de histórico sem arquivo local equivalente (ver no-ops `20260816192301` / `20260816192306`). Ordem efetiva: **0004** depois **0005**.
+`--include-all` cobre o caso em que o remoto já tem versões de histórico sem arquivo local equivalente. Neste projeto de teste: `20260816192301` e `20260816192306` (enums já aplicados). No-ops locais com esses timestamps desbloquearam o push; **não** vão para o Git. Ordem efetiva: **0004** depois **0005**.

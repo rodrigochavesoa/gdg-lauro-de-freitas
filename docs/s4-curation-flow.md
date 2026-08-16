@@ -14,7 +14,7 @@ Ambiente alvo: projeto Supabase de **homologação**. Seed fictício; credenciai
 
 Aplicar **somente via CLI** no projeto de teste já linkado (`npx supabase db push --linked --include-all --yes`). Não usar SQL Editor como caminho da história.
 
-O remoto já tinha versões `20260816192301` e `20260816192306` (enums `curator`/`moderator`/`rejected`, sem arquivos locais). `db push` sem alinhamento retorna `LegacyDbPushMissingLocalError`. No-ops com esses timestamps + `--include-all` aplicam **0004** (idempotente) e **0005**.
+O remoto já tinha versões `20260816192301` e `20260816192306` (enums `curator`/`moderator`/`rejected`, sem arquivos no repositório). `db push` sem alinhamento retorna `LegacyDbPushMissingLocalError`. No-ops **locais** (não commitados) com esses timestamps + `--include-all` aplicaram **0004** (`ADD VALUE IF NOT EXISTS`) e **0005**.
 
 ## Schema entregue
 
