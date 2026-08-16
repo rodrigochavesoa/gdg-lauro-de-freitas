@@ -53,6 +53,30 @@ PRs **grandes** são aceitáveis no fechamento de sprint, mas exigem revisão ma
 
 O PR #4 misturou integração Supabase com docs de ambiente/segurança também presentes no PR #3, gerando overlap e PR **grande**. Da Sprint 3 em diante: mergear ou fechar o PR de infra **antes** do `feat/` dependente, ou rebasear para eliminar duplicação.
 
+## Handoff ONE-LINER ao Executor (Tech Lead)
+
+O Tech Lead publica **um único bloco** copiável — sem exigir seleção parcial na conversa. Formato fixo:
+
+```md
+### ONE-LINER AO EXECUTOR
+
+**Perfil:** ...
+**História:** Sx-xx — ...
+**Tarefa:** ...
+**Branch:** feat/... ou docs/...
+**Squash merge:** tipo(escopo): descrição
+**Critério de pronto:**
+- ...
+**Fora de escopo:**
+- ...
+**Dependências humanas:**
+- ...
+**Referências obrigatórias:**
+- ...
+```
+
+Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.
+
 ## Conventional Commits (obrigatório)
 
 Seguir a [especificação Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o):
