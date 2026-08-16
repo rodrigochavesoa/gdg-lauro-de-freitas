@@ -53,6 +53,30 @@ PRs **grandes** são aceitáveis no fechamento de sprint, mas exigem revisão ma
 
 O PR #4 misturou integração Supabase com docs de ambiente/segurança também presentes no PR #3, gerando overlap e PR **grande**. Da Sprint 3 em diante: mergear ou fechar o PR de infra **antes** do `feat/` dependente, ou rebasear para eliminar duplicação.
 
+## Handoff ONE-LINER ao Executor (Tech Lead)
+
+O Tech Lead publica **um único bloco** copiável — sem exigir seleção parcial na conversa. Formato fixo:
+
+```md
+### ONE-LINER AO EXECUTOR
+
+**Perfil:** ...
+**História:** Sx-xx — ...
+**Tarefa:** ...
+**Branch:** feat/... ou docs/...
+**Squash merge:** tipo(escopo): descrição
+**Critério de pronto:**
+- ...
+**Fora de escopo:**
+- ...
+**Dependências humanas:**
+- ...
+**Referências obrigatórias:**
+- ...
+```
+
+Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.
+
 ## Conventional Commits (obrigatório)
 
 Seguir a [especificação Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o):
@@ -109,6 +133,33 @@ Commits iniciais em `main` (S1-01/S1-02) foram exceção autorizada. Da S1-03 em
 - Mensagens de commit no padrão Conventional Commits
 - PR aberto; CI verde
 - Revisão humana e squash merge pelo mantenedor
+
+## Higiene de branches (obrigatório após merge ou fechamento de PR)
+
+Evitar “lixo visual” local e remoto. **Tech Lead ou mantenedor** revisa branches ao fechar sprint ou mergear PR.
+
+| Situação | Ação |
+|---|---|
+| PR **mergeado** ou **fechado** | Apagar branch remota e local da feature |
+| PR **aberto** | Manter só `main` + branch do PR ativo |
+| Branch local com `[gone]` no tracking | `git fetch --prune` → apagar local |
+
+Comandos (`pwsh`), após `git checkout main` e `git pull origin main`:
+
+```powershell
+git fetch --prune origin
+git branch -vv
+git branch -r --merged origin/main
+git branch -r --no-merged origin/main
+# Apagar local (mergeada ou obsoleta):
+git branch -d nome-da-branch
+# Se Git recusar e a branch estiver obsoleta:
+git branch -D nome-da-branch
+# Apagar remota:
+git push origin --delete nome-da-branch
+```
+
+**Estado saudável:** `main` + no máximo uma branch por PR aberto (ex.: `docs/backlog-s3-handoff` enquanto o PR #6 estiver aberto).
 
 ## Proteção de `main` (GitHub) — habilitada em 2026-08-16
 
