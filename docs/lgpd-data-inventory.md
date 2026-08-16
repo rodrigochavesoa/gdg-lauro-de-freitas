@@ -7,6 +7,8 @@
 
 **Premissa:** os dados visíveis hoje são **fictícios**. Não há ambiente Supabase, OAuth, Gemini, Resend nem Storage conectados. Este inventário não contém credenciais, chaves ou dados reais de titulares.
 
+**Revisão Tech Lead:** aprovada em 2026-08-15. Entrega técnica completa; bases legais permanecem candidatas até aceite do DPO. PR em `docs/s1-03-lgpd-inventory`.
+
 **Bases legais** na coluna correspondente são **candidatas** (LGPD art. 7º e, se couber, art. 11). O DPO deve aceitar ou substituir cada uma antes de produção.
 
 ## Lacunas dos seis controles do gate
