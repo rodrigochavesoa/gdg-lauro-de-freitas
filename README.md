@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/kickoff-cover.png" alt="Kick-off de Projetos – GDG Lauro de Freitas" width="100%" />
+</p>
+
 # GDG Lauro de Freitas - Ecossistema de Projetos
 
 Este repositório centraliza as definições, arquitetura e planejamento estratégico para o desenvolvimento da plataforma digital do Google Developer Group (GDG) Lauro de Freitas. O ecossistema é composto por três projetos principais voltados para o impacto e engajamento da comunidade local.
