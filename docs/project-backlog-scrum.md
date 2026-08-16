@@ -104,9 +104,10 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 
 ### Limites atuais
 
-- Supabase, Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
+- Catálogo público lê vagas `approved` no Supabase de **teste** (publishable/anon). Gemini, Storage, Realtime, Resend, OAuth e deploy **não estão conectados**.
 - Firebase Auth e Firebase Hosting não foram configurados.
 - Não há API Routes, validação Zod ou ambiente de produção.
+- Home lê vagas `approved` via Supabase (publishable/anon). Seed fictício em `supabase/migrations/202608160002_seed_fictitious_catalog.sql`. RLS do visitante: `docs/s2-catalog-rls.md`.
 - **S1-01 aprovada pelo Tech Lead (2026-08-15):** ESLint 9, Vitest 3 (6 testes de busca/filtros + 1 smoke da Home), scripts `lint`/`test`/`test:watch`, `packageManager` pnpm 10.30.1, `.gitignore` e GitHub Actions (`.github/workflows/ci.yml`) com `pnpm install --frozen-lockfile`, lint, test e build. Evidência local em `pwsh`: 7 testes verdes e `vite build` ok. CI remoto ainda depende de Git/Actions. Runtime continua com `latest` — não ampliar esse padrão.
 
 ## Decisões técnicas pendentes
@@ -286,7 +287,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Observações (não bloqueiam merge):** (1) PR #4 inclui docs também presentes no PR #3 — reconciliar ao mergear (fechar #3 como duplicado ou rebase). (2) Buckets de Storage para `logo_path` ficam para Sprint 3+. (3) `GRANT SELECT` em `profiles`/`applications` para `anon` é redundante com RLS — considerar restringir grants em hardening futuro. (4) P-03 (`location` texto livre vs. decomposição) permanece decisão humana.
 
-**Pendente humano:** squash merge do PR #4 pelo mantenedor; C-03 (orçamento Supabase); P-03.
+**Pendente humano:** reconciliar PR #3; C-03 (orçamento Supabase); P-03.
 
 #### Revisão Tech Lead — S1-03 (aprovada em 2026-08-15)
 
@@ -358,7 +359,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 | ID | Tipo | Perfil | Objetivo | Estado |
 |---|---|---|---|---|
-| S2-01 | Dados / integração | Fullstack Engineer | Migration/seed fictício, RLS visitante, Home e detalhe ligados a vagas `approved` | **Aprovada** pelo Tech Lead (2026-08-16); merge PR #4 pendente |
+| S2-01 | Dados / integração | Fullstack Engineer | Migration/seed fictício, RLS visitante, Home e detalhe ligados a vagas `approved` | **Concluída** — merge via PR #4 |
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
 
@@ -441,7 +442,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Mantenedor:** squash merge do PR #4 (`feat(jobs): connect home listing to approved jobs`) após CI verde; reconciliar PR #3 (docs duplicados).
+1. **Mantenedor:** reconciliar PR #3 (fechar como duplicado ou rebase mínimo após merge do #4).
 2. **Executor (Sprint 3):** CRUD admin de vagas/empresas com auth administrativa preparatória e validação de entrada.
 3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
 4. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4; P-03 (`location`) e C-03 (orçamento Supabase).

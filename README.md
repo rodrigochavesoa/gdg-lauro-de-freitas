@@ -90,13 +90,16 @@ Para dúvidas ou suporte, entre em contato através do e-mail oficial da comunid
 
 ## Desenvolvimento local — protótipo GDGJobs (MVP)
 
-O incremento atual neste repositório é um frontend **React/Vite** com dados simulados. Use **PowerShell (`pwsh`)** no Windows (não use WSL).
+O incremento atual neste repositório é um frontend **React/Vite** com catálogo no Supabase de **teste**. Use **PowerShell (`pwsh`)** no Windows (não use WSL).
 
 ```powershell
+Copy-Item .env.example .env.local
+# Preencher URL e publishable key via canal seguro — nunca commitar
+
 pnpm install
 pnpm lint
 pnpm test
 pnpm run build
 ```
 
-Contribuição (branch + PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)): [`docs/contributing.md`](docs/contributing.md). CI e qualidade: [`docs/quality-ci.md`](docs/quality-ci.md).
+Contribuição (branch + PR, [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)): [`docs/contributing.md`](docs/contributing.md). Segurança: [`docs/security-and-documentation.md`](docs/security-and-documentation.md). Supabase teste: [`docs/supabase-dev-env.md`](docs/supabase-dev-env.md). Catálogo e RLS: [`docs/s2-catalog-rls.md`](docs/s2-catalog-rls.md).
