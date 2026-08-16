@@ -116,24 +116,24 @@ Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 
 1. **Hospedagem:** Vercel para frontend e rotas/Edge Functions, ou Firebase Hosting. A recomendação é Vercel se a aplicação evoluir para Next.js; Firebase Hosting é suficiente para um frontend Vite estático.
 2. **UI:** migrar o CSS atual para Tailwind CSS e componentes shadcn/ui, como definido no escopo inicial.
-3. **Curadoria:** definir quem aprova, quantos votos são necessários, prazo de análise e regra para rejeição/recadastro.
+3. **Curadoria:** **resolvida** em 2026-08-16 — ver [`docs/decisions-curation-v1.md`](decisions-curation-v1.md).
 
 ### Decisão registrada
 
 **Autenticação aprovada: Supabase Auth com Google OAuth.** Firebase Auth não fará parte do escopo. A tabela `profiles` permanece vinculada a `auth.users`, e o Sprint 5 deverá concluir o onboarding e a autenticação real.
 
-## Pendências de produto — resolver antes do Sprint 4
+## Pendências de produto — Sprint 4 e seguintes
 
-O Sprint 4 implementa curadoria e publicação. As decisões abaixo são bloqueadoras e devem ser aprovadas pelo Product Owner com os stakeholders **até o fim do Sprint 3**. Sem elas, a equipe não deve iniciar a implementação do fluxo de aprovação.
+**D-01 a D-06 estão resolvidas** (2026-08-16). Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Sprint 4 pode iniciar (schema/RPC, depois UI). D-01 (completude de perfil) é regra de produto agora; implementação no Sprint 5.
 
 | ID | Decisão necessária | Estado atual | Responsável pela decisão |
 |---|---|---|---|
-| D-01 | Definir os campos obrigatórios que tornam um perfil apto à candidatura com um clique. | Parcial: há campos de perfil, mas não há regra de completude. | Product Owner + Comunidade GDG |
-| D-02 | Definir participantes autorizados da curadoria: qualquer membro, usuário verificado ou grupo de moderadores. | Em aberto. | Product Owner + Comunidade GDG |
-| D-03 | Definir o limiar de aprovação: quantidade de votos, quórum e prazo máximo para decisão. | Em aberto. | Product Owner + Comunidade GDG |
-| D-04 | Definir o mecanismo: votação, aprovação individual ou moderação. | Em aberto. | Product Owner + Comunidade GDG |
-| D-05 | Definir se um administrador pode publicar sem curadoria e em quais situações excepcionais. | Em aberto. | Product Owner |
-| D-06 | Definir o tratamento de rejeição: motivo obrigatório, edição pelo admin e possibilidade de reenvio. | Em aberto. | Product Owner + Comunidade GDG |
+| D-01 | Campos obrigatórios do perfil para candidatura com um clique. | **Resolvida** — nome, e-mail autenticado, nível, ≥1 tech, localidade/modalidade; bio/LinkedIn/GitHub/CV opcionais. Código no Sprint 5. Base legal da candidatura: DPO (não chamar automaticamente de consentimento). | Product Owner + Comunidade GDG |
+| D-02 | Participantes da curadoria. | **Resolvida** — curators e moderators indicados manualmente; admin herda moderator sem auto-revisão. | Product Owner + Comunidade GDG |
+| D-03 | Limiar, quórum e prazo. | **Resolvida** — 2×approve → approved; 2×reject → rejected; 1×1 → moderator. SLA 72h / 7 dias manuais no Sprint 4. | Product Owner + Comunidade GDG |
+| D-04 | Mecanismo de decisão. | **Resolvida** — revisão individual com rubrica; sem voto público. | Product Owner + Comunidade GDG |
+| D-05 | Admin publica sem curadoria? | **Resolvida** — não no V1. `urgent` só prioriza a fila, com motivo, só admin. | Product Owner |
+| D-06 | Rejeição, edição e reenvio. | **Resolvida** — código de rubrica obrigatório; reenvio abre nova rodada sem apagar histórico. | Product Owner + Comunidade GDG |
 | D-08 | Definir se a candidatura de um clique usa apenas perfil ou também currículo e carta de apresentação. | Parcial: o protótipo usa apenas perfil. | Product Owner + Empresas parceiras |
 | D-09 | Definir se o candidato pode cancelar, editar ou reenviar candidatura e até quando. | Parcial: o banco prevê `withdrawn`; não há política nem interface. | Product Owner + Empresas parceiras |
 | D-10 | Definir o modelo de sustentabilidade financeira, mantendo anúncio gratuito para empresas. | Em aberto. | Product Owner + Liderança GDG |
@@ -147,7 +147,7 @@ O Sprint 4 implementa curadoria e publicação. As decisões abaixo são bloquea
 | P-01 | Candidaturas possuem o status `withdrawn` e o candidato pode atualizar a própria candidatura. | Permitir ou bloquear reabertura; definir prazo, limite e estados de transição. | Sprint 6 |
 | P-02 | A stack é `TEXT[]` com índice GIN. | Definir gatilhos objetivos para migrar para `technologies` e `job_technologies`, como sinônimos, categorias ou relatórios. | Revisão ao fim do Sprint 8 |
 | P-03 | Modalidade foi separada em `work_model`. | Decidir se `location` permanece texto livre ou será decomposta em cidade, estado e país. | Sprint 2 |
-| P-04 | Há `approved_at` na vaga. | Adicionar `approved_by`, motivo de rejeição e histórico de decisões após definição da curadoria. | Sprint 4 |
+| P-04 | Há `approved_at` na vaga. | Sprint 4: `submitted_by` (backfill/NULL legado), `curation_round`, reviews append-only, RPC transacional, `rejected`, view `needs_moderation`. | Sprint 4 |
 | P-05 | `profiles` referencia `auth.users` do Supabase. | Configurar Google OAuth, callback URLs, criação automática de perfil e testes de sessão. | Sprint 5 |
 
 ## Metodologia Scrum
@@ -198,8 +198,8 @@ Uma história é concluída quando:
 | P0 | Administração | Autenticação administrativa e CRUD validado de vagas/empresas | V1 | **Concluída** — merge `4fbf0bc` (PR #10); auth e-mail/senha + CRUD `pending` |
 | P1 | Ingestão | Modelar origem da vaga, submissão de empresas, conectores de API, fila, deduplicação e tratamento de falhas | V1/V2 | Novo — solicitado pelo Tech Lead |
 | P1 | Ingestão | Avaliar scrapers por fonte, termos de uso, base legal e manutenção antes de construir conectores | V1/V2 | Novo — depende de aprovação de fontes |
-| P1 | Curadoria | Fluxo pendente → aprovação/rejeição, histórico e publicação Realtime | V1 | Não iniciado |
-| P1 | Curadoria | Validação automática e rubrica de revisão para comunidade/moderadores | V1 | Novo — solicitado pelo Tech Lead |
+| P1 | Curadoria | Fluxo pendente → aprovação/rejeição, histórico e publicação Realtime | V1 | **Regras V1 aceitas** — [`docs/decisions-curation-v1.md`](decisions-curation-v1.md); implementação Sprint 4 |
+| P1 | Curadoria | Validação automática e rubrica de revisão para comunidade/moderadores | V1 | Rubrica V1 fechada; RPC + UI no Sprint 4 |
 | P1 | Perfil | Onboarding, edição de perfil, skills e preferências | V2 | Não iniciado |
 | P1 | Candidaturas | Candidatura com um clique, prevenção de duplicidade e dashboard | V2 | Dados preparados; interface parcial |
 | P1 | Comunicação | E-mails transacionais via Resend | V2 | Não iniciado |
@@ -219,7 +219,7 @@ Uma história é concluída quando:
 | Etapa | Entrega do backlog | Situação |
 |---|---|---|
 | Ingestão | Cadastro manual, submissões, APIs externas, scrapers aprovados, fila e deduplicação | Cadastro manual prototipado; demais itens novos no backlog |
-| Curadoria | Validação automática, rubrica, revisão comunitária e decisão auditável | Status básico preparado; fluxo completo pendente |
+| Curadoria | Validação automática, rubrica, revisão comunitária e decisão auditável | Regras V1 aceitas; schema/UI Sprint 4 |
 | Enriquecimento | Gemini, tags/requisitos e embeddings | Edge Function preparada; deploy e revisão humana pendentes |
 | Armazenamento | Supabase, pgvector, RLS e Storage | Migration preparada; ambiente real pendente |
 | Recomendação | Score, fairness, explicabilidade e feedback loop | Matching V2 preparado; colaboração/fairness pendentes |
@@ -253,7 +253,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 - Confirmado: V2 sem filtragem colaborativa até existir volume de feedback consentido.
 - Confirmado: fairness como guardrail e métrica de auditoria, sem usar atributo sensível para ranquear.
 - Pendente humano: definir fontes permitidas para scrapers e APIs externas antes de qualquer implementação.
-- Pendente humano: aprovar rubrica e responsáveis da curadoria antes do Sprint 4.
+- Rubrica e responsáveis da curadoria: **aceitos** em 2026-08-16 — [`docs/decisions-curation-v1.md`](decisions-curation-v1.md).
 
 ## Plano de sprints
 
@@ -269,7 +269,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Ponto de partida confirmado:** Home e detalhe consomem vagas `approved` via Supabase (`loadApprovedJobs`, `mapJob`). Login, Admin, candidatura e curadoria permanecem mockados ou desconectados. Admin UI existe (DS-02); RLS com `is_admin()` já está na migration `0001`.
 
-**Primeira ação do agente:** Sprint 4 — curadoria (aprovação/rejeição de vagas `pending`, histórico e publicação). Branch e ONE-LINER a definir após fechamento de D-01 a D-06 pelo PO. Não iniciar OAuth candidato (Sprint 5), Gemini, deploy público.
+**Primeira ação do agente:** após merge deste registro de decisões, Sprint 4 em **dois** PRs: (1) `feat/s4-curation-schema` — Database/Supabase Engineer (RPC, RLS, testes); (2) `feat/s4-curation-ui` — Fullstack Engineer (fila, rubrica, reenvio, Realtime). ONE-LINERs após o merge do PR de governança. Não iniciar OAuth (Sprint 5), Gemini, deploy público.
 
 #### Revisão Tech Lead — Sprint 3 / S3-01 (aprovada em 2026-08-16)
 
@@ -288,7 +288,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Observações (registro):** PR ~456 linhas — limite superior do “médio”, coeso. Erros na UI usam classe `success` (polish futuro). Teste RLS não cobre candidato autenticado não-admin (policy `is_admin()` já protege). Usuário admin de homologação criado pelo humano (`docs-local/admin-test-user.md`).
 
-**Pendente humano:** C-03 (orçamento Supabase); P-03 (`location`); D-01 a D-06 antes do Sprint 4; DPO — bases legais em `docs/lgpd-data-inventory.md`.
+**Pendente humano:** C-03 (orçamento Supabase); P-03 (`location`); DPO — bases legais em `docs/lgpd-data-inventory.md` (candidatura ≠ consentimento automático). D-01 a D-06 **fechadas**.
 
 #### Revisão Tech Lead — Sprint 2 (aprovada em 2026-08-16)
 
@@ -386,6 +386,15 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 |---|---|---|---|---|
 | S3-01 | Admin / backend | Fullstack Engineer | Auth admin mínima + CRUD empresas/vagas (`pending`), validação, testes, doc da feature | **Concluída** — merge `4fbf0bc` (PR #10) |
 
+### Sprint 4 — curadoria (duas entregas)
+
+Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Governança neste PR; código em PRs seguintes.
+
+| ID | Tipo | Perfil | Objetivo | Estado |
+|---|---|---|---|---|
+| S4-01 | Dados / RLS | Database/Supabase Engineer | Migration, RPC transacional, RLS, view `needs_moderation`, testes | **Pronto para Executor** após merge da governança |
+| S4-02 | Admin / UI | Fullstack Engineer | Fila, rubrica, prioridade, reenvio, Realtime | Depende do merge de S4-01 |
+
 #### S3-01 — CRUD administrativo
 
 - **Escopo:** Supabase Auth e-mail/senha para administrador de teste (`profiles.role = 'admin'`, criado pelo humano); conectar formulário Admin existente a `INSERT`/`UPDATE`/`SELECT` em `companies` e `jobs`; novas vagas sempre `status = 'pending'`; validação de campos obrigatórios; erros da API tratados na UI; estender `pnpm test:rls` ou script equivalente com cenário admin; doc `docs/s3-admin-crud.md` (schema, RLS admin, rollback) **no mesmo PR** `feat/`.
@@ -397,7 +406,7 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
   - Zero segredos no diff; `pnpm lint`, `pnpm test`, `pnpm run build` verdes no `pwsh`.
   - PR **médio**; governança/backlog **fora** do `feat/` (ver `docs/contributing.md`).
 - **Squash merge sugerido:** `feat(admin): connect admin CRUD to Supabase with pending jobs`
-- **Dependência humana:** usuário admin + `profiles.role = 'admin'` no projeto de teste; PO fecha D-01 a D-06 até fim do Sprint 3.
+- **Dependência humana:** usuário admin + `profiles.role = 'admin'` no projeto de teste. D-01 a D-06 fechadas em 2026-08-16.
 
 **Fora de escopo do Sprint 1:** Tailwind/shadcn, OAuth real, migration aplicada, Gemini, Resend, Storage, Realtime, deploy, curadoria e qualquer alteração visual que recrie componentes.
 
@@ -441,8 +450,8 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 |---|---|---|---|---|
 | 1 | Preparar base confiável | Lint, testes, CI, inventário de dados pessoais, organização de ativos duplicados e definição de convenções de PR | Agente GDGJobs | Tech Lead/PO escolhem hospedagem (C-01); pipeline valida build, lint e testes |
 | 2 | Publicar catálogo real | Aplicar migration em Supabase de desenvolvimento, seed, Storage, RLS testada e conectar listagem/detalhe | Agente GDGJobs | Responsável fornece projeto/credenciais de desenvolvimento; visitante vê apenas vagas aprovadas |
-| 3 | Administrar vagas | Autenticação administrativa, CRUD com validação de entrada e trilha de testes | Agente GDGJobs | PO fecha D-01 a D-06 até o encerramento; admin cadastra vaga pendente com segurança |
-| 4 | Curar e publicar | Aprovação/rejeição, histórico, auditoria e Realtime | Agente GDGJobs | PO/Comunidade aprovam regras de curadoria; vaga aprovada aparece no catálogo sem recarregar |
+| 3 | Administrar vagas | Autenticação administrativa, CRUD com validação de entrada e trilha de testes | Agente GDGJobs | Admin cadastra vaga pendente; D-01 a D-06 fechadas |
+| 4 | Curar e publicar | Schema/RPC + UI de fila/rubrica; histórico; Realtime | Agente GDGJobs | Regras em `docs/decisions-curation-v1.md`; dois PRs funcionais; vaga `approved` no catálogo |
 | 5 | Criar perfil | Supabase Auth com Google, onboarding, edição, correção e consentimento granular | Agente GDGJobs | Responsável configura OAuth/URLs; candidato revisa finalidades e pode revogar consentimentos |
 | 6 | Candidatar | Candidatura em um clique, prevenção de duplicidade, dashboard, exportação e exclusão | Agente GDGJobs | PO define D-08, D-09 e política de reabertura; titular exerce direitos pelos fluxos acessíveis |
 | 7 | Comunicar | Resend para candidatura, mudança de status e aprovação de vaga | Agente GDGJobs | Responsável fornece domínio/credenciais Resend; templates homologados |
@@ -480,8 +489,8 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Product Owner + Comunidade GDG:** fechar D-01 a D-06 antes do Sprint 4 (curadoria).
-2. **Tech Lead:** ONE-LINER Sprint 4 ao Executor após gates humanos.
-3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md`.
+1. **Tech Lead:** após merge deste PR de governança, publicar dois ONE-LINERs sequenciais (schema/RPC, depois UI).
+2. **Executor:** `feat/s4-curation-schema`, em seguida `feat/s4-curation-ui` (rebase no schema).
+3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md` (finalidade de candidatura).
 4. **Humano:** P-03 (`location`) e C-03 (orçamento Supabase).
 5. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
