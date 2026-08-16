@@ -134,6 +134,33 @@ Commits iniciais em `main` (S1-01/S1-02) foram exceção autorizada. Da S1-03 em
 - PR aberto; CI verde
 - Revisão humana e squash merge pelo mantenedor
 
+## Higiene de branches (obrigatório após merge ou fechamento de PR)
+
+Evitar “lixo visual” local e remoto. **Tech Lead ou mantenedor** revisa branches ao fechar sprint ou mergear PR.
+
+| Situação | Ação |
+|---|---|
+| PR **mergeado** ou **fechado** | Apagar branch remota e local da feature |
+| PR **aberto** | Manter só `main` + branch do PR ativo |
+| Branch local com `[gone]` no tracking | `git fetch --prune` → apagar local |
+
+Comandos (`pwsh`), após `git checkout main` e `git pull origin main`:
+
+```powershell
+git fetch --prune origin
+git branch -vv
+git branch -r --merged origin/main
+git branch -r --no-merged origin/main
+# Apagar local (mergeada ou obsoleta):
+git branch -d nome-da-branch
+# Se Git recusar e a branch estiver obsoleta:
+git branch -D nome-da-branch
+# Apagar remota:
+git push origin --delete nome-da-branch
+```
+
+**Estado saudável:** `main` + no máximo uma branch por PR aberto (ex.: `docs/backlog-s3-handoff` enquanto o PR #6 estiver aberto).
+
 ## Proteção de `main` (GitHub) — habilitada em 2026-08-16
 
 Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. Squash merge é o único método permitido no repositório.
