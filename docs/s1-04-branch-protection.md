@@ -29,3 +29,5 @@ Payload aplicado (espelho): [`.github/branch-protection-main.ruleset.json`](../.
 ## Observação
 
 Zero aprovações obrigatórias para não bloquear o único mantenedor; o PR continua obrigatório e o CI precisa ficar verde. Revisão humana permanece na Definition of Done (`docs/contributing.md`).
+
+**Revisão Tech Lead:** aprovada em 2026-08-16. Ruleset conferido via GitHub API (`enforcement: active`).
