@@ -1,6 +1,26 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const authState = {
+  session: null,
+  profile: null,
+  needsOnboarding: false,
+};
+
+vi.mock("./features/auth/auth-api.js", () => ({
+  loadAuthSnapshot: async () => authState,
+  subscribeAuth: (onChange) => {
+    onChange(authState);
+    return () => {};
+  },
+  signOutUser: vi.fn(async () => {
+    authState.session = null;
+    authState.profile = null;
+    authState.needsOnboarding = false;
+  }),
+  startGoogleOAuth: vi.fn(),
+}));
 
 vi.mock("./features/catalog/jobs-api.js", () => ({
   loadApprovedJobs: async () => [
@@ -77,6 +97,12 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
 
 import { App } from "./App.jsx";
 
+beforeEach(() => {
+  authState.session = null;
+  authState.profile = null;
+  authState.needsOnboarding = false;
+});
+
 async function renderHome() {
   render(<App />);
   await waitFor(() => {
@@ -116,5 +142,19 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(mobile).getByRole("button", { name: "Para empresas" })).toBeInTheDocument();
     expect(within(mobile).getByRole("button", { name: "Comunidade" })).toBeInTheDocument();
     expect(within(mobile).getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+  });
+
+  it("mostra sessão no Header quando o adaptador devolve usuário", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderHome();
+    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
   });
 });
