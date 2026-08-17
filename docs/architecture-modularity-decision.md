@@ -76,7 +76,7 @@ Usar os termos do negócio de forma consistente — vaga, empresa, curadoria, pa
 | ARQ-01a — caracterização | Após S4-02 / início do Sprint 5 | Testes de Home, detalhe, Login e menu mobile | Fullstack Engineer | `src/App.smoke.test.jsx` cobre os quatro fluxos. |
 | ARQ-01b — extração | Sprint 5, antes de OAuth | Telas extraídas; `App` só shell | Fullstack Engineer | Sem mudança visual/funcional; lint, testes e build verdes. |
 | ARQ-01c — integração Auth | Depois de ARQ-01b | OAuth Google e sessão em `features/auth/` | Fullstack Engineer | Mudança de autenticação não exige editar a implementação de catálogo/detalhe. |
-| ARQ-02 — rotas reais | Planejar junto de OAuth, se URLs/deep links forem necessários | Avaliar/adotar roteador com URLs para vagas, detalhe, login e admin | Tech Lead + Fullstack Engineer | Decisão registrada e testes de navegação por URL. |
+| ARQ-02 — rotas reais | Em PR (`feat/arq-02-router`); confirmar no merge | Adotar `react-router-dom` com URLs para vagas, detalhe, login e admin | Tech Lead + Fullstack Engineer | Decisão registrada em [`arq-02-router.md`](arq-02-router.md) e testes de navegação por URL. |
 
 A entrega de curadoria pode continuar em paralelo somente dentro de `features/curation/` ou módulo equivalente. Não deve alterar `App.jsx` além do ponto mínimo de montagem/navegação.
 

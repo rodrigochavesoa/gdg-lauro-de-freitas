@@ -1,1 +1,1 @@
-export { loadApprovedJobs } from "../../lib/jobs-api.js";
+export { loadApprovedJob, loadApprovedJobs } from "../../lib/jobs-api.js";

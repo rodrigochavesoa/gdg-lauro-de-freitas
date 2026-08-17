@@ -34,3 +34,20 @@ export async function loadApprovedJobs() {
 
   return (data ?? []).map(mapJob);
 }
+
+export async function loadApprovedJob(id) {
+  const client = getSupabaseBrowserClient();
+  if (!client) {
+    throw new Error("VITE_SUPABASE_URL e chave publishable/anon não configuradas.");
+  }
+
+  const { data, error } = await client
+    .from("jobs")
+    .select(JOB_SELECT)
+    .eq("status", "approved")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapJob(data) : null;
+}
