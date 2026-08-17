@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 const authState = {
   session: null,
@@ -93,6 +94,23 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       responsibilities: ["Pipelines"],
     },
   ],
+  loadApprovedJob: async (id) => ({
+    id,
+    title: "Pessoa Desenvolvedora Front-end",
+    company: "Nuvem Lauro Demo",
+    logo: "NL",
+    color: "#4285f4",
+    level: "Pleno",
+    place: "Brasil · Remoto",
+    type: "Remoto",
+    posted: "há 2 dias",
+    stack: ["React", "TypeScript", "Next.js"],
+    salary: "A combinar",
+    featured: false,
+    description: "Fictícia",
+    about: "Empresa fictícia",
+    responsibilities: ["Construir interfaces"],
+  }),
 }));
 
 import { App } from "./App.jsx";
@@ -103,8 +121,12 @@ beforeEach(() => {
   authState.needsOnboarding = false;
 });
 
+async function renderAt(path = "/") {
+  render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
+}
+
 async function renderHome() {
-  render(<App />);
+  await renderAt("/");
   await waitFor(() => {
     expect(screen.getByText("4 oportunidades encontradas")).toBeInTheDocument();
   });
@@ -121,14 +143,26 @@ describe("ARQ-01 — caracterização do shell", () => {
   it("abre o detalhe da vaga a partir do catálogo", async () => {
     await renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Ver vaga Pessoa Desenvolvedora Front-end" }));
-    expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
   });
 
   it("abre o Login a partir de Entrar", async () => {
     await renderHome();
-    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    fireEvent.click(screen.getByRole("link", { name: "Entrar" }));
+    expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Continuar com Google/i })).toBeInTheDocument();
+  });
+
+  it("renderiza o detalhe diretamente em /jobs/:id", async () => {
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+  });
+
+  it("renderiza o Login diretamente em /login", async () => {
+    await renderAt("/login");
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Continuar com Google/i })).toBeInTheDocument();
   });
@@ -138,10 +172,10 @@ describe("ARQ-01 — caracterização do shell", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(mobile).toBeTruthy();
-    expect(within(mobile).getByRole("button", { name: "Vagas" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("button", { name: "Para empresas" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("button", { name: "Comunidade" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("button", { name: "Entrar" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Entrar" })).toBeInTheDocument();
   });
 
   it("mostra sessão no Header quando o adaptador devolve usuário", async () => {
