@@ -1,5 +1,9 @@
+import { cleanup } from "@testing-library/react";
+import { afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-if (typeof window.scrollTo !== "function") {
-  window.scrollTo = () => {};
-}
+afterEach(() => {
+  cleanup();
+});
+
+window.scrollTo = () => {};
