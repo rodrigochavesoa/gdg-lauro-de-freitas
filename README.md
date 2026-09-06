@@ -41,6 +41,10 @@ O kick-off do ecossistema GDG descreveu uma stack **completa** (Next.js, Tailwin
 
 **Fase 1 (atual):** buscar **$0/mês** em desenvolvimento/homologação, com dados fictícios ou autorizados — sem promessa de escala de produção. Detalhes de custo: [`docs/project-backlog-scrum.md`](docs/project-backlog-scrum.md).
 
+<p align="center">
+  <img src="docs/assets/gdgjobs-screen.png" alt="GDGJobs — catálogo de vagas em homologação (tema escuro, header com toggle e busca)" width="100%" />
+</p>
+
 ### MVP atual — o que roda neste repositório (Sprints 1–3+)
 
 | Camada | Stack em uso | Papel |
