@@ -114,11 +114,14 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
 }));
 
 import { App } from "./App.jsx";
+import { THEME_STORAGE_KEY } from "./shared/ui/theme.js";
 
 beforeEach(() => {
   authState.session = null;
   authState.profile = null;
   authState.needsOnboarding = false;
+  localStorage.removeItem(THEME_STORAGE_KEY);
+  document.documentElement.setAttribute("data-theme", "system");
 });
 
 async function renderAt(path = "/") {
@@ -176,6 +179,18 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(mobile).getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Entrar" })).toBeInTheDocument();
+  });
+
+  it("alterna o tema no Header sem quebrar a navegação", async () => {
+    await renderHome();
+    expect(screen.getByRole("link", { name: "Ir para a página inicial" })).toBeInTheDocument();
+    const dark = screen.getByRole("button", { name: "Escuro" });
+    fireEvent.click(dark);
+    expect(dark).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement).toHaveAttribute("data-theme", "dark");
+    expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
+    fireEvent.click(screen.getByRole("link", { name: "Entrar" }));
+    expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
   });
 
   it("mostra sessão no Header quando o adaptador devolve usuário", async () => {

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { startGoogleOAuth } from "./auth-api.js";
+import { LoginDynamicBrand } from "../../shared/ui/LoginDynamicBrand.jsx";
 
 export function Login() {
   const [error, setError] = useState("");
@@ -25,8 +26,8 @@ export function Login() {
   return (
     <main className="login-page">
       <section className="login-panel">
-        <button className="login-dynamic-brand" onClick={() => location.reload()} aria-label="Atualizar página de login">
-          <img src="/gdg-jobs-dynamic-brand.svg" alt="GDGJobs — vagas em tempo real" />
+        <button className="login-dynamic-brand" onClick={() => location.reload()} aria-label="GDGJobs — vagas em tempo real. Atualizar página de login">
+          <LoginDynamicBrand />
         </button>
         <img className="login-illustration" src="/login-gdg-illustration.svg" alt="" aria-hidden="true" />
         <div className="login-copy">

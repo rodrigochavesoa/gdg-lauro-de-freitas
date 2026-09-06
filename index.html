@@ -1,7 +1,18 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="system">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("gdgjobs-theme");
+          if (theme !== "light" && theme !== "dark" && theme !== "system") theme = "system";
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "system");
+        }
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2563EB" />
     <meta name="application-name" content="GDGJobs" />

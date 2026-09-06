@@ -34,9 +34,10 @@ Antes de criar uma nova variação, verificar nesta ordem: **o componente já ex
 
 - O protótipo possui variáveis CSS globais, layout responsivo, cards, botões, filtros e feedback visual.
 - A DS-02 foi aplicada ao protótipo: a antiga paleta laranja/roxa foi substituída pelos tokens temporários aprovados de azul, neutros e estados semânticos. A tipografia usa uma escala global em `src/styles.css`.
+- O Header persiste o tema em `localStorage` (`gdgjobs-theme`: light, dark ou system) e aplica `data-theme` no `documentElement` antes do paint; system segue `prefers-color-scheme`, e os tokens semânticos DS-02 (surface, texto, borda e ação primária) são redefinidos em `[data-theme="dark"]`.
 - As cores das logos de empresas no conteúdo demonstrativo são dados de marca isolados; não fazem parte dos tokens de interface.
 - A identidade visual inclui o símbolo GDG em SVG, favicon/PWA para web e mobile, ilustração de Login com opacidade controlada e ícone oficial do Google no fluxo de acesso.
-- A tela de Login usa a marca dinâmica `gdg-jobs-dynamic-brand.svg`; a animação respeita `prefers-reduced-motion`. O menu mobile possui fluxo de foco acessível e o rodapé mantém a assinatura da comunidade em telas pequenas.
+- A tela de Login usa a marca dinâmica inline (`LoginDynamicBrand`); o “GDG” segue `--color-brand-wordmark` (preto no light, branco no dark) e o “Jobs” permanece `#2563EB`. A animação respeita `prefers-reduced-motion`. O menu mobile possui fluxo de foco acessível e o rodapé mantém a assinatura da comunidade em telas pequenas.
 - DS-06 está documentada e aplicada como regra de trabalho do agente; sua evidência formal em PR/CI permanece pendente enquanto não houver repositório Git e pipeline.
 - A equipe não possui acesso ao Figma nem aos componentes oficiais; logo, não há biblioteca, tokens aprovados ou revisão de design em produção.
 
