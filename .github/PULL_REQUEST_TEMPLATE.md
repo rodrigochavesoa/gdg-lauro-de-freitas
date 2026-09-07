@@ -17,6 +17,7 @@
 - [ ] Captura de tela ou vídeo, se houver mudança de UI
 - [ ] Migration e rollback, quando aplicável
 - [ ] PR de interface cita `docs/design-system-communication.md` (DS-06)
+- [ ] PR de layout cita `docs/design-system/section-curves.md` (DS-07) e reutiliza as ondas canônicas
 
 ## Checklist
 - [ ] Branch a partir de `main` — **sem push direto em `main`**

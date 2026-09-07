@@ -154,7 +154,7 @@ Garantia de consistência visual e integridade da marca em todos os pontos de co
 *   Uso de tokens globais de cores e tipografia alinhados à identidade oficial do GDG e diretrizes do Google.
 *   Biblioteca compartilhada de componentes desenvolvida no Figma, servindo de forma cross-platform ao Site, Jobs e Language.
 
-Referência operacional do MVP: [`docs/design-system-communication.md`](docs/design-system-communication.md).
+Referência operacional do MVP: [`docs/design-system-communication.md`](docs/design-system-communication.md). Juntas de seção (ondas, divisor da home): [`docs/design-system/section-curves.md`](docs/design-system/section-curves.md) (DS-07) — leitura obrigatória no perfil Frontend.
 
 ---
 

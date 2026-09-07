@@ -444,7 +444,7 @@ Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Governan�
 - C-01 permanece com Product Owner + Tech Lead.
 - Executor não provisiona Vercel, Firebase nem Supabase.
 
-**Validação obrigatória em toda entrega do agente:** build de produção, critérios de aceite da história, documentação atualizada e evidência visual para mudanças de interface. Para UI, consultar `docs/design-system-communication.md` e as referências antes de criar ou alterar componentes.
+**Validação obrigatória em toda entrega do agente:** build de produção, critérios de aceite da história, documentação atualizada e evidência visual para mudanças de interface. Para UI, consultar `docs/design-system-communication.md`, [`docs/design-system/section-curves.md`](design-system/section-curves.md) (DS-07, perfil Frontend) e as referências antes de criar ou alterar componentes.
 
 | Sprint | Meta | Entregas principais | Executor técnico | Dependência humana / critério de saída |
 |---|---|---|---|---|
@@ -478,7 +478,7 @@ Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Governan�
 | Tipo de mudança | Evidência mínima |
 |---|---|
 | Qualidade / CI | Logs locais ou de Actions com `lint`, `test` e `build` verdes |
-| Interface | Captura desktop e mobile dos fluxos alterados; PR cita `docs/design-system-communication.md` e a referência em `docs/design-system/referencias/` |
+| Interface | Captura desktop, iPad e mobile dos fluxos alterados; PR cita `docs/design-system-communication.md`, `docs/design-system/section-curves.md` (DS-07, se houver junta de seção) e a referência em `docs/design-system/referencias/` |
 | Dados / RLS | Cenários visitante, candidato e admin; plano de rollback da migration |
 | LGPD | Inventário ou controle atualizado; nenhum dado pessoal real em fixture |
 | IA | Confirmação de que nenhum dado pessoal foi enviado ao modelo |
