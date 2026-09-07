@@ -6,11 +6,7 @@ import {
   loadCompanies,
   updatePendingJob,
 } from "./lib/admin-api.js";
-import {
-  loadCurationProfile,
-  signInCuration,
-  signOutCuration,
-} from "./features/curation/curation-api.js";
+import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
 
 const emptyForm = {
@@ -24,7 +20,7 @@ const emptyForm = {
   workModel: "Remoto",
 };
 
-export function Admin({ setLogged }) {
+export function Admin({ setLogged, session, authReady = true }) {
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState(null);
   const [section, setSection] = useState("curation");
@@ -61,6 +57,15 @@ export function Admin({ setLogged }) {
       .finally(() => setReady(true));
   }, [setLogged]);
 
+  useEffect(() => {
+    if (!authReady || session === undefined || session) return;
+    setProfile(null);
+    setLogged?.(false);
+    setJobs([]);
+    setForm(emptyForm);
+    setSection("curation");
+  }, [authReady, session, setLogged]);
+
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   const onLogin = async (event) => {
@@ -80,15 +85,6 @@ export function Admin({ setLogged }) {
     } finally {
       setBusy(false);
     }
-  };
-
-  const onLogout = async () => {
-    await signOutCuration();
-    setProfile(null);
-    setLogged?.(false);
-    setJobs([]);
-    setForm(emptyForm);
-    setSection("curation");
   };
 
   const persist = async (asUpdate) => {
@@ -245,7 +241,7 @@ export function Admin({ setLogged }) {
               </button>
             )}
           </div>
-          {section === "curation" && <CurationQueue profile={profile} onLogout={onLogout} />}
+          {section === "curation" && <CurationQueue profile={profile} />}
           {section === "jobs" && isAdmin && (
             <>
               <div className="admin-title">
@@ -254,9 +250,6 @@ export function Admin({ setLogged }) {
                   <h1>Publicar nova vaga</h1>
                   <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
                 </div>
-                <button type="button" className="outline" onClick={onLogout}>
-                  Sair
-                </button>
               </div>
               <div className="form-section">
                 <h2>Vagas pending e approved</h2>

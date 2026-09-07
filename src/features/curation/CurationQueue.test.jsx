@@ -34,11 +34,11 @@ describe("CurationQueue", () => {
     render(
       <CurationQueue
         profile={{ role: "curator", full_name: "Curador Homolog", email: "curator-homolog@example.invalid" }}
-        onLogout={() => {}}
       />,
     );
 
     expect(await screen.findByRole("heading", { name: "Fila de revisão" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar parecer/i })).toBeInTheDocument();
