@@ -176,14 +176,17 @@ html[data-theme="dark"] .hero .eyebrow{color:var(--color-on-brand);background:rg
 .searchbox input{background:transparent;color:var(--color-text);caret-color:var(--color-text)}
 .searchbox input::placeholder{color:var(--color-text-subtle)}
 .searchbox input:-webkit-autofill,.searchbox input:-webkit-autofill:hover,.searchbox input:-webkit-autofill:focus{-webkit-text-fill-color:var(--color-text);box-shadow:0 0 0 1000px var(--color-surface) inset;caret-color:var(--color-text)}
-html[data-theme="dark"] .login-panel{background-color:var(--color-surface-subtle);background-image:radial-gradient(rgb(59 130 246 / 10%) 1px,transparent 1px)}
 html[data-theme="dark"] .avatar{background:#1e3a8a;color:#dbeafe}
 @media (prefers-color-scheme: dark) {
-  html[data-theme="system"] .login-panel{background-color:var(--color-surface-subtle);background-image:radial-gradient(rgb(59 130 246 / 10%) 1px,transparent 1px)}
   html[data-theme="system"] .avatar{background:#1e3a8a;color:#dbeafe}
 }
 .login-form form{display:grid;gap:21px}
 .login-dynamic-brand svg,.login-dynamic-brand-svg{display:block;width:100%;height:auto}
 .login-dynamic-brand .brand-gdg{fill:var(--color-brand-wordmark)}
+.login-page .login-panel{
+  background:radial-gradient(var(--color-primary-100) 1px,transparent 1px) var(--color-surface-subtle);
+  background-size:16px 16px;
+}
 .hero{border-bottom:none}
-body:has(.hero) .topbar{border-bottom:none}
+body:has(.hero) .topbar,body:has(.login-page) .topbar{border-bottom:none}
+body:has(.login-page) footer{border-top:none}
