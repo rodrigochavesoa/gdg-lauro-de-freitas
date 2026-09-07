@@ -188,15 +188,6 @@ export function Admin({ setLogged, session, authReady = true }) {
   return (
     <main className="admin-page">
       <div className="shell admin-shell">
-        <aside className="admin-side">
-          <div className="admin-user">
-            <span className="avatar">{(profile.full_name || "GD").slice(0, 2).toUpperCase()}</span>
-            <div>
-              <strong>{profile.full_name || "Equipe GDG"}</strong>
-              <small>{profile.role}</small>
-            </div>
-          </div>
-        </aside>
         <section className="admin-content">
           <div className="admin-tabs">
             <button type="button" className={section === "curation" ? "primary small" : "ghost"} onClick={() => setSection("curation")}>

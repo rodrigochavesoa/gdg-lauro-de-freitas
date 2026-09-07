@@ -40,7 +40,7 @@ describe("Admin", () => {
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
   });
 
-  it("sidebar logada não duplica a marca GDGJobs", async () => {
+    it("área logada não renderiza sidebar nem card de perfil", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "c1",
       role: "curator",
@@ -48,14 +48,12 @@ describe("Admin", () => {
       email: "curator-homolog@example.invalid",
     });
     render(<Admin session={{ user: { id: "c1" } }} authReady />);
-    expect(await screen.findByText("Cora Curadora")).toBeInTheDocument();
-    expect(document.querySelector(".admin-side")).toBeTruthy();
-    expect(document.querySelector(".admin-side .brand")).toBeNull();
-    expect(document.querySelector(".admin-side .admin-user")).toBeTruthy();
-    expect(document.querySelector(".admin-side nav")).toBeNull();
+    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(document.querySelector(".admin-side")).toBeNull();
+    expect(document.querySelector(".admin-user")).toBeNull();
+    expect(screen.queryByText("Cora Curadora")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
     expect(tabs).toBeTruthy();
-    expect(within(tabs).getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(within(tabs).queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
   });
 
@@ -67,9 +65,10 @@ describe("Admin", () => {
       email: "ada@example.invalid",
     });
     render(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByText("Ada Admin")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(document.querySelector(".admin-side")).toBeNull();
+    expect(screen.queryByText("Ada Admin")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
-    expect(tabs).toBeTruthy();
     expect(within(tabs).getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(within(tabs).getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
