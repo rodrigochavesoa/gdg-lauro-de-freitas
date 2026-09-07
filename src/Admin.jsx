@@ -164,7 +164,7 @@ export function Admin({ setLogged, session, authReady = true }) {
                 <p>Use o e-mail e a senha da conta de teste (curador, moderador ou admin). Google OAuth fica para o Sprint 5.</p>
               </div>
             </div>
-            <form className="job-form" onSubmit={onLogin}>
+            <form className="admin-auth-form" onSubmit={onLogin}>
               <div className="form-section">
                 <h2>Acesso</h2>
                 <div className="form-grid">

@@ -263,3 +263,55 @@ body:has(.login-page) footer{border-top:none}
 @keyframes job-card-skeleton{0%{background-position:100% 0}100%{background-position:-100% 0}}
 @media(prefers-reduced-motion:reduce){.job-card--skeleton{animation:none}}
 button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-allowed;opacity:1;background:var(--color-surface)}
+
+/* F-010 — staff login is a compact column; do not reuse .job-form CRUD width. */
+.admin-auth-form{
+  max-width:420px;
+  width:100%;
+  background:var(--color-surface);
+  border:1px solid var(--color-border);
+  border-radius:var(--radius-lg);
+  overflow:hidden;
+}
+.admin-auth-form label{
+  font-size:var(--font-size-body-2);
+  font-weight:600;
+  color:var(--color-grey-700);
+  display:grid;
+  gap:7px;
+}
+.admin-auth-form input{
+  border:1px solid var(--color-border-strong);
+  border-radius:var(--radius-sm);
+  padding:12px;
+  outline-color:var(--color-focus);
+  color:var(--color-text);
+  background:var(--color-surface);
+}
+.admin-auth-form .form-grid{grid-template-columns:1fr}
+.admin-auth-form .form-grid .wide{grid-column:auto}
+@media(max-width:760px){
+  .admin-auth-form{max-width:none;width:100%}
+}
+
+.admin-side nav button svg{color:currentColor;stroke:currentColor}
+
+/* F-009 — admin nav contrast in dark; light selectors stay on DS-02 primary-700. */
+html[data-theme="dark"] .admin-side nav button{color:var(--color-text)}
+html[data-theme="dark"] .admin-side nav button:hover{background:var(--color-grey-100)}
+html[data-theme="dark"] .admin-side nav button.active{background:var(--color-grey-100);color:var(--color-text)}
+html[data-theme="dark"] .admin-tabs button{color:var(--color-text)}
+html[data-theme="dark"] .admin-tabs button:hover{background:var(--color-grey-100);color:var(--color-text)}
+html[data-theme="dark"] .admin-tabs button.primary,
+html[data-theme="dark"] .admin-tabs button.active{background:var(--color-grey-100);color:var(--color-text);box-shadow:none}
+html[data-theme="dark"] .admin-content .ghost[aria-pressed="true"]{background:var(--color-grey-100);color:var(--color-text)}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .admin-side nav button{color:var(--color-text)}
+  html[data-theme="system"] .admin-side nav button:hover{background:var(--color-grey-100)}
+  html[data-theme="system"] .admin-side nav button.active{background:var(--color-grey-100);color:var(--color-text)}
+  html[data-theme="system"] .admin-tabs button{color:var(--color-text)}
+  html[data-theme="system"] .admin-tabs button:hover{background:var(--color-grey-100);color:var(--color-text)}
+  html[data-theme="system"] .admin-tabs button.primary,
+  html[data-theme="system"] .admin-tabs button.active{background:var(--color-grey-100);color:var(--color-text);box-shadow:none}
+  html[data-theme="system"] .admin-content .ghost[aria-pressed="true"]{background:var(--color-grey-100);color:var(--color-text)}
+}
