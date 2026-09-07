@@ -43,6 +43,8 @@ describe("loadApprovedJobs", () => {
 
     expect(fromMock).toHaveBeenCalledWith("jobs");
     expect(eq).toHaveBeenCalledWith("status", "approved");
+    expect(select.mock.calls[0][0]).not.toMatch(/description/);
+    expect(select.mock.calls[0][0]).not.toMatch(/requirements/);
     expect(jobs).toHaveLength(1);
     expect(jobs[0].title).toBe("Pessoa Desenvolvedora Front-end");
     expect(jobs[0].level).toBe("Pleno");

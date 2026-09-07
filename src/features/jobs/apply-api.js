@@ -32,6 +32,13 @@ const UX_BY_CODE = {
   "application not found": "Candidatura não encontrada.",
 };
 
+async function resolveCandidateId(client, userId) {
+  if (userId) return userId;
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError || !userData?.user) return null;
+  return userData.user.id;
+}
+
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
   if (!client) {
@@ -108,31 +115,31 @@ export async function withdrawApplication(jobId) {
   return parseApplication(data);
 }
 
-export async function loadMyApplication(jobId) {
+export async function loadMyApplication(jobId, userId) {
   if (!jobId) return null;
   const client = getSupabaseBrowserClient();
   if (!client) return null;
-  const { data: userData, error: userError } = await client.auth.getUser();
-  if (userError || !userData?.user) return null;
+  const candidateId = await resolveCandidateId(client, userId);
+  if (!candidateId) return null;
   const { data, error } = await client
     .from("applications")
     .select(APPLICATION_SELECT)
     .eq("job_id", jobId)
-    .eq("candidate_id", userData.user.id)
+    .eq("candidate_id", candidateId)
     .maybeSingle();
   if (error) throw createApplyError(error);
   return parseApplication(data);
 }
 
-export async function loadMyApplications() {
+export async function loadMyApplications(userId) {
   const client = getSupabaseBrowserClient();
   if (!client) return [];
-  const { data: userData, error: userError } = await client.auth.getUser();
-  if (userError || !userData?.user) return [];
+  const candidateId = await resolveCandidateId(client, userId);
+  if (!candidateId) return [];
   const { data, error } = await client
     .from("applications")
     .select(APPLICATION_LIST_SELECT)
-    .eq("candidate_id", userData.user.id)
+    .eq("candidate_id", candidateId)
     .order("updated_at", { ascending: false });
   if (error) throw createApplyError(error);
   return (data ?? []).map(parseApplication).filter(Boolean);

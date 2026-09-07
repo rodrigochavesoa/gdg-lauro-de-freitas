@@ -23,16 +23,19 @@ vi.mock("./features/auth/auth-api.js", () => ({
   startGoogleOAuth: vi.fn(),
 }));
 
-vi.mock("./features/jobs/apply-api.js", () => ({
-  applyToJob: vi.fn(),
-  withdrawApplication: vi.fn(),
-  loadMyApplication: async () => null,
-  loadMyApplications: async () => [],
-  canWithdrawStatus: (status) => status === "submitted" || status === "reviewing",
-  applicationStatusLabel: (status) => status,
-  formatApplicationDate: () => "07 de set. de 2026",
-  APPLICATION_STATUS_COPY: {},
-}));
+const loadMyApplicationMock = vi.fn(async () => null);
+const loadMyApplicationsMock = vi.fn(async () => []);
+
+vi.mock("./features/jobs/apply-api.js", async () => {
+  const actual = await vi.importActual("./features/jobs/apply-api.js");
+  return {
+    ...actual,
+    applyToJob: vi.fn(),
+    withdrawApplication: vi.fn(),
+    loadMyApplication: (...args) => loadMyApplicationMock(...args),
+    loadMyApplications: (...args) => loadMyApplicationsMock(...args),
+  };
+});
 
 vi.mock("./features/catalog/jobs-api.js", () => ({
   loadApprovedJobs: async () => [
@@ -137,6 +140,10 @@ beforeEach(() => {
   authState.needsOnboarding = false;
   localStorage.removeItem(THEME_STORAGE_KEY);
   document.documentElement.setAttribute("data-theme", "system");
+  loadMyApplicationMock.mockReset();
+  loadMyApplicationMock.mockResolvedValue(null);
+  loadMyApplicationsMock.mockReset();
+  loadMyApplicationsMock.mockResolvedValue([]);
 });
 
 async function renderAt(path = "/") {
@@ -243,5 +250,27 @@ describe("ARQ-01 — caracterização do shell", () => {
     await renderAt("/minhas-candidaturas");
     expect(await screen.findByRole("heading", { name: "Minhas candidaturas" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
+  });
+
+  it("não mostra CTA azul antes do estado aplicado quando já candidatado", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    let resolveApplication;
+    loadMyApplicationMock.mockImplementation(
+      () => new Promise((resolve) => { resolveApplication = resolve; }),
+    );
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeInTheDocument();
+    resolveApplication({ status: "submitted" });
+    expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
   });
 });

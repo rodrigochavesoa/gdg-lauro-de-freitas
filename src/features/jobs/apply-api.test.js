@@ -130,10 +130,27 @@ describe("RPCs", () => {
     fromMock.mockReturnValue({ select });
 
     const row = await loadMyApplication("job-1");
+    expect(getUserMock).toHaveBeenCalled();
     expect(fromMock).toHaveBeenCalledWith("applications");
     expect(eqJob).toHaveBeenCalledWith("job_id", "job-1");
     expect(eqCandidate).toHaveBeenCalledWith("candidate_id", "u1");
     expect(row.status).toBe("reviewing");
+  });
+
+  it("loadMyApplication com userId não chama getUser", async () => {
+    const maybeSingle = vi.fn().mockResolvedValue({
+      data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" },
+      error: null,
+    });
+    const eqCandidate = vi.fn().mockReturnValue({ maybeSingle });
+    const eqJob = vi.fn().mockReturnValue({ eq: eqCandidate });
+    const select = vi.fn().mockReturnValue({ eq: eqJob });
+    fromMock.mockReturnValue({ select });
+
+    const row = await loadMyApplication("job-1", "u1");
+    expect(getUserMock).not.toHaveBeenCalled();
+    expect(eqCandidate).toHaveBeenCalledWith("candidate_id", "u1");
+    expect(row.status).toBe("submitted");
   });
 
   it("loadMyApplications filtra o candidato e ordena por updated_at", async () => {

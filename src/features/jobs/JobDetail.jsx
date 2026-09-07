@@ -13,6 +13,7 @@ export function JobDetail({
   onNeedOnboarding,
   needsOnboarding,
   applicationStatus,
+  applicationLoading = false,
   onApply,
   onWithdraw,
   applyBusy,
@@ -31,9 +32,10 @@ export function JobDetail({
   };
 
   const copy = APPLICATION_STATUS_COPY[applicationStatus];
-  const showApplied = Boolean(copy);
-  const showApply = !showApplied;
-  const showWithdraw = canWithdrawStatus(applicationStatus);
+  const showChecking = Boolean(logged && applicationLoading);
+  const showApplied = Boolean(copy) && !showChecking;
+  const showApply = !showChecking && !showApplied;
+  const showWithdraw = !showChecking && canWithdrawStatus(applicationStatus);
 
   return (
     <main className="detail-page">
@@ -74,6 +76,11 @@ export function JobDetail({
           <aside className="apply-card">
             <div><span className="muted">Faixa salarial</span><strong>{job.salary}</strong></div>
             <div><span className="muted">Publicada</span><strong><Clock3 size={15}/>{job.posted}</strong></div>
+            {showChecking ? (
+              <button className="primary apply" type="button" disabled>
+                Verificando candidatura…
+              </button>
+            ) : null}
             {showApplied ? (
               <div className="applied">
                 <Check size={20}/>
