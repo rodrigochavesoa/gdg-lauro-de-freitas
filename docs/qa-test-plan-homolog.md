@@ -164,7 +164,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 
 **Regra de ouro:** qualquer tarefa que **prioriza severidade**, **interpreta RLS/LGPD** ou **define escopo de pentest** → **raciocínio alto**, nunca tier “fast”.
 
-**Papéis:** Plan publica ONE-LINER e revisa; **Executor executa** comandos e preenche evidências. Plan **não** roda baseline QA — ver [`contributing.md`](contributing.md) § Papéis Plan vs Executor.
+**Papéis:** Plan publica ONE-LINER (com **`Função / Agente`** obrigatório) e revisa; **Executor executa** comandos e preenche evidências. Plan **não** roda baseline QA — ver [`contributing.md`](contributing.md) § Papéis Plan vs Executor e § Handoff ONE-LINER (regra de ouro — função do executor).
 
 ---
 

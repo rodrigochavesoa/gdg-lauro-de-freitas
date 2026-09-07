@@ -62,7 +62,9 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 ```md
 ### ONE-LINER AO EXECUTOR
 
-**Perfil:** ...
+**Função / Agente:** (obrigatório) quem executa — ex.: Executor / Shell (pwsh), Executor frontend, Humano (PO), subagent security-review, Plan Tech Lead only
+**Modelo / ferramenta:** (obrigatório quando agente ≠ humano) ex.: sem LLM · Cursor Agent standard · raciocínio alto (só Plan)
+**Perfil:** ... (opcional — competência: Fullstack Engineer, etc.)
 **História:** Sx-xx — ...
 **Tarefa:** ...
 **Branch:** feat/... ou docs/...
@@ -78,6 +80,36 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 ```
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.
+
+**Regra de ouro (ONE-LINER — função do executor):** todo ONE-LINER **deve** declarar explicitamente **quem executa** (`**Função / Agente:**`) e, quando o agente não for humano puro, **como executa** (`**Modelo / ferramenta:**`). ONE-LINER **sem** esses campos é **inválido** — o Executor **não inicia**; o Plan republica o bloco completo antes de dar **Sim**.
+
+## Papéis — Plan Tech Lead vs Executor (obrigatório)
+
+Respeitar a função de cada agente. **Confusão de papéis invalida a entrega** (ex.: baseline QA preenchido pelo Plan sem reexecução do Executor).
+
+| Papel | Faz | **Não faz** |
+|---|---|---|
+| **Plan Tech Lead** | ONE-LINER; **revisão** de entregas do Executor (aprovar / reprovar / aprovar com ressalvas); diagnóstico; backlog; decisões técnicas; **Sim** antes de push/PR | **Executar** `pnpm test`, `pnpm test:rls`, `pnpm lint`, `build`; editar código de produto; preencher assessment/checklist de execução; commit; push; abrir PR de implementação |
+| **Executor** | Branch → implementar ou **executar** ONE-LINER (comandos, docs preenchidos com log real) → validar → commit na branch → PR após **Sim** | Decisão de negócio; segredos reais; push em `main`; iniciar sem ONE-LINER |
+| **Humano (PO/mantenedor)** | C-05, credenciais, merge squash, testes manuais browser quando ONE-LINER pedir | — |
+
+**Regra explícita:** se o ONE-LINER diz “Executor roda X”, o **Plan não roda X** — só publica o ONE-LINER e revisa o resultado. Se o Plan executou por engano, o Executor **reexecuta** e corrige artefatos (registrar no PR: “Revalidado pelo Executor”).
+
+**Regra de ouro (Plan Tech Lead):** se o humano pedir ao Plan uma tarefa **fora da função Plan** (executar comandos, implementar, preencher assessment/checklist de execução, commit, push, PR de código/docs preenchidos por execução), o Plan **recusa educadamente**, **não executa**, e responde com **ONE-LINER completo** para o agente correto (Executor, Shell, Humano ou subagent indicado). Nunca “fazer rápido” por conveniência.
+
+**Exceção:** tarefa rotulada **“Plan Tech Lead only”** no ONE-LINER (ex.: revisão de PR, parecer de merge, atualização de backlog pós-merge) — aí o Executor **não** substitui o Plan.
+
+### Revisão Plan (padrão de parecer)
+
+Quando o Executor reporta **“pronto na branch / PR #N”**, o Plan **revisa** (sem reexecutar, salvo amostragem opcional do humano):
+
+| Veredito | Quando usar |
+|---|---|
+| **APROVADO** | ONE-LINER cumprido; CI verde; escopo isolado; critérios de aceite ok |
+| **APROVADO com ressalvas** | Entrega válida; polish ou follow-up documentado (não bloqueia merge se P0 ok) |
+| **REPROVADO** | Fora de escopo; falha CI; critério P0 não atendido; divergência do ONE-LINER; **ONE-LINER sem `Função / Agente` (e `Modelo / ferramenta` quando couber)** |
+
+Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Registrar revisões relevantes em `docs/project-backlog-scrum.md` quando for marco de sprint.
 
 ## Conventional Commits (obrigatório)
 

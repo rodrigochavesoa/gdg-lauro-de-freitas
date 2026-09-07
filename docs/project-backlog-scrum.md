@@ -201,10 +201,11 @@ Uma história é concluída quando:
 | P1 | Ingestão | Avaliar scrapers por fonte, termos de uso, base legal e manutenção antes de construir conectores | V1/V2 | Novo — depende de aprovação de fontes |
 | P1 | Curadoria | Fluxo pendente → aprovação/rejeição, histórico e publicação Realtime | V1 | **Regras V1 aceitas** — [`docs/decisions-curation-v1.md`](decisions-curation-v1.md); implementação Sprint 4 |
 | P1 | Curadoria | Validação automática e rubrica de revisão para comunidade/moderadores | V1 | Rubrica V1 fechada; RPC + UI no Sprint 4 |
-| P1 | UX / performance | Eliminar delay perceptível e flash do botão apply (catálogo, detalhe, minhas candidaturas) | V1 | **Pronto para Executor** — ver UX-PERF-01 |
+| P1 | UX / performance | Eliminar delay perceptível e flash do botão apply (catálogo, detalhe, minhas candidaturas) | V1 | **Concluída** — #29 + #30 (2026-09-07); ver handoff |
 | P1 | Perfil | Onboarding, edição de perfil, skills e preferências | V2 | Não iniciado |
 | P1 | Candidaturas | Candidatura com um clique, prevenção de duplicidade e dashboard | V2 | Dados preparados; interface parcial |
-| P1 | Comunicação | E-mails transacionais via Resend | V2 | Não iniciado |
+| P1 | Comunicação | E-mails transacionais via Resend | V2 | Não iniciado — bloqueado C-05 |
+| P1 | QA / Segurança | Avaliação homologação defensiva (matriz, RLS, assessment, E2E, pentest) | V1 homolog | **Aprovado** — épico QA-SEC-01; matriz em [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) |
 | P1 | Matching V2 | Busca/match por stack, nível, keywords e explicação do score | V2 | Base semântica preparada; integração pendente |
 | P2 | IA V1 | Acionar enriquecimento Gemini no fluxo administrativo com revisão humana | V3 | Edge Function pronta; deploy pendente |
 | P2 | IA V2 | Gerar e atualizar embeddings, exibir score e motivo do match | V3 | Base pronta; integração pendente |
@@ -261,6 +262,8 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 **Executor técnico padrão:** Agente GDGJobs. O agente implementa, testa, documenta e **abre Pull Requests**; não toma decisões de negócio, não cria contas externas, não configura segredos reais nem aprova produção sem direção explícita dos responsáveis.
 
+**Plan Tech Lead não executa:** ONE-LINER, revisão e **Sim** antes de PR — ver [`docs/contributing.md`](contributing.md) § Papéis Plan vs Executor. **Regra de ouro:** pedido de execução ao Plan → recusa + ONE-LINER ao Executor. **Todo ONE-LINER inclui `Função / Agente` (obrigatório) e `Modelo / ferramenta` quando couber** — bloco sem função do executor é inválido. Comandos (`pnpm test`, `test:rls`, lint, build) e preenchimento de assessment/checklists são **sempre** do Executor, salvo ONE-LINER marcado “Plan only”.
+
 **Git:** o Executor **nunca** faz push em `main`. Fluxo: branch → PR → squash merge pelo mantenedor. Ver [`docs/contributing.md`](contributing.md).
 
 **Commits:** mensagens no padrão [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o) (`tipo(escopo): descrição`). Ex.: `docs(lgpd): add S1-03 personal data inventory for DPO review`.
@@ -269,11 +272,11 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 ### Handoff para o agente executor
 
-**Ponto de partida confirmado:** Fluxo candidato homologação V1 completo — OAuth Google, onboarding D-01, catálogo, detalhe da vaga, **apply/retirar** via RPC (`apply-api.js`), dashboard **`/minhas-candidaturas`**. Curadoria V1 e Admin CRUD operacionais. Contrato: [`docs/s6-apply-flow.md`](s6-apply-flow.md).
+**Ponto de partida confirmado:** Fluxo candidato homologação V1 completo — OAuth Google, onboarding D-01, catálogo (sort + skeleton), detalhe da vaga, **apply/retirar** via RPC (`apply-api.js`), dashboard **`/minhas-candidaturas`**, **UX-PERF-01** (#29 + polish #30). Curadoria V1 e Admin CRUD operacionais. Contrato: [`docs/s6-apply-flow.md`](s6-apply-flow.md).
 
-**Próxima ação do agente:** aguardar **C-05** (Resend) e ONE-LINER **Sprint 7** do Plan. Não iniciar Resend sem credenciais; não Gemini, deploy público nem exportação/exclusão LGPD neste sprint.
+**Próxima ação do agente:** aguardar **C-05** (Resend) fechada pelo humano; então ONE-LINER **Sprint 7** do Plan. Não iniciar Resend sem credenciais; não Gemini, deploy público nem exportação/exclusão LGPD.
 
-**Paralelo (sem bloquear S7):** **UX-PERF-01** — performance percebida e flash do botão apply; **branch e PR separados** de qualquer entrega S7 (sort já em `main`, #27); pode executar enquanto C-05 pendente.
+**UX-PERF-01:** **concluída** — merge #29 (`70d1458`) + polish #30 (`ed336ab`). Ver § Handoff pausa abaixo.
 
 #### Diagnóstico Plan — UX-PERF-01 (2026-09-07)
 
@@ -600,10 +603,73 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
+### Handoff — pausa do projeto (2026-09-07)
+
+**`main` @ `d535552`** — QA baseline #31 mergeado. **55 testes** verdes na última entrega UX (#30).
+
+#### O que foi entregue nesta sessão
+
+| PR | Merge (squash) | Entrega |
+|---|---|---|
+| #27 | `4075da4` | Sort catálogo (Mais recentes / Mais antigas) |
+| #28 | `86436af` | Backlog UX-PERF-01 — diagnóstico + ONE-LINER |
+| #29 | `70d1458` | Loading waterfalls — paralelo, skeleton, flash apply |
+| #30 | `ed336ab` | Polish — outline “Verificando…”, teste espelho, erro sem CTA |
+| #31 | `d535552` | QA-SEC-01b — baseline automatizado + matriz homologação |
+
+**Sprint 6 homologação candidato:** fechada (#22–#25, closeout #26). **UX-PERF-01:** fechada (#28–#30). **QA-SEC-01b:** concluída (#31).
+
+#### Onde retomar (ordem recomendada)
+
+1. **Humano / PO — C-05 (bloqueia Sprint 7):** conta Resend, domínio verificado (SPF/DKIM/DMARC), remetente `From`, API key em `docs-local/` (nunca Git). Homologação: preferir só e-mails da equipe (P-20 / DPO). Ver explicação C-05 na conversa Plan ou checklist abaixo.
+2. **Plan:** após C-05 fechada → ONE-LINER **Sprint 7** (Resend: candidatura, status, aprovação de vaga). Alternativa enquanto C-05 pendente: governança S7 doc-only (eventos/gatilhos/templates).
+3. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20.
+4. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase).
+5. **Git local ao voltar:** `git checkout main && git pull origin main`. Apagar branches obsoletas se existirem (`feat/catalog-sort-recent`, `pr-*-review`). **Nunca commitar** `supabase/migrations/*_noop.sql` nem `docs-local/`.
+
+#### C-05 — checklist rápido para o humano
+
+- [ ] Conta Resend (Free ok para homologação)
+- [ ] Domínio adicionado e verificado no painel
+- [ ] Remetente definido (ex.: `GDGJobs <vagas@…>`)
+- [ ] API key gerada → guardar em `docs-local/` (ex.: `resend-homolog.md`)
+- [ ] Eventos V1 acordados (mínimo: confirmação de candidatura)
+- [ ] Regra homologação: só inboxes da equipe (ou exceção PO/DPO documentada)
+- [ ] Avisar Plan: “C-05 fechada” + onde está a key (sem colar key no chat/Git)
+
+#### Polish opcional (sem bloqueio)
+
+- Chip neutro de status em `/minhas-candidaturas` (hoje usa `.featured` como “Destaque”)
+- Cenário `test:rls` com linkedin/github/cv_url no snapshot
+- Path Windows absoluto em `docs/design-system-communication.md`
+- Cache client-side catálogo (follow-up UX, fora do escopo #29)
+
+#### Épico QA-SEC-01 — Avaliação homologação defensiva (**aprovado**)
+
+**Objetivo:** validar funcional + segurança em homologação; gerar documentação de achados e correções no backlog.
+
+| ID | Entrega | Executor | Ferramenta / modelo | Saída |
+|---|---|---|---|---|
+| QA-SEC-01a | Matriz + execução manual P0 | Plan + **Humano** QA | Cursor **raciocínio alto** (Plan); manual browser | [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) preenchido |
+| QA-SEC-01b | Baseline + `test:rls` registrado | Executor / Shell | **pwsh** ou Cursor Shell — **sem LLM** | **Concluído** — #31; [`qa-security-assessment.md`](qa-security-assessment.md) |
+| QA-SEC-01c | Playwright E2E (3 fluxos mínimos) | Executor frontend | Cursor Agent **standard** (não fast) | PR `feat/qa-e2e-smoke` |
+| QA-SEC-01d | Pentest / security-review escopo GDGJobs | Humano + **security-review** | Cursor subagent; modelo **forte** | Findings F-xxx |
+| QA-SEC-01e | Assessment consolidado | Plan TL | Cursor **raciocínio alto** | [`qa-security-assessment.md`](qa-security-assessment.md) |
+
+**Agentes — regra:** planejar, priorizar severidade, pentest e LGPD → **raciocínio alto** (Cursor principal / Max / thinking). **Não** usar tier fast (`composer-2.5-fast`, etc.) para security-review ou assessment. **Codex CLI:** só scripts determinísticos (`test`, `test:rls`, grep); não substitui Plan nem pentest manual.
+
+**Paralelo C-05:** QA-SEC-01a (manual browser) pode rodar agora; 01b concluída (#31).
+
+#### Produção
+
+Continua bloqueada pelos **seis controles LGPD**. Homologação só com dados fictícios ou autorizados — projeto Supabase **GDG-JOBS-SENAI** (não misturar com `gdg-jobs-dev`).
+
+---
+
 1. **Humano / PO:** fechar **C-05** (domínio e credenciais Resend) para destravar Sprint 7.
-2. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou rascunho de governança S7 (eventos/gatilhos) enquanto credenciais pendentes.
-3. **DPO:** bases legais de e-mail transacional em [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md).
-4. **Humano:** P-03 (`location`), C-03 (orçamento Supabase).
-5. **Executor (paralelo S7):** **UX-PERF-01** em `fix/ux-loading-waterfalls` — PR **separado** (após este registro de backlog); ver ONE-LINER no backlog.
+2. **QA-SEC-01a (paralelo):** executar matriz P0 — [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md); preencher [`qa-security-assessment.md`](qa-security-assessment.md).
+3. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou governança S7 doc-only enquanto credenciais pendentes.
+4. **DPO:** bases legais de e-mail transacional em [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md).
+5. **Humano:** P-03 (`location`), C-03 (orçamento Supabase).
 6. **Polish opcional:** chip neutro de status no dashboard; cenário `test:rls` com links no snapshot; path relativo em `design-system-communication.md`.
 7. **Produção:** continua bloqueada pelos seis controles LGPD; homologação segue com dados fictícios ou autorizados.
