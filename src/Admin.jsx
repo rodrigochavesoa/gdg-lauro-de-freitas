@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { BriefcaseBusiness, Check, LayoutDashboard, ListChecks, Plus } from "lucide-react";
+import { Check, Plus } from "lucide-react";
 import {
   createPendingJob,
   loadAdminJobs,
@@ -189,14 +189,6 @@ export function Admin({ setLogged, session, authReady = true }) {
     <main className="admin-page">
       <div className="shell admin-shell">
         <aside className="admin-side">
-          <button type="button" className="brand">
-            <span className="brand-mark">
-              <img src="/favicon.svg" alt="" />
-            </span>
-            <span>
-              GDG<span>Jobs</span>
-            </span>
-          </button>
           <div className="admin-user">
             <span className="avatar">{(profile.full_name || "GD").slice(0, 2).toUpperCase()}</span>
             <div>
@@ -204,21 +196,6 @@ export function Admin({ setLogged, session, authReady = true }) {
               <small>{profile.role}</small>
             </div>
           </div>
-          <nav>
-            <button type="button" className={section === "curation" ? "active" : ""} onClick={() => setSection("curation")}>
-              <ListChecks size={18} /> Curadoria
-            </button>
-            {isAdmin && (
-              <>
-                <button type="button" className={section === "jobs" ? "active" : ""} onClick={() => setSection("jobs")}>
-                  <LayoutDashboard size={18} /> Visão geral
-                </button>
-                <button type="button" className={section === "jobs" ? "active" : ""} onClick={() => setSection("jobs")}>
-                  <BriefcaseBusiness size={18} /> Vagas
-                </button>
-              </>
-            )}
-          </nav>
         </aside>
         <section className="admin-content">
           <div className="admin-tabs">
@@ -335,8 +312,10 @@ export function Admin({ setLogged, session, authReady = true }) {
                   <button type="button" className="ghost" disabled={busy || !editingId} onClick={() => persist(true)}>
                     Salvar rascunho
                   </button>
-                  <button className="primary" type="submit" disabled={busy}>
-                    <Plus size={17} /> Cadastrar para curadoria
+                  <button className="primary" type="submit" disabled={busy} aria-label="Cadastrar para curadoria">
+                    <Plus size={17} />
+                    <span className="hide-mobile">Cadastrar para curadoria</span>
+                    <span className="job-form-submit-mobile">Cadastrar vaga</span>
                   </button>
                 </div>
               </form>
