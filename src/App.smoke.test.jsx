@@ -23,6 +23,13 @@ vi.mock("./features/auth/auth-api.js", () => ({
   startGoogleOAuth: vi.fn(),
 }));
 
+vi.mock("./features/jobs/apply-api.js", () => ({
+  applyToJob: vi.fn(),
+  withdrawApplication: vi.fn(),
+  loadMyApplication: async () => null,
+  canWithdrawStatus: (status) => status === "submitted" || status === "reviewing",
+}));
+
 vi.mock("./features/catalog/jobs-api.js", () => ({
   loadApprovedJobs: async () => [
     {

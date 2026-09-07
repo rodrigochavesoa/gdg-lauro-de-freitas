@@ -5,6 +5,7 @@ import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
 import { loadApprovedJob } from "./features/catalog/jobs-api.js";
 import { JobDetail } from "./features/jobs/JobDetail.jsx";
+import { applyToJob, loadMyApplication, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import { loadAuthSnapshot, signOutUser, subscribeAuth } from "./features/auth/auth-api.js";
@@ -42,7 +43,7 @@ export function App() {
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Home /></CatalogGate>} />
-        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} /></CatalogGate>} />
+        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin />} />
@@ -78,17 +79,21 @@ function OnboardingRoute({ auth, setAuth }) {
   );
 }
 
-function JobDetailRoute({ logged }) {
+function JobDetailRoute({ logged, needsOnboarding }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
-  const [applicationSent, setApplicationSent] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState(null);
+  const [applyBusy, setApplyBusy] = useState(false);
+  const [applyError, setApplyError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     setStatus("loading");
     setJob(null);
+    setApplicationStatus(null);
+    setApplyError("");
     loadApprovedJob(id)
       .then((row) => {
         if (cancelled) return;
@@ -101,6 +106,46 @@ function JobDetailRoute({ logged }) {
     return () => { cancelled = true; };
   }, [id]);
 
+  useEffect(() => {
+    if (!logged || status !== "ready") return undefined;
+    let cancelled = false;
+    loadMyApplication(id)
+      .then((row) => {
+        if (!cancelled) setApplicationStatus(row?.status ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setApplicationStatus(null);
+      });
+    return () => { cancelled = true; };
+  }, [id, logged, status]);
+
+  const runApplyAction = async (action) => {
+    setApplyBusy(true);
+    setApplyError("");
+    try {
+      const row = await action();
+      setApplicationStatus(row?.status ?? null);
+    } catch (error) {
+      if (error.code === "already applied") {
+        const existing = await loadMyApplication(id).catch(() => null);
+        setApplicationStatus(existing?.status ?? "submitted");
+        setApplyError("");
+        return;
+      }
+      if (error.code === "profile incomplete") {
+        navigate("/onboarding");
+        return;
+      }
+      if (error.code === "authentication required") {
+        navigate("/login");
+        return;
+      }
+      setApplyError(error.message || "Não foi possível concluir a candidatura.");
+    } finally {
+      setApplyBusy(false);
+    }
+  };
+
   if (status === "loading") {
     return <main className="detail-page"><div className="shell"><p>Carregando vaga…</p></div></main>;
   }
@@ -112,9 +157,14 @@ function JobDetailRoute({ logged }) {
       job={job}
       goBack={() => navigate("/")}
       logged={logged}
+      needsOnboarding={needsOnboarding}
       onNeedLogin={() => navigate("/login")}
-      applicationSent={applicationSent}
-      setApplicationSent={setApplicationSent}
+      onNeedOnboarding={() => navigate("/onboarding")}
+      applicationStatus={applicationStatus}
+      onApply={() => runApplyAction(() => applyToJob(id))}
+      onWithdraw={() => runApplyAction(() => withdrawApplication(id))}
+      applyBusy={applyBusy}
+      applyError={applyError}
     />
   );
 }
