@@ -1,7 +1,9 @@
 import React, { useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
+
+const STAFF_ROLES = ["admin", "curator", "moderator"];
 
 function initialsFrom(name) {
   const parts = String(name ?? "")
@@ -16,7 +18,12 @@ function initialsFrom(name) {
     .toUpperCase();
 }
 
-export function Header({ logged, displayName, onSignOut }) {
+function isStaffRole(role) {
+  return STAFF_ROLES.includes(role);
+}
+
+export function Header({ logged, displayName, role, onSignOut }) {
+  const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuButtonRef = useRef(null);
   const closeMobileMenu = () => { menuButtonRef.current?.focus(); setMobileMenuOpen(false); };
@@ -24,6 +31,26 @@ export function Header({ logged, displayName, onSignOut }) {
     await onSignOut?.();
     closeMobileMenu();
   };
+
+  const staff = Boolean(logged && isStaffRole(role));
+  const candidate = Boolean(logged && !staff);
+  const showAuthCta = !logged && pathname !== "/login";
+
+  const navLinks = (onNavigate) => (
+    <>
+      <NavLink end to="/" onClick={onNavigate}>Vagas</NavLink>
+      {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
+      {staff ? (
+        <NavLink to="/admin" onClick={onNavigate}>Área admin</NavLink>
+      ) : (
+        <>
+          <NavLink to="/admin" onClick={onNavigate}>Para empresas</NavLink>
+          <NavLink to="/admin" onClick={onNavigate}>Comunidade</NavLink>
+        </>
+      )}
+    </>
+  );
+
   return (
     <header className="topbar">
       <div className="shell nav">
@@ -32,10 +59,7 @@ export function Header({ logged, displayName, onSignOut }) {
           <span className="brand-name">GDG <span className="brand-accent">Jobs</span></span>
         </Link>
         <nav>
-          <NavLink end to="/">Vagas</NavLink>
-          {logged ? <NavLink to="/minhas-candidaturas">Minhas candidaturas</NavLink> : null}
-          <NavLink to="/admin">Para empresas</NavLink>
-          <NavLink to="/admin">Comunidade</NavLink>
+          {navLinks()}
         </nav>
         <div className="nav-actions">
           <ThemeToggle className="hide-mobile" />
@@ -48,12 +72,9 @@ export function Header({ logged, displayName, onSignOut }) {
                 <LogOut size={16} /> Sair
               </button>
             </>
-          ) : (
-            <>
-              <Link className="ghost hide-mobile" to="/login">Entrar</Link>
-              <Link className="primary small" to="/login">Criar conta</Link>
-            </>
-          )}
+          ) : showAuthCta ? (
+            <Link className="primary small hide-mobile" to="/login">Entrar ou criar conta</Link>
+          ) : null}
           <button
             ref={menuButtonRef}
             className="menu"
@@ -68,18 +89,12 @@ export function Header({ logged, displayName, onSignOut }) {
       </div>
       {mobileMenuOpen && (
         <div id="mobile-navigation" className="mobile-nav open">
-          <NavLink end to="/" onClick={closeMobileMenu}>Vagas</NavLink>
-          {logged ? <NavLink to="/minhas-candidaturas" onClick={closeMobileMenu}>Minhas candidaturas</NavLink> : null}
-          <NavLink to="/admin" onClick={closeMobileMenu}>Para empresas</NavLink>
-          <NavLink to="/admin" onClick={closeMobileMenu}>Comunidade</NavLink>
+          {navLinks(closeMobileMenu)}
           {logged ? (
             <button type="button" onClick={signOut}><LogOut size={17} /> Sair</button>
-          ) : (
-            <>
-              <NavLink to="/login" onClick={closeMobileMenu}>Entrar</NavLink>
-              <NavLink className="primary" to="/login" onClick={closeMobileMenu}>Criar conta</NavLink>
-            </>
-          )}
+          ) : showAuthCta ? (
+            <NavLink className="primary" to="/login" onClick={closeMobileMenu}>Entrar ou criar conta</NavLink>
+          ) : null}
           <ThemeToggle />
         </div>
       )}
