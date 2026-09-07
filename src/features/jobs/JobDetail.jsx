@@ -14,6 +14,7 @@ export function JobDetail({
   needsOnboarding,
   applicationStatus,
   applicationLoading = false,
+  applicationCheckFailed = false,
   onApply,
   onWithdraw,
   applyBusy,
@@ -34,8 +35,8 @@ export function JobDetail({
   const copy = APPLICATION_STATUS_COPY[applicationStatus];
   const showChecking = Boolean(logged && applicationLoading);
   const showApplied = Boolean(copy) && !showChecking;
-  const showApply = !showChecking && !showApplied;
-  const showWithdraw = !showChecking && canWithdrawStatus(applicationStatus);
+  const showApply = !showChecking && !showApplied && !applicationCheckFailed;
+  const showWithdraw = !showChecking && !applicationCheckFailed && canWithdrawStatus(applicationStatus);
 
   return (
     <main className="detail-page">
@@ -77,7 +78,7 @@ export function JobDetail({
             <div><span className="muted">Faixa salarial</span><strong>{job.salary}</strong></div>
             <div><span className="muted">Publicada</span><strong><Clock3 size={15}/>{job.posted}</strong></div>
             {showChecking ? (
-              <button className="primary apply" type="button" disabled>
+              <button className="outline apply apply-checking" type="button" disabled>
                 Verificando candidatura…
               </button>
             ) : null}
@@ -99,6 +100,9 @@ export function JobDetail({
               <button className="outline apply" onClick={() => onWithdraw?.()} disabled={applyBusy}>
                 {applyBusy ? "Retirando…" : "Retirar candidatura"}
               </button>
+            ) : null}
+            {applicationCheckFailed ? (
+              <p className="tiny" role="alert">Não foi possível verificar candidatura.</p>
             ) : null}
             {applyError ? <p className="tiny" role="alert">{applyError}</p> : null}
             <p className="tiny">Ao se candidatar, seu perfil será compartilhado com a empresa.</p>

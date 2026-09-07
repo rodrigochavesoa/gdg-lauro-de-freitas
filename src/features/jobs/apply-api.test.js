@@ -178,4 +178,28 @@ describe("RPCs", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].jobTitle).toBe("Pessoa Dev");
   });
+
+  it("loadMyApplications com userId não chama getUser", async () => {
+    const order = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: "a1",
+          job_id: "job-1",
+          candidate_id: "u1",
+          status: "submitted",
+          jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+        },
+      ],
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    fromMock.mockReturnValue({ select });
+
+    const rows = await loadMyApplications("u1");
+    expect(getUserMock).not.toHaveBeenCalled();
+    expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].jobTitle).toBe("Pessoa Dev");
+  });
 });

@@ -99,6 +99,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
   const [status, setStatus] = useState("loading");
   const [applicationStatus, setApplicationStatus] = useState(null);
   const [applicationLoading, setApplicationLoading] = useState(false);
+  const [applicationCheckFailed, setApplicationCheckFailed] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyError, setApplyError] = useState("");
 
@@ -108,6 +109,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
     setJob(null);
     setApplicationStatus(null);
     setApplicationLoading(Boolean(logged));
+    setApplicationCheckFailed(false);
     setApplyError("");
 
     const jobPromise = loadApprovedJob(id);
@@ -130,11 +132,13 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
         if (cancelled) return;
         setApplicationStatus(row?.status ?? null);
         setApplicationLoading(false);
+        setApplicationCheckFailed(false);
       })
       .catch(() => {
         if (cancelled) return;
         setApplicationStatus(null);
         setApplicationLoading(false);
+        setApplicationCheckFailed(true);
       });
 
     return () => { cancelled = true; };
@@ -183,6 +187,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
       onNeedOnboarding={() => navigate("/onboarding")}
       applicationStatus={applicationStatus}
       applicationLoading={applicationLoading}
+      applicationCheckFailed={applicationCheckFailed}
       onApply={() => runApplyAction(() => applyToJob(id))}
       onWithdraw={() => runApplyAction(() => withdrawApplication(id))}
       applyBusy={applyBusy}
