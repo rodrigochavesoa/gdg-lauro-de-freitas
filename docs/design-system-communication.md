@@ -42,6 +42,7 @@ Antes de criar uma nova variação, verificar nesta ordem: **o componente já ex
 - A identidade visual inclui o símbolo GDG em SVG, favicon/PWA para web e mobile, ilustração de Login com opacidade controlada e ícone oficial do Google no fluxo de acesso.
 - A tela de Login usa a marca dinâmica inline (`LoginDynamicBrand`); o “GDG” segue `--color-brand-wordmark` (preto no light, branco no dark) e o “Jobs” permanece `#2563EB`. A animação respeita `prefers-reduced-motion`. O menu mobile possui fluxo de foco acessível e o rodapé mantém a assinatura da comunidade em telas pequenas.
 - A home liga hero e vagas com um divisor curvo (tokens `surface-subtle` → `surface`) e um avatar decorativo à esquerda que transborda a curva. O painel de Login reutiliza a mesma onda na base e na lateral direita. Contrato, valores e reuso: [`section-curves.md`](design-system/section-curves.md) (DS-07).
+- Ordenação do catálogo (desktop/iPad): menu `.sort` com listbox básico (clique, Escape, clique fora; sem setas). No mobile (≤760px) o controle permanece oculto de propósito — a lista segue `approved_at` desc da API. Follow-up: menu no mobile e combobox completo (DS/a11y).
 - DS-06 está documentada e aplicada como regra de trabalho do agente; sua evidência formal em PR/CI permanece pendente enquanto não houver repositório Git e pipeline.
 - A equipe não possui acesso ao Figma nem aos componentes oficiais; logo, não há biblioteca, tokens aprovados ou revisão de design em produção.
 
@@ -122,6 +123,7 @@ Antes do lançamento, a equipe de design deve:
 | DS-05 | QA visual e de acessibilidade | P1 | Fluxos críticos validados em desktop/mobile, teclado e leitor de tela. |
 | DS-06 | Consulta obrigatória ao catálogo antes de criar componentes | P0 — documentada | Regra obrigatória registrada; PRs de interface devem citá-la quando o repositório e CI estiverem configurados. |
 | DS-07 | Transições curvas entre seções e reuso do recorte | P0 — documentada | Agente Frontend lê [`section-curves.md`](design-system/section-curves.md) antes de layout novo; geometria canônica reutilizada; PR cita DS-07. |
+| DS-08 | Ordenação do catálogo no mobile e listbox completo | P2 — follow-up | Exibir `.sort` em ≤760px se produto pedir; setas/combobox no menu (MVP atual: oculto no mobile, listbox só clique/Escape). |
 
 ## Gate de produção
 

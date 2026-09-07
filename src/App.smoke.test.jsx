@@ -46,6 +46,7 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       place: "Brasil · Remoto",
       type: "Remoto",
       posted: "há 2 dias",
+      postedAt: "2026-09-05T12:00:00.000Z",
       stack: ["React", "TypeScript", "Next.js"],
       salary: "A combinar",
       featured: false,
@@ -63,6 +64,7 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       place: "São Paulo, SP · Híbrido",
       type: "Híbrido",
       posted: "há 3 dias",
+      postedAt: "2026-09-04T12:00:00.000Z",
       stack: ["Node.js"],
       salary: "A combinar",
       featured: false,
@@ -80,6 +82,7 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       place: "Remoto",
       type: "Remoto",
       posted: "há 5 dias",
+      postedAt: "2026-09-02T12:00:00.000Z",
       stack: ["Figma"],
       salary: "A combinar",
       featured: false,
@@ -97,6 +100,7 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       place: "Osasco, SP · Híbrido",
       type: "Híbrido",
       posted: "há 1 semana",
+      postedAt: "2026-08-30T12:00:00.000Z",
       stack: ["Python"],
       salary: "A combinar",
       featured: false,
@@ -152,6 +156,19 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("heading", { name: /carreira em tech/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Cargo, tecnologia ou empresa")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+  });
+
+  it("abre o menu de ordenação e lista as vagas mais antigas", async () => {
+    await renderHome();
+    const trigger = screen.getByRole("button", { name: /Mais recentes/i });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(trigger);
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("option", { name: "Mais antigas" }));
+    expect(screen.getByRole("button", { name: /Mais antigas/i })).toHaveAttribute("aria-expanded", "false");
+    const titles = screen.getAllByRole("article").map((card) => within(card).getByRole("heading").textContent);
+    expect(titles[0]).toBe("Pessoa Engenheira de Dados");
+    expect(titles[titles.length - 1]).toBe("Pessoa Desenvolvedora Front-end");
   });
 
   it("abre o detalhe da vaga a partir do catálogo", async () => {

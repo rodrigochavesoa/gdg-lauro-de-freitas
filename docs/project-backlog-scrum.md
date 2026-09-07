@@ -73,7 +73,7 @@ O deploy público só pode ocorrer quando C-01 a C-06 estiverem decididos, houve
 ### Protótipo de interface
 
 - Aplicação React/Vite criada, com interface responsiva e dados simulados.
-- Home com busca textual, filtros por tecnologia e nível de experiência, limpeza de filtros e estado vazio.
+- Home com busca textual, filtros por tecnologia e nível de experiência, limpeza de filtros, estado vazio e ordenação **Mais recentes / Mais antigas** no desktop e iPad.
 - Tela de detalhe da vaga com tecnologias, localidade, nível, descrição, responsabilidades e ação de candidatura.
 - Candidatura com um clique simulada, incluindo confirmação visual.
 - Login visual com opção de Google e e-mail; ainda não autenticado de verdade.
@@ -108,6 +108,7 @@ Arquivos: `supabase/migrations/202608150001_ai_matching.sql`, `supabase/function
 - Firebase Auth e Firebase Hosting não foram configurados.
 - Não há API Routes, validação Zod ou ambiente de produção.
 - Home lê vagas `approved` via Supabase (publishable/anon). Seed fictício em `supabase/migrations/202608160002_seed_fictitious_catalog.sql`. RLS do visitante: `docs/s2-catalog-rls.md`.
+- Ordenação da Home: menu no desktop/iPad; **oculto no mobile de propósito** (lista permanece `approved_at` desc da API). Listbox básico sem setas — follow-up a11y/DS.
 - **S1-01 aprovada pelo Tech Lead (2026-08-15):** ESLint 9, Vitest 3 (6 testes de busca/filtros + 1 smoke da Home), scripts `lint`/`test`/`test:watch`, `packageManager` pnpm 10.30.1, `.gitignore` e GitHub Actions (`.github/workflows/ci.yml`) com `pnpm install --frozen-lockfile`, lint, test e build. Evidência local em `pwsh`: 7 testes verdes e `vite build` ok. CI remoto ainda depende de Git/Actions. Runtime continua com `latest` — não ampliar esse padrão.
 
 ## Decisões técnicas pendentes
