@@ -27,6 +27,8 @@ describe("Admin staff login", () => {
     const form = document.querySelector("form.admin-auth-form");
     expect(form).toBeTruthy();
     expect(form).not.toHaveClass("job-form");
+    expect(document.querySelector(".admin-side")).toBeNull();
+    expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
   });

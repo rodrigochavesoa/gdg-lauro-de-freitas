@@ -133,7 +133,7 @@ export function Admin({ setLogged, session, authReady = true }) {
   if (!ready) {
     return (
       <main className="admin-page">
-        <div className="shell admin-shell">
+        <div className="shell admin-auth-shell">
           <section className="admin-content">
             <p>Carregando área administrativa…</p>
           </section>
@@ -145,17 +145,7 @@ export function Admin({ setLogged, session, authReady = true }) {
   if (!profile) {
     return (
       <main className="admin-page">
-        <div className="shell admin-shell">
-          <aside className="admin-side">
-            <button type="button" className="brand">
-              <span className="brand-mark">
-                <img src="/favicon.svg" alt="" />
-              </span>
-              <span>
-                GDG<span>Jobs</span>
-              </span>
-            </button>
-          </aside>
+        <div className="shell admin-auth-shell">
           <section className="admin-content">
             <div className="admin-title">
               <div>

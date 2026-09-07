@@ -34,13 +34,13 @@ export function Header({ logged, displayName, role, onSignOut }) {
 
   const staff = Boolean(logged && isStaffRole(role));
   const candidate = Boolean(logged && !staff);
-  const showAuthCta = !logged && pathname !== "/login";
+  const showAuthCta = !logged && pathname !== "/login" && pathname !== "/admin";
 
   const navLinks = (onNavigate) => (
     <>
       <NavLink end to="/" onClick={onNavigate}>Vagas</NavLink>
       {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
-      {staff ? (
+      {staff || !logged ? (
         <NavLink to="/admin" onClick={onNavigate}>Área admin</NavLink>
       ) : (
         <>

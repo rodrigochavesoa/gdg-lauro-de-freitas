@@ -23,6 +23,11 @@ vi.mock("./features/auth/auth-api.js", () => ({
   startGoogleOAuth: vi.fn(),
 }));
 
+vi.mock("./features/curation/curation-api.js", () => ({
+  loadCurationProfile: async () => null,
+  signInCuration: vi.fn(),
+}));
+
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
 
@@ -211,14 +216,24 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
   });
 
+  it("anon em /admin não mostra sidebar nem CTA de candidato no Header", async () => {
+    await renderAt("/admin");
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(document.querySelector(".admin-side")).toBeNull();
+    expect(document.querySelector("form.admin-auth-form")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+  });
+
   it("abre o menu mobile com os destinos existentes", async () => {
     await renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(mobile).toBeTruthy();
     expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
   });
 
@@ -248,6 +263,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", async () => {
