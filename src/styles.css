@@ -274,13 +274,20 @@ button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-
 /* F-011 — staff login is a single centered column, no sidebar. */
 .admin-auth-shell{
   display:block;
-  width:min(560px,calc(100% - 48px));
+  width:min(420px,calc(100% - 48px));
   margin:0 auto;
   min-height:calc(100vh - 75px);
   padding:45px 0;
 }
 .admin-auth-shell .admin-content{width:100%;margin:0}
-.admin-auth-shell .admin-auth-form{margin-inline:auto}
+.admin-auth-shell .admin-title{
+  display:grid;
+  justify-items:center;
+  text-align:center;
+  margin-bottom:27px;
+}
+.admin-auth-shell .admin-title p{margin-left:auto;margin-right:auto}
+.admin-auth-shell .admin-auth-form{width:100%;max-width:none;margin:0}
 
 /* F-010 — staff login is a compact column; do not reuse .job-form CRUD width. */
 .admin-auth-form{
