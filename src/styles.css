@@ -131,13 +131,12 @@ html[data-theme="dark"] {
 .admin-content .ghost[aria-pressed="true"]{background:var(--color-primary-50);color:var(--color-primary-700)}
 .admin-content .ghost .featured{margin-right:8px}
 @media(max-width:760px){
-  .admin-page .admin-content{padding-top:var(--space-6)}
+  .admin-page .admin-content{padding-top:var(--space-6);padding-bottom:var(--space-8)}
   .admin-tabs{margin-top:var(--space-4);padding-top:var(--space-2)}
   .admin-tabs button{min-height:44px;flex:1}
   .admin-content .form-actions .primary,.admin-content .form-actions .outline,.admin-content .form-actions .ghost{min-height:44px}
-  .job-form .form-actions{flex-direction:column;align-items:stretch}
+  .job-form .form-actions{flex-direction:column;align-items:stretch;padding:var(--space-4) var(--space-4) var(--space-6)}
   .job-form .form-actions .primary,.job-form .form-actions .outline,.job-form .form-actions .ghost{width:100%;flex:none}
-  .job-form-submit-mobile{display:inline}
 }
 
 nav a{background:none;color:var(--color-text-muted);font-weight:500;padding:27px 1px 23px;border-bottom:3px solid transparent;text-decoration:none}
@@ -327,6 +326,9 @@ button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-
 .admin-side nav button{color:var(--color-text)}
 .admin-side > .admin-user{margin-top:0;padding-top:0;border-top:0}
 .job-form-submit-mobile{display:none}
+@media(max-width:760px){
+  .job-form-submit-mobile{display:inline}
+}
 
 /* F-009 — admin nav contrast in dark; light selectors stay on DS-02 primary-700. */
 html[data-theme="dark"] .admin-side nav button{color:var(--color-text)}
