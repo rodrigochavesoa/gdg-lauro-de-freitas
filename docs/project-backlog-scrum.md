@@ -124,7 +124,7 @@ Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 
 ## Pendências de produto — Sprint 4 e seguintes
 
-**D-01 a D-06 estão resolvidas** (2026-08-16). Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Sprint 4 pode iniciar (schema/RPC, depois UI). D-01 (completude de perfil) é regra de produto agora; implementação no Sprint 5.
+**D-01 a D-06 estão resolvidas** (2026-08-16). Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). **D-08 e D-09 estão resolvidas** (2026-09-06) para homologação V1: [`docs/decisions-applications-v1.md`](decisions-applications-v1.md). Sprint 6 (apply) desbloqueia **após o merge** desta governança — sem SQL/UI neste PR.
 
 | ID | Decisão necessária | Estado atual | Responsável pela decisão |
 |---|---|---|---|
@@ -134,8 +134,8 @@ Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 | D-04 | Mecanismo de decisão. | **Resolvida** — revisão individual com rubrica; sem voto público. | Product Owner + Comunidade GDG |
 | D-05 | Admin publica sem curadoria? | **Resolvida** — não no V1. `urgent` só prioriza a fila, com motivo, só admin. | Product Owner |
 | D-06 | Rejeição, edição e reenvio. | **Resolvida** — código de rubrica obrigatório; reenvio abre nova rodada sem apagar histórico. | Product Owner + Comunidade GDG |
-| D-08 | Definir se a candidatura de um clique usa apenas perfil ou também currículo e carta de apresentação. | Parcial: o protótipo usa apenas perfil. | Product Owner + Empresas parceiras |
-| D-09 | Definir se o candidato pode cancelar, editar ou reenviar candidatura e até quando. | Parcial: o banco prevê `withdrawn`; não há política nem interface. | Product Owner + Empresas parceiras |
+| D-08 | Definir se a candidatura de um clique usa apenas perfil ou também currículo e carta de apresentação. | **Resolvida** — snapshot D-01 + linkedin/github/cv_url se já no perfil; sem carta nem upload no apply. Copy: compartilhado com a empresa; não rotular como consentimento (DPO / P-12). | Product Owner + Empresas parceiras |
+| D-09 | Definir se o candidato pode cancelar, editar ou reenviar candidatura e até quando. | **Resolvida** — 1 linha por `(job_id, candidate_id)`; retirar → `withdrawn` se vaga `approved` e status `submitted`/`reviewing`. Sem editar, reenviar, reabrir ou cron no V1. | Product Owner + Empresas parceiras |
 | D-10 | Definir o modelo de sustentabilidade financeira, mantendo anúncio gratuito para empresas. | Em aberto. | Product Owner + Liderança GDG |
 
 **D-07 está resolvida:** o cadastro e a edição de empresas e vagas permanecem exclusivamente administrativos no escopo atual.
@@ -144,7 +144,7 @@ Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 
 | ID | Decisão já tomada | O que ainda precisa ser definido | Sprint de fechamento |
 |---|---|---|---|
-| P-01 | Candidaturas possuem o status `withdrawn` e o candidato pode atualizar a própria candidatura. | Permitir ou bloquear reabertura; definir prazo, limite e estados de transição. | Sprint 6 |
+| P-01 | Candidaturas possuem o status `withdrawn` e o candidato pode atualizar a própria candidatura. | **Alinhado a D-09 (V1):** única atualização do candidato é retirar (`withdrawn`) nas condições da decisão. Reabrir, editar payload, reenviar e prazo automático **fora** do V1. | Sprint 6 (código após merge D-08/D-09) |
 | P-02 | A stack é `TEXT[]` com índice GIN. | Definir gatilhos objetivos para migrar para `technologies` e `job_technologies`, como sinônimos, categorias ou relatórios. | Revisão ao fim do Sprint 8 |
 | P-03 | Modalidade foi separada em `work_model`. | Decidir se `location` permanece texto livre ou será decomposta em cidade, estado e país. | Sprint 2 |
 | P-04 | Há `approved_at` na vaga. | Sprint 4: `submitted_by` (backfill/NULL legado), `curation_round`, reviews append-only, RPC transacional, `rejected`, view `needs_moderation`. | Sprint 4 |
@@ -453,7 +453,7 @@ Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Governan�
 | 3 | Administrar vagas | Autenticação administrativa, CRUD com validação de entrada e trilha de testes | Agente GDGJobs | Admin cadastra vaga pendente; D-01 a D-06 fechadas |
 | 4 | Curar e publicar | Schema/RPC + UI de fila/rubrica; histórico; Realtime | Agente GDGJobs | Regras em `docs/decisions-curation-v1.md`; dois PRs funcionais; vaga `approved` no catálogo |
 | 5 | Criar perfil | Supabase Auth com Google, onboarding, edição, correção e consentimento granular | Agente GDGJobs | Responsável configura OAuth/URLs; candidato revisa finalidades e pode revogar consentimentos |
-| 6 | Candidatar | Candidatura em um clique, prevenção de duplicidade, dashboard, exportação e exclusão | Agente GDGJobs | PO define D-08, D-09 e política de reabertura; titular exerce direitos pelos fluxos acessíveis |
+| 6 | Candidatar | Candidatura em um clique, prevenção de duplicidade, dashboard, exportação e exclusão | Agente GDGJobs | **Desbloqueado após merge** de D-08/D-09 ([`decisions-applications-v1.md`](decisions-applications-v1.md)). Exportação/exclusão do titular continuam no gate LGPD; não bloqueiam o apply de homologação |
 | 7 | Comunicar | Resend para candidatura, mudança de status e aprovação de vaga | Agente GDGJobs | Responsável fornece domínio/credenciais Resend; templates homologados |
 | 8 | Match por regras | Filtros, keywords, explicação de compatibilidade e revisão da normalização de tecnologias | Agente GDGJobs | Tech Lead aceita regra de evolução de `TEXT[]`; resultado reproduzível e explicável |
 | 9 | Enriquecer vagas | Gemini em ambiente controlado, revisão humana, logs e minimização de dados | Agente GDGJobs | DPO/Tech Lead aprovam política Gemini (C-04); nenhuma informação pessoal segue para IA sem controle definido |
