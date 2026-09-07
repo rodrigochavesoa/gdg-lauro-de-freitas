@@ -2,6 +2,16 @@ import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 const APPLICATION_SELECT = "id,job_id,candidate_id,status,snapshot,created_at,updated_at";
 
+const APPLICATION_LIST_SELECT = `${APPLICATION_SELECT}, jobs ( title, companies ( name ) )`;
+
+export const APPLICATION_STATUS_COPY = {
+  submitted: { label: "Enviada", title: "Candidatura enviada!", body: "Boa sorte — a empresa receberá seu perfil." },
+  reviewing: { label: "Em análise", title: "Candidatura em análise", body: "A empresa já pode estar revisando seu perfil." },
+  accepted: { label: "Aceita", title: "Candidatura aceita", body: "A empresa registrou aceite desta candidatura." },
+  rejected: { label: "Encerrada", title: "Candidatura encerrada", body: "Esta candidatura não segue no processo." },
+  withdrawn: { label: "Retirada", title: "Candidatura retirada", body: "Você retirou esta candidatura. Não é possível reenviar no V1." },
+};
+
 const STABLE_CODES = [
   "authentication required",
   "profile incomplete",
@@ -54,8 +64,21 @@ export function canWithdrawStatus(status) {
   return status === "submitted" || status === "reviewing";
 }
 
+export function applicationStatusLabel(status) {
+  return APPLICATION_STATUS_COPY[status]?.label ?? status ?? "";
+}
+
+export function formatApplicationDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 export function parseApplication(row) {
   if (!row || typeof row !== "object") return null;
+  const job = row.jobs && !Array.isArray(row.jobs) ? row.jobs : null;
+  const company = job?.companies && !Array.isArray(job.companies) ? job.companies : null;
   return {
     id: row.id ?? null,
     jobId: row.job_id ?? row.jobId ?? null,
@@ -64,6 +87,8 @@ export function parseApplication(row) {
     snapshot: row.snapshot ?? null,
     createdAt: row.created_at ?? row.createdAt ?? null,
     updatedAt: row.updated_at ?? row.updatedAt ?? null,
+    jobTitle: job?.title ?? null,
+    companyName: company?.name ?? null,
   };
 }
 
@@ -97,4 +122,18 @@ export async function loadMyApplication(jobId) {
     .maybeSingle();
   if (error) throw createApplyError(error);
   return parseApplication(data);
+}
+
+export async function loadMyApplications() {
+  const client = getSupabaseBrowserClient();
+  if (!client) return [];
+  const { data: userData, error: userError } = await client.auth.getUser();
+  if (userError || !userData?.user) return [];
+  const { data, error } = await client
+    .from("applications")
+    .select(APPLICATION_LIST_SELECT)
+    .eq("candidate_id", userData.user.id)
+    .order("updated_at", { ascending: false });
+  if (error) throw createApplyError(error);
+  return (data ?? []).map(parseApplication).filter(Boolean);
 }

@@ -8,6 +8,7 @@ Status: em PR (`feat/arq-02-router`).
 |---|---|
 | `/` | Catálogo de vagas aprovadas (`Home`) |
 | `/jobs/:id` | Detalhe de uma vaga aprovada, carregada pelo adaptador existente |
+| `/minhas-candidaturas` | Dashboard do candidato: lista próprias candidaturas; sem sessão → `/login` |
 | `/login` | Login do candidato via Google OAuth |
 | `/onboarding` | Perfil mínimo D-01 quando a sessão ainda precisa de onboarding |
 | `/admin` | Admin e curadoria, incluindo login de staff por senha |

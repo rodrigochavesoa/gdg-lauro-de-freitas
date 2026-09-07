@@ -5,6 +5,7 @@ import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
 import { loadApprovedJob } from "./features/catalog/jobs-api.js";
 import { JobDetail } from "./features/jobs/JobDetail.jsx";
+import { MyApplications } from "./features/jobs/MyApplications.jsx";
 import { applyToJob, loadMyApplication, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
@@ -15,19 +16,21 @@ const EMPTY_AUTH = { session: null, profile: null, needsOnboarding: false };
 
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const applySnapshot = (snapshot) => {
+      if (cancelled) return;
+      setAuth(snapshot);
+      setAuthReady(true);
+    };
     loadAuthSnapshot()
-      .then((snapshot) => {
-        if (!cancelled) setAuth(snapshot);
-      })
+      .then(applySnapshot)
       .catch(() => {
-        if (!cancelled) setAuth(EMPTY_AUTH);
+        applySnapshot(EMPTY_AUTH);
       });
-    const unsubscribe = subscribeAuth((snapshot) => {
-      if (!cancelled) setAuth(snapshot);
-    });
+    const unsubscribe = subscribeAuth(applySnapshot);
     return () => {
       cancelled = true;
       unsubscribe();
@@ -44,6 +47,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Home /></CatalogGate>} />
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
+        <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin />} />
@@ -57,6 +61,15 @@ export function App() {
 function CatalogGate({ auth, children }) {
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   return children;
+}
+
+function MyApplicationsRoute({ auth, authReady }) {
+  if (!authReady) {
+    return <main className="detail-page"><div className="shell"><p>Carregando…</p></div></main>;
+  }
+  if (!auth.session) return <Navigate to="/login" replace />;
+  if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
+  return <MyApplications />;
 }
 
 function LoginRoute({ auth }) {

@@ -3,15 +3,7 @@ import {
   ArrowLeft, BadgeCheck, BriefcaseBusiness, Check,
   Clock3, GraduationCap, MapPin, Send, Sparkles
 } from "lucide-react";
-import { canWithdrawStatus } from "./apply-api.js";
-
-const APPLIED_COPY = {
-  submitted: { title: "Candidatura enviada!", body: "Boa sorte — a empresa receberá seu perfil." },
-  reviewing: { title: "Candidatura em análise", body: "A empresa já pode estar revisando seu perfil." },
-  accepted: { title: "Candidatura aceita", body: "A empresa registrou aceite desta candidatura." },
-  rejected: { title: "Candidatura encerrada", body: "Esta candidatura não segue no processo." },
-  withdrawn: { title: "Candidatura retirada", body: "Você retirou esta candidatura. Não é possível reenviar no V1." },
-};
+import { APPLICATION_STATUS_COPY, canWithdrawStatus } from "./apply-api.js";
 
 export function JobDetail({
   job,
@@ -38,7 +30,7 @@ export function JobDetail({
     onApply?.();
   };
 
-  const copy = APPLIED_COPY[applicationStatus];
+  const copy = APPLICATION_STATUS_COPY[applicationStatus];
   const showApplied = Boolean(copy);
   const showApply = !showApplied;
   const showWithdraw = canWithdrawStatus(applicationStatus);
