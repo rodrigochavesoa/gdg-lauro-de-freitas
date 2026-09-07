@@ -39,7 +39,7 @@ Enquanto qualquer linha estiver pendente, o uso permitido é só desenvolvimento
 | P-09 | `profiles.preferences` (jsonb) | Migration | Candidato | Preferências de busca/vaga (conteúdo ainda não fechado) | Consentimento e/ou execução de contrato, conforme o que o json guardar | Revisar quando D-01 fechar o perfil mínimo | Alto se incluir localização precisa, salário ou dados sensíveis | Consentimento; minimização |
 | P-10 | `profiles.role` (`candidate` / `admin`) | Migration | Usuário autenticado | Autorização | Legítimo interesse (segurança) / execução de contrato | Vida da conta | Médio: elevação de papel (já há restrição de `UPDATE` na migration) | RLS; registro de operações |
 | P-11 | `applications` (`job_id`, `candidate_id`, `status`, timestamps) | Migration | Candidato | Registrar candidatura; impedir duplicata | Execução de contrato | Processo seletivo + prazo legal/contratual (DPO) | Alto: revela interesse profissional | RLS; direitos do titular; registro de operações |
-| P-12 | Currículo / carta (D-08 em aberto) | Planejado | Candidato | Complementar candidatura, se o PO exigir | Consentimento e/ou execução de contrato | Prazo da vaga + exclusão sob demanda | Alto | Consentimento; direitos do titular; Storage |
+| P-12 | `cv_url` no snapshot de candidatura (V1); carta e upload no apply **fora** | Perfil (`preferences` / campo de currículo) → snapshot no apply | Candidato | Compartilhar com a empresa o URL já informado no perfil, se existir | Candidata: execução de contrato e/ou consentimento — **DPO decide**; copy do apply **não** rotula como consentimento (D-08) | Processo seletivo + prazo pós-exclusão (DPO) | Alto | Direitos do titular; RLS; sem Storage no apply V1 |
 | P-13 | Empresas (`name`, `website`, `description`, `logo_path`) | Migration | Em geral pessoa jurídica | Catálogo e vagas | Não é dado pessoal se for só PJ; vira pessoal se identificar pessoa física | Enquanto a empresa existir no catálogo | Baixo a médio | RLS admin; não misturar com perfil |
 | P-14 | Vagas públicas (`title`, `description`, `stack`, `level`, `work_model`, `location`, salário no mock) | Protótipo + migration | Em geral não é titular; `location` pode ser | Publicar oportunidade aprovada | Legítimo interesse / contrato com anunciante | Enquanto aprovada; arquivar após encerrar | Médio se descrição citar pessoa | Curadoria; RLS (só `approved` é público) |
 | P-15 | `jobs.enriched_description`, `requirements`, `embedding` | Migration + Edge `enrich-job` | Não deve ser titular | Enriquecer vaga e busca V2 | Legítimo interesse do catálogo, **desde que o texto não traga dado de candidato** | Recalcular ao editar; apagar embedding se a vaga for removida | Médio: provedor Gemini processa o texto da vaga | Anonimização para ML; C-04; sem perfil no prompt |
@@ -78,8 +78,8 @@ Isso **não** substitui teste de RLS nem os outros cinco controles.
 |---|---|---|
 | Bases legais | DPO | Aceitar ou trocar cada base candidata da tabela |
 | C-04 | DPO + Tech Lead | Política Gemini: dados permitidos, tokens, retenção, região |
-| D-01 / D-08 | PO | Campos mínimos do perfil e se currículo/carta entram na candidatura |
-| D-09 / P-01 | PO | Cancelar, editar, reabrir candidatura e prazos |
+| D-01 / D-08 | PO | **Fechado para homologação V1** — perfil mínimo em [`decisions-curation-v1.md`](decisions-curation-v1.md); payload do apply em [`decisions-applications-v1.md`](decisions-applications-v1.md). DPO ainda enquadra a base legal (não é “consentimento” na UI). |
+| D-09 / P-01 | PO | **Fechado para homologação V1** — ciclo em [`decisions-applications-v1.md`](decisions-applications-v1.md): retirar → `withdrawn` nas condições; reabrir/editar/reenviar/prazo automático fora do V1. |
 | Protocolo de incidente | DPO + responsável | Plantão, registro, prazo de comunicação à ANPD/titulares |
 | Ambiente | Responsável Supabase | Projeto de desenvolvimento sem dado real até o gate |
 
@@ -89,4 +89,4 @@ Isso **não** substitui teste de RLS nem os outros cinco controles.
 |---|---|
 | Próximo revisor | DPO |
 | Relacionado | Gate LGPD no backlog; ADR-001/002 (fairness; sem atributo sensível no ranking) |
-| Atualizar quando | Fechar C-04, D-01, D-08, D-09 ou ligar Auth/Gemini/Resend |
+| Atualizar quando | Fechar C-04; ligar Gemini/Resend em produção; ou o PO humano alterar D-08/D-09 após esta homologação |
