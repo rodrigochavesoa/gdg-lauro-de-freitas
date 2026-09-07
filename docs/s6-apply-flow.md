@@ -4,7 +4,11 @@
 
 Ambiente alvo: projeto Supabase de **homologação**. Credenciais só em `docs-local/` (gitignored). Sem `service_role` no browser.
 
-**Fora deste PR:** UI JobDetail/dashboard, Resend, Gemini, deploy, exportação LGPD, visão empresa.
+**Fora deste PR de dados:** Resend, Gemini, deploy, exportação LGPD, visão empresa. Dashboard `/minhas-candidaturas` fica para S6-03.
+
+## UI (S6-02)
+
+Adaptador [`src/features/jobs/apply-api.js`](../src/features/jobs/apply-api.js): `applyToJob` / `withdrawApplication` (RPC) e `loadMyApplication` (SELECT). O detalhe [`JobDetail.jsx`](../src/features/jobs/JobDetail.jsx) aplica e retira no card; sem INSERT direto.
 
 ## Ordem de migrations
 
