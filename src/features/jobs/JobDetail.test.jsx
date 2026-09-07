@@ -46,6 +46,22 @@ describe("JobDetail apply", () => {
       />,
     );
     expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toHaveClass("outline");
+    expect(screen.getByRole("button", { name: /Verificando candidatura/i })).not.toHaveClass("primary");
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("não mostra CTA azul quando a verificação da candidatura falha", () => {
+    render(
+      <JobDetail
+        job={job}
+        goBack={() => {}}
+        logged
+        applicationStatus={null}
+        applicationCheckFailed
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível verificar candidatura.");
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
   });
 });
