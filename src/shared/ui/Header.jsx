@@ -33,6 +33,7 @@ export function Header({ logged, displayName, onSignOut }) {
         </Link>
         <nav>
           <NavLink end to="/">Vagas</NavLink>
+          {logged ? <NavLink to="/minhas-candidaturas">Minhas candidaturas</NavLink> : null}
           <NavLink to="/admin">Para empresas</NavLink>
           <NavLink to="/admin">Comunidade</NavLink>
         </nav>
@@ -68,6 +69,7 @@ export function Header({ logged, displayName, onSignOut }) {
       {mobileMenuOpen && (
         <div id="mobile-navigation" className="mobile-nav open">
           <NavLink end to="/" onClick={closeMobileMenu}>Vagas</NavLink>
+          {logged ? <NavLink to="/minhas-candidaturas" onClick={closeMobileMenu}>Minhas candidaturas</NavLink> : null}
           <NavLink to="/admin" onClick={closeMobileMenu}>Para empresas</NavLink>
           <NavLink to="/admin" onClick={closeMobileMenu}>Comunidade</NavLink>
           {logged ? (

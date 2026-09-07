@@ -27,7 +27,11 @@ vi.mock("./features/jobs/apply-api.js", () => ({
   applyToJob: vi.fn(),
   withdrawApplication: vi.fn(),
   loadMyApplication: async () => null,
+  loadMyApplications: async () => [],
   canWithdrawStatus: (status) => status === "submitted" || status === "reviewing",
+  applicationStatusLabel: (status) => status,
+  formatApplicationDate: () => "07 de set. de 2026",
+  APPLICATION_STATUS_COPY: {},
 }));
 
 vi.mock("./features/catalog/jobs-api.js", () => ({
@@ -212,5 +216,15 @@ describe("ARQ-01 — caracterização do shell", () => {
     await renderHome();
     expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+  });
+
+  it("renderiza o dashboard em /minhas-candidaturas com sessão", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Ana Demo", role: "candidate" };
+    authState.needsOnboarding = false;
+    await renderAt("/minhas-candidaturas");
+    expect(await screen.findByRole("heading", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
   });
 });

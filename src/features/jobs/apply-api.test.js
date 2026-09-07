@@ -13,11 +13,13 @@ vi.mock("../../lib/supabase-client.js", () => ({
 }));
 
 import {
+  applicationStatusLabel,
   applyToJob,
   canWithdrawStatus,
   createApplyError,
   getApplyErrorCode,
   loadMyApplication,
+  loadMyApplications,
   parseApplication,
   withdrawApplication,
 } from "./apply-api.js";
@@ -63,6 +65,24 @@ describe("parseApplication e withdraw", () => {
     expect(canWithdrawStatus("reviewing")).toBe(true);
     expect(canWithdrawStatus("withdrawn")).toBe(false);
     expect(canWithdrawStatus("accepted")).toBe(false);
+  });
+
+  it("rótulos PT batem com o detalhe", () => {
+    expect(applicationStatusLabel("submitted")).toBe("Enviada");
+    expect(applicationStatusLabel("reviewing")).toBe("Em análise");
+    expect(applicationStatusLabel("withdrawn")).toBe("Retirada");
+  });
+
+  it("parseApplication lê join de jobs e companies", () => {
+    const parsed = parseApplication({
+      id: "a1",
+      job_id: "job-1",
+      candidate_id: "u1",
+      status: "submitted",
+      jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+    });
+    expect(parsed.jobTitle).toBe("Pessoa Dev");
+    expect(parsed.companyName).toBe("Nuvem Lauro Demo");
   });
 });
 
@@ -114,5 +134,31 @@ describe("RPCs", () => {
     expect(eqJob).toHaveBeenCalledWith("job_id", "job-1");
     expect(eqCandidate).toHaveBeenCalledWith("candidate_id", "u1");
     expect(row.status).toBe("reviewing");
+  });
+
+  it("loadMyApplications filtra o candidato e ordena por updated_at", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    const order = vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: "a1",
+          job_id: "job-1",
+          candidate_id: "u1",
+          status: "submitted",
+          jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+        },
+      ],
+      error: null,
+    });
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    fromMock.mockReturnValue({ select });
+
+    const rows = await loadMyApplications();
+    expect(fromMock).toHaveBeenCalledWith("applications");
+    expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
+    expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].jobTitle).toBe("Pessoa Dev");
   });
 });

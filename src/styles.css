@@ -213,3 +213,4 @@ body:has(.login-page) footer{border-top:none}
   .login-panel__curve--right{width:48px}
   .login-panel__curve--bottom{height:72px}
 }
+.job-card a{color:inherit;text-decoration:none}
