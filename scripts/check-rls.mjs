@@ -1,5 +1,5 @@
 /**
- * Verifica RLS e curadoria V1 (S4-01): anon, candidato, curador, moderador, admin.
+ * Verifica RLS, curadoria V1 (S4-01) e candidatura V1 (S6-01).
  * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
  * pwsh: pnpm test:rls
  */
@@ -54,6 +54,9 @@ function hasCreds(user) {
 
 const SEED_COMPANY = "a1a1a1a1-0001-4000-8000-000000000001";
 const RUBRIC = "R1-empresa-identificavel";
+const SEED_APPROVED_A = "b2b2b2b2-0003-4000-8000-000000000003";
+const SEED_APPROVED_B = "b2b2b2b2-0004-4000-8000-000000000004";
+const SEED_PENDING = "b2b2b2b2-0005-4000-8000-000000000005";
 
 if (!url || !key) {
   console.log("test:rls ignorado: preencha VITE_SUPABASE_URL e a chave publishable/anon em .env.local.");
@@ -118,6 +121,48 @@ async function rpcReview(client, jobId, decision, rubricCode = RUBRIC) {
     p_rubric_code: rubricCode,
     p_internal_comment: null,
   });
+}
+
+async function rpcApply(client, jobId) {
+  return client.rpc("apply_to_job", { p_job_id: jobId });
+}
+
+async function rpcWithdraw(client, jobId) {
+  return client.rpc("withdraw_application", { p_job_id: jobId });
+}
+
+async function deleteApplication(admin, jobId, candidateId) {
+  if (!jobId || !candidateId) return;
+  await admin.from("applications").delete().eq("job_id", jobId).eq("candidate_id", candidateId);
+}
+
+function d01Preferences(current) {
+  const prefs = current && typeof current === "object" && !Array.isArray(current) ? current : {};
+  return {
+    ...prefs,
+    experience_level: "junior",
+    work_model: "remote",
+    location: "Brasil · Remoto",
+  };
+}
+
+async function ensureD01Profile(client, userId) {
+  const current = await client
+    .from("profiles")
+    .select("full_name,skills,preferences,bio")
+    .eq("id", userId)
+    .maybeSingle();
+  const row = current.data ?? {};
+  const payload = {
+    full_name: String(row.full_name ?? "").trim() || "Candidato Homolog",
+    skills: Array.isArray(row.skills) && row.skills.some((item) => String(item).trim())
+      ? row.skills
+      : ["JavaScript"],
+    preferences: d01Preferences(row.preferences),
+    updated_at: new Date().toISOString(),
+  };
+  const saved = await client.from("profiles").update(payload).eq("id", userId).select("full_name,skills,preferences,bio").single();
+  return { previous: row, current: saved.data };
 }
 
 /** Cenário 1 — anon só approved; sem fila nem pareceres. */
@@ -445,6 +490,201 @@ async function scenario9_priority() {
   await admin.auth.signOut();
 }
 
+/** Cenário 10 — apply: D-01 + approved + snapshot + UNIQUE. */
+async function scenario10_applyHappy() {
+  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
+    skipRequired(10, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
+  assert(!adminErr && !candErr && user?.id, `admin e candidato autenticam (${adminErr?.message || candErr?.message || "ok"})`);
+  if (adminErr || candErr || !user?.id) return;
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  const { previous } = await ensureD01Profile(candidate, user.id);
+
+  const first = await rpcApply(candidate, SEED_APPROVED_A);
+  if (first.error?.message?.includes("Could not find the function")) {
+    skipRequired(10, "RPC apply_to_job não aplicada no ambiente");
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+    return;
+  }
+  assert(!first.error, `candidato aplica em vaga approved (${first.error?.message ?? "ok"})`);
+  assert(first.data?.status === "submitted", "apply cria status submitted");
+  assert(first.data?.candidate_id === user.id, "candidate_id é auth.uid()");
+  assert(first.data?.snapshot?.full_name && first.data?.snapshot?.email, "snapshot D-08 tem nome e e-mail");
+  assert(Array.isArray(first.data?.snapshot?.skills), "snapshot inclui skills");
+  assert(first.data?.snapshot?.preferences?.experience_level, "snapshot inclui preferences");
+
+  const renamed = `${previous.full_name || "Candidato"} ${Date.now()}`;
+  await candidate
+    .from("profiles")
+    .update({ full_name: renamed, updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  const frozen = await candidate
+    .from("applications")
+    .select("snapshot")
+    .eq("job_id", SEED_APPROVED_A)
+    .eq("candidate_id", user.id)
+    .single();
+  assert(frozen.data?.snapshot?.full_name !== renamed, "snapshot não muda após editar perfil");
+  await candidate
+    .from("profiles")
+    .update({
+      full_name: previous.full_name,
+      skills: previous.skills,
+      preferences: previous.preferences,
+      bio: previous.bio,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  const dup = await rpcApply(candidate, SEED_APPROVED_A);
+  const dupMsg = [dup.error?.message, dup.error?.details, dup.error?.hint].filter(Boolean).join(" ");
+  assert(Boolean(dup.error), "segunda candidatura no mesmo par falha");
+  assert(/already applied/i.test(dupMsg), `duplicata retorna already applied (${dupMsg || "sem mensagem"})`);
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await candidate.auth.signOut();
+  await admin.auth.signOut();
+}
+
+/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto. */
+async function scenario11_applyBlocked() {
+  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
+    skipRequired(11, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+
+  const anonApply = await anon.rpc("apply_to_job", { p_job_id: SEED_APPROVED_A });
+  assert(Boolean(anonApply.error), "anon não chama RPC de apply");
+
+  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
+  if (adminErr || candErr || !user?.id) {
+    skipRequired(11, "admin ou candidato não autenticou");
+    return;
+  }
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplication(admin, SEED_PENDING, user.id);
+  const { previous } = await ensureD01Profile(candidate, user.id);
+
+  const pending = await rpcApply(candidate, SEED_PENDING);
+  assert(Boolean(pending.error), "candidato não aplica em vaga pending");
+  assert(/not approved/i.test(pending.error?.message ?? ""), "pending retorna job is not approved");
+
+  await candidate
+    .from("profiles")
+    .update({ skills: [], updated_at: new Date().toISOString() })
+    .eq("id", user.id);
+  const incomplete = await rpcApply(candidate, SEED_APPROVED_A);
+  assert(Boolean(incomplete.error), "perfil D-01 incompleto é recusado");
+  assert(/profile incomplete/i.test(incomplete.error?.message ?? ""), "incompleto retorna profile incomplete");
+  await candidate
+    .from("profiles")
+    .update({
+      full_name: previous.full_name,
+      skills: previous.skills?.length ? previous.skills : ["JavaScript"],
+      preferences: d01Preferences(previous.preferences),
+      bio: previous.bio,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id);
+
+  const direct = await candidate.from("applications").insert({
+    job_id: SEED_APPROVED_A,
+    candidate_id: user.id,
+    status: "submitted",
+    snapshot: { forged: true },
+  }).select("id");
+  assert(Boolean(direct.error) || (direct.data ?? []).length === 0, "candidato não faz INSERT direto");
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplication(admin, SEED_PENDING, user.id);
+  await candidate.auth.signOut();
+  await admin.auth.signOut();
+}
+
+/** Cenário 12 — withdraw D-09: submitted|reviewing em vaga approved; demais recusados. */
+async function scenario12_withdraw() {
+  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
+    skipRequired(12, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
+  if (adminErr || candErr || !user?.id) {
+    skipRequired(12, "admin ou candidato não autenticou");
+    return;
+  }
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplication(admin, SEED_APPROVED_B, user.id);
+  await deleteApplication(admin, SEED_PENDING, user.id);
+  await ensureD01Profile(candidate, user.id);
+
+  const applied = await rpcApply(candidate, SEED_APPROVED_A);
+  assert(!applied.error, "apply para teste de withdraw");
+  const withdrawn = await rpcWithdraw(candidate, SEED_APPROVED_A);
+  assert(!withdrawn.error && withdrawn.data?.status === "withdrawn", "submitted → withdrawn");
+
+  const again = await rpcWithdraw(candidate, SEED_APPROVED_A);
+  assert(Boolean(again.error), "withdrawn não reabre nem retira de novo");
+  const reapply = await rpcApply(candidate, SEED_APPROVED_A);
+  assert(Boolean(reapply.error), "withdrawn não permite reenviar o mesmo par");
+
+  const reviewing = await rpcApply(candidate, SEED_APPROVED_B);
+  assert(!reviewing.error, "segunda vaga para reviewing");
+  const setReview = await admin
+    .from("applications")
+    .update({ status: "reviewing" })
+    .eq("job_id", SEED_APPROVED_B)
+    .eq("candidate_id", user.id)
+    .select("status");
+  assert(setReview.data?.[0]?.status === "reviewing", "admin marca reviewing");
+  const withdrawReview = await rpcWithdraw(candidate, SEED_APPROVED_B);
+  assert(!withdrawReview.error && withdrawReview.data?.status === "withdrawn", "reviewing → withdrawn");
+
+  await deleteApplication(admin, SEED_APPROVED_B, user.id);
+  const accepted = await rpcApply(candidate, SEED_APPROVED_B);
+  assert(!accepted.error, "vaga B para accepted");
+  await admin
+    .from("applications")
+    .update({ status: "accepted" })
+    .eq("job_id", SEED_APPROVED_B)
+    .eq("candidate_id", user.id);
+  const withdrawAccepted = await rpcWithdraw(candidate, SEED_APPROVED_B);
+  assert(Boolean(withdrawAccepted.error), "accepted não retira");
+
+  const planted = await admin.from("applications").insert({
+    job_id: SEED_PENDING,
+    candidate_id: user.id,
+    status: "submitted",
+    snapshot: { planted: true },
+  }).select("id");
+  assert(!planted.error && planted.data?.[0]?.id, "admin planta candidatura em pending");
+  const withdrawPendingJob = await rpcWithdraw(candidate, SEED_PENDING);
+  assert(Boolean(withdrawPendingJob.error), "não retira se a vaga não está approved");
+  assert(/not approved/i.test(withdrawPendingJob.error?.message ?? ""), "pending no withdraw retorna job is not approved");
+
+  const statusHack = await candidate
+    .from("applications")
+    .update({ status: "submitted" })
+    .eq("job_id", SEED_APPROVED_A)
+    .eq("candidate_id", user.id)
+    .select("id");
+  assert(Boolean(statusHack.error) || (statusHack.data ?? []).length === 0, "candidato não atualiza status direto");
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplication(admin, SEED_APPROVED_B, user.id);
+  await deleteApplication(admin, SEED_PENDING, user.id);
+  await candidate.auth.signOut();
+  await admin.auth.signOut();
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -500,9 +740,19 @@ await scenario8_resubmit();
 console.log("\n=== Cenário 9: prioridade ===");
 await scenario9_priority();
 
+console.log("\n=== Cenário 10: apply + snapshot ===");
+await scenario10_applyHappy();
+
+console.log("\n=== Cenário 11: apply recusado ===");
+await scenario11_applyBlocked();
+
+console.log("\n=== Cenário 12: withdraw D-09 ===");
+await scenario12_withdraw();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
-    failures.push(`cenário ${n} ignorado (S4-01 exige execução real de 3–9)`);
+    const band = n >= 10 ? "S6-01 exige execução real de 10–12" : "S4-01 exige execução real de 3–9";
+    failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
 
@@ -512,5 +762,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria V1: ok (${skipped.length} aviso(s) opcionais; cenários 3–9 executados).`,
+  `\nRLS curadoria + apply V1: ok (${skipped.length} aviso(s) opcionais; cenários 3–12 executados).`,
 );
