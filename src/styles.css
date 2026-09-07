@@ -185,6 +185,20 @@ html[data-theme="dark"] .avatar{background:#1e3a8a;color:#dbeafe}
 .login-dynamic-brand .brand-gdg{fill:var(--color-brand-wordmark)}
 .login-page{background:var(--color-surface)}
 .login-form{background:var(--color-surface)}
+.login-alert{
+  margin:0;
+  padding:12px 14px;
+  border-radius:var(--radius-md);
+  border:1px solid var(--color-danger-700);
+  background:var(--color-danger-50);
+  color:var(--color-danger-700);
+  font-size:var(--font-size-body-2);
+  font-weight:600;
+  line-height:1.5;
+}
+.login-alert:focus{outline:2px solid var(--color-danger-700);outline-offset:2px}
+.login-staff-link{margin:0;font-size:var(--font-size-body-2);font-weight:600}
+.login-staff-link a{color:var(--color-primary-700)}
 .login-page .login-panel{
   background:radial-gradient(var(--color-primary-100) 1px,transparent 1px) var(--color-surface-subtle);
   background-size:16px 16px;

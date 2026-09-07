@@ -1,11 +1,16 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { startGoogleOAuth } from "./auth-api.js";
 import { LoginDynamicBrand } from "../../shared/ui/LoginDynamicBrand.jsx";
 
+const GOOGLE_ONLY_MESSAGE =
+  "Nesta homologação, entre com Google. E-mail e senha ficam para admin e curadoria.";
+
 export function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const alertRef = useRef(null);
 
   const onGoogle = async () => {
     setBusy(true);
@@ -20,7 +25,8 @@ export function Login() {
 
   const onEmailContinue = (event) => {
     event.preventDefault();
-    setError("Nesta homologação, entre com Google. E-mail e senha ficam para admin e curadoria.");
+    setError(GOOGLE_ONLY_MESSAGE);
+    alertRef.current?.focus();
   };
 
   return (
@@ -53,6 +59,9 @@ export function Login() {
           <h2>Entre na sua conta</h2>
           <p>Use sua conta Google para continuar.</p>
         </div>
+        <p ref={alertRef} className="login-alert" role="alert" tabIndex={-1}>
+          {error || "Entrada de candidatos é só com Google. E-mail e senha não autenticam nesta tela."}
+        </p>
         <button className="google" type="button" onClick={onGoogle} disabled={busy}>
           <img className="google-icon" src="/google-icon.svg" alt="" />
           {busy ? "Redirecionando…" : "Continuar com Google"}
@@ -71,11 +80,9 @@ export function Login() {
             Continuar
           </button>
         </form>
-        {error && (
-          <p className="terms" role="alert">
-            {error}
-          </p>
-        )}
+        <p className="login-staff-link">
+          <Link to="/admin">Staff? Área admin</Link>
+        </p>
         <p className="terms">
           Ao continuar, você concorda com nossos Termos de uso e Política de privacidade. O cadastro
           do perfil não é consentimento LGPD — a base legal é definida pelo DPO.
