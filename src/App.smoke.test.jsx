@@ -186,9 +186,9 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
   });
 
-  it("abre o Login a partir de Entrar", async () => {
+  it("abre o Login a partir de Entrar ou criar conta", async () => {
     await renderHome();
-    fireEvent.click(screen.getByRole("link", { name: "Entrar" }));
+    fireEvent.click(screen.getByRole("link", { name: "Entrar ou criar conta" }));
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
@@ -199,10 +199,16 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
   });
 
-  it("renderiza o Login diretamente em /login", async () => {
+  it("renderiza o Login diretamente em /login sem CTAs de auth no Header", async () => {
     await renderAt("/login");
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Entrar$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^Criar conta$/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
   });
 
   it("abre o menu mobile com os destinos existentes", async () => {
@@ -213,7 +219,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
-    expect(within(mobile).getByRole("link", { name: "Entrar" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
   });
 
   it("alterna o tema no Header sem quebrar a navegação", async () => {
@@ -224,7 +230,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(dark).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
-    fireEvent.click(screen.getByRole("link", { name: "Entrar" }));
+    fireEvent.click(screen.getByRole("link", { name: "Entrar ou criar conta" }));
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
   });
 
@@ -241,6 +247,18 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+  });
+
+  it("staff logado vê Área admin e não vê Minhas candidaturas", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "Ada Admin", role: "admin" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
   });
 
   it("renderiza o dashboard em /minhas-candidaturas com sessão", async () => {

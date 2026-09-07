@@ -42,6 +42,7 @@ export function App() {
       <Header
         logged={Boolean(auth.session)}
         displayName={auth.profile?.full_name}
+        role={auth.profile?.role}
         onSignOut={signOutUser}
       />
       <Routes>
