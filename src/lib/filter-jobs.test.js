@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterJobs, toggleFilterValue } from "./filter-jobs.js";
+import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "./filter-jobs.js";
 
 const jobs = [
   {
@@ -58,6 +58,23 @@ describe("filterJobs", () => {
     expect(filterJobs(jobs, { query: "React", level: ["Pleno"] }).map((job) => job.id)).toEqual([1]);
     expect(filterJobs(jobs, { query: "React", level: ["Júnior"] })).toEqual([]);
     expect(filterJobs(jobs, { query: "inexistente" })).toEqual([]);
+  });
+});
+
+describe("sortJobs", () => {
+  const dated = [
+    { id: "old", postedAt: "2026-01-01T00:00:00.000Z" },
+    { id: "new", postedAt: "2026-09-01T00:00:00.000Z" },
+    { id: "mid", postedAt: "2026-06-01T00:00:00.000Z" },
+  ];
+
+  it("ordena mais recentes por padrão (postedAt desc)", () => {
+    expect(sortJobs(dated).map((job) => job.id)).toEqual(["new", "mid", "old"]);
+    expect(sortJobs(dated, SORT_RECENT).map((job) => job.id)).toEqual(["new", "mid", "old"]);
+  });
+
+  it("ordena mais antigas (postedAt asc)", () => {
+    expect(sortJobs(dated, SORT_OLDEST).map((job) => job.id)).toEqual(["old", "mid", "new"]);
   });
 });
 

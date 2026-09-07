@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Filter,
   MapPin, Search, Sparkles, Users, X
 } from "lucide-react";
-import { filterJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
+import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs } from "./jobs-api.js";
 import { useNavigate } from "react-router-dom";
 
@@ -18,6 +18,7 @@ export function Home() {
   const [tech, setTech] = useState([]);
   const [level, setLevel] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOrder, setSortOrder] = useState(SORT_RECENT);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,6 +40,10 @@ export function Home() {
     () => filterJobs(jobs, { query, tech, level }),
     [jobs, query, tech, level],
   );
+  const visibleJobs = useMemo(
+    () => sortJobs(filtered, sortOrder),
+    [filtered, sortOrder],
+  );
 
   const toggle = (item, values, setter) => setter(toggleFilterValue(item, values));
   const reset = () => { setQuery(""); setTech([]); setLevel([]); };
@@ -52,10 +57,62 @@ export function Home() {
       <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" />
     </div>
     <section className="shell jobs-layout"><aside className={`filters ${filterOpen ? "open" : ""}`}><div className="filter-head"><h2><Filter size={18}/> Filtros</h2><button onClick={reset}>Limpar</button><button className="close-filter" onClick={() => setFilterOpen(false)}><X size={18}/></button></div><FilterGroup label="Tecnologias" values={technologies} active={tech} toggle={x => toggle(x, tech, setTech)} /><FilterGroup label="Nível de experiência" values={levels} active={level} toggle={x => toggle(x, level, setLevel)} /><FilterGroup label="Modelo de trabalho" values={["Remoto", "Híbrido", "Presencial"]} active={[]} toggle={() => {}} /></aside>
-      <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{filtered.length} oportunidades encontradas</p></div><button className="filter-mobile" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><button className="sort">Mais recentes <ChevronDown size={16}/></button></div><div className="cards">{filtered.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "loading" && filtered.length === 0 && <div className="empty"><Search size={32}/><h3>Carregando vagas</h3><p>Buscando oportunidades aprovadas pela curadoria.</p></div>}{catalogStatus === "error" && filtered.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && filtered.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
+      <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "loading" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Carregando vagas</h3><p>Buscando oportunidades aprovadas pela curadoria.</p></div>}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
     </section>
     <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Comunidade GDG</div><h2>Seu próximo desafio pode<br/>estar a um clique.</h2><p>Crie seu perfil e receba vagas que combinam com você.</p></div><button className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></button></div></section>
   </main>;
+}
+
+function SortMenu({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+  const label = value === SORT_OLDEST ? "Mais antigas" : "Mais recentes";
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointer = (event) => {
+      if (rootRef.current && !rootRef.current.contains(event.target)) setOpen(false);
+    };
+    const onKey = (event) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const choose = (next) => {
+    onChange(next);
+    setOpen(false);
+  };
+
+  return (
+    <div className="sort-wrap" ref={rootRef}>
+      <button
+        type="button"
+        className="sort"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls="catalog-sort-menu"
+        onClick={() => setOpen((current) => !current)}
+      >
+        {label} <ChevronDown size={16} />
+      </button>
+      {open && (
+        <ul id="catalog-sort-menu" className="sort-menu" role="listbox" aria-label="Ordenar vagas">
+          <li>
+            <button type="button" role="option" aria-selected={value === SORT_RECENT} onClick={() => choose(SORT_RECENT)}>Mais recentes</button>
+          </li>
+          <li>
+            <button type="button" role="option" aria-selected={value === SORT_OLDEST} onClick={() => choose(SORT_OLDEST)}>Mais antigas</button>
+          </li>
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function FilterGroup({ label, values, active, toggle }) { return <div className="filter-group"><h3>{label}</h3>{values.map(value => <label key={value} className="checkline"><input type="checkbox" checked={active.includes(value)} onChange={() => toggle(value)} /><span className="check"><Check size={13}/></span>{value}</label>)}</div> }

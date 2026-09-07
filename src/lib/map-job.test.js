@@ -30,6 +30,7 @@ describe("mapJob", () => {
     expect(job.company).toBe("Nuvem Lauro Demo");
     expect(job.responsibilities).toEqual(["Construir interfaces acessíveis e performáticas"]);
     expect(job.status).toBe("approved");
+    expect(job.postedAt).toBe(row.approved_at);
   });
 
   it("não promove vaga pendente no mapper — o status segue o banco", () => {

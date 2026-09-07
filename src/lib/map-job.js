@@ -34,6 +34,7 @@ export function mapJob(row) {
     place,
     type: workModel || "—",
     posted: formatPosted(row.approved_at ?? row.created_at),
+    postedAt: row.approved_at ?? row.created_at ?? null,
     stack,
     salary: "A combinar",
     featured: false,
