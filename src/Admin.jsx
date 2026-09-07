@@ -189,14 +189,6 @@ export function Admin({ setLogged, session, authReady = true }) {
     <main className="admin-page">
       <div className="shell admin-shell">
         <aside className="admin-side">
-          <button type="button" className="brand">
-            <span className="brand-mark">
-              <img src="/favicon.svg" alt="" />
-            </span>
-            <span>
-              GDG<span>Jobs</span>
-            </span>
-          </button>
           <div className="admin-user">
             <span className="avatar">{(profile.full_name || "GD").slice(0, 2).toUpperCase()}</span>
             <div>

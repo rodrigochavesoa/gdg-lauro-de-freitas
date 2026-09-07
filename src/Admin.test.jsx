@@ -1,9 +1,11 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("./features/curation/curation-api.js", () => ({
-  loadCurationProfile: async () => null,
+  loadCurationProfile: (...args) => loadCurationProfile(...args),
   signInCuration: vi.fn(),
 }));
 
@@ -20,7 +22,12 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
 
 import { Admin } from "./Admin.jsx";
 
-describe("Admin staff login", () => {
+describe("Admin", () => {
+  beforeEach(() => {
+    loadCurationProfile.mockReset();
+    loadCurationProfile.mockResolvedValue(null);
+  });
+
   it("usa admin-auth-form compacto, sem job-form do CRUD", async () => {
     render(<Admin session={null} authReady />);
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
@@ -31,5 +38,20 @@ describe("Admin staff login", () => {
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+  });
+
+  it("sidebar logada não duplica a marca GDGJobs", async () => {
+    loadCurationProfile.mockResolvedValue({
+      id: "c1",
+      role: "curator",
+      full_name: "Cora Curadora",
+      email: "curator-homolog@example.invalid",
+    });
+    render(<Admin session={{ user: { id: "c1" } }} authReady />);
+    expect(await screen.findByText("Cora Curadora")).toBeInTheDocument();
+    expect(document.querySelector(".admin-side")).toBeTruthy();
+    expect(document.querySelector(".admin-side .brand")).toBeNull();
+    expect(document.querySelector(".admin-side .admin-user")).toBeTruthy();
+    expect(screen.getByText("Cora Curadora")).toBeInTheDocument();
   });
 });

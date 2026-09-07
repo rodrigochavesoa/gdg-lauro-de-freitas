@@ -320,6 +320,7 @@ button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-
 }
 
 .admin-side nav button svg{color:currentColor;stroke:currentColor}
+.admin-side > .admin-user{margin-top:0;padding-top:0;border-top:0}
 
 /* F-009 — admin nav contrast in dark; light selectors stay on DS-02 primary-700. */
 html[data-theme="dark"] .admin-side nav button{color:var(--color-text)}
