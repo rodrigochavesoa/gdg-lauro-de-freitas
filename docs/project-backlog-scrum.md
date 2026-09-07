@@ -201,6 +201,7 @@ Uma história é concluída quando:
 | P1 | Ingestão | Avaliar scrapers por fonte, termos de uso, base legal e manutenção antes de construir conectores | V1/V2 | Novo — depende de aprovação de fontes |
 | P1 | Curadoria | Fluxo pendente → aprovação/rejeição, histórico e publicação Realtime | V1 | **Regras V1 aceitas** — [`docs/decisions-curation-v1.md`](decisions-curation-v1.md); implementação Sprint 4 |
 | P1 | Curadoria | Validação automática e rubrica de revisão para comunidade/moderadores | V1 | Rubrica V1 fechada; RPC + UI no Sprint 4 |
+| P1 | UX / performance | Eliminar delay perceptível e flash do botão apply (catálogo, detalhe, minhas candidaturas) | V1 | **Pronto para Executor** — ver UX-PERF-01 |
 | P1 | Perfil | Onboarding, edição de perfil, skills e preferências | V2 | Não iniciado |
 | P1 | Candidaturas | Candidatura com um clique, prevenção de duplicidade e dashboard | V2 | Dados preparados; interface parcial |
 | P1 | Comunicação | E-mails transacionais via Resend | V2 | Não iniciado |
@@ -271,6 +272,65 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 **Ponto de partida confirmado:** Fluxo candidato homologação V1 completo — OAuth Google, onboarding D-01, catálogo, detalhe da vaga, **apply/retirar** via RPC (`apply-api.js`), dashboard **`/minhas-candidaturas`**. Curadoria V1 e Admin CRUD operacionais. Contrato: [`docs/s6-apply-flow.md`](s6-apply-flow.md).
 
 **Próxima ação do agente:** aguardar **C-05** (Resend) e ONE-LINER **Sprint 7** do Plan. Não iniciar Resend sem credenciais; não Gemini, deploy público nem exportação/exclusão LGPD neste sprint.
+
+**Paralelo (sem bloquear S7):** **UX-PERF-01** — performance percebida e flash do botão apply; **branch e PR separados** de qualquer entrega S7 (sort já em `main`, #27); pode executar enquanto C-05 pendente.
+
+#### Diagnóstico Plan — UX-PERF-01 (2026-09-07)
+
+Relato em homologação: catálogo e `/minhas-candidaturas` demoram segundos para popular; no detalhe da vaga o botão azul “Candidatar-se” aparece antes do estado verde “Candidatura enviada”.
+
+| Sintoma | Causa raiz (código atual) | Arquivos |
+|---|---|---|
+| Detalhe: flash azul → verde | **Waterfall intencional:** `JobDetailRoute` renderiza a página só após `loadApprovedJob`; só então dispara `loadMyApplication` com `applicationStatus` inicial `null` — `JobDetail` interpreta `null` como “não candidatou” e mostra CTA azul até a 2ª resposta | [`App.jsx`](../src/App.jsx) (`JobDetailRoute`), [`JobDetail.jsx`](../src/features/jobs/JobDetail.jsx) |
+| Minhas candidaturas lenta | **Dupla espera:** gate `authReady` (`loadAuthSnapshot` → `getSession` + possível `ensureProfileRow`) **depois** `loadMyApplications()` chama `getUser()` de novo antes do SELECT com join `jobs/companies` | [`App.jsx`](../src/App.jsx), [`apply-api.js`](../src/features/jobs/apply-api.js) |
+| Catálogo lento ao entrar | Fetch frio a cada visita (`useEffect` em `Home`); SELECT de listagem traz campos pesados (`description`, `requirements`, join `companies`); sem cache client-side; UI mostra empty “Carregando vagas” em vez de skeleton | [`Home.jsx`](../src/features/catalog/Home.jsx), [`jobs-api.js`](../src/lib/jobs-api.js) |
+| Latência de rede (contribuinte) | Projeto Supabase remoto (Free); cold start e RTT somam ao tempo acima — **não resolve sozinho** com UI, mas payload menor e menos round-trips reduzem o impacto | Ambiente homologação |
+
+**Não é bug de RLS/RPC** — dados chegam corretamente; o problema é ordem de fetch, estado de loading incompleto e payload.
+
+#### UX-PERF-01 — loading percebido e estado apply (pronto para Executor)
+
+- **Escopo:**
+  - **Detalhe (obrigatório):** estado explícito `applicationLoading` (ou equivalente). Enquanto logado e status da candidatura desconhecido, **não** renderizar CTA azul — usar skeleton/disabled/“Verificando candidatura…”. Preferir `Promise.all([loadApprovedJob(id), loadMyApplication(id)])` quando `logged`, ou passar `userId` da sessão já resolvida em `App` para evitar `getUser()` redundante.
+  - **Minhas candidaturas:** iniciar fetch assim que `auth.session` existir (passar `userId` ao adaptador); eliminar round-trip duplicado de auth quando possível; manter skeleton existente ou melhorar com cards placeholder.
+  - **Catálogo:** criar SELECT enxuto para listagem (sem `description`/`requirements` no card grid) **ou** cache module-level com TTL curto; skeleton de cards na grade enquanto `catalogStatus === "loading"`.
+  - Testes: smoke/unit cobrindo ausência de flash (mock timing) e estados de loading.
+- **Fora:** React Query/SWR como dependência nova (só se TL aprovar); prefetch agressivo; alteração de schema/RLS; Resend/S7.
+- **Aceite:**
+  - Usuário **já candidatado** abre `/jobs/:id` e **nunca** vê flash do botão azul antes do estado aplicado (ou skeleton neutro ≤300 ms perceptível).
+  - `/minhas-candidaturas` não faz `getUser()` se `session.user.id` já está no shell (1 round-trip a menos no caminho crítico).
+  - Home: skeleton de cards ou listagem enxuta; tempo até primeiro card visível mensurável (antes/depois no PR).
+  - `pnpm lint`, testes e build verdes.
+- **Squash sugerido:** `fix(ux): reduce catalog and apply loading waterfalls`
+- **Prioridade:** P1 — experiência candidato em homologação; **independe de C-05**.
+- **Git (obrigatório):** entrega **isolada** — não misturar com Resend/S7 nem docs de closeout. Sort já mergeado (#27). Um PR de código = UX-PERF-01.
+
+**ONE-LINER — Executor (UX-PERF-01)**
+
+```
+Git — obrigatório ANTES de editar:
+  git checkout main && git pull origin main
+  git checkout -b fix/ux-loading-waterfalls
+
+Entrega ISOLADA: branch fix/ux-loading-waterfalls + PR próprio.
+NÃO commitar em main local.
+NÃO incluir sort, Resend, migrations *_noop.sql nem docs-local/.
+
+UX-PERF-01 — loading percebido e flash apply
+
+1. JobDetailRoute: fetch paralelo job + application quando logged;
+   applicationLoading — NÃO mostrar CTA azul até saber status.
+2. apply-api: aceitar userId da sessão (evitar getUser redundante).
+3. MyApplications: iniciar fetch com session.user.id do App.
+4. Catálogo: SELECT enxuto para listagem OU cache curto;
+   skeleton cards na grade.
+
+Aceite: zero flash azul→verde; lint/test/build verdes.
+Squash: fix(ux): reduce catalog and apply loading waterfalls
+
+PARAR antes de push/PR até Plan + humano Sim.
+Base: main com sort (#27) já mergeado.
+```
 
 #### Revisão Tech Lead — Sprint 6 / S6-03 (aprovada em 2026-09-07)
 
@@ -544,5 +604,6 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 2. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou rascunho de governança S7 (eventos/gatilhos) enquanto credenciais pendentes.
 3. **DPO:** bases legais de e-mail transacional em [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md).
 4. **Humano:** P-03 (`location`), C-03 (orçamento Supabase).
-5. **Polish opcional:** chip neutro de status no dashboard; cenário `test:rls` com links no snapshot; path relativo em `design-system-communication.md`.
-6. **Produção:** continua bloqueada pelos seis controles LGPD; homologação segue com dados fictícios ou autorizados.
+5. **Executor (paralelo S7):** **UX-PERF-01** em `fix/ux-loading-waterfalls` — PR **separado** (após este registro de backlog); ver ONE-LINER no backlog.
+6. **Polish opcional:** chip neutro de status no dashboard; cenário `test:rls` com links no snapshot; path relativo em `design-system-communication.md`.
+7. **Produção:** continua bloqueada pelos seis controles LGPD; homologação segue com dados fictícios ou autorizados.
