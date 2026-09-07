@@ -72,7 +72,7 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 **Dependências humanas:**
 - ...
 **Referências obrigatórias:**
-- ...
+- ... (UI: `docs/design-system-communication.md` + `docs/design-system/section-curves.md`)
 ```
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.

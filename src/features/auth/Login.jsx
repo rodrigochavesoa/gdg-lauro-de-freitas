@@ -41,6 +41,12 @@ export function Login() {
           “Uma comunidade feita por pessoas que acreditam no poder da tecnologia.”
           <span>— GDG Lauro de Freitas</span>
         </div>
+        <svg className="login-panel__curve login-panel__curve--right" viewBox="0 0 80 800" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path fill="var(--color-surface)" stroke="none" d="M 30 0 C 72 140 6 260 44 400 C 78 540 10 660 36 800 L 80 800 L 80 0 Z" />
+        </svg>
+        <svg className="login-panel__curve login-panel__curve--bottom" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true" focusable="false">
+          <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
+        </svg>
       </section>
       <section className="login-form">
         <div>

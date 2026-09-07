@@ -12,6 +12,8 @@ A pasta local [design_system_web](C:\Colab_Developer\gdg-senai\docs\design-syste
 
 **Regra de ouro:** antes de criar, alterar ou reutilizar qualquer elemento visual, a pessoa ou agente responsável deve consultar esta documentação e a referência correspondente na pasta `design_system_web`. É proibido recriar um componente existente com espaçamentos, cores, variantes ou comportamentos arbitrários.
 
+**Perfil Frontend / Executor de UI:** consultar também [`section-curves.md`](design-system/section-curves.md) (**DS-07**) — fonte da verdade das juntas onduladas entre seções. Não criar `section` com transição de fundo em linha reta.
+
 Quando houver conflito entre as referências:
 
 1. A pasta `design_system_web` prevalece para tokens, estados e anatomia de componentes.
@@ -27,6 +29,7 @@ Quando houver conflito entre as referências:
 | Entrada e seleção | Checkbox, Input, Radio, Toggle |
 | Conteúdo e identidade | Avatar, Badge & Chip, Card, List |
 | Fundações | Colors, Typography |
+| Layout de seções (DS-07) | [`section-curves.md`](design-system/section-curves.md) — onda inferior, onda lateral direita, divisor da home, avatar |
 
 Antes de criar uma nova variação, verificar nesta ordem: **o componente já existe? → a variante atende ao caso? → é possível compor componentes existentes? → somente então propor uma nova variante para revisão de design.**
 
@@ -38,6 +41,7 @@ Antes de criar uma nova variação, verificar nesta ordem: **o componente já ex
 - As cores das logos de empresas no conteúdo demonstrativo são dados de marca isolados; não fazem parte dos tokens de interface.
 - A identidade visual inclui o símbolo GDG em SVG, favicon/PWA para web e mobile, ilustração de Login com opacidade controlada e ícone oficial do Google no fluxo de acesso.
 - A tela de Login usa a marca dinâmica inline (`LoginDynamicBrand`); o “GDG” segue `--color-brand-wordmark` (preto no light, branco no dark) e o “Jobs” permanece `#2563EB`. A animação respeita `prefers-reduced-motion`. O menu mobile possui fluxo de foco acessível e o rodapé mantém a assinatura da comunidade em telas pequenas.
+- A home liga hero e vagas com um divisor curvo (tokens `surface-subtle` → `surface`) e um avatar decorativo à esquerda que transborda a curva. O painel de Login reutiliza a mesma onda na base e na lateral direita. Contrato, valores e reuso: [`section-curves.md`](design-system/section-curves.md) (DS-07).
 - DS-06 está documentada e aplicada como regra de trabalho do agente; sua evidência formal em PR/CI permanece pendente enquanto não houver repositório Git e pipeline.
 - A equipe não possui acesso ao Figma nem aos componentes oficiais; logo, não há biblioteca, tokens aprovados ou revisão de design em produção.
 
@@ -117,6 +121,7 @@ Antes do lançamento, a equipe de design deve:
 | DS-04 | Biblioteca oficial no Figma e revisão colaborativa | P1 | Componentes, variantes e tokens aprovados pela equipe de design. |
 | DS-05 | QA visual e de acessibilidade | P1 | Fluxos críticos validados em desktop/mobile, teclado e leitor de tela. |
 | DS-06 | Consulta obrigatória ao catálogo antes de criar componentes | P0 — documentada | Regra obrigatória registrada; PRs de interface devem citá-la quando o repositório e CI estiverem configurados. |
+| DS-07 | Transições curvas entre seções e reuso do recorte | P0 — documentada | Agente Frontend lê [`section-curves.md`](design-system/section-curves.md) antes de layout novo; geometria canônica reutilizada; PR cita DS-07. |
 
 ## Gate de produção
 
