@@ -1,16 +1,12 @@
-import React, { useRef, useState } from "react";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Sparkles } from "lucide-react";
 import { startGoogleOAuth } from "./auth-api.js";
 import { LoginDynamicBrand } from "../../shared/ui/LoginDynamicBrand.jsx";
 
-const GOOGLE_ONLY_MESSAGE =
-  "Nesta homologação, entre com Google. E-mail e senha ficam para admin e curadoria.";
-
 export function Login() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const alertRef = useRef(null);
 
   const onGoogle = async () => {
     setBusy(true);
@@ -21,12 +17,6 @@ export function Login() {
       setError(err.message);
       setBusy(false);
     }
-  };
-
-  const onEmailContinue = (event) => {
-    event.preventDefault();
-    setError(GOOGLE_ONLY_MESSAGE);
-    alertRef.current?.focus();
   };
 
   return (
@@ -57,32 +47,29 @@ export function Login() {
       <section className="login-form">
         <div>
           <h2>Entre na sua conta</h2>
-          <p>Use sua conta Google para continuar.</p>
+          <p>Candidatos entram com Google. Empresas usam a área administrativa.</p>
         </div>
-        <p ref={alertRef} className="login-alert" role="alert" tabIndex={-1}>
-          {error || "Entrada de candidatos é só com Google. E-mail e senha não autenticam nesta tela."}
-        </p>
-        <button className="google" type="button" onClick={onGoogle} disabled={busy}>
-          <img className="google-icon" src="/google-icon.svg" alt="" />
-          {busy ? "Redirecionando…" : "Continuar com Google"}
-        </button>
-        <div className="divider">
-          <span />
-          ou
-          <span />
+        {error ? (
+          <p className="login-alert" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="login-paths">
+          <h3>Você é novo no GDG Jobs?</h3>
+          <div className="login-path">
+            <p className="login-path__label">Candidato</p>
+            <button className="google full" type="button" onClick={onGoogle} disabled={busy}>
+              <img className="google-icon" src="/google-icon.svg" alt="" />
+              {busy ? "Redirecionando…" : "Entrar ou criar conta com Google"}
+            </button>
+          </div>
+          <div className="login-path">
+            <p className="login-path__label">Empresa</p>
+            <Link className="outline full" to="/admin">
+              Publicar vagas — área administrativa
+            </Link>
+          </div>
         </div>
-        <form onSubmit={onEmailContinue}>
-          <label>
-            E-mail
-            <input type="email" placeholder="voce@email.com" />
-          </label>
-          <button className="primary full" type="submit">
-            Continuar
-          </button>
-        </form>
-        <p className="login-staff-link">
-          <Link to="/admin">Staff? Área admin</Link>
-        </p>
         <p className="terms">
           Ao continuar, você concorda com nossos Termos de uso e Política de privacidade. O cadastro
           do perfil não é consentimento LGPD — a base legal é definida pelo DPO.

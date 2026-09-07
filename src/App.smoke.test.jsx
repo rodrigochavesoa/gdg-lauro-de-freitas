@@ -190,7 +190,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     await renderHome();
     fireEvent.click(screen.getByRole("link", { name: "Entrar" }));
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Continuar com Google/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
 
   it("renderiza o detalhe diretamente em /jobs/:id", async () => {
@@ -202,7 +202,7 @@ describe("ARQ-01 — caracterização do shell", () => {
   it("renderiza o Login diretamente em /login", async () => {
     await renderAt("/login");
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Continuar com Google/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
 
   it("abre o menu mobile com os destinos existentes", async () => {

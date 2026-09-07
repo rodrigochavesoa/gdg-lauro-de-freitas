@@ -22,18 +22,21 @@ function renderLogin() {
 describe("Login", () => {
   it("inicia OAuth Google pelo adaptador, sem client no JSX", async () => {
     renderLogin();
-    fireEvent.click(screen.getByRole("button", { name: /Continuar com Google/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i }));
     expect(startGoogleOAuth).toHaveBeenCalledTimes(1);
   });
 
-  it("mostra alerta impossível de ignorar ao continuar com e-mail", () => {
+  it("mostra caminhos de candidato e empresa sem formulário de e-mail", () => {
     renderLogin();
-    expect(screen.getByRole("alert")).toHaveTextContent(/só com Google/i);
-    fireEvent.click(screen.getByRole("button", { name: /^Continuar$/i }));
-    const alert = screen.getByRole("alert");
-    expect(alert).toHaveTextContent(/entre com Google/i);
-    expect(alert).toHaveTextContent(/admin e curadoria/i);
-    expect(document.activeElement).toBe(alert);
-    expect(screen.getByRole("link", { name: "Staff? Área admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.queryByLabelText(/e-mail/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Você é novo no GDG Jobs?" })).toBeInTheDocument();
+    expect(screen.getByText("Candidato")).toBeInTheDocument();
+    expect(screen.getByText("Empresa")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Publicar vagas — área administrativa" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
   });
 });
