@@ -28,7 +28,7 @@ function roleLabel(role) {
   return "curadoria";
 }
 
-export function CurationQueue({ profile, onLogout }) {
+export function CurationQueue({ profile }) {
   const isAdmin = profile.role === "admin";
   const [queue, setQueue] = useState([]);
   const [rejected, setRejected] = useState([]);
@@ -121,9 +121,6 @@ export function CurationQueue({ profile, onLogout }) {
             Pendentes com urgente primeiro. Empate aparece como needs_moderation. Decisão só via RPC.
           </p>
         </div>
-        <button type="button" className="outline" onClick={onLogout}>
-          Sair
-        </button>
       </div>
       <div className="admin-user">
         <span className="avatar">{(profile.full_name || "C").slice(0, 2).toUpperCase()}</span>

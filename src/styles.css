@@ -180,11 +180,52 @@ html[data-theme="dark"] .avatar{background:#1e3a8a;color:#dbeafe}
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"] .avatar{background:#1e3a8a;color:#dbeafe}
 }
-.login-form form{display:grid;gap:21px}
 .login-dynamic-brand svg,.login-dynamic-brand-svg{display:block;width:100%;height:auto}
 .login-dynamic-brand .brand-gdg{fill:var(--color-brand-wordmark)}
 .login-page{background:var(--color-surface)}
 .login-form{background:var(--color-surface)}
+.login-form .login-alert{
+  margin:0;
+  padding:12px 14px;
+  border-radius:var(--radius-md);
+  border:1px solid var(--color-danger-700);
+  background:var(--color-danger-50);
+  color:var(--color-danger-700);
+  font-size:var(--font-size-body-2);
+  font-weight:600;
+  line-height:1.5;
+}
+.login-paths{display:grid;gap:var(--space-6)}
+.login-paths h3{
+  margin:0;
+  font-size:var(--font-size-body-1);
+  line-height:var(--line-height-body-1);
+  font-weight:700;
+  color:var(--color-text);
+}
+.login-path{display:grid;gap:var(--space-2)}
+.login-form .login-path__label{
+  margin:0;
+  font-size:var(--font-size-caption);
+  line-height:var(--line-height-caption);
+  font-weight:600;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color:var(--color-text-muted);
+}
+.login-path .google{
+  min-height:48px;
+  height:auto;
+  padding:12px 17px;
+}
+.login-path .outline{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  text-decoration:none;
+  box-sizing:border-box;
+}
 .login-page .login-panel{
   background:radial-gradient(var(--color-primary-100) 1px,transparent 1px) var(--color-surface-subtle);
   background-size:16px 16px;
