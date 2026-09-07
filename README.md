@@ -23,7 +23,22 @@
 
 # GDG Lauro de Freitas - Ecossistema de Projetos
 
-Este repositório centraliza as definições, arquitetura e planejamento estratégico para o desenvolvimento da plataforma digital do Google Developer Group (GDG) Lauro de Freitas. O ecossistema é composto por três projetos principais voltados para o impacto e engajamento da comunidade local.
+Este repositório documenta um **MVP de homologação paralelo** inspirado no ecossistema GDG Jobs — definições, arquitetura e entregas incrementais em React/Vite + Supabase. O ecossistema GDG Lauro de Freitas contempla três frentes de produto; aqui o foco prático é o motor de vagas em fase de estudo.
+
+## Projeto oficial vs. este repositório
+
+| | Repositório oficial (comunidade) | Este repositório (paralelo) |
+|---|---|---|
+| **Onde** | [**lfdev-gdg/GDGJobs**](https://github.com/lfdev-gdg/GDGJobs) | `gdg-lauro-de-freitas` (MVP Vite + Supabase) |
+| **Propósito** | Plataforma curada pela GDG para vagas nacionais e internacionais | Laboratório de aprendizado e experimentação |
+| **Stack** | Next.js, Tailwind, shadcn/ui (scaffold comunitário) | React/Vite, Design System CSS, homologação |
+| **Condução** | **Danielle Teixeira** — visão de produto e responsabilidade pelo GDG Jobs oficial | Projeto pessoal/paralelo; não substitui o oficial |
+
+O [**GDG Jobs oficial**](https://github.com/lfdev-gdg/GDGJobs) é o repositório da comunidade. A **Danielle Teixeira** conduz a visão e a entrega desse produto; o crédito pelo trabalho original e pela organização do projeto comunitário é dela.
+
+**Este repositório existe por curiosidade e estudo:** aplicar, na prática, conceitos, decisões e boas práticas discutidos nos encontros do projeto original — catálogo, auth, curadoria, LGPD by design — em um ambiente de homologação controlado. Não há intenção de competir com ou substituir o repositório oficial.
+
+Quer contribuir com o **produto da comunidade**? Comece por [lfdev-gdg/GDGJobs](https://github.com/lfdev-gdg/GDGJobs). Quer acompanhar ou colaborar neste laboratório paralelo, use issues e PRs aqui, sempre respeitando que a fonte de verdade do produto GDG Jobs é o repo oficial.
 
 ---
 
