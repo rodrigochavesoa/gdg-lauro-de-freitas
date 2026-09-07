@@ -124,7 +124,7 @@ Antes do Sprint 1, o Product Owner e a equipe devem fechar estas escolhas:
 
 ## Pendências de produto — Sprint 4 e seguintes
 
-**D-01 a D-06 estão resolvidas** (2026-08-16). Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). **D-08 e D-09 estão resolvidas** (2026-09-06) para homologação V1: [`decisions-applications-v1.md`](decisions-applications-v1.md). **S6-01 (dados/RPC)** merge #22 (`4f01cb8`); **S6-02 (UI apply)** próximo.
+**D-01 a D-06 estão resolvidas** (2026-08-16). Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). **D-08 e D-09 estão resolvidas** (2026-09-06) para homologação V1: [`decisions-applications-v1.md`](decisions-applications-v1.md). **Sprint 6 homologação V1 concluída** — S6-01 merge #22 (`4f01cb8`), S6-02 merge #24 (`557ad40`), S6-03 merge #25 (`860694b`). **Próximo:** Sprint 7 (Resend) após **C-05** (domínio/credenciais).
 
 | ID | Decisão necessária | Estado atual | Responsável pela decisão |
 |---|---|---|---|
@@ -267,9 +267,38 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 
 ### Handoff para o agente executor
 
-**Ponto de partida confirmado:** Home e detalhe consomem vagas `approved` via Supabase (`loadApprovedJobs`, `mapJob`). OAuth Google, onboarding D-01, curadoria V1 e Admin CRUD estão conectados. **Apply no detalhe da vaga ainda é mock** — RPC/RLS prontos em S6-01 (PR #22); UI em **S6-02**.
+**Ponto de partida confirmado:** Fluxo candidato homologação V1 completo — OAuth Google, onboarding D-01, catálogo, detalhe da vaga, **apply/retirar** via RPC (`apply-api.js`), dashboard **`/minhas-candidaturas`**. Curadoria V1 e Admin CRUD operacionais. Contrato: [`docs/s6-apply-flow.md`](s6-apply-flow.md).
 
-**Próxima ação do agente:** ONE-LINER **S6-02** — Fullstack Engineer conecta `JobDetail` às RPCs `apply_to_job` / `withdraw_application`. Não iniciar Resend, Gemini nem deploy público.
+**Próxima ação do agente:** aguardar **C-05** (Resend) e ONE-LINER **Sprint 7** do Plan. Não iniciar Resend sem credenciais; não Gemini, deploy público nem exportação/exclusão LGPD neste sprint.
+
+#### Revisão Tech Lead — Sprint 6 / S6-03 (aprovada em 2026-09-07)
+
+| Critério | Resultado |
+|---|---|
+| Rota | `/minhas-candidaturas` — [`MyApplications.jsx`](../src/features/jobs/MyApplications.jsx) |
+| Adaptador | `loadMyApplications()` — SELECT + join `jobs`/`companies`; reutiliza `withdrawApplication` |
+| Gates | Sem sessão → `/login` (`authReady`); onboarding → `/onboarding` |
+| UX | Empty state; retirar só `submitted`\|`reviewing`; link Header desktop + mobile |
+| DRY | `APPLICATION_STATUS_COPY` compartilhado com `JobDetail` |
+| Docs | `arq-02-router.md`, § Dashboard em `s6-apply-flow.md` |
+| Qualidade | `pnpm lint`, 47 testes, `pnpm run build` verdes |
+| Git | Merge `860694b` — PR #25 `feat(apply): add candidate applications dashboard route` |
+| Escopo | Dashboard mínimo; chip `.featured` para status (polish futuro); sem Resend/LGPD export |
+
+**Observações (registro):** Sprint 6 homologação candidato **fechada** com S6-03.
+
+#### Revisão Tech Lead — Sprint 6 / S6-02 (aprovada em 2026-09-07)
+
+| Critério | Resultado |
+|---|---|
+| Adaptador | [`apply-api.js`](../src/features/jobs/apply-api.js) — RPC apply/withdraw + `loadMyApplication` |
+| UI | [`JobDetail.jsx`](../src/features/jobs/JobDetail.jsx) — mock removido; estados loading/erro/aplicado/retirar |
+| Gates | Anon → login; D-01 incompleto → onboarding; copy D-08 mantida |
+| D-09 | Retirar no detalhe; sem reapply após `withdrawn` |
+| Testes | `apply-api.test.js`, `JobDetail.test.jsx`; smoke mocka adaptador |
+| Qualidade | `pnpm lint`, 41 testes (pré-S6-03), build verde |
+| Git | Merge `557ad40` — PR #24 `feat(apply): connect job detail apply and withdraw to RPC` |
+| Escopo | Somente UI apply; dashboard ficou para S6-03 |
 
 #### Revisão Tech Lead — Sprint 6 / S6-01 (aprovada em 2026-09-07)
 
@@ -285,11 +314,11 @@ O material recebido possui duas fórmulas incompatíveis: `0,52 + 0,34 + 0,26 = 
 | Qualidade | `pnpm lint`, 32 testes, `pnpm run build` verdes no `pwsh` |
 | Documentação | [`docs/s6-apply-flow.md`](s6-apply-flow.md) — schema, RPC, rollback, cenários |
 | Git | Merge `4f01cb8` — PR #22 `feat(apply): add application snapshot RPC and RLS tests` |
-| Escopo | **Somente dados/RLS.** UI apply (`JobDetail`) permanece mock → **S6-02** |
+| Escopo | **Somente dados/RLS.** UI apply entregue em S6-02/S6-03. |
 
 **Observações (registro):** Snapshot congelado após apply validado (cenário 10). Polish opcional: cenário `test:rls` com `linkedin`/`github`/`cv_url` preenchidos no perfil (follow-up). Candidato de homologação em `docs-local/candidate-test-user.md`.
 
-**Próxima ação:** ONE-LINER **S6-02** — conectar UI ao RPC (apply 1 clique + retirar).
+**Próxima ação (histórica):** S6-02/S6-03 concluídos (#24, #25).
 
 
 #### Revisão Tech Lead — Sprint 3 / S3-01 (aprovada em 2026-08-16)
@@ -474,7 +503,7 @@ Contrato: [`docs/decisions-curation-v1.md`](decisions-curation-v1.md). Governan�
 | 3 | Administrar vagas | Autenticação administrativa, CRUD com validação de entrada e trilha de testes | Agente GDGJobs | Admin cadastra vaga pendente; D-01 a D-06 fechadas |
 | 4 | Curar e publicar | Schema/RPC + UI de fila/rubrica; histórico; Realtime | Agente GDGJobs | Regras em `docs/decisions-curation-v1.md`; dois PRs funcionais; vaga `approved` no catálogo |
 | 5 | Criar perfil | Supabase Auth com Google, onboarding, edição, correção e consentimento granular | Agente GDGJobs | Responsável configura OAuth/URLs; candidato revisa finalidades e pode revogar consentimentos |
-| 6 | Candidatar | Candidatura em um clique, prevenção de duplicidade, dashboard, exportação e exclusão | Agente GDGJobs | **S6-01 (RPC/RLS)** merge #22 ([`s6-apply-flow.md`](s6-apply-flow.md)); **S6-02 (UI apply + dashboard mínimo)** em andamento. Exportação/exclusão do titular continuam no gate LGPD — não bloqueiam apply de homologação |
+| 6 | Candidatar | Candidatura em um clique, prevenção de duplicidade, dashboard, exportação e exclusão | Agente GDGJobs | **Homologação V1 concluída** — S6-01 #22, S6-02 #24, S6-03 #25 ([`s6-apply-flow.md`](s6-apply-flow.md)). Exportação/exclusão do titular = gate LGPD (fora deste escopo) |
 | 7 | Comunicar | Resend para candidatura, mudança de status e aprovação de vaga | Agente GDGJobs | Responsável fornece domínio/credenciais Resend; templates homologados |
 | 8 | Match por regras | Filtros, keywords, explicação de compatibilidade e revisão da normalização de tecnologias | Agente GDGJobs | Tech Lead aceita regra de evolução de `TEXT[]`; resultado reproduzível e explicável |
 | 9 | Enriquecer vagas | Gemini em ambiente controlado, revisão humana, logs e minimização de dados | Agente GDGJobs | DPO/Tech Lead aprovam política Gemini (C-04); nenhuma informação pessoal segue para IA sem controle definido |
@@ -510,8 +539,9 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-1. **Tech Lead:** após merge deste PR de governança, publicar dois ONE-LINERs sequenciais (schema/RPC, depois UI).
-2. **Executor:** `feat/s4-curation-schema`, em seguida `feat/s4-curation-ui` (rebase no schema).
-3. **DPO:** revisar bases legais candidatas em `docs/lgpd-data-inventory.md` (finalidade de candidatura).
-4. **Humano:** P-03 (`location`) e C-03 (orçamento Supabase).
-5. **DPO + Tech Lead:** política Gemini (C-04) e evidências dos seis controles LGPD permanecem bloqueadoras de produção; ADR-001/002 já foram aceitas tecnicamente.
+1. **Humano / PO:** fechar **C-05** (domínio e credenciais Resend) para destravar Sprint 7.
+2. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou rascunho de governança S7 (eventos/gatilhos) enquanto credenciais pendentes.
+3. **DPO:** bases legais de e-mail transacional em [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md).
+4. **Humano:** P-03 (`location`), C-03 (orçamento Supabase).
+5. **Polish opcional:** chip neutro de status no dashboard; cenário `test:rls` com links no snapshot; path relativo em `design-system-communication.md`.
+6. **Produção:** continua bloqueada pelos seis controles LGPD; homologação segue com dados fictícios ou autorizados.

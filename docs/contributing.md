@@ -15,6 +15,8 @@ Padrões da comunidade para branch, Pull Request e mensagens de commit.
 | 5. Revisão | PR **base: `main`** ← compare: `<branch>` |
 | 6. Merge | Squash merge pelo **mantenedor** após CI verde e revisão |
 
+**Regra do Executor:** criar a branch (**etapa 2**) **antes** de editar qualquer arquivo de código ou documentação versionada. Trabalhar somente na branch da história. **Nunca** commitar em `main` local — push direto em `main` é bloqueado pelo ruleset.
+
 Template de PR: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md).
 
 ## Tamanho e escopo do Pull Request
