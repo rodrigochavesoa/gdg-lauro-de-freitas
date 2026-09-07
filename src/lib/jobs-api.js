@@ -1,7 +1,7 @@
 import { mapJob } from "./map-job.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
-const JOB_SELECT = `
+const JOB_DETAIL_SELECT = `
   id,
   title,
   description,
@@ -16,6 +16,19 @@ const JOB_SELECT = `
   companies ( name, description )
 `;
 
+const JOB_LIST_SELECT = `
+  id,
+  title,
+  stack,
+  level,
+  work_model,
+  location,
+  status,
+  approved_at,
+  created_at,
+  companies ( name )
+`;
+
 export async function loadApprovedJobs() {
   const client = getSupabaseBrowserClient();
   if (!client) {
@@ -24,7 +37,7 @@ export async function loadApprovedJobs() {
 
   const { data, error } = await client
     .from("jobs")
-    .select(JOB_SELECT)
+    .select(JOB_LIST_SELECT)
     .eq("status", "approved")
     .order("approved_at", { ascending: false });
 
@@ -43,7 +56,7 @@ export async function loadApprovedJob(id) {
 
   const { data, error } = await client
     .from("jobs")
-    .select(JOB_SELECT)
+    .select(JOB_DETAIL_SELECT)
     .eq("status", "approved")
     .eq("id", id)
     .maybeSingle();

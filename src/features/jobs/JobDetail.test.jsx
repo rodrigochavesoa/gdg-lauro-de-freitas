@@ -34,4 +34,18 @@ describe("JobDetail apply", () => {
     fireEvent.click(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i }));
     expect(onApply).toHaveBeenCalledTimes(1);
   });
+
+  it("não mostra CTA azul enquanto verifica candidatura", () => {
+    render(
+      <JobDetail
+        job={job}
+        goBack={() => {}}
+        logged
+        applicationStatus={null}
+        applicationLoading
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
 });

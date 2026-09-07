@@ -9,7 +9,7 @@ import {
   withdrawApplication,
 } from "./apply-api.js";
 
-export function MyApplications() {
+export function MyApplications({ userId }) {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("loading");
   const [busyJobId, setBusyJobId] = useState(null);
@@ -19,7 +19,7 @@ export function MyApplications() {
     let cancelled = false;
     setStatus("loading");
     setError("");
-    loadMyApplications()
+    loadMyApplications(userId)
       .then((list) => {
         if (cancelled) return;
         setRows(list);
@@ -32,7 +32,7 @@ export function MyApplications() {
         setStatus("error");
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [userId]);
 
   const withdraw = async (jobId) => {
     setBusyJobId(jobId);

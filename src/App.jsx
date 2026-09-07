@@ -46,7 +46,7 @@ export function App() {
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Home /></CatalogGate>} />
-        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
+        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
@@ -69,7 +69,7 @@ function MyApplicationsRoute({ auth, authReady }) {
   }
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
-  return <MyApplications />;
+  return <MyApplications userId={auth.session.user.id} />;
 }
 
 function LoginRoute({ auth }) {
@@ -92,12 +92,13 @@ function OnboardingRoute({ auth, setAuth }) {
   );
 }
 
-function JobDetailRoute({ logged, needsOnboarding }) {
+function JobDetailRoute({ logged, userId, needsOnboarding }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
   const [applicationStatus, setApplicationStatus] = useState(null);
+  const [applicationLoading, setApplicationLoading] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyError, setApplyError] = useState("");
 
@@ -106,8 +107,15 @@ function JobDetailRoute({ logged, needsOnboarding }) {
     setStatus("loading");
     setJob(null);
     setApplicationStatus(null);
+    setApplicationLoading(Boolean(logged));
     setApplyError("");
-    loadApprovedJob(id)
+
+    const jobPromise = loadApprovedJob(id);
+    const applicationPromise = logged
+      ? loadMyApplication(id, userId)
+      : Promise.resolve(null);
+
+    jobPromise
       .then((row) => {
         if (cancelled) return;
         setJob(row);
@@ -116,21 +124,21 @@ function JobDetailRoute({ logged, needsOnboarding }) {
       .catch(() => {
         if (!cancelled) setStatus("error");
       });
-    return () => { cancelled = true; };
-  }, [id]);
 
-  useEffect(() => {
-    if (!logged || status !== "ready") return undefined;
-    let cancelled = false;
-    loadMyApplication(id)
+    applicationPromise
       .then((row) => {
-        if (!cancelled) setApplicationStatus(row?.status ?? null);
+        if (cancelled) return;
+        setApplicationStatus(row?.status ?? null);
+        setApplicationLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setApplicationStatus(null);
+        if (cancelled) return;
+        setApplicationStatus(null);
+        setApplicationLoading(false);
       });
+
     return () => { cancelled = true; };
-  }, [id, logged, status]);
+  }, [id, logged, userId]);
 
   const runApplyAction = async (action) => {
     setApplyBusy(true);
@@ -140,7 +148,7 @@ function JobDetailRoute({ logged, needsOnboarding }) {
       setApplicationStatus(row?.status ?? null);
     } catch (error) {
       if (error.code === "already applied") {
-        const existing = await loadMyApplication(id).catch(() => null);
+        const existing = await loadMyApplication(id, userId).catch(() => null);
         setApplicationStatus(existing?.status ?? "submitted");
         setApplyError("");
         return;
@@ -174,6 +182,7 @@ function JobDetailRoute({ logged, needsOnboarding }) {
       onNeedLogin={() => navigate("/login")}
       onNeedOnboarding={() => navigate("/onboarding")}
       applicationStatus={applicationStatus}
+      applicationLoading={applicationLoading}
       onApply={() => runApplyAction(() => applyToJob(id))}
       onWithdraw={() => runApplyAction(() => withdrawApplication(id))}
       applyBusy={applyBusy}

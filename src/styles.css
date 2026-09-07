@@ -218,3 +218,6 @@ body:has(.login-page) footer{border-top:none}
 .sort-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:5;margin:0;padding:6px;list-style:none;min-width:100%;background:var(--color-surface);border:1px solid var(--color-border-strong);border-radius:var(--radius-sm);box-shadow:var(--shadow-card)}
 .sort-menu button{width:100%;background:transparent;color:var(--color-text);font-size:var(--font-size-body-2);font-weight:500;text-align:left;padding:8px 10px;border-radius:var(--radius-sm)}
 .sort-menu button:hover,.sort-menu button[aria-selected="true"]{background:var(--color-primary-50);color:var(--color-primary-700)}
+.job-card--skeleton{min-height:92px;background:linear-gradient(90deg,var(--color-grey-100) 0%,var(--color-grey-50) 50%,var(--color-grey-100) 100%);background-size:200% 100%;animation:job-card-skeleton 1.2s ease-in-out infinite;pointer-events:none;border-style:dashed}
+@keyframes job-card-skeleton{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@media(prefers-reduced-motion:reduce){.job-card--skeleton{animation:none}}

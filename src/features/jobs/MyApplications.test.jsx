@@ -21,7 +21,7 @@ describe("MyApplications", () => {
     loadMyApplications.mockResolvedValue([]);
     render(
       <MemoryRouter>
-        <MyApplications />
+        <MyApplications userId="u1" />
       </MemoryRouter>,
     );
     expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
@@ -41,7 +41,7 @@ describe("MyApplications", () => {
     ]);
     render(
       <MemoryRouter>
-        <MyApplications />
+        <MyApplications userId="u1" />
       </MemoryRouter>,
     );
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
