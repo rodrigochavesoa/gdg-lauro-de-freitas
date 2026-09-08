@@ -1,1 +1,7 @@
-export { loadApprovedJob, loadApprovedJobs } from "../../lib/jobs-api.js";
+export {
+  CATALOG_CACHE_TTL_MS,
+  invalidateApprovedJobsCache,
+  loadApprovedJob,
+  loadApprovedJobs,
+  peekApprovedJobsCache,
+} from "../../lib/jobs-api.js";

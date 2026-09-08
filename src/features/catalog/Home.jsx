@@ -5,15 +5,15 @@ import {
   MapPin, Search, Sparkles, Users, X
 } from "lucide-react";
 import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
-import { loadApprovedJobs } from "./jobs-api.js";
+import { loadApprovedJobs, peekApprovedJobsCache } from "./jobs-api.js";
 import { useNavigate } from "react-router-dom";
 
 const levels = ["Estágio", "Júnior", "Pleno", "Sênior"];
 const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
 
 export function Home() {
-  const [jobs, setJobs] = useState([]);
-  const [catalogStatus, setCatalogStatus] = useState("loading");
+  const [jobs, setJobs] = useState(() => peekApprovedJobsCache() ?? []);
+  const [catalogStatus, setCatalogStatus] = useState(() => (peekApprovedJobsCache() ? "ready" : "loading"));
   const [query, setQuery] = useState("");
   const [tech, setTech] = useState([]);
   const [level, setLevel] = useState([]);

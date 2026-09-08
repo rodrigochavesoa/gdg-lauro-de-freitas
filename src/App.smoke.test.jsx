@@ -117,6 +117,7 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       responsibilities: ["Pipelines"],
     },
   ],
+  peekApprovedJobsCache: () => null,
   loadApprovedJob: async (id) => ({
     id,
     title: "Pessoa Desenvolvedora Front-end",
