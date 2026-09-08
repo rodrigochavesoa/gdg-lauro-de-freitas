@@ -1,5 +1,6 @@
 /**
- * UX-PERF-02/03 — mede load de `/jobs/:id` até shell útil e detalhe completo.
+ * UX-PERF-02/03/04 — mede load de `/jobs/:id` até shell útil e detalhe completo.
+ * Classifica SELECT jobs: list | heavy | full (UX-PERF-04).
  * Sem networkidle: relógio no clique/goto; marcos por visibility + rest/v1.
  *
  * Uso local (não entra no CI):
@@ -55,14 +56,35 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 720 
 const page = await context.newPage();
 
 const restLog = [];
+
+function classifyJobsSelect(url) {
+  if (!url.includes("/rest/v1/jobs")) return null;
+  let select = "";
+  try {
+    select = decodeURIComponent(new URL(url).searchParams.get("select") || "");
+  } catch {
+    select = url;
+  }
+  const hasTitle = /\btitle\b/i.test(select);
+  const hasDescription = /\bdescription\b/i.test(select);
+  const hasStack = /\bstack\b/i.test(select);
+  if (hasDescription && !hasTitle && !hasStack) return "heavy";
+  if (hasTitle && hasDescription) return "full";
+  if (hasTitle && !hasDescription) return "list";
+  return "other";
+}
+
 page.on("request", (request) => {
   const url = request.url();
   if (url.includes("/rest/v1/") || url.includes("/auth/v1/")) {
+    const path = url.includes("/rest/v1/")
+      ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+      : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
     restLog.push({
       at: Date.now(),
-      path: url.includes("/rest/v1/")
-        ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-        : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/"),
+      path,
+      kind: classifyJobsSelect(url),
+      url,
     });
   }
 });
@@ -73,6 +95,15 @@ page.on("response", (response) => {
   const entry = [...restLog].reverse().find((row) => row.path === path && row.ms == null);
   if (entry) entry.ms = Date.now() - entry.at;
 });
+
+function formatRest(slice) {
+  return slice
+    .map((r) => {
+      const kind = r.kind ? `:${r.kind}` : "";
+      return `${r.path}${kind}${r.ms != null ? `@${r.ms}ms` : ""}`;
+    })
+    .join(", ");
+}
 
 async function waitCatalog() {
   await page.waitForSelector(".job-card:not(.job-card--skeleton), .empty", { timeout: 30_000 });
@@ -93,6 +124,7 @@ async function measureDirect(jobId, label) {
   const fullTimes = [];
   const loadingTextSeen = [];
   const skeletonSeen = [];
+  const jobKinds = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -119,19 +151,21 @@ async function measureDirect(jobId, label) {
     const fullMs = Date.now() - started;
     fullTimes.push(fullMs);
 
-    const restThis = restLog.slice(before).map((r) => `${r.path}${r.ms != null ? `@${r.ms}ms` : ""}`);
+    const restThis = restLog.slice(before);
+    jobKinds.push(...restThis.filter((r) => r.path === "jobs").map((r) => r.kind));
     console.log(
-      `${label} run ${run}: shell=${shellMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${restThis.join(", ") || "nenhum"}]`,
+      `${label} run ${run}: shell=${shellMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen };
+  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds };
 }
 
 async function measureFromHome(jobId, label) {
   const usefulTimes = [];
   const fullTimes = [];
   const loadingTextSeen = [];
+  const jobKinds = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
@@ -158,13 +192,14 @@ async function measureFromHome(jobId, label) {
     const fullMs = Date.now() - started;
     fullTimes.push(fullMs);
 
-    const restThis = restLog.slice(before).map((r) => `${r.path}${r.ms != null ? `@${r.ms}ms` : ""}`);
+    const restThis = restLog.slice(before);
+    jobKinds.push(...restThis.filter((r) => r.path === "jobs").map((r) => r.kind));
     console.log(
-      `${label} run ${run}: useful=${usefulMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} rest=[${restThis.join(", ") || "nenhum"}]`,
+      `${label} run ${run}: useful=${usefulMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { usefulTimes, fullTimes, loadingTextSeen };
+  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds };
 }
 
 console.log(`BASE_URL=${baseUrl} runs=${runs}`);
@@ -188,14 +223,18 @@ const anonDirect = await measureDirect(jobId, "anon-direct");
 console.log("\n=== ANON — click card from home (cache quente) ===");
 const anonHome = await measureFromHome(jobId, "anon-home");
 
-console.log("\n=== RESUMO (UX-PERF-03) ===");
+const countKind = (kinds, kind) => kinds.filter((k) => k === kind).length;
+
+console.log("\n=== RESUMO (UX-PERF-04) ===");
 console.log(summarize("anon cold shell (Voltar/skeleton)", anonDirect.shellTimes));
 console.log(summarize("anon cold full (content p)", anonDirect.fullTimes));
 console.log(`anon cold "Carregando vaga…": ${anonDirect.loadingTextSeen.filter(Boolean).length}/${anonDirect.loadingTextSeen.length}`);
 console.log(`anon cold skeleton/aria-busy: ${anonDirect.skeletonSeen.filter(Boolean).length}/${anonDirect.skeletonSeen.length}`);
+console.log(`anon cold jobs select kinds: full=${countKind(anonDirect.jobKinds, "full")} heavy=${countKind(anonDirect.jobKinds, "heavy")} list=${countKind(anonDirect.jobKinds, "list")}`);
 console.log(summarize("anon from-home useful (h1)", anonHome.usefulTimes));
 console.log(summarize("anon from-home full (content p)", anonHome.fullTimes));
 console.log(`anon from-home "Carregando vaga…": ${anonHome.loadingTextSeen.filter(Boolean).length}/${anonHome.loadingTextSeen.length}`);
-console.log("Meta: from-home useful <150ms; cold sem texto Carregando vaga…");
+console.log(`anon from-home jobs select kinds: full=${countKind(anonHome.jobKinds, "full")} heavy=${countKind(anonHome.jobKinds, "heavy")} list=${countKind(anonHome.jobKinds, "list")}`);
+console.log("Meta PERF-04: from-home detail request = heavy (not full); cold miss = full");
 
 await browser.close();
