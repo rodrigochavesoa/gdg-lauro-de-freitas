@@ -41,9 +41,26 @@ describe("Admin", () => {
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
-    it("área logada não renderiza sidebar nem card de perfil", async () => {
+  it("staff com authProfile no snapshot vê as tabs sem buscar perfil de curadoria", () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    render(
+      <Admin
+        authReady
+        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
+  it("área logada não renderiza sidebar nem card de perfil", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "c1",
       role: "curator",
@@ -78,7 +95,7 @@ describe("Admin", () => {
     expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
-    expect(screen.getByText("Carregando área administrativa…")).toBeInTheDocument();
+    expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(screen.queryByText("Pessoa Estagiária (rascunho)")).not.toBeInTheDocument();
     resolveJobs([
       {

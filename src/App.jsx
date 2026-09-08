@@ -51,7 +51,7 @@ export function App() {
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authReady={authReady} />} />
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Footer />
