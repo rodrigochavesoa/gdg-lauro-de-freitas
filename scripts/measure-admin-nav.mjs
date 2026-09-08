@@ -14,6 +14,10 @@
  * Achado local (main+#43 + mount tardio da CurationQueue, 2026-09-08):
  *   T1 mediana 84 ms · T2 91 ms · T3 99 ms · spinner 0/5
  *   rest/v1 no remount: companies + jobs (fila de curadoria não dispara)
+ *
+ * PERF-ADM-05 T3-curation before: mediana 963 ms · gate 5/5
+ * PERF-ADM-05 T3-curation after:  mediana 441 ms · gate 0/5
+ *   rest: companies, jobs (+ SWR jobs/moderation/reviews em background)
  */
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -125,6 +129,45 @@ console.log(summarize("T1 .admin-tabs", t1));
 console.log(summarize("T2 Publicar vaga (tab)", t2));
 console.log(summarize("T3 h1 Publicar nova vaga", t3));
 console.log(`spinner "Carregando área administrativa…": ${spinnerHits}/5`);
+
+// PERF-ADM-05 — remount Curadoria: /admin → Curadoria → / → /admin → Curadoria
+await page.getByRole("button", { name: "Curadoria", exact: true }).click();
+await page.getByRole("heading", { name: "Fila de revisão" }).waitFor({ state: "visible", timeout: 30_000 });
+await page.getByText("Carregando fila de curadoria…").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
+await page.getByRole("heading", { name: "Vagas pending" }).waitFor({ state: "visible", timeout: 30_000 });
+
+const t3Curation = [];
+let queueLoadingHits = 0;
+
+for (let run = 1; run <= 5; run += 1) {
+  await page.getByRole("link", { name: "Vagas" }).click();
+  await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
+  await page.waitForTimeout(300);
+
+  const beforeRest = restLog.length;
+  const started = Date.now();
+  await page.getByRole("link", { name: "Área admin" }).click();
+  await page.locator(".admin-tabs").waitFor({ state: "visible" });
+  await page.getByRole("button", { name: "Curadoria", exact: true }).click();
+  await page.getByRole("heading", { name: "Fila de revisão" }).waitFor({ state: "visible" });
+
+  const loadingVisible = await page
+    .getByText("Carregando fila de curadoria…")
+    .waitFor({ state: "visible", timeout: 250 })
+    .then(() => true)
+    .catch(() => false);
+  if (loadingVisible) queueLoadingHits += 1;
+
+  await page.getByText("Carregando fila de curadoria…").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
+  await page.getByRole("heading", { name: "Vagas pending" }).waitFor({ state: "visible" });
+  t3Curation.push(Date.now() - started);
+
+  const restThisNav = restLog.slice(beforeRest).map((row) => row.path);
+  console.log(`T3-curation run ${run} loading=${loadingVisible} rest/v1: ${restThisNav.join(", ") || "(nenhum)"} (${restThisNav.length})`);
+}
+
+console.log(summarize("T3-curation /admin remount → Fila", t3Curation));
+console.log(`gate "Carregando fila de curadoria…": ${queueLoadingHits}/5`);
 console.log(`BASE_URL=${baseUrl} (sem credenciais neste log)`);
 
 await browser.close();
