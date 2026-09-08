@@ -80,6 +80,20 @@ Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/) — ver PR #48.
 | UX-PERF-05 | **Pass** (preservado no stack) | [`ux-perf-05-home-scroll.md`](ux-perf-05-home-scroll.md) · PR #54 |
 | UX-HEADER-01 | **Pass** (código #52 + assets #57) | [`docs/assets/ux-header-01/`](assets/ux-header-01/) |
 
+### PERF-ADM-05 / QA-ADM-07..09 (2026-09-08 noite)
+
+Homolog browser em `fix/perf-adm-05-curation-queue-remount` @ `1f92047` — Playwright 1280×720 + 390×844; ThemeToggle Claro/Escuro.
+
+| ID | Resultado | Evidência |
+|---|---|---|
+| QA-ADM-07 (remount P0) | **Pass** | Fila imediata; gate `"Carregando fila de curadoria…"` **0 hits** no remount &lt;30 s (cold miss ainda mostra gate) |
+| QA-ADM-08 | **Pass** | Curadoria ↔ Publicar vaga sem gate; fila permanece |
+| QA-ADM-09 | **Pass** | Mobile 390×844; abas **44 px** |
+| PERF-ADM-03 | **Pass** | Tabs no 1º paint; spinner admin **0/5** |
+| T3-curation | **Pass** | mediana **463 ms** · gate **0/5** (before 963 ms / 5/5) |
+
+Relatório: [`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md) · assets [`docs/assets/perf-adm-05/`](assets/perf-adm-05/). Console: 0 erros no path. **Aceite PO** ainda pendente.
+
 ---
 
 ## Findings — resolvidos
@@ -130,13 +144,13 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 
 1. **Humano / PO — C-05:** Resend + domínio + API key em `docs-local/` → avisar Plan.
 2. **Plan:** ONE-LINER **Sprint 7** (Resend) após C-05.
-3. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
+3. **Humano / PO:** aceite DS-05 formal + **QA-ADM-07..09** (Visual QA **Pass** — [`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md); falta aceite PO).
 4. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
 
 ## Aprovação
 
 | Papel | Nome | Data | Homologação OK para próximo sprint? |
 |---|---|---|---|
-| Frontend Visual QA | QA-SEC-01a + UX-PERF-02–04 | 2026-09-08 | ☑ Sim (#48, #55) |
+| Frontend Visual QA | QA-SEC-01a + UX-PERF-02–04 + PERF-ADM-05 | 2026-09-08 | ☑ Sim (#48, #55; ADM-07..09 Pass — aceite PO) |
 | Plan TL | F-019 #51 + handoff #49–#57 | 2026-09-08 | ☑ Sim homolog · ☐ Não prod (LGPD) |
 | PO | | | |
