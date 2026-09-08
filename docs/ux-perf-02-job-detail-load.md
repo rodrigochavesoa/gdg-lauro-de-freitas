@@ -54,3 +54,13 @@ pnpm qa:job-detail
 # opcional:
 # $env:JOB_ID="…"; $env:MEASURE_RUNS="5"; $env:BASE_URL="http://localhost:5173"
 ```
+
+## Homolog Visual QA — stack 03/04 (2026-09-08)
+
+Branch `fix/ux-perf-02-04-job-detail-stack`. Relatório: [`ux-perf-02-04-visual-qa.md`](ux-perf-02-04-visual-qa.md). `pnpm qa:job-detail` após paint otimista + fetch incremental:
+
+| Cenário | Baseline (esta página, before) | After 03/04 | `"Carregando vaga…"` |
+|---|---|---|---|
+| Cold `goto /jobs/:id` | ready mediana **525** ms | shell **236** ms · content **961** ms | 5/5 → **0/5** |
+| Click card (catálogo quente) | ready mediana **384** ms | h1 útil **110** ms · content **873** ms | 5/5 → **0/5** |
+| `rest/v1/jobs` detalhe | full em ambos | from-home **heavy×5**; cold **full×5** | — |
