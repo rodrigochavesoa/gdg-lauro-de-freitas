@@ -134,6 +134,10 @@ html[data-theme="dark"] {
 .job-form .form-section,
 .admin-auth-form .form-section{border-bottom:none}
 .admin-page .admin-content{margin-bottom:0;padding-bottom:64px}
+@media(min-width:761px){
+  /* mesmo respiro do .hero (68px) entre header e o primeiro conteúdo no campo pontilhado */
+  .admin-shell .admin-content{margin-top:0;padding-top:68px}
+}
 .job-form .form-actions{padding:var(--space-6) 28px var(--space-8);gap:var(--space-3)}
 .job-form .form-actions .ghost{color:var(--color-text)}
 .admin-job-list-item{justify-content:flex-start;text-align:left;width:100%;color:var(--color-text)}
