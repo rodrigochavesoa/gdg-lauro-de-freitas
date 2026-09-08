@@ -15,7 +15,7 @@ A UI reutiliza o shell Admin (DS-06 — [`design-system-communication.md`](desig
 - **Curador / moderador:** aba default **Curadoria**.
 - Card de perfil duplicado removido da fila (#39 — F-016).
 
-## Performance (PERF-ADM-02 / #41, PERF-ADM-03 / #43, PERF-ADM-04 / #44)
+## Performance (PERF-ADM-02 / #41, PERF-ADM-03 / #43, PERF-ADM-04 / #44, PERF-ADM-05 / #59)
 
 | Cenário | Comportamento |
 |---|---|
@@ -24,6 +24,8 @@ A UI reutiliza o shell Admin (DS-06 — [`design-system-communication.md`](desig
 | Admin na aba Publicar vaga | `CurationQueue` **não monta** até 1ª visita à aba Curadoria (#44) |
 | Troca Curadoria ↔ Publicar vaga | Fila permanece montada com `hidden` — sem refetch ao alternar (#41) |
 | Medição local | `node scripts/measure-admin-nav.mjs` — T1 tabs ~84 ms · spinner 0/5 |
+
+**PERF-ADM-05** (#59): cache da fila com TTL 30s, `peekCurationQueueCache` e refresh em background no remount. `"Carregando fila de curadoria…"` só em cold miss. T3-curation (`pnpm qa:admin-nav` / `scripts/measure-admin-nav.mjs`): **963 ms / gate 5/5 → 441 ms / 0/5**.
 
 ## Onde está o código
 
