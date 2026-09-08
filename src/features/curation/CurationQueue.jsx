@@ -22,12 +22,6 @@ const MODEL_LABEL = {
   onsite: "Presencial",
 };
 
-function roleLabel(role) {
-  if (role === "admin") return "administração";
-  if (role === "moderator") return "moderação";
-  return "curadoria";
-}
-
 export function CurationQueue({ profile }) {
   const isAdmin = profile.role === "admin";
   const [queue, setQueue] = useState([]);
@@ -120,13 +114,6 @@ export function CurationQueue({ profile }) {
           <p>
             Pendentes com urgente primeiro. Empate aparece como needs_moderation. Decisão só via RPC.
           </p>
-        </div>
-      </div>
-      <div className="admin-user">
-        <span className="avatar">{(profile.full_name || "C").slice(0, 2).toUpperCase()}</span>
-        <div>
-          <strong>{profile.full_name || profile.email}</strong>
-          <small>{roleLabel(profile.role)}</small>
         </div>
       </div>
       {loading && <p>Carregando fila de curadoria…</p>}

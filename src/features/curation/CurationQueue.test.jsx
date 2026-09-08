@@ -38,6 +38,8 @@ describe("CurationQueue", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Fila de revisão" })).toBeInTheDocument();
+    expect(document.querySelector(".admin-user")).toBeNull();
+    expect(screen.queryByText("Curador Homolog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
