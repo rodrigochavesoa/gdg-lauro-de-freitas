@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Check, ListChecks } from "lucide-react";
 import {
   loadCurationQueue,
+  peekCurationQueueCache,
   resubmitJobForCuration,
   setJobCurationPriority,
   submitCurationReview,
@@ -24,10 +25,10 @@ const MODEL_LABEL = {
 
 export function CurationQueue({ profile, includeRejected = false }) {
   const isAdmin = profile.role === "admin";
-  const loadQueue = () => loadCurationQueue({ includeRejected });
-  const [queue, setQueue] = useState([]);
-  const [rejected, setRejected] = useState([]);
-  const [reviews, setReviews] = useState([]);
+  const cached = peekCurationQueueCache({ includeRejected });
+  const [queue, setQueue] = useState(() => cached?.queue ?? []);
+  const [rejected, setRejected] = useState(() => (includeRejected ? cached?.rejected ?? [] : []));
+  const [reviews, setReviews] = useState(() => cached?.reviews ?? []);
   const [selectedId, setSelectedId] = useState("");
   const [decision, setDecision] = useState("approve");
   const [rubricCode, setRubricCode] = useState("");
@@ -36,18 +37,35 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cached);
+
+  const applyPayload = (data) => {
+    setQueue(data.queue);
+    setRejected(includeRejected ? data.rejected : []);
+    setReviews(data.reviews);
+  };
 
   useEffect(() => {
     let cancelled = false;
-    const refresh = async () => {
-      const data = await loadCurationQueue({ includeRejected });
-      if (cancelled) return;
+    const hadCache = Boolean(peekCurationQueueCache({ includeRejected }));
+    if (!hadCache) setLoading(true);
+
+    const apply = (data) => {
       setQueue(data.queue);
       setRejected(includeRejected ? data.rejected : []);
       setReviews(data.reviews);
     };
-    refresh()
+
+    const refresh = async ({ background = false } = {}) => {
+      const data = await loadCurationQueue({
+        includeRejected,
+        forceRefresh: background,
+      });
+      if (cancelled) return;
+      apply(data);
+    };
+
+    refresh({ background: hadCache })
       .catch((err) => {
         if (!cancelled) setError(err.message);
       })
@@ -56,7 +74,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
       });
     const unsubscribe = subscribeCurationJobs(() => {
       if (!cancelled) {
-        refresh().catch((err) => setError(err.message));
+        refresh({ background: true }).catch((err) => setError(err.message));
       }
     });
     return () => {
@@ -80,10 +98,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
     try {
       await action();
       setMessage(successMessage);
-      const data = await loadQueue();
-      setQueue(data.queue);
-      setRejected(includeRejected ? data.rejected : []);
-      setReviews(data.reviews);
+      const data = await loadCurationQueue({ includeRejected, forceRefresh: true });
+      applyPayload(data);
     } catch (err) {
       setError(err.message);
     } finally {

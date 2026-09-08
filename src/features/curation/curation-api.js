@@ -54,7 +54,28 @@ export async function signOutCuration() {
   }
 }
 
-export async function loadCurationQueue({ includeRejected = false } = {}) {
+export const CURATION_QUEUE_CACHE_TTL_MS = 30_000;
+
+const curationQueueCache = new Map();
+const curationQueueInflight = new Map();
+
+function queueCacheKey(includeRejected) {
+  return includeRejected ? "with-rejected" : "pending-only";
+}
+
+export function invalidateCurationQueueCache() {
+  curationQueueCache.clear();
+  curationQueueInflight.clear();
+}
+
+export function peekCurationQueueCache({ includeRejected = false } = {}) {
+  const entry = curationQueueCache.get(queueCacheKey(includeRejected));
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > CURATION_QUEUE_CACHE_TTL_MS) return null;
+  return entry.data;
+}
+
+async function fetchCurationQueue({ includeRejected = false } = {}) {
   const client = clientOrThrow();
   const pending = await client
     .from("jobs")
@@ -96,6 +117,26 @@ export async function loadCurationQueue({ includeRejected = false } = {}) {
   };
 }
 
+export async function loadCurationQueue({ includeRejected = false, forceRefresh = false } = {}) {
+  const key = queueCacheKey(includeRejected);
+  if (!forceRefresh) {
+    const cached = peekCurationQueueCache({ includeRejected });
+    if (cached) return cached;
+    const inflight = curationQueueInflight.get(key);
+    if (inflight) return inflight;
+  }
+
+  const request = fetchCurationQueue({ includeRejected });
+  curationQueueInflight.set(key, request);
+  try {
+    const data = await request;
+    curationQueueCache.set(key, { data, fetchedAt: Date.now() });
+    return data;
+  } finally {
+    if (curationQueueInflight.get(key) === request) curationQueueInflight.delete(key);
+  }
+}
+
 export async function submitCurationReview({ jobId, decision, rubricCode, internalComment }) {
   const errors = validateCurationReview({ decision, rubricCode });
   if (errors.length) throw new Error(errors[0]);
@@ -107,6 +148,7 @@ export async function submitCurationReview({ jobId, decision, rubricCode, intern
     p_internal_comment: String(internalComment ?? "").trim() || null,
   });
   throwIfError(error);
+  invalidateCurationQueueCache();
   return data;
 }
 
@@ -115,6 +157,7 @@ export async function resubmitJobForCuration(jobId) {
   const client = clientOrThrow();
   const { data, error } = await client.rpc("resubmit_job_for_curation", { p_job_id: jobId });
   throwIfError(error);
+  invalidateCurationQueueCache();
   return data;
 }
 
@@ -133,6 +176,7 @@ export async function setJobCurationPriority(jobId, priority, reason) {
     p_reason: priority === "urgent" ? String(reason).trim() : null,
   });
   throwIfError(error);
+  invalidateCurationQueueCache();
   return data;
 }
 

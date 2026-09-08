@@ -3,9 +3,11 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadCurationQueue = vi.hoisted(() => vi.fn());
+const peekCurationQueueCache = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("./curation-api.js", () => ({
   loadCurationQueue: (...args) => loadCurationQueue(...args),
+  peekCurationQueueCache: (...args) => peekCurationQueueCache(...args),
   subscribeCurationJobs: () => () => {},
   submitCurationReview: vi.fn(),
   resubmitJobForCuration: vi.fn(),
@@ -37,6 +39,8 @@ describe("CurationQueue", () => {
   beforeEach(() => {
     loadCurationQueue.mockReset();
     loadCurationQueue.mockResolvedValue(queuePayload);
+    peekCurationQueueCache.mockReset();
+    peekCurationQueueCache.mockReturnValue(null);
   });
 
   it("mostra o loading existente e depois o conteúdo da fila", async () => {
@@ -62,7 +66,22 @@ describe("CurationQueue", () => {
 
     expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
-    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false });
+    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: false });
+  });
+
+  it("reusa o cache no remount e não mostra o gate de loading", async () => {
+    peekCurationQueueCache.mockReturnValue(queuePayload);
+
+    render(
+      <CurationQueue
+        includeRejected={false}
+        profile={{ role: "curator", full_name: "Curador Homolog", email: "curator-homolog@example.invalid" }}
+      />,
+    );
+
+    expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: true });
   });
 
   it("lista a fila e a rubrica sem chamar Supabase no JSX", async () => {

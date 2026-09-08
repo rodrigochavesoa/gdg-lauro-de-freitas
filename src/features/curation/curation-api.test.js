@@ -8,7 +8,12 @@ vi.mock("../../lib/supabase-client.js", () => ({
   }),
 }));
 
-import { loadCurationQueue } from "./curation-api.js";
+import {
+  CURATION_QUEUE_CACHE_TTL_MS,
+  invalidateCurationQueueCache,
+  loadCurationQueue,
+  peekCurationQueueCache,
+} from "./curation-api.js";
 
 const PENDING_JOB = {
   id: "job-1",
@@ -86,6 +91,7 @@ function mockQueueClient({
 describe("loadCurationQueue", () => {
   beforeEach(() => {
     fromMock.mockReset();
+    invalidateCurationQueueCache();
   });
 
   it("busca pending e depois moderation, reviews filtrados e rejected em paralelo", async () => {
@@ -128,5 +134,58 @@ describe("loadCurationQueue", () => {
     expect(result.queue).toEqual([]);
     expect(result.rejected).toEqual([]);
     expect(result.reviews).toEqual([]);
+  });
+
+  it("reusa o cache na segunda chamada dentro do TTL", async () => {
+    mockQueueClient({ pending: [PENDING_JOB] });
+    const first = await loadCurationQueue();
+    const second = await loadCurationQueue();
+    expect(second).toBe(first);
+    expect(peekCurationQueueCache()).toBe(first);
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
+  });
+
+  it("ignora o cache quando forceRefresh é true", async () => {
+    mockQueueClient({ pending: [PENDING_JOB] });
+    await loadCurationQueue();
+    mockQueueClient({ pending: [PENDING_JOB] });
+    await loadCurationQueue({ forceRefresh: true });
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(2);
+  });
+
+  it("deduplica fetches concorrentes enquanto o primeiro está em voo", async () => {
+    let resolvePending;
+    const pendingPromise = new Promise((resolve) => {
+      resolvePending = () => resolve({ data: [PENDING_JOB], error: null });
+    });
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        return thenable(() => pendingPromise);
+      }
+      if (table === "jobs_needing_moderation") {
+        return thenable(() => Promise.resolve({ data: [], error: null }));
+      }
+      if (table === "job_curation_reviews") {
+        return thenable(() => Promise.resolve({ data: [], error: null }));
+      }
+      throw new Error(`tabela inesperada: ${table}`);
+    });
+
+    const first = loadCurationQueue();
+    const second = loadCurationQueue();
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
+    resolvePending();
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(b);
+    expect(a.queue).toHaveLength(1);
+  });
+
+  it("expira o peek depois do TTL", async () => {
+    mockQueueClient({ pending: [PENDING_JOB], wave2Ms: 0 });
+    await loadCurationQueue();
+    expect(peekCurationQueueCache()).not.toBeNull();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + CURATION_QUEUE_CACHE_TTL_MS + 1);
+    expect(peekCurationQueueCache()).toBeNull();
+    nowSpy.mockRestore();
   });
 });

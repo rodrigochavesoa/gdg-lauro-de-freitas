@@ -20,6 +20,7 @@ A UI reutiliza o shell Admin (DS-06 — [`design-system-communication.md`](desig
 | Cenário | Comportamento |
 |---|---|
 | Remount `/admin` (staff com snapshot) | Tabs no 1º paint; **sem** `"Carregando área administrativa…"`; `auth.profile` reutilizado (#43) |
+| Reentrada `/admin` → aba Curadoria | Fila imediata se cache TTL válido; `"Carregando fila de curadoria…"` só em cold miss (PERF-ADM-05) |
 | Admin na aba Publicar vaga | `CurationQueue` **não monta** até 1ª visita à aba Curadoria (#44) |
 | Troca Curadoria ↔ Publicar vaga | Fila permanece montada com `hidden` — sem refetch ao alternar (#41) |
 | Medição local | `node scripts/measure-admin-nav.mjs` — T1 tabs ~84 ms · spinner 0/5 |
