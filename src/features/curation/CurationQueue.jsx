@@ -22,8 +22,9 @@ const MODEL_LABEL = {
   onsite: "Presencial",
 };
 
-export function CurationQueue({ profile }) {
+export function CurationQueue({ profile, includeRejected = false }) {
   const isAdmin = profile.role === "admin";
+  const loadQueue = () => loadCurationQueue({ includeRejected });
   const [queue, setQueue] = useState([]);
   const [rejected, setRejected] = useState([]);
   const [reviews, setReviews] = useState([]);
@@ -40,10 +41,10 @@ export function CurationQueue({ profile }) {
   useEffect(() => {
     let cancelled = false;
     const refresh = async () => {
-      const data = await loadCurationQueue();
+      const data = await loadCurationQueue({ includeRejected });
       if (cancelled) return;
       setQueue(data.queue);
-      setRejected(isAdmin ? data.rejected : []);
+      setRejected(includeRejected ? data.rejected : []);
       setReviews(data.reviews);
     };
     refresh()
@@ -62,7 +63,7 @@ export function CurationQueue({ profile }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [isAdmin]);
+  }, [includeRejected]);
 
   const selected = queue.find((job) => job.id === selectedId) ?? queue[0] ?? null;
   const selectedReviews = useMemo(() => {
@@ -79,9 +80,9 @@ export function CurationQueue({ profile }) {
     try {
       await action();
       setMessage(successMessage);
-      const data = await loadCurationQueue();
+      const data = await loadQueue();
       setQueue(data.queue);
-      setRejected(isAdmin ? data.rejected : []);
+      setRejected(includeRejected ? data.rejected : []);
       setReviews(data.reviews);
     } catch (err) {
       setError(err.message);

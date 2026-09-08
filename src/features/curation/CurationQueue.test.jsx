@@ -1,26 +1,11 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const loadCurationQueue = vi.hoisted(() => vi.fn());
 
 vi.mock("./curation-api.js", () => ({
-  loadCurationQueue: async () => ({
-    queue: [
-      {
-        id: "job-1",
-        title: "Pessoa Dev Front-end (fila)",
-        priority: "urgent",
-        needsModeration: false,
-        curation_round: 1,
-        description: "Vaga fictícia para curadoria.",
-        stack: ["React"],
-        level: "junior",
-        work_model: "remote",
-        companies: { name: "Nuvem Lauro Demo" },
-      },
-    ],
-    rejected: [],
-    reviews: [],
-  }),
+  loadCurationQueue: (...args) => loadCurationQueue(...args),
   subscribeCurationJobs: () => () => {},
   submitCurationReview: vi.fn(),
   resubmitJobForCuration: vi.fn(),
@@ -29,10 +14,61 @@ vi.mock("./curation-api.js", () => ({
 
 import { CurationQueue } from "./CurationQueue.jsx";
 
+const queuePayload = {
+  queue: [
+    {
+      id: "job-1",
+      title: "Pessoa Dev Front-end (fila)",
+      priority: "urgent",
+      needsModeration: false,
+      curation_round: 1,
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      level: "junior",
+      work_model: "remote",
+      companies: { name: "Nuvem Lauro Demo" },
+    },
+  ],
+  rejected: [],
+  reviews: [],
+};
+
 describe("CurationQueue", () => {
+  beforeEach(() => {
+    loadCurationQueue.mockReset();
+    loadCurationQueue.mockResolvedValue(queuePayload);
+  });
+
+  it("mostra o loading existente e depois o conteúdo da fila", async () => {
+    let resolveQueue;
+    loadCurationQueue.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveQueue = resolve;
+        }),
+    );
+
+    render(
+      <CurationQueue
+        includeRejected={false}
+        profile={{ role: "curator", full_name: "Curador Homolog", email: "curator-homolog@example.invalid" }}
+      />,
+    );
+
+    expect(screen.getByText("Carregando fila de curadoria…")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
+
+    resolveQueue(queuePayload);
+
+    expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false });
+  });
+
   it("lista a fila e a rubrica sem chamar Supabase no JSX", async () => {
     render(
       <CurationQueue
+        includeRejected={false}
         profile={{ role: "curator", full_name: "Curador Homolog", email: "curator-homolog@example.invalid" }}
       />,
     );

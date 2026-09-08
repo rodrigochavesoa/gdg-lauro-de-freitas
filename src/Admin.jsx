@@ -42,6 +42,7 @@ export function Admin({ setLogged, session, authReady = true }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adminDataLoading, setAdminDataLoading] = useState(false);
 
   const isAdmin = profile?.role === "admin";
   const pendingJobs = useMemo(
@@ -60,18 +61,29 @@ export function Admin({ setLogged, session, authReady = true }) {
   };
 
   useEffect(() => {
+    let cancelled = false;
     loadCurationProfile()
-      .then(async (current) => {
-        if (!current) return;
+      .then((current) => {
+        if (cancelled || !current) return;
         setProfile(current);
         setLogged?.(true);
         setSection(current.role === "admin" ? "jobs" : "curation");
-        if (current.role === "admin") {
-          await refreshAdmin();
-        }
+        setReady(true);
+        if (current.role !== "admin") return;
+        setAdminDataLoading(true);
+        void refreshAdmin().finally(() => {
+          if (!cancelled) setAdminDataLoading(false);
+        });
       })
-      .catch((err) => setError(err.message))
-      .finally(() => setReady(true));
+      .catch((err) => {
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [setLogged]);
 
   useEffect(() => {
@@ -95,7 +107,8 @@ export function Admin({ setLogged, session, authReady = true }) {
       setLogged?.(true);
       setSection(current.role === "admin" ? "jobs" : "curation");
       if (current.role === "admin") {
-        await refreshAdmin();
+        setAdminDataLoading(true);
+        refreshAdmin().finally(() => setAdminDataLoading(false));
       }
     } catch (err) {
       setError(err.message);
@@ -222,9 +235,11 @@ export function Admin({ setLogged, session, authReady = true }) {
               </button>
             )}
           </div>
-          {section === "curation" && <CurationQueue profile={profile} />}
-          {section === "jobs" && isAdmin && (
-            <>
+          <div hidden={section !== "curation"}>
+            <CurationQueue profile={profile} includeRejected={isAdmin} />
+          </div>
+          {isAdmin && (
+            <div hidden={section !== "jobs"}>
               <div className="admin-title">
                 <div>
                   <span className="eyebrow">Área administrativa</span>
@@ -323,6 +338,7 @@ export function Admin({ setLogged, session, authReady = true }) {
               </form>
               <div className="form-section admin-job-list">
                 <h2>Aguardando curadoria</h2>
+                {adminDataLoading && <p>Carregando área administrativa…</p>}
                 {pendingJobs.map((job) => (
                   <p key={job.id}>
                     <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
@@ -334,7 +350,7 @@ export function Admin({ setLogged, session, authReady = true }) {
                     </button>
                   </p>
                 ))}
-                {pendingJobs.length === 0 && <p>Nenhuma vaga aguardando curadoria.</p>}
+                {pendingJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga aguardando curadoria.</p>}
               </div>
               <details className="form-section admin-job-list">
                 <summary>Vagas publicadas</summary>
@@ -350,9 +366,9 @@ export function Admin({ setLogged, session, authReady = true }) {
                     </span>
                   </p>
                 ))}
-                {publishedJobs.length === 0 && <p>Nenhuma vaga publicada.</p>}
+                {publishedJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga publicada.</p>}
               </details>
-            </>
+            </div>
           )}
         </section>
       </div>
