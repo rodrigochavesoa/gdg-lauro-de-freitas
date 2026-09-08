@@ -1,9 +1,9 @@
 # QA-SEC-01 — Assessment de homologação
 
-**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · **QA-SEC-01d revisão estática concluída** (2026-09-08)  
-**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://localhost:5173` · **`main` @ `46a23ae`** (#49 F-018)  
+**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · QA-SEC-01d revisão estática concluída · **F-019 fechado (#51)**  
+**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://localhost:5173` · **`main` @ `bb3af9b`** (#51–#57)  
 **Setup:** SETUP-HOMOLOG-01 **ok** — 6 papéis; `docs-local/` + baseline automatizado verde.  
-**Ferramentas:** Playwriter 0.5.0 (01a) · Codex CLI + revisão Plan (01d estático) · `pnpm test:rls` 1–12 (última exec. 2026-09-07).
+**Ferramentas:** Playwriter 0.5.0 (01a) · Codex CLI + revisão Plan (01d) · `pnpm test:rls` **1–13** (2026-09-08).
 
 ## Resumo executivo
 
@@ -14,9 +14,9 @@
 | Passou (manual browser 01a) | 9 |
 | Falhou | 0 |
 | Bloqueado (env/credencial) | 0 |
-| Findings abertos (Critical/High) | 2 (F-019 Critical; F-020 High) |
+| Findings abertos (Critical/High) | 1 (F-020 High) |
 | Findings Medium abertos | 1 (F-021) |
-| Findings Info resolvidos recentes | F-018 (#49) |
+| Findings resolvidos recentes | F-019 (#51) · F-018 (#49) · UX perf/header (#52–#57) |
 | Findings UX resolvidos (#37–#45) | F-015, F-016, F-017 |
 
 ## Baseline automatizado
@@ -24,9 +24,9 @@
 | Comando | Resultado | Log / notas |
 |---|---|---|
 | `pnpm lint` | **pass** | `eslint .` — exit 0 |
-| `pnpm test` | **pass** (80/80) | Vitest 3.2.4; `Test Files  17 passed (17)`; exit 0 |
+| `pnpm test` | **pass** (88/88) | Vitest 3.2.4; `Test Files  17 passed (17)`; exit 0 |
 | `pnpm run build` | **pass** | Vite 8.2.1; exit 0 |
-| `pnpm test:rls` | **pass** | Cenários **1–12** · **0** FALHA (2026-09-07) — **não cobre F-019** (cenário 13 pendente) |
+| `pnpm test:rls` | **pass** | Cenários **1–13** · **0** FALHA (2026-09-08) — F-019 coberto no cenário 13 |
 
 ## QA-SEC-01d — Revisão estática (2026-09-08)
 
@@ -38,21 +38,21 @@
 |---|---|---|
 | QA-SEC-02 | **Pass** | Sem `service_role` no bundle/`src` |
 | QA-SEC-04 | **Pass (P1 spot)** | Sem `dangerouslySetInnerHTML` / `innerHTML` em `src/` |
-| QA-SEC-03 (apply RPC) | **Pass parcial** | Candidato só apply/withdraw via RPC (`test:rls` 10–12) — **independente** de F-019 |
+| QA-SEC-03 (apply RPC) | **Pass** | Candidato só apply/withdraw via RPC (`test:rls` 10–12) |
 
-### Achados abertos (01d)
+### Achados 01d — status pós-merge
 
-| ID | Sev | QA ref | Local | Problema | Reprodução / impacto | Correção sugerida | Owner |
-|---|---|---|---|---|---|---|---|
-| F-019 | **Critical** | QA-ADM-02, QA-CAND-12 | `supabase/migrations/202608150001_ai_matching.sql` L88 | Policy INSERT em `profiles` valida só `id = auth.uid()` — cliente pode inserir `role: 'admin'` (ou `curator`/`moderator`) | POST insert `{ id, full_name, role: 'admin' }` → `is_admin()` true → acesso staff | Migration: `WITH CHECK (role = 'candidate')` + cenário `test:rls` 13 | Executor |
-| F-020 | **High** (Critical se deploy) | QA-SEC-07, P-16 | `supabase/functions/match-jobs/index.ts` L17–20 | Envia `headline`/`bio`/`skills` ao Gemini sem gate C-04/consentimento | `POST /functions/v1/match-jobs` com JWT candidato | Manter desligado até C-04/DPO; gate + minimização | Plan / Sprint 7+ |
-| F-021 | **Medium** | QA-SEC-05 | `src/features/auth/auth-api.js` L94–97 | OAuth `redirectTo = window.location.origin` — segurança depende de allowlist Supabase exata | Origem não allowlisted → risco open redirect | Allowlist exata por ambiente; HTTPS fora de localhost | Humano + Executor |
+| ID | Sev | Status | Correção |
+|---|---|---|---|
+| F-019 | Critical | **Resolvido #51** | Migration `20260908150000_profile_insert_role_candidate.sql` + cenário 13 |
+| F-020 | High | Aberto | `match-jobs` → Gemini sem gate C-04 — Sprint 7+ |
+| F-021 | Medium | Aberto | OAuth `redirectTo` depende de allowlist Supabase |
 
-### Recomendação Plan (01d)
+### Recomendação Plan (01d — atualizada)
 
-- **APROVADO** registro dos findings — baseline homolog **não** pronto para produção enquanto **F-019** aberto.
-- **Prioridade imediata:** ONE-LINER F-019 (migration RLS + cenário 13).
-- F-020 / F-021: backlog; não bloqueiam merge de polish UI.
+- **F-019 fechado** — homolog **não** bloqueada por privilege escalation em `profiles` INSERT.
+- **Produção** continua bloqueada pelos **seis controles LGPD** + F-020/F-021 + C-05.
+- Próxima prioridade funcional: **C-05 → Sprint 7 (Resend)**.
 
 ---
 
@@ -72,6 +72,14 @@ Homolog visual P0 em `http://localhost:5173`. Ordem: anon → OAuth candidato �
 
 Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/) — ver PR #48.
 
+### UX perf / header (2026-09-08 tarde)
+
+| Escopo | Resultado | Evidência |
+|---|---|---|
+| UX-PERF-02–04 | **Pass** Visual QA | [`ux-perf-02-04-visual-qa.md`](ux-perf-02-04-visual-qa.md) · PR #55 |
+| UX-PERF-05 | **Pass** (preservado no stack) | [`ux-perf-05-home-scroll.md`](ux-perf-05-home-scroll.md) · PR #54 |
+| UX-HEADER-01 | **Pass** (código #52 + assets #57) | [`docs/assets/ux-header-01/`](assets/ux-header-01/) |
+
 ---
 
 ## Findings — resolvidos
@@ -82,12 +90,12 @@ Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/) — ver PR #48.
 | F-016 | QA-ADM-07 | Low | Card perfil duplicado | Removido `.admin-user` | #39 |
 | F-017 | QA-ADM-03 | Low | Lista vagas desorganizada | Seções pending/approved | #40 |
 | F-018 | QA-ADM-01 | Info | Copy login admin desatualizado | Microcopy staff vs candidato | #49 |
+| F-019 | QA-ADM-02, QA-CAND-12 | **Critical** | Escalação de role no INSERT de `profiles` | Policy `role = candidate` + `test:rls` 13 | #51 |
 
 ## Findings — abertos
 
 | ID | QA ref | Severidade | Título | Descrição | Reprodução | Correção sugerida | Owner | Sprint/PR |
 |---|---|---|---|---|---|---|---|---|
-| F-019 | QA-ADM-02 | **Critical** | Escalação de role no INSERT de `profiles` | Policy INSERT não restringe `role` | Insert com `role: 'admin'` na criação do perfil | Migration + `test:rls` 13 | Executor frontend | fix/f019 |
 | F-020 | QA-SEC-07 | **High** | `match-jobs` → Gemini sem gate LGPD | Perfil candidato enviado a embedding | Chamar Edge Function autenticado | Desligado até C-04; consentimento | Plan | Sprint 7+ |
 | F-021 | QA-SEC-05 | **Medium** | OAuth redirect depende de allowlist | `window.location.origin` dinâmico | Preview/prod com allowlist ampla | Allowlist estrita por ambiente | Humano + Executor | config |
 
@@ -103,7 +111,7 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 |---|---|---|
 | QA-SEC-01 | **Pass (spot)** | Sem `.env` staged nos PRs doc/código |
 | QA-SEC-02 | **Pass (01a + 01d)** | Sem `service_role` no frontend |
-| QA-SEC-03 | **Pass parcial** | RPC apply/withdraw ok; **F-019** = vetor separado (privilege escalation) |
+| QA-SEC-03 | **Pass** | RPC apply/withdraw ok; F-019 fechado (#51) |
 | QA-SEC-04 | **Pass (01d spot)** | XSS React text nodes — sem innerHTML |
 | QA-SEC-05 | **Pass homolog / Medium F-021** | Allowlist `localhost:5173` documentada; preview futuro = auditar |
 | QA-SEC-07 | **Pass (doc gate)** | Produção bloqueada — LGPD + F-020 |
@@ -114,21 +122,21 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 
 | Finding | Item backlog / PR | Prioridade |
 |---|---|---|
-| F-019 | fix/f019-profile-role-rls | **P0 segurança** |
 | F-020 | C-04 + gate `match-jobs` | High — Sprint 7+ |
 | F-021 | Auditar allowlist OAuth preview/prod | Medium |
 | PERF-CAT-02 | Cold load home &lt;900 ms | P2 opcional |
 
 ## Próximo passo
 
-1. **Merge PR doc** `docs/qa-sec-01d-static-review` — registrar F-019..021.
-2. **Executor:** ONE-LINER F-019 — migration + cenário 13 + aplicar migration homolog.
-3. **C-05:** Resend Sprint 7 (paralelo).
+1. **Humano / PO — C-05:** Resend + domínio + API key em `docs-local/` → avisar Plan.
+2. **Plan:** ONE-LINER **Sprint 7** (Resend) após C-05.
+3. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
+4. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
 
 ## Aprovação
 
 | Papel | Nome | Data | Homologação OK para próximo sprint? |
 |---|---|---|---|
-| Frontend Visual QA | QA-SEC-01a | 2026-09-08 | ☑ Sim (#48) |
-| Plan TL | QA-SEC-01d + F-018 #49 | 2026-09-08 | ☐ Sim ☐ Não — **F-019 bloqueia prod** |
+| Frontend Visual QA | QA-SEC-01a + UX-PERF-02–04 | 2026-09-08 | ☑ Sim (#48, #55) |
+| Plan TL | F-019 #51 + handoff #49–#57 | 2026-09-08 | ☑ Sim homolog · ☐ Não prod (LGPD) |
 | PO | | | |

@@ -603,37 +603,38 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-### Handoff — retomada (2026-09-08)
+### Handoff — retomada (2026-09-08 tarde)
 
-**`main` @ `5684dd5`** — Admin UX + performance + CTA Home mergeados (#37–#45). **80 testes** Vitest verdes.
+**`main` @ `bb3af9b`** — Segurança F-019 + perf detalhe (UX-PERF-02–04) + header/jobs polish mergeados (#49–#57). **88 testes** Vitest · `test:rls` **1–13** verdes.
 
-#### O que foi entregue (sessão 2026-09-07/08)
+#### O que foi entregue (sessão 2026-09-08)
 
-| PR | Merge (squash) | Entrega |
-|---|---|---|
-| #37 | `1550b00`+ | Admin: tabs unificadas Curadoria/Publicar vaga; fim sidebar duplicada |
-| #38 | — | Admin: spacing mobile tabs + form |
-| #39 | `b65b398` | F-016: remoção card perfil duplicado + sidebar |
-| #40 | `0067e41` | F-017: listas pending/approved; form acima das listas |
-| #41 | `3100a5e` | PERF-ADM-02: fila curadoria paralela; shell admin desbloqueado |
-| #42 | `8133c4f` | PERF-CAT-01: cache catálogo 30s; skeleton só cold miss |
-| #43 | `1da1da1` | PERF-ADM-03: reutiliza `auth.profile`; fim spinner remount |
-| #44 | `896ffb5` | PERF-ADM-04: `CurationQueue` mount tardio na aba Curadoria |
-| #45 | `5684dd5` | UX-HOME-01: CTA “Criar perfil gratuito” → `/login` |
+| PR | Entrega |
+|---|---|
+| #49 | F-018: copy gate staff `/admin` |
+| #50 | QA-SEC-01d: registro findings F-019..F-021 |
+| #51 | **F-019:** policy INSERT `profiles` exige `role = candidate` + cenário `test:rls` 13 |
+| #52 | UX-HEADER-01 / F-022: spacer header — Admin/Vagas estáveis |
+| #53 | UX-JOBS-01: chrome pontilhado detalhe/admin |
+| #54 | UX-PERF-05: prefetch catálogo + skeleton estático home pós-login |
+| #55 | UX-PERF-02–04: paint otimista detalhe + fetch heavy + baseline/Visual QA |
+| #56 | noop migrations `20260816192301/06` — histórico alinhado com homolog |
+| #57 | evidências Visual QA UX-HEADER-01 (`docs/assets/ux-header-01/`) |
 
-**Evidência perf admin (local):** `node scripts/measure-admin-nav.mjs` — T1 tabs ~84 ms · T2 ~91 ms · spinner 0/5 · `rest/v1` no remount: `companies` + `jobs` (sem fila).
+**Sessão anterior (#37–#45):** Admin UX + perf (#37–#44); UX-HOME-01 CTA (#45). Sprint 6 (#22–#26); UX-PERF-01 (#28–#30); QA-SEC-01b (#31).
 
-**Sessão anterior (2026-09-07):** Sprint 6 candidato fechada (#22–#26); UX-PERF-01 (#28–#30); QA-SEC-01b (#31 @ `d535552`).
+**Evidências perf:** [`ux-perf-02-job-detail-load.md`](ux-perf-02-job-detail-load.md) · [`ux-perf-02-04-visual-qa.md`](ux-perf-02-04-visual-qa.md) · [`ux-perf-05-home-scroll.md`](ux-perf-05-home-scroll.md) · `pnpm qa:job-detail`
 
 #### Onde retomar (ordem recomendada)
 
-1. **Humano / PO — QA homolog P0 (paralelo):** matriz [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) — **QA-ADM-07..09** (admin perf/nav) + **QA-ANON-10** (CTA Home) + demais P0 *Pendente manual* em [`qa-security-assessment.md`](qa-security-assessment.md). Credenciais: `docs-local/admin-test-user.md`, `docs-local/candidate-test-user.md`.
-2. **Humano / PO — C-05 (bloqueia Sprint 7):** conta Resend, domínio verificado (SPF/DKIM/DMARC), remetente `From`, API key em `docs-local/` (nunca Git). Homologação: preferir só e-mails da equipe (P-20 / DPO). Checklist abaixo.
-3. **Plan:** após C-05 fechada → ONE-LINER **Sprint 7** (Resend). Alternativa enquanto C-05 pendente: governança S7 doc-only (eventos/gatilhos/templates).
-4. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20.
-5. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase).
-6. **Git local:** `git checkout main && git pull origin main`. Apagar branches mergeadas (`fix/admin-*`, `perf/admin-*`, `fix/home-*`). **Nunca commitar** `supabase/migrations/*_noop.sql` nem `docs-local/`.
-7. **Agentes frontend:** ver [`AGENTS.md`](../AGENTS.md) — **Executor frontend** + **Frontend Visual QA**. Setup tools: [`setup-visual-qa-tools.md`](setup-visual-qa-tools.md) (Playwriter, chrome-devtools-mcp, Playwright).
+1. **Humano / PO — C-05 (bloqueia Sprint 7):** Resend + domínio verificado + API key em `docs-local/` (nunca Git). Checklist abaixo.
+2. **Plan:** após C-05 → ONE-LINER **Sprint 7** (Resend). Alternativa: governança S7 doc-only enquanto credenciais pendentes.
+3. **Humano / PO — aceite DS-05 formal:** homolog UX-PERF-02–04 e UX-HEADER-01 já com evidências; registrar aceite no assessment.
+4. **Humano / PO — QA homolog P0 restante:** matriz [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) — **QA-ADM-07..09** (admin perf/nav) + demais P0 *Pendente manual* em [`qa-security-assessment.md`](qa-security-assessment.md).
+5. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20; F-020 (`match-jobs` → Gemini) permanece bloqueado até C-04.
+6. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase); F-021 (allowlist OAuth preview/prod).
+7. **Git local:** `git checkout main && git pull origin main`. Apagar branches mergeadas locais. **Nunca commitar** `docs-local/`.
+8. **Agentes frontend:** [`AGENTS.md`](../AGENTS.md) — Executor frontend + Frontend Visual QA · [`setup-visual-qa-tools.md`](setup-visual-qa-tools.md).
 
 #### C-05 — checklist rápido para o humano
 
@@ -650,7 +651,9 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 | ID | Escopo | Prioridade |
 |---|---|---|
 | PERF-CAT-02 | Cold load home &lt;900 ms (índice Postgres / cold Supabase) | P2 |
-| UX-PERF-02 | Baseline `/jobs/:id` — **medido 2026-09-08** ([`ux-perf-02-job-detail-load.md`](ux-perf-02-job-detail-load.md)); sem regressão UX-JOBS-01; follow-up opcional: paint otimista via cache catálogo | P2 |
+| UX-PERF-02–04 | ~~Baseline + paint otimista detalhe~~ — **concluído** #55; evidências [`ux-perf-02-04-visual-qa.md`](ux-perf-02-04-visual-qa.md) | — |
+| UX-PERF-05 | ~~Scroll jank pós-login~~ — **concluído** #54 | — |
+| UX-HEADER-01 | ~~Header Admin/Vagas estável~~ — **concluído** #52; evidências #57 | — |
 | UX-HOME-02 | Botão hero “Buscar vagas” (`onClick` vazio — decorativo) | P3 |
 | DRY-STAFF | `STAFF_ROLES` compartilhado (`Admin.jsx` + `Header.jsx`) | P3 |
 | Polish | Chip neutro de status em `/minhas-candidaturas` | P3 |
@@ -681,10 +684,10 @@ Continua bloqueada pelos **seis controles LGPD**. Homologação só com dados fi
 
 ---
 
-1. **Humano / PO:** fechar **C-05** (domínio e credenciais Resend) para destravar Sprint 7.
-2. **QA-SEC-01a (paralelo):** executar matriz P0 — [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md); preencher [`qa-security-assessment.md`](qa-security-assessment.md).
-3. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou governança S7 doc-only enquanto credenciais pendentes.
-4. **DPO:** bases legais de e-mail transacional em [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md).
-5. **Humano:** P-03 (`location`), C-03 (orçamento Supabase).
-6. **Polish opcional:** chip neutro de status no dashboard; cenário `test:rls` com links no snapshot; path relativo em `design-system-communication.md`.
-7. **Produção:** continua bloqueada pelos seis controles LGPD; homologação segue com dados fictícios ou autorizados.
+1. **Humano / PO:** fechar **C-05** (Resend) → destravar Sprint 7.
+2. **Plan:** ONE-LINER Sprint 7 (Resend) após C-05 — ou governança S7 doc-only enquanto credenciais pendentes.
+3. **Humano / PO:** aceite DS-05 + QA P0 restante (admin perf/nav) — [`qa-security-assessment.md`](qa-security-assessment.md).
+4. **DPO:** bases legais e-mail (P-20); gate C-04 antes de F-020 / `match-jobs`.
+5. **Humano:** P-03, C-03, F-021 (allowlist OAuth).
+6. **Polish opcional:** chip neutro dashboard; snapshot links no `test:rls`; path relativo DS-06.
+7. **Produção:** bloqueada pelos seis controles LGPD; homolog com dados fictícios — F-019 **fechado** (#51).

@@ -177,8 +177,8 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 ## Próximo passo (QA-SEC-01a execução)
 
 1. Human: garantir `docs-local/*-test-user.md` + `.env.local` (GDG-JOBS-SENAI).
-2. Rodar baseline + `pnpm test:rls`; anotar falhas.
-3. Percorrer matriz **P0** manual (anon + candidato + 1 curador + admin).
-4. Plan preenche [`qa-security-assessment.md`](qa-security-assessment.md) com findings.
+2. **Pendente manual:** QA-ADM-07..09 (admin perf/nav) — credenciais `docs-local/admin-test-user.md`.
+3. **Concluído:** cenário 13 F-019 (`pnpm test:rls`) · UX-PERF-02–04 Visual QA (#55) · UX-HEADER-01 (#52/#57).
+4. Próximo épico funcional: **C-05 → Sprint 7 (Resend)** após PO fechar credenciais.
 
-**Paralelo:** C-05 (Resend) e QA-SEC-01 Fase 1 não se bloqueiam.
+**Paralelo:** C-05 (Resend) e QA P0 restante não se bloqueiam.
