@@ -605,7 +605,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ### Handoff — retomada (2026-09-08 tarde)
 
-**`main` @ `bb3af9b`** — Segurança F-019 + perf detalhe (UX-PERF-02–04) + header/jobs polish mergeados (#49–#57). **88 testes** Vitest · `test:rls` **1–13** verdes.
+**`main` @ `100be67`** — Segurança F-019 + perf detalhe (UX-PERF-02–04) + header/jobs polish mergeados (#49–#57). PERF-ADM-05 (**#59**, cache fila curadoria no remount `/admin`). Vitest · `test:rls` **1–13** verdes.
 
 #### O que foi entregue (sessão 2026-09-08)
 
@@ -620,6 +620,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 | #55 | UX-PERF-02–04: paint otimista detalhe + fetch heavy + baseline/Visual QA |
 | #56 | noop migrations `20260816192301/06` — histórico alinhado com homolog |
 | #57 | evidências Visual QA UX-HEADER-01 (`docs/assets/ux-header-01/`) |
+| #59 | PERF-ADM-05: cache da fila de curadoria no remount `/admin` (TTL + peek + SWR) |
 
 **Sessão anterior (#37–#45):** Admin UX + perf (#37–#44); UX-HOME-01 CTA (#45). Sprint 6 (#22–#26); UX-PERF-01 (#28–#30); QA-SEC-01b (#31).
 
@@ -630,7 +631,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 1. **Humano / PO — C-05 (bloqueia Sprint 7):** Resend + domínio verificado + API key em `docs-local/` (nunca Git). Checklist abaixo.
 2. **Plan:** após C-05 → ONE-LINER **Sprint 7** (Resend). Alternativa: governança S7 doc-only enquanto credenciais pendentes.
 3. **Humano / PO — aceite DS-05 formal:** homolog UX-PERF-02–04 e UX-HEADER-01 já com evidências; registrar aceite no assessment.
-4. **Humano / PO — QA homolog P0 restante:** matriz [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) — **QA-ADM-07..09** (admin perf/nav) + demais P0 *Pendente manual* em [`qa-security-assessment.md`](qa-security-assessment.md).
+4. **Humano / PO — QA homolog P0 restante:** matriz [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) — **QA-ADM-07..09** (Visual QA do remount `/admin` / abas; fila lenta no remount **fechada** em PERF-ADM-05 #59) + demais P0 *Pendente manual* em [`qa-security-assessment.md`](qa-security-assessment.md).
 5. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20; F-020 (`match-jobs` → Gemini) permanece bloqueado até C-04.
 6. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase); F-021 (allowlist OAuth preview/prod).
 7. **Git local:** `git checkout main && git pull origin main`. Apagar branches mergeadas locais. **Nunca commitar** `docs-local/`.
@@ -653,6 +654,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 | PERF-CAT-02 | Cold load home &lt;900 ms (índice Postgres / cold Supabase) | P2 |
 | UX-PERF-02–04 | ~~Baseline + paint otimista detalhe~~ — **concluído** #55; evidências [`ux-perf-02-04-visual-qa.md`](ux-perf-02-04-visual-qa.md) | — |
 | UX-PERF-05 | ~~Scroll jank pós-login~~ — **concluído** #54 | — |
+| PERF-ADM-05 | ~~Cache fila de curadoria no remount `/admin`~~ — **concluído** #59 (`fix/perf-adm-05-curation-queue-remount`); [`s4-curation-ui.md`](s4-curation-ui.md) § Performance; T3 `pnpm qa:admin-nav` (`scripts/measure-admin-nav.mjs`) 963 ms / gate 5/5 → 441 ms / 0/5 | — |
 | UX-HEADER-01 | ~~Header Admin/Vagas estável~~ — **concluído** #52; evidências #57 | — |
 | UX-HOME-02 | Botão hero “Buscar vagas” (`onClick` vazio — decorativo) | P3 |
 | DRY-STAFF | `STAFF_ROLES` compartilhado (`Admin.jsx` + `Header.jsx`) | P3 |

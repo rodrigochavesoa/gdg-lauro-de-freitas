@@ -1,0 +1,439 @@
+{
+  "baseUrl": "http://127.0.0.1:5173",
+  "branch": "fix/perf-adm-05-curation-queue-remount",
+  "checks": [
+    {
+      "id": "PERF-ADM-03-boot",
+      "dataTheme": "light",
+      "hasAdminTabs": true,
+      "hasQueueGate": false,
+      "hasAdminGate": false,
+      "hasFilaHeading": false,
+      "hasPendingHeading": false,
+      "hasPublishHeading": true,
+      "pendingCount": 2,
+      "emptyQueue": false,
+      "tabs": [
+        {
+          "label": "Curadoria",
+          "w": 113,
+          "h": 41
+        },
+        {
+          "label": "Publicar vaga",
+          "w": 139,
+          "h": 41
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "cold-curation",
+      "readyMs": 2543,
+      "gates": {
+        "sampleCount": 150,
+        "queueGateHits": 69,
+        "adminGateHits": 0,
+        "firstQueueGateMs": 106,
+        "lastQueueGateMs": 1218,
+        "firstAdminGateMs": null
+      },
+      "restPaths": [
+        "jobs",
+        "jobs_needing_moderation",
+        "job_curation_reviews",
+        "jobs",
+        "jobs",
+        "jobs_needing_moderation",
+        "job_curation_reviews",
+        "jobs",
+        "jobs",
+        "jobs"
+      ],
+      "dataTheme": "light",
+      "hasAdminTabs": true,
+      "hasQueueGate": false,
+      "hasAdminGate": false,
+      "hasFilaHeading": true,
+      "hasPendingHeading": true,
+      "hasPublishHeading": true,
+      "pendingCount": 4,
+      "emptyQueue": false,
+      "tabs": [
+        {
+          "label": "Curadoria",
+          "w": 113,
+          "h": 41
+        },
+        {
+          "label": "Publicar vaga",
+          "w": 139,
+          "h": 41
+        }
+      ],
+      "note": "gate aceitável em cold miss"
+    },
+    {
+      "id": "QA-ADM-07-remount-P0",
+      "tabsMs": 128,
+      "remountReadyMs": 970,
+      "adminGateAtTabs": 0,
+      "gates": {
+        "sampleCount": 50,
+        "queueGateHits": 0,
+        "adminGateHits": 0,
+        "firstQueueGateMs": null,
+        "lastQueueGateMs": null,
+        "firstAdminGateMs": null
+      },
+      "early": {
+        "dataTheme": "light",
+        "hasAdminTabs": true,
+        "hasQueueGate": false,
+        "hasAdminGate": false,
+        "hasFilaHeading": true,
+        "hasPendingHeading": true,
+        "hasPublishHeading": true,
+        "pendingCount": 4,
+        "emptyQueue": false,
+        "tabs": [
+          {
+            "label": "Curadoria",
+            "w": 113,
+            "h": 41
+          },
+          {
+            "label": "Publicar vaga",
+            "w": 139,
+            "h": 41
+          }
+        ]
+      },
+      "ready": {
+        "dataTheme": "light",
+        "hasAdminTabs": true,
+        "hasQueueGate": false,
+        "hasAdminGate": false,
+        "hasFilaHeading": true,
+        "hasPendingHeading": true,
+        "hasPublishHeading": true,
+        "pendingCount": 5,
+        "emptyQueue": false,
+        "tabs": [
+          {
+            "label": "Curadoria",
+            "w": 113,
+            "h": 41
+          },
+          {
+            "label": "Publicar vaga",
+            "w": 139,
+            "h": 41
+          }
+        ]
+      },
+      "restPaths": [
+        "companies",
+        "jobs",
+        "jobs",
+        "jobs_needing_moderation",
+        "job_curation_reviews",
+        "jobs",
+        "jobs"
+      ],
+      "pass": true
+    },
+    {
+      "id": "QA-ADM-08-tab-switch",
+      "gates": {
+        "sampleCount": 43,
+        "queueGateHits": 0,
+        "adminGateHits": 0,
+        "firstQueueGateMs": null,
+        "lastQueueGateMs": null,
+        "firstAdminGateMs": null
+      },
+      "dataTheme": "light",
+      "hasAdminTabs": true,
+      "hasQueueGate": false,
+      "hasAdminGate": false,
+      "hasFilaHeading": true,
+      "hasPendingHeading": true,
+      "hasPublishHeading": true,
+      "pendingCount": 6,
+      "emptyQueue": false,
+      "tabs": [
+        {
+          "label": "Curadoria",
+          "w": 113,
+          "h": 41
+        },
+        {
+          "label": "Publicar vaga",
+          "w": 139,
+          "h": 41
+        }
+      ],
+      "restPaths": [
+        "jobs_needing_moderation",
+        "job_curation_reviews",
+        "jobs",
+        "jobs",
+        "jobs_needing_moderation",
+        "job_curation_reviews",
+        "jobs"
+      ],
+      "pass": true
+    },
+    {
+      "id": "remount-dark",
+      "dataTheme": "dark",
+      "gates": {
+        "sampleCount": 43,
+        "queueGateHits": 0,
+        "adminGateHits": 0,
+        "firstQueueGateMs": null,
+        "lastQueueGateMs": null,
+        "firstAdminGateMs": null
+      },
+      "hasAdminTabs": true,
+      "hasQueueGate": false,
+      "hasAdminGate": false,
+      "hasFilaHeading": true,
+      "hasPendingHeading": true,
+      "hasPublishHeading": true,
+      "pendingCount": 3,
+      "emptyQueue": false,
+      "tabs": [
+        {
+          "label": "Curadoria",
+          "w": 113,
+          "h": 41
+        },
+        {
+          "label": "Publicar vaga",
+          "w": 139,
+          "h": 41
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "QA-ADM-09-mobile",
+      "dataTheme": "light",
+      "hasAdminTabs": true,
+      "hasQueueGate": false,
+      "hasAdminGate": false,
+      "hasFilaHeading": true,
+      "hasPendingHeading": true,
+      "hasPublishHeading": true,
+      "pendingCount": 4,
+      "emptyQueue": false,
+      "tabs": [
+        {
+          "label": "Curadoria",
+          "w": 155,
+          "h": 44
+        },
+        {
+          "label": "Publicar vaga",
+          "w": 155,
+          "h": 44
+        }
+      ],
+      "tabMinH": 44,
+      "pass": true
+    }
+  ],
+  "consoleErrors": [],
+  "rest": [
+    {
+      "at": 1788907370825,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907371636,
+      "path": "profiles"
+    },
+    {
+      "at": 1788907372108,
+      "path": "companies"
+    },
+    {
+      "at": 1788907372110,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907372126,
+      "path": "profiles"
+    },
+    {
+      "at": 1788907372466,
+      "path": "companies"
+    },
+    {
+      "at": 1788907372466,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907373115,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907373468,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907373468,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907373469,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907374670,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907374918,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907374918,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907374918,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907375759,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907375765,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907376142,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907376145,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907376145,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907376292,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907376293,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907376293,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907376666,
+      "path": "companies"
+    },
+    {
+      "at": 1788907376668,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907376796,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907377075,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907377075,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907377077,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907377367,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907377642,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907377642,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907377642,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907377915,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907378198,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907378198,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907378199,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907379434,
+      "path": "companies"
+    },
+    {
+      "at": 1788907379434,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907379550,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907379852,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907379853,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907379855,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907380629,
+      "path": "jobs"
+    },
+    {
+      "at": 1788907380907,
+      "path": "jobs_needing_moderation"
+    },
+    {
+      "at": 1788907380909,
+      "path": "job_curation_reviews"
+    },
+    {
+      "at": 1788907380910,
+      "path": "jobs"
+    }
+  ]
+}
