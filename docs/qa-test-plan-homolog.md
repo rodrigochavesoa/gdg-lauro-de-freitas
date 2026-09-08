@@ -148,8 +148,8 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 
 | Entrega | Quem executa | Ferramenta | Modelo / modo | Raciocínio | **Não usar** |
 |---|---|---|---|---|---|
+| **QA-SEC-01a** Execução manual checklist | **Frontend Visual QA** ou **Humano** PO/QA | Browser + Playwright; rule `frontend-visual-qa.mdc` | Cursor Agent **standard** (não fast) | **Médio-alto** | Executor frontend declarando layout ok sem browser |
 | **QA-SEC-01a** Matriz + template (este doc) | Plan Tech Lead | **Cursor** Agent ou Chat | Modelo **principal / Max / thinking** (ex.: Claude Opus/Sonnet thinking, GPT-5.x high) | **Alto** — cruzar backlog, RLS, LGPD | Fast/autocomplete (`composer-2.5-fast`, “fast” genérico) |
-| **QA-SEC-01a** Execução manual checklist | **Humano** PO/QA | Browser + `pnpm test:rls` | — | Humano | Delegar 100% à IA sem reproduzir passos |
 | **QA-SEC-01b** Rodar `test:rls` + registrar log | Executor | **Cursor** Shell subagent **ou** pwsh local | N/A (script determinístico) | Baixo | LLM para interpretar falha **sem** ler output |
 | **QA-SEC-01c** Playwright E2E (3 fluxos) | Executor frontend | **Cursor** Agent | **Default sólido** ou Composer **standard** (não fast) | **Médio-alto** | Fast-only para arquitetura E2E |
 | **QA-SEC-01d** Revisão segurança código | Security reviewer | **Cursor** subagent `security-review` | Herda modelo **forte** da sessão | **Alto** | `composer-2.5-fast`, modelos “medium-fast” |

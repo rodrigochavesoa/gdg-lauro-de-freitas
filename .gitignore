@@ -1,5 +1,7 @@
 node_modules
-.cursor
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
 dist
 .pnpm-store
 .env

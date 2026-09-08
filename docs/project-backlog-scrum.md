@@ -633,6 +633,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 4. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20.
 5. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase).
 6. **Git local:** `git checkout main && git pull origin main`. Apagar branches mergeadas (`fix/admin-*`, `perf/admin-*`, `fix/home-*`). **Nunca commitar** `supabase/migrations/*_noop.sql` nem `docs-local/`.
+7. **Agentes frontend:** ver [`AGENTS.md`](../AGENTS.md) — **Executor frontend** (código) + **Frontend Visual QA** (browser/screenshots); homolog P0 pode ser ONE-LINER para Visual QA em vez de só “manual humano”.
 
 #### C-05 — checklist rápido para o humano
 

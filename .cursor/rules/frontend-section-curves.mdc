@@ -1,0 +1,19 @@
+---
+description: Frontend GDGJobs — transições de seção curvas (DS-07). Leia docs/design-system/section-curves.md antes de criar ou alterar layout.
+globs: src/**/*.{jsx,js,css}
+alwaysApply: false
+---
+
+# DS-07 — juntas curvas (obrigatório em UI)
+
+Fonte da verdade: [`docs/design-system/section-curves.md`](docs/design-system/section-curves.md). Complementa DS-06 (`docs/design-system-communication.md`).
+
+Antes de criar ou alterar **section, hero, split, painel ou divisor**:
+
+1. Reutilize os SVG/classes canônicos. Não desenhe junta reta (`border-bottom` / `border-right` como transição de fundo).
+2. Não invente `clip-path: ellipse`, path novo ou avatar centralizado na home.
+3. Onda inferior e/ou lateral direita: `fill: var(--color-surface)`, `preserveAspectRatio="none"`, `aria-hidden`, `pointer-events: none`.
+4. Extraia para `shared/ui` só na **terceira** tela (ARQ-01).
+5. Valide desktop, iPad (≤1024px) e mobile (≤760px). Na PR, cite DS-06 e DS-07.
+
+Valores de `viewBox`, `d` e breakpoints estão **somente** no documento DS-07 — não duplicar geometria da memória.
