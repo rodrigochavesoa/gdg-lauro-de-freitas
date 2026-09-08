@@ -87,6 +87,37 @@ function skip(message) {
   console.log(`IGNORADO: ${message}`);
 }
 
+function serviceRoleKey() {
+  return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || "";
+}
+
+function createServiceClient() {
+  const secret = serviceRoleKey();
+  if (!secret) return null;
+  return createClient(url, secret, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+async function cleanupF019Probe(userId) {
+  if (!userId) return;
+  const svc = createServiceClient();
+  if (!svc) {
+    console.log(
+      "AVISO: sem SUPABASE_SERVICE_ROLE_KEY — cleanup manual do probe por prefixo rls-f019- (Auth + profiles).",
+    );
+    return;
+  }
+  const { error: profileErr } = await svc.from("profiles").delete().eq("id", userId);
+  if (profileErr) console.log(`AVISO: cleanup profiles probe: ${profileErr.message}`);
+  const { error: delErr } = await svc.auth.admin.deleteUser(userId);
+  if (delErr) {
+    console.log(`AVISO: cleanup auth.admin.deleteUser: ${delErr.message}`);
+    return;
+  }
+  console.log("OK: cleanup probe F-019 (auth + profiles)");
+}
+
 async function signIn(credentials) {
   const client = createClient(url, key);
   const { data, error } = await client.auth.signInWithPassword(credentials);
@@ -711,35 +742,54 @@ async function scenario13_profileRoleEscalation() {
     .select("role");
   assert(Boolean(insertAdmin.error), "insert com role admin bloqueado (policy ou duplicate)");
 
-  const probeEmail = `rls-f019-${Date.now()}@invalid.test`;
+  const svc = createServiceClient();
+  // Hosted GoTrue rejeita RFC 2606 no signup público; SMTP built-in rate-limita domínios reais.
+  // Probe de conta nova exige Admin API (SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SECRET_KEY em .env.local).
+  assert(
+    Boolean(svc),
+    "cenário 13: service role disponível para probe Admin API",
+  );
+  if (!svc) return;
+
+  const probeEmail = `rls-f019-${Date.now()}@example.com`;
   const probePass = `RlS-${Date.now()}-Aa1!`;
-  const signupClient = createClient(url, key);
-  const { data: signup, error: signupErr } = await signupClient.auth.signUp({
-    email: probeEmail,
-    password: probePass,
-  });
-  if (signupErr || !signup.user?.id) {
-    skip(`cenário 13 signup: ${signupErr?.message ?? "usuário não criado"}`);
-  } else {
+  let probeUserId = null;
+
+  try {
+    const created = await svc.auth.admin.createUser({
+      email: probeEmail,
+      password: probePass,
+      email_confirm: true,
+    });
+    assert(
+      !created.error && created.data.user?.id,
+      created.error
+        ? `cenário 13 signup: ${created.error.message}`
+        : "cenário 13 signup: probe criado via Admin API",
+    );
+    if (created.error || !created.data.user?.id) return;
+    probeUserId = created.data.user.id;
+
     const authed = createClient(url, key);
     const { error: signErr } = await authed.auth.signInWithPassword({
       email: probeEmail,
       password: probePass,
     });
-    if (signErr) {
-      skip(`cenário 13 signup: login falhou (${signErr.message})`);
-    } else {
-      const firstInsert = await authed
-        .from("profiles")
-        .insert({ id: signup.user.id, full_name: "Attacker", role: "admin" })
-        .select("role");
-      assert(Boolean(firstInsert.error), "primeiro insert com role admin bloqueado pela policy");
-      const readRole = await authed.from("profiles").select("role").eq("id", signup.user.id).maybeSingle();
-      assert(readRole.data?.role !== "admin", "role efetivo não é admin após tentativa");
-    }
-  }
+    assert(!signErr, `cenário 13 login: ${signErr?.message ?? "ok"}`);
+    if (signErr) return;
 
-  await client.auth.signOut();
+    const firstInsert = await authed
+      .from("profiles")
+      .insert({ id: probeUserId, full_name: "Attacker", role: "admin" })
+      .select("role");
+    assert(Boolean(firstInsert.error), "primeiro insert com role admin bloqueado pela policy");
+    const readRole = await authed.from("profiles").select("role").eq("id", probeUserId).maybeSingle();
+    assert(readRole.data?.role !== "admin", "role efetivo não é admin após tentativa");
+    await authed.auth.signOut();
+  } finally {
+    await cleanupF019Probe(probeUserId);
+    await client.auth.signOut();
+  }
 }
 
 /** Baseline admin legado (S2/S3). */
