@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
+const CurationQueueMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
@@ -18,7 +19,10 @@ vi.mock("./lib/admin-api.js", () => ({
 }));
 
 vi.mock("./features/curation/CurationQueue.jsx", () => ({
-  CurationQueue: () => null,
+  CurationQueue: (props) => {
+    CurationQueueMock(props);
+    return <div data-testid="curation-queue" />;
+  },
 }));
 
 import { Admin } from "./Admin.jsx";
@@ -29,6 +33,7 @@ describe("Admin", () => {
     loadCurationProfile.mockResolvedValue(null);
     loadAdminJobs.mockReset();
     loadAdminJobs.mockResolvedValue([]);
+    CurationQueueMock.mockClear();
   });
 
   it("usa admin-auth-form compacto, sem job-form do CRUD", async () => {
@@ -58,6 +63,11 @@ describe("Admin", () => {
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Curadoria" }));
+    expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Publicar vaga" }));
+    expect(screen.getByTestId("curation-queue").closest("[hidden]")).toBeTruthy();
   });
 
   it("área logada não renderiza sidebar nem card de perfil", async () => {
