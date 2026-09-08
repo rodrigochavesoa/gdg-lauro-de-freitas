@@ -62,7 +62,7 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 ```md
 ### ONE-LINER AO EXECUTOR
 
-**Função / Agente:** (obrigatório) quem executa — ex.: Executor / Shell (pwsh), Executor frontend, Humano (PO), subagent security-review, Plan Tech Lead only
+**Função / Agente:** (obrigatório) quem executa — ex.: Executor frontend, **Frontend Visual QA**, Executor / Shell (pwsh), Humano (PO), subagent security-review, Plan Tech Lead only
 **Modelo / ferramenta:** (obrigatório quando agente ≠ humano) ex.: sem LLM · Cursor Agent standard · raciocínio alto (só Plan)
 **Perfil:** ... (opcional — competência: Fullstack Engineer, etc.)
 **História:** Sx-xx — ...
@@ -76,7 +76,8 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 **Dependências humanas:**
 - ...
 **Referências obrigatórias:**
-- ... (UI: `docs/design-system-communication.md` — **DS-06 regra de ouro**: reutilizar tokens/classes de `src/styles.css`; sem cores/spinners novos + `docs/design-system/section-curves.md` — DS-07 se houver junta de seção)
+- ... (UI Executor: `docs/design-system-communication.md` — **DS-06** + `docs/design-system/section-curves.md` — **DS-07**)
+- ... (Visual QA: [`AGENTS.md`](../AGENTS.md) + [`docs/setup-visual-qa-tools.md`](setup-visual-qa-tools.md) + rule `frontend-visual-qa.mdc`)
 ```
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.
@@ -89,9 +90,11 @@ Respeitar a função de cada agente. **Confusão de papéis invalida a entrega**
 
 | Papel | Faz | **Não faz** |
 |---|---|---|
+| **Executor frontend** | ONE-LINER de UI; implementar; Vitest/smoke; `lint`/`test`/`build`; PR após **Sim** | Auditoria visual browser; parecer “layout ok” só lendo TSX; preencher assessment *Pass* sem evidência |
+| **Frontend Visual QA** | ONE-LINER de homolog/DS-05; browser; screenshots light/dark; relatório + assessment | Implementar features; push em `main`; substituir Plan |
 | **Plan Tech Lead** | ONE-LINER; **revisão** de entregas do Executor (aprovar / reprovar / aprovar com ressalvas); diagnóstico; backlog; decisões técnicas; **Sim** antes de push/PR | **Executar** `pnpm test`, `pnpm test:rls`, `pnpm lint`, `build`; editar código de produto; preencher assessment/checklist de execução; commit; push; abrir PR de implementação |
 | **Executor** | Branch → implementar ou **executar** ONE-LINER (comandos, docs preenchidos com log real) → validar → commit na branch → PR após **Sim** | Decisão de negócio; segredos reais; push em `main`; iniciar sem ONE-LINER |
-| **Humano (PO/mantenedor)** | C-05, credenciais, merge squash, testes manuais browser quando ONE-LINER pedir | — |
+| **Humano (PO/mantenedor)** | C-05, credenciais, merge squash, testes manuais browser quando ONE-LINER pedir; aceite DS-05/PO | — |
 
 **Regra explícita:** se o ONE-LINER diz “Executor roda X”, o **Plan não roda X** — só publica o ONE-LINER e revisa o resultado. Se o Plan executou por engano, o Executor **reexecuta** e corrige artefatos (registrar no PR: “Revalidado pelo Executor”).
 

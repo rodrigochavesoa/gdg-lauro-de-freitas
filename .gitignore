@@ -1,5 +1,8 @@
 node_modules
-.cursor
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**
+!.cursor/mcp.json
 dist
 .pnpm-store
 .env

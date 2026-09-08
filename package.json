@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rls": "node scripts/check-rls.mjs"
+    "test:rls": "node scripts/check-rls.mjs",
+    "qa:admin-nav": "node scripts/measure-admin-nav.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",
@@ -32,6 +33,7 @@
     "eslint-plugin-react-refresh": "0.4.24",
     "globals": "16.5.0",
     "jsdom": "26.1.0",
+    "playwright": "1.63.0",
     "vitest": "3.2.4"
   }
 }
