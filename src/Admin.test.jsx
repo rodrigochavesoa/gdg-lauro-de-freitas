@@ -83,7 +83,7 @@ describe("Admin", () => {
     expect(document.querySelector(".job-form .form-actions")).toBeTruthy();
   });
 
-  it("lista pending e approved com título e meta separados", async () => {
+  it("lista pendentes e publicadas em seções separadas, com o form acima", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
@@ -97,11 +97,38 @@ describe("Admin", () => {
         status: "approved",
         companies: { name: "Nuvem Lauro Demo" },
       },
+      {
+        id: "j2",
+        title: "Pessoa Estagiária (rascunho)",
+        status: "pending",
+        companies: { name: "Nuvem Lauro Demo" },
+      },
     ]);
     render(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("heading", { name: "Vagas pending e approved" })).toBeInTheDocument();
-    const list = document.querySelector(".admin-job-list");
-    expect(within(list).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
-    expect(within(list).getByText(/approved · Nuvem Lauro Demo/)).toHaveClass("admin-job-list-meta");
+    expect(await screen.findByRole("heading", { name: "Aguardando curadoria" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Vagas pending e approved" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^approved$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/pending ·/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/approved ·/i)).not.toBeInTheDocument();
+
+    const form = document.querySelector("form.job-form");
+    const pendingSection = screen.getByRole("heading", { name: "Aguardando curadoria" }).closest(".admin-job-list");
+    expect(form).toBeTruthy();
+    expect(pendingSection).toBeTruthy();
+    expect(form.compareDocumentPosition(pendingSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(within(pendingSection).getByRole("button", { name: /Pessoa Estagiária \(rascunho\)/ })).toBeInTheDocument();
+    expect(within(pendingSection).getByText("Pendente")).toHaveClass("featured");
+    expect(within(pendingSection).queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument();
+
+    const publishedSection = document.querySelector("details.admin-job-list");
+    expect(publishedSection).toBeTruthy();
+    expect(publishedSection.open).toBe(false);
+    expect(within(publishedSection).getByText("Vagas publicadas")).toBeInTheDocument();
+    expect(within(publishedSection).getByText("Publicada")).toHaveClass("featured");
+    expect(within(publishedSection).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
+    expect(within(publishedSection).queryByRole("button", { name: /Pessoa Desenvolvedora Front-end/ })).not.toBeInTheDocument();
+    expect(within(publishedSection).getByText("Edite via nova rodada na Curadoria.")).toBeInTheDocument();
   });
 });

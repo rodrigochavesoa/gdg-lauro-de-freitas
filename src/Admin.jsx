@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import {
   createPendingJob,
@@ -44,6 +44,14 @@ export function Admin({ setLogged, session, authReady = true }) {
   const [busy, setBusy] = useState(false);
 
   const isAdmin = profile?.role === "admin";
+  const pendingJobs = useMemo(
+    () => jobs.filter((job) => job.status === "pending"),
+    [jobs],
+  );
+  const publishedJobs = useMemo(
+    () => jobs.filter((job) => job.status === "approved"),
+    [jobs],
+  );
 
   const refreshAdmin = async () => {
     const [companyRows, jobRows] = await Promise.all([loadCompanies(), loadAdminJobs()]);
@@ -125,6 +133,10 @@ export function Admin({ setLogged, session, authReady = true }) {
   };
 
   const loadJob = (job) => {
+    if (job.status !== "pending") {
+      setMessage("Edite via nova rodada na Curadoria.");
+      return;
+    }
     setEditingId(job.id);
     setForm({
       title: job.title ?? "",
@@ -136,7 +148,7 @@ export function Admin({ setLogged, session, authReady = true }) {
       location: job.location ?? "",
       workModel: job.work_model === "hybrid" ? "Híbrido" : job.work_model === "onsite" ? "Presencial" : "Remoto",
     });
-    setMessage(`Editando ${job.title} (${job.status}).`);
+    setMessage(`Editando ${job.title}.`);
   };
 
   if (!ready) {
@@ -219,21 +231,6 @@ export function Admin({ setLogged, session, authReady = true }) {
                   <h1>Publicar nova vaga</h1>
                   <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
                 </div>
-              </div>
-              <div className="form-section admin-job-list">
-                <h2>Vagas pending e approved</h2>
-                {jobs.map((job) => (
-                  <p key={job.id}>
-                    <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
-                      <span className="admin-job-list-title">{job.title}</span>
-                      <span className="admin-job-list-meta">
-                        {" "}— {job.status}
-                        {job.companies?.name ? ` · ${job.companies.name}` : ""}
-                      </span>
-                    </button>
-                  </p>
-                ))}
-                {jobs.length === 0 && <p>Nenhuma vaga visível para este admin.</p>}
               </div>
               <form className="job-form" onSubmit={onSubmit}>
                 <div className="form-section">
@@ -324,6 +321,37 @@ export function Admin({ setLogged, session, authReady = true }) {
                   </button>
                 </div>
               </form>
+              <div className="form-section admin-job-list">
+                <h2>Aguardando curadoria</h2>
+                {pendingJobs.map((job) => (
+                  <p key={job.id}>
+                    <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
+                      <span className="featured">Pendente</span>
+                      <span className="admin-job-list-title">{job.title}</span>
+                      {job.companies?.name ? (
+                        <span className="admin-job-list-meta"> · {job.companies.name}</span>
+                      ) : null}
+                    </button>
+                  </p>
+                ))}
+                {pendingJobs.length === 0 && <p>Nenhuma vaga aguardando curadoria.</p>}
+              </div>
+              <details className="form-section admin-job-list">
+                <summary>Vagas publicadas</summary>
+                <p>Edite via nova rodada na Curadoria.</p>
+                {publishedJobs.map((job) => (
+                  <p key={job.id}>
+                    <span className="ghost admin-job-list-item">
+                      <span className="featured">Publicada</span>
+                      <span className="admin-job-list-title">{job.title}</span>
+                      {job.companies?.name ? (
+                        <span className="admin-job-list-meta"> · {job.companies.name}</span>
+                      ) : null}
+                    </span>
+                  </p>
+                ))}
+                {publishedJobs.length === 0 && <p>Nenhuma vaga publicada.</p>}
+              </details>
             </>
           )}
         </section>
