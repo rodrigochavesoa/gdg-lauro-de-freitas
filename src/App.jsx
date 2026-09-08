@@ -3,7 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
-import { loadApprovedJob } from "./features/catalog/jobs-api.js";
+import { loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
 import { JobDetail } from "./features/jobs/JobDetail.jsx";
 import { MyApplications } from "./features/jobs/MyApplications.jsx";
 import { applyToJob, loadMyApplication, withdrawApplication } from "./features/jobs/apply-api.js";
@@ -35,6 +35,11 @@ export function App() {
       cancelled = true;
       unsubscribe();
     };
+  }, []);
+
+  // UX-PERF-05 — warm catalog on shell mount so /login → / avoids cold skeleton scroll jank
+  useEffect(() => {
+    loadApprovedJobs().catch(() => {});
   }, []);
 
   return (
