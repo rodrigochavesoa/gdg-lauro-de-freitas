@@ -57,6 +57,10 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   const [busy, setBusy] = useState(false);
   const [adminDataLoading, setAdminDataLoading] = useState(false);
   const staffBootId = useRef(null);
+  const [curationMounted, setCurationMounted] = useState(() => {
+    const role = snapshotStaff?.role;
+    return role === "curator" || role === "moderator";
+  });
 
   const isAdmin = profile?.role === "admin";
   const pendingJobs = useMemo(
@@ -126,6 +130,10 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       cancelled = true;
     };
   }, [authReady, authProfile, session, setLogged]);
+
+  useEffect(() => {
+    if (profile && section === "curation") setCurationMounted(true);
+  }, [profile, section]);
 
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -267,9 +275,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               </button>
             )}
           </div>
-          <div hidden={section !== "curation"}>
-            <CurationQueue profile={profile} includeRejected={isAdmin} />
-          </div>
+          {curationMounted ? (
+            <div hidden={section !== "curation"}>
+              <CurationQueue profile={profile} includeRejected={isAdmin} />
+            </div>
+          ) : null}
           {isAdmin && (
             <div hidden={section !== "jobs"}>
               <div className="admin-title">
