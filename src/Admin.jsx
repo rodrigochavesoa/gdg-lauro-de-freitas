@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Plus } from "lucide-react";
 import {
   createPendingJob,
@@ -8,6 +8,8 @@ import {
 } from "./lib/admin-api.js";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
+
+const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
 const emptyForm = {
   title: "",
@@ -20,6 +22,16 @@ const emptyForm = {
   workModel: "Remoto",
 };
 
+function toCurationProfile(authProfile, session) {
+  if (!STAFF_ROLES.has(authProfile?.role)) return null;
+  return {
+    id: authProfile.id ?? session?.user?.id,
+    full_name: authProfile.full_name,
+    role: authProfile.role,
+    email: session?.user?.email ?? authProfile.email,
+  };
+}
+
 /** DS-07 — mesma onda inferior de Login/Home (`fill: var(--color-surface)`). */
 function AdminSurfaceCurve() {
   return (
@@ -29,10 +41,11 @@ function AdminSurfaceCurve() {
   );
 }
 
-export function Admin({ setLogged, session, authReady = true }) {
-  const [ready, setReady] = useState(false);
-  const [profile, setProfile] = useState(null);
-  const [section, setSection] = useState("curation");
+export function Admin({ setLogged, session, authReady = true, authProfile = null }) {
+  const snapshotStaff = toCurationProfile(authProfile, session);
+  const [ready, setReady] = useState(() => Boolean(authReady));
+  const [profile, setProfile] = useState(() => (authReady ? snapshotStaff : null));
+  const [section, setSection] = useState(() => (snapshotStaff?.role === "admin" ? "jobs" : "curation"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -43,6 +56,7 @@ export function Admin({ setLogged, session, authReady = true }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [adminDataLoading, setAdminDataLoading] = useState(false);
+  const staffBootId = useRef(null);
 
   const isAdmin = profile?.role === "admin";
   const pendingJobs = useMemo(
@@ -61,39 +75,57 @@ export function Admin({ setLogged, session, authReady = true }) {
   };
 
   useEffect(() => {
+    if (!authReady) return undefined;
     let cancelled = false;
+    const fromSnapshot = toCurationProfile(authProfile, session);
+
+    const bootAdmin = (current) => {
+      const isNew = staffBootId.current !== current.id;
+      staffBootId.current = current.id;
+      setProfile(current);
+      setLogged?.(true);
+      if (isNew) {
+        setSection(current.role === "admin" ? "jobs" : "curation");
+      }
+      setReady(true);
+      if (current.role !== "admin" || !isNew) return;
+      setAdminDataLoading(true);
+      void refreshAdmin().finally(() => {
+        if (!cancelled) setAdminDataLoading(false);
+      });
+    };
+
+    if (fromSnapshot) {
+      bootAdmin(fromSnapshot);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setReady(true);
+
+    if (!session) {
+      staffBootId.current = null;
+      setProfile(null);
+      setLogged?.(false);
+      setJobs([]);
+      setForm(emptyForm);
+      setSection("curation");
+      return undefined;
+    }
+
     loadCurationProfile()
       .then((current) => {
         if (cancelled || !current) return;
-        setProfile(current);
-        setLogged?.(true);
-        setSection(current.role === "admin" ? "jobs" : "curation");
-        setReady(true);
-        if (current.role !== "admin") return;
-        setAdminDataLoading(true);
-        void refreshAdmin().finally(() => {
-          if (!cancelled) setAdminDataLoading(false);
-        });
+        bootAdmin(current);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setReady(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [setLogged]);
-
-  useEffect(() => {
-    if (!authReady || session === undefined || session) return;
-    setProfile(null);
-    setLogged?.(false);
-    setJobs([]);
-    setForm(emptyForm);
-    setSection("curation");
-  }, [authReady, session, setLogged]);
+  }, [authReady, authProfile, session, setLogged]);
 
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
@@ -338,7 +370,6 @@ export function Admin({ setLogged, session, authReady = true }) {
               </form>
               <div className="form-section admin-job-list">
                 <h2>Aguardando curadoria</h2>
-                {adminDataLoading && <p>Carregando área administrativa…</p>}
                 {pendingJobs.map((job) => (
                   <p key={job.id}>
                     <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
