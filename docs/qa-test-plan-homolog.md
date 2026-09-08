@@ -41,6 +41,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | QA-ANON-07 | CTA apply → login (sem sessão) | F | smoke + manual | — | P0 | Detalhe: candidatar redireciona login |
 | QA-ANON-08 | Admin / curadoria / minhas candidaturas inacessíveis | S | manual | — | P0 | URLs protegidas → login ou redirect |
 | QA-ANON-09 | Skeleton catálogo enquanto carrega | U | manual | — | P2 | Grade com placeholders, não empty longo |
+| QA-ANON-10 | CTA “Criar perfil gratuito” → login | F | smoke | — | P0 | Home `.cta`: link `/login`; seção oculta se logado (#45) |
 
 ---
 
@@ -100,6 +101,9 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | QA-ADM-04 | Não-admin não mantém sessão admin | S | manual | — | P0 | Candidato em `/admin` → bloqueado |
 | QA-ADM-05 | Prioridade urgent + motivo | S | test:rls | 9 | P1 | RPC prioridade; CHECK motivo |
 | QA-ADM-06 | Erros API na UI Admin | U | manual | — | P2 | Mensagens sem vazar stack/keys |
+| QA-ADM-07 | Vagas → Área admin sem spinner de loading | U | smoke + manual | — | P0 | Staff logado: tabs visíveis &lt;500 ms; 0× “Carregando área administrativa…” |
+| QA-ADM-08 | Troca Curadoria ↔ Publicar vaga | U | manual | — | P0 | Sem refetch perceptível da fila ao alternar abas (PERF-ADM-02/04) |
+| QA-ADM-09 | Admin mobile: tabs + form legíveis | U | manual | — | P1 | Viewport ≤760px; alvo 44px; spacing #38 |
 
 ---
 
@@ -126,6 +130,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | 1 — anon | QA-ANON-01, 03, 06 |
 | 2 — candidate | QA-CAND-11, 12; QA-CUR-09 |
 | admin baseline | QA-ADM-01..03 |
+| admin perf/nav | QA-ADM-07..09 |
 | 3 — curator review | QA-CUR-01, 02 |
 | 4 — self/duplicate | QA-CUR-03, 04 |
 | 5 — quorum approve | QA-CUR-05 |

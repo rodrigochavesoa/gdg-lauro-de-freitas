@@ -603,29 +603,36 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 
 ## Próximas etapas imediatas
 
-### Handoff — pausa do projeto (2026-09-07)
+### Handoff — retomada (2026-09-08)
 
-**`main` @ `d535552`** — QA baseline #31 mergeado. **55 testes** verdes na última entrega UX (#30).
+**`main` @ `5684dd5`** — Admin UX + performance + CTA Home mergeados (#37–#45). **80 testes** Vitest verdes.
 
-#### O que foi entregue nesta sessão
+#### O que foi entregue (sessão 2026-09-07/08)
 
 | PR | Merge (squash) | Entrega |
 |---|---|---|
-| #27 | `4075da4` | Sort catálogo (Mais recentes / Mais antigas) |
-| #28 | `86436af` | Backlog UX-PERF-01 — diagnóstico + ONE-LINER |
-| #29 | `70d1458` | Loading waterfalls — paralelo, skeleton, flash apply |
-| #30 | `ed336ab` | Polish — outline “Verificando…”, teste espelho, erro sem CTA |
-| #31 | `d535552` | QA-SEC-01b — baseline automatizado + matriz homologação |
+| #37 | `1550b00`+ | Admin: tabs unificadas Curadoria/Publicar vaga; fim sidebar duplicada |
+| #38 | — | Admin: spacing mobile tabs + form |
+| #39 | `b65b398` | F-016: remoção card perfil duplicado + sidebar |
+| #40 | `0067e41` | F-017: listas pending/approved; form acima das listas |
+| #41 | `3100a5e` | PERF-ADM-02: fila curadoria paralela; shell admin desbloqueado |
+| #42 | `8133c4f` | PERF-CAT-01: cache catálogo 30s; skeleton só cold miss |
+| #43 | `1da1da1` | PERF-ADM-03: reutiliza `auth.profile`; fim spinner remount |
+| #44 | `896ffb5` | PERF-ADM-04: `CurationQueue` mount tardio na aba Curadoria |
+| #45 | `5684dd5` | UX-HOME-01: CTA “Criar perfil gratuito” → `/login` |
 
-**Sprint 6 homologação candidato:** fechada (#22–#25, closeout #26). **UX-PERF-01:** fechada (#28–#30). **QA-SEC-01b:** concluída (#31).
+**Evidência perf admin (local):** `node scripts/measure-admin-nav.mjs` — T1 tabs ~84 ms · T2 ~91 ms · spinner 0/5 · `rest/v1` no remount: `companies` + `jobs` (sem fila).
+
+**Sessão anterior (2026-09-07):** Sprint 6 candidato fechada (#22–#26); UX-PERF-01 (#28–#30); QA-SEC-01b (#31 @ `d535552`).
 
 #### Onde retomar (ordem recomendada)
 
-1. **Humano / PO — C-05 (bloqueia Sprint 7):** conta Resend, domínio verificado (SPF/DKIM/DMARC), remetente `From`, API key em `docs-local/` (nunca Git). Homologação: preferir só e-mails da equipe (P-20 / DPO). Ver explicação C-05 na conversa Plan ou checklist abaixo.
-2. **Plan:** após C-05 fechada → ONE-LINER **Sprint 7** (Resend: candidatura, status, aprovação de vaga). Alternativa enquanto C-05 pendente: governança S7 doc-only (eventos/gatilhos/templates).
-3. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20.
-4. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase).
-5. **Git local ao voltar:** `git checkout main && git pull origin main`. Apagar branches obsoletas se existirem (`feat/catalog-sort-recent`, `pr-*-review`). **Nunca commitar** `supabase/migrations/*_noop.sql` nem `docs-local/`.
+1. **Humano / PO — QA homolog P0 (paralelo):** matriz [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) — **QA-ADM-07..09** (admin perf/nav) + **QA-ANON-10** (CTA Home) + demais P0 *Pendente manual* em [`qa-security-assessment.md`](qa-security-assessment.md). Credenciais: `docs-local/admin-test-user.md`, `docs-local/candidate-test-user.md`.
+2. **Humano / PO — C-05 (bloqueia Sprint 7):** conta Resend, domínio verificado (SPF/DKIM/DMARC), remetente `From`, API key em `docs-local/` (nunca Git). Homologação: preferir só e-mails da equipe (P-20 / DPO). Checklist abaixo.
+3. **Plan:** após C-05 fechada → ONE-LINER **Sprint 7** (Resend). Alternativa enquanto C-05 pendente: governança S7 doc-only (eventos/gatilhos/templates).
+4. **DPO (paralelo):** bases legais e-mail transacional — [`docs/lgpd-data-inventory.md`](lgpd-data-inventory.md) P-20.
+5. **Humano (paralelo):** P-03 (`location`); C-03 (orçamento Supabase).
+6. **Git local:** `git checkout main && git pull origin main`. Apagar branches mergeadas (`fix/admin-*`, `perf/admin-*`, `fix/home-*`). **Nunca commitar** `supabase/migrations/*_noop.sql` nem `docs-local/`.
 
 #### C-05 — checklist rápido para o humano
 
@@ -637,12 +644,18 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 - [ ] Regra homologação: só inboxes da equipe (ou exceção PO/DPO documentada)
 - [ ] Avisar Plan: “C-05 fechada” + onde está a key (sem colar key no chat/Git)
 
-#### Polish opcional (sem bloqueio)
+#### Polish / follow-up opcional (sem bloqueio)
 
-- Chip neutro de status em `/minhas-candidaturas` (hoje usa `.featured` como “Destaque”)
-- Cenário `test:rls` com linkedin/github/cv_url no snapshot
-- Path Windows absoluto em `docs/design-system-communication.md`
-- Cache client-side catálogo (follow-up UX, fora do escopo #29)
+| ID | Escopo | Prioridade |
+|---|---|---|
+| PERF-CAT-02 | Cold load home &lt;900 ms (índice Postgres / cold Supabase) | P2 |
+| UX-HOME-02 | Botão hero “Buscar vagas” (`onClick` vazio — decorativo) | P3 |
+| DRY-STAFF | `STAFF_ROLES` compartilhado (`Admin.jsx` + `Header.jsx`) | P3 |
+| Polish | Chip neutro de status em `/minhas-candidaturas` | P3 |
+| Polish | Cenário `test:rls` com linkedin/github/cv_url no snapshot | P3 |
+| Polish | Path Windows absoluto em `docs/design-system-communication.md` | P3 |
+
+~~Cache client-side catálogo~~ — **concluído** PERF-CAT-01 (#42).
 
 #### Épico QA-SEC-01 — Avaliação homologação defensiva (**aprovado**)
 

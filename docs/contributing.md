@@ -76,7 +76,7 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 **Dependências humanas:**
 - ...
 **Referências obrigatórias:**
-- ... (UI: `docs/design-system-communication.md` + `docs/design-system/section-curves.md`)
+- ... (UI: `docs/design-system-communication.md` — **DS-06 regra de ouro**: reutilizar tokens/classes de `src/styles.css`; sem cores/spinners novos + `docs/design-system/section-curves.md` — DS-07 se houver junta de seção)
 ```
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.
