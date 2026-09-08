@@ -5,8 +5,63 @@ import {
 } from "lucide-react";
 import { APPLICATION_STATUS_COPY, canWithdrawStatus } from "./apply-api.js";
 
+export function JobDetailSkeleton({ goBack }) {
+  return (
+    <main className="detail-page" aria-busy="true" aria-live="polite">
+      <div className="shell">
+        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> Voltar para vagas</button>
+        <div className="detail-grid">
+          <article className="detail-main" aria-hidden="true">
+            <div className="detail-top">
+              <div className="company-logo large job-card--skeleton" />
+              <div className="detail-skeleton-copy">
+                <span className="detail-skeleton-line detail-skeleton-line--title job-card--skeleton" />
+                <span className="detail-skeleton-line detail-skeleton-line--meta job-card--skeleton" />
+              </div>
+            </div>
+            <div className="detail-meta">
+              <span className="detail-skeleton-line detail-skeleton-line--chip job-card--skeleton" />
+              <span className="detail-skeleton-line detail-skeleton-line--chip job-card--skeleton" />
+              <span className="detail-skeleton-line detail-skeleton-line--chip job-card--skeleton" />
+            </div>
+            <hr/>
+            <section className="content-block">
+              <span className="detail-skeleton-line detail-skeleton-line--heading job-card--skeleton" />
+              <span className="detail-skeleton-line job-card--skeleton" />
+              <span className="detail-skeleton-line job-card--skeleton" />
+              <span className="detail-skeleton-line detail-skeleton-line--short job-card--skeleton" />
+            </section>
+            <section className="content-block">
+              <span className="detail-skeleton-line detail-skeleton-line--heading job-card--skeleton" />
+              <span className="detail-skeleton-line job-card--skeleton" />
+              <span className="detail-skeleton-line detail-skeleton-line--short job-card--skeleton" />
+            </section>
+          </article>
+          <aside className="apply-card" aria-hidden="true">
+            <span className="detail-skeleton-line job-card--skeleton" />
+            <span className="detail-skeleton-line job-card--skeleton" />
+            <span className="detail-skeleton-line detail-skeleton-line--cta job-card--skeleton" />
+          </aside>
+        </div>
+        <p className="tiny detail-skeleton-sr">Carregando detalhes da vaga</p>
+      </div>
+    </main>
+  );
+}
+
+function ContentSkeleton() {
+  return (
+    <div className="detail-skeleton-block" aria-hidden="true">
+      <span className="detail-skeleton-line job-card--skeleton" />
+      <span className="detail-skeleton-line job-card--skeleton" />
+      <span className="detail-skeleton-line detail-skeleton-line--short job-card--skeleton" />
+    </div>
+  );
+}
+
 export function JobDetail({
   job,
+  isPartial = false,
   goBack,
   logged,
   onNeedLogin,
@@ -39,7 +94,7 @@ export function JobDetail({
   const showWithdraw = !showChecking && !applicationCheckFailed && canWithdrawStatus(applicationStatus);
 
   return (
-    <main className="detail-page">
+    <main className="detail-page" aria-busy={isPartial || undefined}>
       <div className="shell">
         <button className="back" onClick={goBack}><ArrowLeft size={17}/> Voltar para vagas</button>
         <div className="detail-grid">
@@ -49,7 +104,7 @@ export function JobDetail({
               <div>
                 <div className="detail-title">
                   <h1>{job.title}</h1>
-                  <span className="featured"><Sparkles size={13}/> Destaque</span>
+                  {job.featured ? <span className="featured"><Sparkles size={13}/> Destaque</span> : null}
                 </div>
                 <p className="company-name">{job.company} <BadgeCheck size={15}/></p>
               </div>
@@ -61,17 +116,27 @@ export function JobDetail({
             </div>
             <hr/>
             <ContentBlock title="Sobre a oportunidade">
-              <p>{job.description}</p>
-              <p>Você fará parte de um time colaborativo, com autonomia para propor soluções e espaço para aprender continuamente.</p>
+              {isPartial ? (
+                <ContentSkeleton />
+              ) : (
+                <>
+                  <p>{job.description}</p>
+                  <p>Você fará parte de um time colaborativo, com autonomia para propor soluções e espaço para aprender continuamente.</p>
+                </>
+              )}
             </ContentBlock>
             <ContentBlock title="O que você vai fazer">
-              <ul>{(job.responsibilities ?? []).map((x) => <li key={x}><Check size={17}/>{x}</li>)}</ul>
+              {isPartial ? (
+                <ContentSkeleton />
+              ) : (
+                <ul>{(job.responsibilities ?? []).map((x) => <li key={x}><Check size={17}/>{x}</li>)}</ul>
+              )}
             </ContentBlock>
             <ContentBlock title="Tecnologias">
               <div className="tags big">{(job.stack ?? []).map((t) => <span key={t}>{t}</span>)}</div>
             </ContentBlock>
             <ContentBlock title={`Sobre a ${job.company}`}>
-              <p>{job.about}</p>
+              {isPartial ? <ContentSkeleton /> : <p>{job.about}</p>}
             </ContentBlock>
           </article>
           <aside className="apply-card">

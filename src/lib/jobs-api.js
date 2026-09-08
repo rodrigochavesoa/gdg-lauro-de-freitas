@@ -45,6 +45,13 @@ export function peekApprovedJobsCache() {
   return approvedJobsCache.jobs;
 }
 
+/** UX-PERF-03 — job parcial da lista (sem description/requirements). Não substitui loadApprovedJob. */
+export function findApprovedJobInCache(id) {
+  const jobs = peekApprovedJobsCache();
+  if (!jobs || id == null || id === "") return null;
+  return jobs.find((job) => String(job.id) === String(id)) ?? null;
+}
+
 export async function loadApprovedJobs({ forceRefresh = false } = {}) {
   if (!forceRefresh) {
     const cached = peekApprovedJobsCache();

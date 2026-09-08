@@ -1,5 +1,6 @@
 export {
   CATALOG_CACHE_TTL_MS,
+  findApprovedJobInCache,
   invalidateApprovedJobsCache,
   loadApprovedJob,
   loadApprovedJobs,

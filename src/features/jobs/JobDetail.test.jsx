@@ -64,4 +64,42 @@ describe("JobDetail apply", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível verificar candidatura.");
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
   });
+
+  it("em partial mostra título e skeleton de conteúdo sem inventar description", () => {
+    const partial = {
+      ...job,
+      description: undefined,
+      about: undefined,
+      responsibilities: undefined,
+    };
+    render(
+      <JobDetail
+        job={partial}
+        isPartial
+        goBack={() => {}}
+        logged={false}
+        applicationStatus={null}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: job.title })).toBeInTheDocument();
+    expect(screen.getByText(job.company)).toBeInTheDocument();
+    expect(screen.queryByText("Fictícia")).not.toBeInTheDocument();
+    expect(document.querySelectorAll(".detail-skeleton-block").length).toBeGreaterThan(0);
+    expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
+  });
+
+  it("partial logado mantém Verificando e não flasha CTA azul", () => {
+    render(
+      <JobDetail
+        job={job}
+        isPartial
+        goBack={() => {}}
+        logged
+        applicationStatus={null}
+        applicationLoading
+      />,
+    );
+    expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
 });

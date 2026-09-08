@@ -12,7 +12,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rls": "node scripts/check-rls.mjs",
-    "qa:admin-nav": "node scripts/measure-admin-nav.mjs"
+    "qa:admin-nav": "node scripts/measure-admin-nav.mjs",
+    "qa:job-detail": "node scripts/measure-job-detail.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",

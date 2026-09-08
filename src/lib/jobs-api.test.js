@@ -10,6 +10,7 @@ vi.mock("./supabase-client.js", () => ({
 
 import {
   CATALOG_CACHE_TTL_MS,
+  findApprovedJobInCache,
   invalidateApprovedJobsCache,
   loadApprovedJobs,
 } from "./jobs-api.js";
@@ -20,8 +21,6 @@ function mockApprovedQuery() {
       {
         id: "1",
         title: "Pessoa Desenvolvedora Front-end",
-        description: "Fictícia",
-        requirements: { mandatory: ["Testar"] },
         stack: ["React"],
         level: "mid",
         work_model: "remote",
@@ -29,7 +28,7 @@ function mockApprovedQuery() {
         status: "approved",
         approved_at: new Date().toISOString(),
         created_at: new Date().toISOString(),
-        companies: { name: "Nuvem Lauro Demo", description: "Demo" },
+        companies: { name: "Nuvem Lauro Demo" },
       },
     ],
     error: null,
@@ -133,5 +132,15 @@ describe("loadApprovedJobs", () => {
     const [a, b] = await Promise.all([first, second]);
     expect(a).toBe(b);
     expect(a).toHaveLength(1);
+  });
+
+  it("findApprovedJobInCache devolve o job parcial da lista e null fora do cache", async () => {
+    mockApprovedQuery();
+    await loadApprovedJobs();
+    expect(findApprovedJobInCache("1")?.title).toBe("Pessoa Desenvolvedora Front-end");
+    expect(findApprovedJobInCache("1")?.description).toBeUndefined();
+    expect(findApprovedJobInCache("missing")).toBeNull();
+    invalidateApprovedJobsCache();
+    expect(findApprovedJobInCache("1")).toBeNull();
   });
 });

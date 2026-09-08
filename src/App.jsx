@@ -3,8 +3,8 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
-import { loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
-import { JobDetail } from "./features/jobs/JobDetail.jsx";
+import { findApprovedJobInCache, loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
+import { JobDetail, JobDetailSkeleton } from "./features/jobs/JobDetail.jsx";
 import { MyApplications } from "./features/jobs/MyApplications.jsx";
 import { applyToJob, loadMyApplication, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
@@ -111,8 +111,14 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
 
   useEffect(() => {
     let cancelled = false;
-    setStatus("loading");
-    setJob(null);
+    const cached = findApprovedJobInCache(id);
+    if (cached) {
+      setJob(cached);
+      setStatus("partial");
+    } else {
+      setJob(null);
+      setStatus("loading");
+    }
     setApplicationStatus(null);
     setApplicationLoading(Boolean(logged));
     setApplicationCheckFailed(false);
@@ -178,26 +184,30 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
   };
 
   if (status === "loading") {
-    return <main className="detail-page"><div className="shell"><p>Carregando vaga…</p></div></main>;
+    return <JobDetailSkeleton goBack={() => navigate("/")} />;
   }
-  if (status !== "ready") {
+  if (status === "missing" || status === "error") {
     return <main className="detail-page"><div className="shell"><p>Vaga não encontrada ou indisponível.</p><button className="back" onClick={() => navigate("/")}>Voltar para vagas</button></div></main>;
   }
-  return (
-    <JobDetail
-      job={job}
-      goBack={() => navigate("/")}
-      logged={logged}
-      needsOnboarding={needsOnboarding}
-      onNeedLogin={() => navigate("/login")}
-      onNeedOnboarding={() => navigate("/onboarding")}
-      applicationStatus={applicationStatus}
-      applicationLoading={applicationLoading}
-      applicationCheckFailed={applicationCheckFailed}
-      onApply={() => runApplyAction(() => applyToJob(id))}
-      onWithdraw={() => runApplyAction(() => withdrawApplication(id))}
-      applyBusy={applyBusy}
-      applyError={applyError}
-    />
-  );
+  if (status === "partial" || status === "ready") {
+    return (
+      <JobDetail
+        job={job}
+        isPartial={status === "partial"}
+        goBack={() => navigate("/")}
+        logged={logged}
+        needsOnboarding={needsOnboarding}
+        onNeedLogin={() => navigate("/login")}
+        onNeedOnboarding={() => navigate("/onboarding")}
+        applicationStatus={applicationStatus}
+        applicationLoading={applicationLoading}
+        applicationCheckFailed={applicationCheckFailed}
+        onApply={() => runApplyAction(() => applyToJob(id))}
+        onWithdraw={() => runApplyAction(() => withdrawApplication(id))}
+        applyBusy={applyBusy}
+        applyError={applyError}
+      />
+    );
+  }
+  return null;
 }
