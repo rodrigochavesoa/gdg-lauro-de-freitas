@@ -111,6 +111,41 @@ Quando o Executor reporta **“pronto na branch / PR #N”**, o Plan **revisa** 
 
 Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Registrar revisões relevantes em `docs/project-backlog-scrum.md` quando for marco de sprint.
 
+**Ressalva não bloqueante ≠ “só no chat”.** Se ficar só na conversa, vira **dívida técnica invisível** — ninguém executa, ninguém fecha. Toda ressalva do Plan **deve** sair do chat no mesmo ciclo de revisão (antes ou no merge).
+
+#### Onde registrar ressalvas (obrigatório)
+
+| Tipo de ressalva | Onde registrar | Quem executa | Quando fechar |
+|---|---|---|---|
+| **Polish P2/P3** (UX, DRY, doc menor) | Tabela **Polish / follow-up opcional** em [`project-backlog-scrum.md`](project-backlog-scrum.md) — linha com **ID** (ex.: `PERF-CAT-02`, `DRY-STAFF`) | Executor em sprint futuro ou PO prioriza | Item removido ou marcado concluído no backlog + PR de closeout |
+| **Follow-up técnico** (medir de novo, script, baseline) | Mesma tabela no backlog **ou** ONE-LINER dedicado se tiver critério de pronto | Executor | Critério do ONE-LINER atendido |
+| **Finding resolvido** (F-xxx) | [`qa-security-assessment.md`](qa-security-assessment.md) — seção *Findings resolvidos* | Já mergeado | Assessment atualizado no PR doc-only |
+| **QA manual pendente** | [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md) + coluna *Resultado* no assessment | **Humano** PO/QA | Linha *Pass* com evidência no assessment |
+| **Decisão do merge** (incluir arquivo, nota metodológica) | **Corpo do PR** — seção `## Ressalvas (não bloqueantes)` | Executor no merge ou PR doc follow-up | PR mergeado com seção preenchida |
+| **Trabalho novo com escopo** | **ONE-LINER** ao Executor (história nova, branch, critérios) | Executor | Revisão Plan APROVADO |
+| **Marco de sprint / handoff** | [`project-backlog-scrum.md`](project-backlog-scrum.md) § *Handoff* | Plan TL | Próximo handoff referencia PRs e pendências |
+
+#### Regra anti-dívida (Plan + Executor + PO)
+
+1. **Plan:** em **APROVADO com ressalvas**, listar ressalvas numeradas (`R1`, `R2`…) e **apontar o destino** de cada uma (backlog ID, ONE-LINER, PR body, humano).
+2. **Executor:** antes do merge, copiar ressalvas `R*` para o destino indicado; **não** fechar PR só com “ok no chat”.
+3. **PO:** revisar tabela *Polish / follow-up* no handoff; ressalva sem linha no backlog = **dívida não rastreada** — reabrir com Plan.
+4. **Chat:** serve para **decisão imediata** (Sim / não commitar); **não** substitui registro durável.
+
+#### Exemplo (parecer Plan)
+
+```md
+**Veredito:** APROVADO com ressalvas
+
+| R | Ressalva | Destino |
+|---|---|---|
+| R1 | Mediana cold load home >900 ms | Backlog `PERF-CAT-02` (P2) |
+| R2 | Playwright homolog não rodou | Humano QA-ADM-07..09 |
+| R3 | `STAFF_ROLES` duplicado | Backlog `DRY-STAFF` (P3) |
+```
+
+**Sim** para commit/merge — desde que R1 e R3 estejam no backlog antes do squash (ou no PR #46 doc-only).
+
 ## Conventional Commits (obrigatório)
 
 Seguir a [especificação Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o):
