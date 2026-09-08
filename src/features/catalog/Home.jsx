@@ -6,12 +6,12 @@ import {
 } from "lucide-react";
 import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsCache } from "./jobs-api.js";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const levels = ["Estágio", "Júnior", "Pleno", "Sênior"];
 const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
 
-export function Home() {
+export function Home({ logged = false }) {
   const [jobs, setJobs] = useState(() => peekApprovedJobsCache() ?? []);
   const [catalogStatus, setCatalogStatus] = useState(() => (peekApprovedJobsCache() ? "ready" : "loading"));
   const [query, setQuery] = useState("");
@@ -59,7 +59,9 @@ export function Home() {
     <section className="shell jobs-layout"><aside className={`filters ${filterOpen ? "open" : ""}`}><div className="filter-head"><h2><Filter size={18}/> Filtros</h2><button onClick={reset}>Limpar</button><button className="close-filter" onClick={() => setFilterOpen(false)}><X size={18}/></button></div><FilterGroup label="Tecnologias" values={technologies} active={tech} toggle={x => toggle(x, tech, setTech)} /><FilterGroup label="Nível de experiência" values={levels} active={level} toggle={x => toggle(x, level, setLevel)} /><FilterGroup label="Modelo de trabalho" values={["Remoto", "Híbrido", "Presencial"]} active={[]} toggle={() => {}} /></aside>
       <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{catalogStatus === "loading" && visibleJobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton" aria-hidden="true" />) : null}{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
     </section>
-    <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Comunidade GDG</div><h2>Seu próximo desafio pode<br/>estar a um clique.</h2><p>Crie seu perfil e receba vagas que combinam com você.</p></div><button className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></button></div></section>
+    {!logged && (
+      <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Comunidade GDG</div><h2>Seu próximo desafio pode<br/>estar a um clique.</h2><p>Crie seu perfil e receba vagas que combinam com você.</p></div><Link to="/login" className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></Link></div></section>
+    )}
   </main>;
 }
 

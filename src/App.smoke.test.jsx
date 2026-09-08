@@ -199,6 +199,13 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
 
+  it("abre o Login a partir de Criar perfil gratuito", async () => {
+    await renderHome();
+    fireEvent.click(screen.getByRole("link", { name: /Criar perfil gratuito/i }));
+    expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
+  });
+
   it("renderiza o detalhe diretamente em /jobs/:id", async () => {
     await renderAt("/jobs/1");
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
@@ -265,6 +272,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeNull();
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", async () => {

@@ -38,4 +38,26 @@ describe("Home", () => {
     expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
   });
+
+  it("liga Criar perfil gratuito à rota de login", () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveClass("white-button");
+  });
+
+  it("não mostra a seção CTA quando o visitante já está logado", () => {
+    render(
+      <MemoryRouter>
+        <Home logged />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeNull();
+  });
 });
