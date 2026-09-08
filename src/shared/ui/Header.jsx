@@ -74,7 +74,12 @@ export function Header({ logged, displayName, role, onSignOut }) {
             </>
           ) : showAuthCta ? (
             <Link className="primary small hide-mobile" to="/login">Entrar ou criar conta</Link>
-          ) : null}
+          ) : (
+            /* UX-HEADER-01 / F-022: reserve CTA width on /admin|/login so space-between nav does not shift */
+            <span className="primary small hide-mobile nav-actions__spacer" aria-hidden="true">
+              Entrar ou criar conta
+            </span>
+          )}
           <button
             ref={menuButtonRef}
             className="menu"

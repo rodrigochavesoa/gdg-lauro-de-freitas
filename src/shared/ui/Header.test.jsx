@@ -32,16 +32,24 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Entrar$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Criar conta$/ })).not.toBeInTheDocument();
+    const spacer = document.querySelector(".nav-actions__spacer");
+    expect(spacer).toBeTruthy();
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toHaveClass("hide-mobile");
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
   });
 
-  it("anon em /admin não mostra CTAs de auth no Header", () => {
+  it("anon em /admin não mostra CTAs de auth no Header e reserva slot do CTA", () => {
     renderHeader({ logged: false, path: "/admin" });
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    const spacer = document.querySelector(".nav-actions__spacer");
+    expect(spacer).toBeTruthy();
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toHaveClass("primary", "small", "hide-mobile");
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();

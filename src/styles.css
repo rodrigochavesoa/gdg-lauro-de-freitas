@@ -169,6 +169,8 @@ nav a.active{color:var(--color-text);border-bottom-color:var(--color-action-prim
 .brand .brand-name .brand-accent{color:var(--color-brand-accent)}
 header nav a{white-space:nowrap}
 .nav-actions a.ghost,.nav-actions a.primary{text-decoration:none;border-bottom:none}
+/* UX-HEADER-01: keep .nav-actions width when anon CTA is hidden on /admin|/login */
+.nav-actions__spacer{visibility:hidden;pointer-events:none;user-select:none}
 a.ghost,a.primary,a.outline,a.white-button{text-decoration:none}
 .theme-toggle{display:inline-flex;align-items:center;gap:2px;padding:2px;border:1px solid var(--color-border);border-radius:var(--radius-md);background:var(--color-surface)}
 .theme-toggle-btn{width:32px;height:32px;padding:0;border-radius:var(--radius-sm);background:transparent;color:var(--color-text-muted);display:grid;place-items:center}
