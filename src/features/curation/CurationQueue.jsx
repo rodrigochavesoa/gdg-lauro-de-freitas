@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, ListChecks } from "lucide-react";
 import {
   loadCurationQueue,
@@ -39,22 +39,16 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(() => !cached);
 
-  const applyPayload = (data) => {
+  const applyPayload = useCallback((data) => {
     setQueue(data.queue);
     setRejected(includeRejected ? data.rejected : []);
     setReviews(data.reviews);
-  };
+  }, [includeRejected]);
 
   useEffect(() => {
     let cancelled = false;
     const hadCache = Boolean(peekCurationQueueCache({ includeRejected }));
     if (!hadCache) setLoading(true);
-
-    const apply = (data) => {
-      setQueue(data.queue);
-      setRejected(includeRejected ? data.rejected : []);
-      setReviews(data.reviews);
-    };
 
     const refresh = async ({ background = false } = {}) => {
       const data = await loadCurationQueue({
@@ -62,7 +56,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         forceRefresh: background,
       });
       if (cancelled) return;
-      apply(data);
+      applyPayload(data);
     };
 
     refresh({ background: hadCache })
@@ -81,7 +75,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
       cancelled = true;
       unsubscribe();
     };
-  }, [includeRejected]);
+  }, [includeRejected, applyPayload]);
 
   const selected = queue.find((job) => job.id === selectedId) ?? queue[0] ?? null;
   const selectedReviews = useMemo(() => {
