@@ -60,6 +60,37 @@ describe("Admin", () => {
     expect(within(tabs).queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
   });
 
+  it("mostra tabs do admin sem esperar o CRUD de vagas", async () => {
+    let resolveJobs;
+    loadAdminJobs.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveJobs = resolve;
+        }),
+    );
+    loadCurationProfile.mockResolvedValue({
+      id: "a1",
+      role: "admin",
+      full_name: "Ada Admin",
+      email: "ada@example.invalid",
+    });
+    render(<Admin session={{ user: { id: "a1" } }} authReady />);
+    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    expect(screen.getByText("Carregando área administrativa…")).toBeInTheDocument();
+    expect(screen.queryByText("Pessoa Estagiária (rascunho)")).not.toBeInTheDocument();
+    resolveJobs([
+      {
+        id: "j2",
+        title: "Pessoa Estagiária (rascunho)",
+        status: "pending",
+        companies: { name: "Nuvem Lauro Demo" },
+      },
+    ]);
+    expect(await screen.findByRole("button", { name: /Pessoa Estagiária \(rascunho\)/ })).toBeInTheDocument();
+  });
+
   it("admin troca Curadoria e Publicar vaga pelas tabs", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",

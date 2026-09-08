@@ -54,7 +54,7 @@ export async function signOutCuration() {
   }
 }
 
-export async function loadCurationQueue() {
+export async function loadCurationQueue({ includeRejected = false } = {}) {
   const client = clientOrThrow();
   const pending = await client
     .from("jobs")
@@ -62,25 +62,35 @@ export async function loadCurationQueue() {
     .eq("status", "pending");
   throwIfError(pending.error);
 
-  const moderation = await client.from("jobs_needing_moderation").select("id");
+  const pendingRows = pending.data ?? [];
+  const pendingIds = pendingRows.map((row) => row.id);
+  const reviewsQuery = pendingIds.length
+    ? client
+        .from("job_curation_reviews")
+        .select("job_id,curation_round,reviewer_id,decision,rubric_code,created_at")
+        .in("job_id", pendingIds)
+        .order("created_at", { ascending: true })
+    : Promise.resolve({ data: [], error: null });
+  const rejectedQuery = includeRejected
+    ? client
+        .from("jobs")
+        .select(JOB_FIELDS)
+        .eq("status", "rejected")
+        .order("rejected_at", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
+
+  const [moderation, reviews, rejected] = await Promise.all([
+    client.from("jobs_needing_moderation").select("id"),
+    reviewsQuery,
+    rejectedQuery,
+  ]);
   throwIfError(moderation.error);
-
-  const reviews = await client
-    .from("job_curation_reviews")
-    .select("job_id,curation_round,reviewer_id,decision,rubric_code,created_at")
-    .order("created_at", { ascending: true });
   throwIfError(reviews.error);
-
-  const rejected = await client
-    .from("jobs")
-    .select(JOB_FIELDS)
-    .eq("status", "rejected")
-    .order("rejected_at", { ascending: false });
   throwIfError(rejected.error);
 
   const moderationIds = (moderation.data ?? []).map((row) => row.id);
   return {
-    queue: mergeCurationQueue(pending.data ?? [], moderationIds),
+    queue: mergeCurationQueue(pendingRows, moderationIds),
     rejected: rejected.data ?? [],
     reviews: reviews.data ?? [],
   };
