@@ -650,6 +650,7 @@ Template versionado: [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUES
 | ID | Escopo | Prioridade |
 |---|---|---|
 | PERF-CAT-02 | Cold load home &lt;900 ms (índice Postgres / cold Supabase) | P2 |
+| UX-PERF-02 | Baseline `/jobs/:id` — **medido 2026-09-08** ([`ux-perf-02-job-detail-load.md`](ux-perf-02-job-detail-load.md)); sem regressão UX-JOBS-01; follow-up opcional: paint otimista via cache catálogo | P2 |
 | UX-HOME-02 | Botão hero “Buscar vagas” (`onClick` vazio — decorativo) | P3 |
 | DRY-STAFF | `STAFF_ROLES` compartilhado (`Admin.jsx` + `Header.jsx`) | P3 |
 | Polish | Chip neutro de status em `/minhas-candidaturas` | P3 |

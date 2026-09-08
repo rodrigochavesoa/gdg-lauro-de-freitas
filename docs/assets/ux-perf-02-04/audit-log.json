@@ -1,0 +1,86 @@
+{
+  "baseUrl": "http://localhost:5173",
+  "jobId": "b2b2b2b2-0001-4000-8000-000000000001",
+  "checks": [
+    {
+      "id": "from-home-click",
+      "flashCarregandoVaga": false,
+      "h1": "Pessoa Desenvolvedora Front-end",
+      "company": "Nuvem Lauro Demo",
+      "partialBlocksAtNav": 3,
+      "ariaBusy": "true",
+      "descriptionAfter": "Buscamos uma pessoa apaixonada por experiências digitais para criar produtos que",
+      "applyCta": 1,
+      "back": 1,
+      "chrome": {
+        "bg": "rgb(248, 250, 252)",
+        "image": "radial-gradient(rgb(219, 234, 254) 1px, rgba(0, 0, 0, 0) 1px)"
+      }
+    },
+    {
+      "id": "cold-goto",
+      "sawSkeleton": true,
+      "flashCarregandoVaga": false,
+      "skeletonSr": 1,
+      "skeletonCopy": 1,
+      "ariaBusyEarly": "true",
+      "h1": "Pessoa Desenvolvedora Front-end",
+      "description": "Buscamos uma pessoa apaixonada por experiências digitais para criar produtos que"
+    },
+    {
+      "id": "login-to-home-light",
+      "skeletons": [],
+      "homeAnimatedCount": 0,
+      "cards": 4
+    },
+    {
+      "id": "home-dark",
+      "dataTheme": "dark"
+    },
+    {
+      "id": "second-visit-warm",
+      "homeCardSkeletons": 0,
+      "skeletons": []
+    },
+    {
+      "id": "apply-cta-anon",
+      "applyVisible": true,
+      "landed": "http://localhost:5173/login"
+    }
+  ],
+  "consoleErrors": [],
+  "rest": [
+    {
+      "kind": "list",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Ccompanies%28name%29&status=eq."
+    },
+    {
+      "kind": "heavy",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Cdescription%2Crequirements%2Ccompanies%28description%29&status=eq.approved&id=eq.b2b2b2b2-0001-4000-8000-000000000"
+    },
+    {
+      "kind": "full",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cdescription%2Crequirements%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Cc"
+    },
+    {
+      "kind": "list",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Ccompanies%28name%29&status=eq."
+    },
+    {
+      "kind": "list",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Ccompanies%28name%29&status=eq."
+    },
+    {
+      "kind": "list",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Ccompanies%28name%29&status=eq."
+    },
+    {
+      "kind": "list",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Ctitle%2Cstack%2Clevel%2Cwork_model%2Clocation%2Cstatus%2Capproved_at%2Ccreated_at%2Ccompanies%28name%29&status=eq."
+    },
+    {
+      "kind": "heavy",
+      "url": "https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id%2Cdescription%2Crequirements%2Ccompanies%28description%29&status=eq.approved&id=eq.b2b2b2b2-0001-4000-8000-000000000"
+    }
+  ]
+}

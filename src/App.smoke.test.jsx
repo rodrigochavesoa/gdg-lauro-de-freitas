@@ -42,8 +42,8 @@ vi.mock("./features/jobs/apply-api.js", async () => {
   };
 });
 
-vi.mock("./features/catalog/jobs-api.js", () => ({
-  loadApprovedJobs: async () => [
+vi.mock("./features/catalog/jobs-api.js", () => {
+  const catalogJobs = [
     {
       id: "1",
       title: "Pessoa Desenvolvedora Front-end",
@@ -116,26 +116,30 @@ vi.mock("./features/catalog/jobs-api.js", () => ({
       about: "Empresa fictícia",
       responsibilities: ["Pipelines"],
     },
-  ],
-  peekApprovedJobsCache: () => null,
-  loadApprovedJob: async (id) => ({
-    id,
-    title: "Pessoa Desenvolvedora Front-end",
-    company: "Nuvem Lauro Demo",
-    logo: "NL",
-    color: "#4285f4",
-    level: "Pleno",
-    place: "Brasil · Remoto",
-    type: "Remoto",
-    posted: "há 2 dias",
-    stack: ["React", "TypeScript", "Next.js"],
-    salary: "A combinar",
-    featured: false,
-    description: "Fictícia",
-    about: "Empresa fictícia",
-    responsibilities: ["Construir interfaces"],
-  }),
-}));
+  ];
+  return {
+    findApprovedJobInCache: (id) => catalogJobs.find((job) => String(job.id) === String(id)) ?? null,
+    peekApprovedJobsCache: () => catalogJobs,
+    loadApprovedJobs: async () => catalogJobs,
+    loadApprovedJob: async (id) => ({
+      id,
+      title: "Pessoa Desenvolvedora Front-end",
+      company: "Nuvem Lauro Demo",
+      logo: "NL",
+      color: "#4285f4",
+      level: "Pleno",
+      place: "Brasil · Remoto",
+      type: "Remoto",
+      posted: "há 2 dias",
+      stack: ["React", "TypeScript", "Next.js"],
+      salary: "A combinar",
+      featured: false,
+      description: "Fictícia",
+      about: "Empresa fictícia",
+      responsibilities: ["Construir interfaces"],
+    }),
+  };
+});
 
 import { App } from "./App.jsx";
 import { THEME_STORAGE_KEY } from "./shared/ui/theme.js";
@@ -187,8 +191,8 @@ describe("ARQ-01 — caracterização do shell", () => {
   it("abre o detalhe da vaga a partir do catálogo", async () => {
     await renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Ver vaga Pessoa Desenvolvedora Front-end" }));
-    expect(await screen.findByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
   });
 

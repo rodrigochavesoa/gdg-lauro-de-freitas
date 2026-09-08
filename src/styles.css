@@ -290,6 +290,17 @@ body:has(.login-page) footer,body:has(.admin-page) footer,body:has(.detail-page)
 /* UX-PERF-05 — home cold load: static placeholders while scrolling (no infinite shimmer) */
 .job-card--skeleton-static{animation:none;background:var(--color-grey-100)}
 @media(prefers-reduced-motion:reduce){.job-card--skeleton-static{animation:none}}
+.detail-skeleton-copy{display:grid;gap:10px;flex:1;min-width:0}
+.detail-skeleton-block{display:grid;gap:10px;margin-top:4px}
+.detail-skeleton-line{display:block;height:12px;width:100%;border-radius:var(--radius-sm);border:0;min-height:12px}
+.detail-skeleton-line--title{height:28px;width:min(420px,90%)}
+.detail-skeleton-line--meta{height:14px;width:min(240px,60%)}
+.detail-skeleton-line--chip{height:18px;width:110px;border-radius:var(--radius-pill)}
+.detail-skeleton-line--heading{height:18px;width:min(220px,50%);margin-bottom:6px}
+.detail-skeleton-line--short{width:62%}
+.detail-skeleton-line--cta{height:44px;margin-top:8px;border-radius:var(--radius-md)}
+.detail-skeleton-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.detail-main .company-logo.large.job-card--skeleton{border-style:dashed}
 button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-allowed;opacity:1;background:var(--color-surface)}
 
 /* F-012 / UX-JOBS-01 — dotted field like hero/login-panel; tokens flip in dark (DS-02). */
