@@ -32,9 +32,11 @@ const JOB_LIST_SELECT = `
 export const CATALOG_CACHE_TTL_MS = 30_000;
 
 let approvedJobsCache = { jobs: null, fetchedAt: 0 };
+let approvedJobsInflight = null;
 
 export function invalidateApprovedJobsCache() {
   approvedJobsCache = { jobs: null, fetchedAt: 0 };
+  approvedJobsInflight = null;
 }
 
 export function peekApprovedJobsCache() {
@@ -47,6 +49,7 @@ export async function loadApprovedJobs({ forceRefresh = false } = {}) {
   if (!forceRefresh) {
     const cached = peekApprovedJobsCache();
     if (cached) return cached;
+    if (approvedJobsInflight) return approvedJobsInflight;
   }
 
   const client = getSupabaseBrowserClient();
@@ -54,19 +57,28 @@ export async function loadApprovedJobs({ forceRefresh = false } = {}) {
     throw new Error("VITE_SUPABASE_URL e chave publishable/anon não configuradas.");
   }
 
-  const { data, error } = await client
-    .from("jobs")
-    .select(JOB_LIST_SELECT)
-    .eq("status", "approved")
-    .order("approved_at", { ascending: false });
+  const request = (async () => {
+    const { data, error } = await client
+      .from("jobs")
+      .select(JOB_LIST_SELECT)
+      .eq("status", "approved")
+      .order("approved_at", { ascending: false });
 
-  if (error) {
-    throw error;
+    if (error) {
+      throw error;
+    }
+
+    const jobs = (data ?? []).map(mapJob);
+    approvedJobsCache = { jobs, fetchedAt: Date.now() };
+    return jobs;
+  })();
+
+  approvedJobsInflight = request;
+  try {
+    return await request;
+  } finally {
+    if (approvedJobsInflight === request) approvedJobsInflight = null;
   }
-
-  const jobs = (data ?? []).map(mapJob);
-  approvedJobsCache = { jobs, fetchedAt: Date.now() };
-  return jobs;
 }
 
 export async function loadApprovedJob(id) {

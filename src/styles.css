@@ -287,6 +287,9 @@ body:has(.login-page) footer,body:has(.admin-page) footer,body:has(.detail-page)
 .job-card--skeleton{min-height:92px;background:linear-gradient(90deg,var(--color-grey-100) 0%,var(--color-grey-50) 50%,var(--color-grey-100) 100%);background-size:200% 100%;animation:job-card-skeleton 1.2s ease-in-out infinite;pointer-events:none;border-style:dashed}
 @keyframes job-card-skeleton{0%{background-position:100% 0}100%{background-position:-100% 0}}
 @media(prefers-reduced-motion:reduce){.job-card--skeleton{animation:none}}
+/* UX-PERF-05 — home cold load: static placeholders while scrolling (no infinite shimmer) */
+.job-card--skeleton-static{animation:none;background:var(--color-grey-100)}
+@media(prefers-reduced-motion:reduce){.job-card--skeleton-static{animation:none}}
 button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-allowed;opacity:1;background:var(--color-surface)}
 
 /* F-012 / UX-JOBS-01 — dotted field like hero/login-panel; tokens flip in dark (DS-02). */

@@ -96,4 +96,42 @@ describe("loadApprovedJobs", () => {
     await loadApprovedJobs({ forceRefresh: true });
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
+
+  it("deduplica fetches concorrentes enquanto o primeiro está em voo", async () => {
+    let resolveOrder;
+    const order = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveOrder = () =>
+            resolve({
+              data: [
+                {
+                  id: "1",
+                  title: "Pessoa Desenvolvedora Front-end",
+                  stack: ["React"],
+                  level: "mid",
+                  work_model: "remote",
+                  location: "Brasil",
+                  status: "approved",
+                  approved_at: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                  companies: { name: "Nuvem Lauro Demo" },
+                },
+              ],
+              error: null,
+            });
+        }),
+    );
+    const eq = vi.fn().mockReturnValue({ order });
+    const select = vi.fn().mockReturnValue({ eq });
+    fromMock.mockReturnValue({ select });
+
+    const first = loadApprovedJobs();
+    const second = loadApprovedJobs();
+    expect(fromMock).toHaveBeenCalledTimes(1);
+    resolveOrder();
+    const [a, b] = await Promise.all([first, second]);
+    expect(a).toBe(b);
+    expect(a).toHaveLength(1);
+  });
 });
