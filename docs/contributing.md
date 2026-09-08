@@ -76,7 +76,8 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 **Dependências humanas:**
 - ...
 **Referências obrigatórias:**
-- ... (UI Executor: `docs/design-system-communication.md` — **DS-06** + `docs/design-system/section-curves.md` — **DS-07**; perfil Visual QA: [`AGENTS.md`](../AGENTS.md) + rule `frontend-visual-qa.mdc`)
+- ... (UI Executor: `docs/design-system-communication.md` — **DS-06** + `docs/design-system/section-curves.md` — **DS-07**)
+- ... (Visual QA: [`AGENTS.md`](../AGENTS.md) + [`docs/setup-visual-qa-tools.md`](setup-visual-qa-tools.md) + rule `frontend-visual-qa.mdc`)
 ```
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs/project-backlog-scrum.md`), não espalhados no chat.

@@ -3,10 +3,10 @@
  * Sem networkidle: o relógio começa no clique e os marcos são visibility.
  *
  * Uso local (não entra no CI):
- *   pnpm add -D playwright
+ *   pnpm install
  *   pnpm exec playwright install chromium
- *   pnpm exec vite --host 127.0.0.1 --port 5173   # outro terminal
- *   node scripts/measure-admin-nav.mjs
+ *   pnpm dev   # terminal 1
+ *   pnpm qa:admin-nav
  *
  * Lê docs-local/admin-test-user.md ou ADMIN_EMAIL / ADMIN_PASSWORD.
  * BASE_URL default: http://127.0.0.1:5173

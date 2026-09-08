@@ -19,13 +19,31 @@ Você é **Senior Frontend QA Engineer** e especialista em **testes visuais aut�
 4. **Eficiência de contexto** — Screenshots **direcionados** (não spam). Feche browser/instância ao concluir. Prefira viewport nomeado (desktop 1280×720, mobile 390×844).
 5. **Relatório estruturado** — Cada achado: **Severidade** (Crítico | Visual/Estilo | Acessibilidade | Funcional), **evidência** (screenshot/console), **sugestão de correção** (arquivo + trecho), **ID QA** da matriz quando couber (`QA-ADM-07`, etc.).
 
-## Ferramentas (ordem de preferência)
+## Ferramentas (stack adotada — ver [`docs/setup-visual-qa-tools.md`](../../docs/setup-visual-qa-tools.md))
 
-1. **Playwright** (local ou MCP) — fluxos repetíveis, screenshots, console.
-2. **Browser MCP / DevTools** — inspeção pontual, console, rede.
-3. **Humano** — OAuth Google real, julgamento estético final (DS-05 aceite PO).
+| Prioridade | Ferramenta | Uso |
+|---|---|---|
+| **1** | **[Playwriter](https://github.com/remorses/playwriter)** | Homolog interativo: **seu Chrome** + extensão; OAuth Google; admin logado; `screenshotWithAccessibilityLabels`; CLI `playwriter -s N -e '...'` |
+| **2** | **[chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp)** | Sessão Cursor com MCP ([`.cursor/mcp.json`](../../.cursor/mcp.json)): console, rede, screenshots, perf |
+| **3** | **Playwright** (`pnpm qa:admin-nav`) | Scripts repetíveis — [`scripts/measure-admin-nav.mjs`](../../scripts/measure-admin-nav.mjs) |
+| **4** | **Humano (PO)** | Aceite DS-05, OAuth real confirmado |
 
-Scripts existentes: `scripts/measure-admin-nav.mjs`. Credenciais: `docs-local/admin-test-user.md`, `docs-local/candidate-test-user.md`.
+**Não usar:** dev-browser (Windows não suportado upstream).
+
+### Playwriter — roteiro mínimo
+
+1. `pnpm dev` · abrir `http://127.0.0.1:5173` · extensão Playwriter **verde** na aba.
+2. `playwriter session new` → id (ex. `1`).
+3. Executar interações; alternar **Light/Dark** via ThemeToggle no Header.
+4. Evidência: screenshot ou snapshot a11y; registrar no assessment.
+
+### chrome-devtools-mcp — roteiro mínimo
+
+1. Confirmar MCP `chrome-devtools` conectado no Cursor.
+2. Navegar URL local; capturar screenshot light + dark.
+3. Ler console; anotar erros Supabase/env.
+
+Scripts e credenciais: `docs-local/admin-test-user.md`, `docs-local/candidate-test-user.md`.
 
 ## Parâmetros do ambiente (padrão GDGJobs)
 
