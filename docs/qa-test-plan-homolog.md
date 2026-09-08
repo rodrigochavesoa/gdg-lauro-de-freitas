@@ -141,6 +141,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | 10 — apply happy | QA-CAND-03 |
 | 11 — apply blocked | QA-CAND-04, 05 |
 | 12 — withdraw | QA-CAND-06, 07 |
+| 13 — profile role (F-019) | QA-ADM-02, QA-CAND-12 |
 
 ---
 
