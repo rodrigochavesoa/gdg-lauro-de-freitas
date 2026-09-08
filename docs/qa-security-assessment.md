@@ -1,9 +1,9 @@
 # QA-SEC-01 — Assessment de homologação
 
-**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · QA-SEC-01d revisão estática concluída · **F-019 fechado (#51)**  
-**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://localhost:5173` · **`main` @ `bb3af9b`** (#51–#57)  
+**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · QA-SEC-01d revisão estática + **pentest exploratório concluído** · **F-019 fechado (#51)**  
+**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://localhost:5173` · **`main` @ `1064b03`** (#51–#60)  
 **Setup:** SETUP-HOMOLOG-01 **ok** — 6 papéis; `docs-local/` + baseline automatizado verde.  
-**Ferramentas:** Playwriter 0.5.0 (01a) · Codex CLI + revisão Plan (01d) · `pnpm test:rls` **1–13** (2026-09-08).
+**Ferramentas:** Playwriter 0.5.0 (01a) · Codex CLI pentest + revisão Plan (01d) · `pnpm test:rls` **1–13** (2026-09-08).
 
 ## Resumo executivo
 
@@ -15,8 +15,9 @@
 | Falhou | 0 |
 | Bloqueado (env/credencial) | 0 |
 | Findings abertos (Critical/High) | 1 (F-020 High) |
-| Findings Medium abertos | 1 (F-021) |
-| Findings resolvidos recentes | F-019 (#51) · F-018 (#49) · UX perf/header (#52–#57) |
+| Findings Medium abertos | 1 (F-021 inconclusivo) |
+| Findings Low/Info abertos | 2 (F-023, F-024) |
+| Findings resolvidos recentes | F-019 (#51) · F-018 (#49) · UX perf/header (#52–#57) · PERF-ADM-05 (#59–#60) |
 | Findings UX resolvidos (#37–#45) | F-015, F-016, F-017 |
 
 ## Baseline automatizado
@@ -24,9 +25,51 @@
 | Comando | Resultado | Log / notas |
 |---|---|---|
 | `pnpm lint` | **pass** | `eslint .` — exit 0 |
-| `pnpm test` | **pass** (88/88) | Vitest 3.2.4; `Test Files  17 passed (17)`; exit 0 |
+| `pnpm test` | **pass** (93/93) | Vitest 3.2.4; `Test Files  17 passed (17)`; exit 0 |
 | `pnpm run build` | **pass** | Vite 8.2.1; exit 0 |
 | `pnpm test:rls` | **pass** | Cenários **1–13** · **0** FALHA (2026-09-08) — F-019 coberto no cenário 13 |
+
+## QA-SEC-01d — Pentest exploratório de homologação (2026-09-08)
+
+**Agente:** Codex CLI (pentest) + revisão Plan · **Escopo:** homologação Supabase, usuários de teste em `docs-local/`, sem produção e sem persistência de payloads ofensivos. Não houve alteração de código de produto.
+
+### Resultados
+
+| Área | Resultado | Evidência |
+|---|---|---|
+| QA-SEC-01/02 — segredos | **Pass** | Nenhum `.env` versionado, JWT ou `service_role` no frontend. `dist` contém somente a publishable key esperada. |
+| QA-SEC-03 / QA-ANON-* | **Pass** | Anon recebeu 0 linhas em `profiles`, `applications` e `jobs.pending`; RPC de curadoria rejeitada. |
+| QA-CAND-11/12 | **Pass** | Candidato não leu perfil/aplicações de outro usuário. INSERT direto de job, review e application rejeitado. PATCH de `profiles.role` rejeitado. |
+| IDOR `/jobs/:id` | **Pass** | UUID pending e inexistente retornaram zero linhas; vaga approved retornou uma linha pública. Sem isolamento por tenant no modelo atual. |
+| D-09 / apply | **Pass** | Duplicidade, withdraw/reapply, reviewing e accepted passaram nos cenários 10–12. |
+| QA-SEC-04 — XSS | **Pass (estático)** | Payloads ofensivos não persistidos. Sem `dangerouslySetInnerHTML`/`innerHTML` em `src/`; campos renderizados como texto React. |
+| QA-SEC-05 — OAuth | **Inconclusivo / F-021** | `/auth/v1/authorize` respondeu 302 para localhost e para origem externa inválida; ambos apontaram para callback fixo Supabase. Callback OAuth completo não executado. |
+| QA-SEC-06 — abuse | **F-023** | Cinco chamadas `apply_to_job` → 1 sucesso + 4 `already applied`; nenhum 429 ou rate limit observado. |
+
+### Findings do pentest
+
+| ID | Sev | QA ref | Vetor | Impacto | Mitigação |
+|---|---|---|---|---|---|
+| F-023 | Low/Info | QA-SEC-06 | Spam de apply autenticado | UNIQUE evita duplicatas; sem throttling gera carga repetida | Rate limit por usuário/IP no gateway ou Edge Function |
+| F-024 | Low | QA-SEC-03 | Lacuna no teste de elevação de role | Migration F-019 correta; cenário 13 não comprovou primeiro INSERT de conta nova | E-mail homolog válido + cleanup admin no `test:rls` 13 |
+
+**F-019** permanece **fechado** (#51): migration `20260908150000_profile_insert_role_candidate.sql` exige `role = 'candidate'` no INSERT. Validação dinâmica de conta nova ficou bloqueada pelo fixture `rls-f019-<timestamp>@invalid.test` (rejeitado pelo Auth) — repetir com domínio válido.
+
+**F-021** permanece **aberto/inconclusivo**: preflight OAuth aceitou origem externa com 302, mas sem callback completo para confirmar open redirect. Exigir Playwriter/humano com callback e allowlist exata antes de preview/produção.
+
+**F-020** (`match-jobs` → Gemini sem gate LGPD) **fora do escopo** deste pentest; permanece aberto.
+
+### Log de comandos/probes
+
+- `git status --short --branch`
+- `git grep`/`rg` — padrões `.env`, JWT, `service_role`, `sb_secret_` em arquivos versionados/`src`/`dist`
+- `pnpm test:rls` — cenários 1–13; 0 falhas, 1 aviso de signup inválido (F-024)
+- Probe Supabase — isolamento RLS, writes diretos, IDOR e apply repetido
+- Probe `auth/v1/authorize` — localhost vs origem externa inválida
+
+Nenhum valor de chave, JWT, senha ou dado pessoal foi registrado.
+
+---
 
 ## QA-SEC-01d — Revisão estática (2026-09-08)
 
@@ -46,7 +89,7 @@
 |---|---|---|---|
 | F-019 | Critical | **Resolvido #51** | Migration `20260908150000_profile_insert_role_candidate.sql` + cenário 13 |
 | F-020 | High | Aberto | `match-jobs` → Gemini sem gate C-04 — Sprint 7+ |
-| F-021 | Medium | Aberto | OAuth `redirectTo` depende de allowlist Supabase |
+| F-021 | Medium | **Inconclusivo** | Preflight OAuth 302; callback completo pendente (pentest 01d) |
 
 ### Recomendação Plan (01d — atualizada)
 
@@ -80,20 +123,6 @@ Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/) — ver PR #48.
 | UX-PERF-05 | **Pass** (preservado no stack) | [`ux-perf-05-home-scroll.md`](ux-perf-05-home-scroll.md) · PR #54 |
 | UX-HEADER-01 | **Pass** (código #52 + assets #57) | [`docs/assets/ux-header-01/`](assets/ux-header-01/) |
 
-### PERF-ADM-05 / QA-ADM-07..09 (2026-09-08 noite)
-
-Homolog browser em `fix/perf-adm-05-curation-queue-remount` @ `1f92047` — Playwright 1280×720 + 390×844; ThemeToggle Claro/Escuro.
-
-| ID | Resultado | Evidência |
-|---|---|---|
-| QA-ADM-07 (remount P0) | **Pass** | Fila imediata; gate `"Carregando fila de curadoria…"` **0 hits** no remount &lt;30 s (cold miss ainda mostra gate) |
-| QA-ADM-08 | **Pass** | Curadoria ↔ Publicar vaga sem gate; fila permanece |
-| QA-ADM-09 | **Pass** | Mobile 390×844; abas **44 px** |
-| PERF-ADM-03 | **Pass** | Tabs no 1º paint; spinner admin **0/5** |
-| T3-curation | **Pass** | mediana **463 ms** · gate **0/5** (before 963 ms / 5/5) |
-
-Relatório: [`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md) · assets [`docs/assets/perf-adm-05/`](assets/perf-adm-05/). Console: 0 erros no path. **Aceite PO** ainda pendente.
-
 ---
 
 ## Findings — resolvidos
@@ -111,7 +140,9 @@ Relatório: [`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md) · assets [`d
 | ID | QA ref | Severidade | Título | Descrição | Reprodução | Correção sugerida | Owner | Sprint/PR |
 |---|---|---|---|---|---|---|---|---|
 | F-020 | QA-SEC-07 | **High** | `match-jobs` → Gemini sem gate LGPD | Perfil candidato enviado a embedding | Chamar Edge Function autenticado | Desligado até C-04; consentimento | Plan | Sprint 7+ |
-| F-021 | QA-SEC-05 | **Medium** | OAuth redirect depende de allowlist | `window.location.origin` dinâmico | Preview/prod com allowlist ampla | Allowlist estrita por ambiente | Humano + Executor | config |
+| F-021 | QA-SEC-05 | **Medium** | OAuth redirect depende de allowlist | Preflight 302 aceita origem externa; callback completo não testado | Preview/prod com allowlist ampla | Allowlist estrita + teste Playwriter callback | Humano + Executor | config |
+| F-023 | QA-SEC-06 | **Low/Info** | Apply sem rate limit | 5× `apply_to_job` sem 429 | Repetir RPC na mesma vaga | Throttle gateway/Edge Function | Plan | P2 backlog |
+| F-024 | QA-SEC-03 | **Low** | Lacuna teste F-019 conta nova | Cenário 13 skip por `@invalid.test` | `pnpm test:rls` cenário 13 | E-mail homolog válido + cleanup | Executor | chore |
 
 **Severidade:** Critical · High · Medium · Low · Info
 
@@ -127,7 +158,8 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 | QA-SEC-02 | **Pass (01a + 01d)** | Sem `service_role` no frontend |
 | QA-SEC-03 | **Pass** | RPC apply/withdraw ok; F-019 fechado (#51) |
 | QA-SEC-04 | **Pass (01d spot)** | XSS React text nodes — sem innerHTML |
-| QA-SEC-05 | **Pass homolog / Medium F-021** | Allowlist `localhost:5173` documentada; preview futuro = auditar |
+| QA-SEC-05 | **Inconclusivo / F-021** | Preflight 302 localhost e origem externa; callback completo pendente |
+| QA-SEC-06 | **F-023 (P2)** | 5× apply sem 429; UNIQUE bloqueia dup |
 | QA-SEC-07 | **Pass (doc gate)** | Produção bloqueada — LGPD + F-020 |
 
 *(Demais linhas anon/candidato/admin — ver PR #48 / seção 01a; mantidas Pass.)*
@@ -137,20 +169,22 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 | Finding | Item backlog / PR | Prioridade |
 |---|---|---|
 | F-020 | C-04 + gate `match-jobs` | High — Sprint 7+ |
-| F-021 | Auditar allowlist OAuth preview/prod | Medium |
+| F-021 | Auditar allowlist OAuth preview/prod + callback Playwriter | Medium |
+| F-023 | Rate limit `apply_to_job` (QA-SEC-06) | P2 |
+| F-024 | Corrigir fixture e-mail cenário 13 `test:rls` | Low — chore |
 | PERF-CAT-02 | Cold load home &lt;900 ms | P2 opcional |
 
 ## Próximo passo
 
 1. **Humano / PO — C-05:** Resend + domínio + API key em `docs-local/` → avisar Plan.
 2. **Plan:** ONE-LINER **Sprint 7** (Resend) após C-05.
-3. **Humano / PO:** aceite DS-05 formal + **QA-ADM-07..09** (Visual QA **Pass** — [`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md); falta aceite PO).
+3. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
 4. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
 
 ## Aprovação
 
 | Papel | Nome | Data | Homologação OK para próximo sprint? |
 |---|---|---|---|
-| Frontend Visual QA | QA-SEC-01a + UX-PERF-02–04 + PERF-ADM-05 | 2026-09-08 | ☑ Sim (#48, #55; ADM-07..09 Pass — aceite PO) |
-| Plan TL | F-019 #51 + handoff #49–#57 | 2026-09-08 | ☑ Sim homolog · ☐ Não prod (LGPD) |
+| Frontend Visual QA | QA-SEC-01a + UX-PERF-02–04 | 2026-09-08 | ☑ Sim (#48, #55) |
+| Plan TL | F-019 #51 + pentest 01d + handoff #49–#60 | 2026-09-08 | ☑ Sim homolog · ☐ Não prod (LGPD) |
 | PO | | | |
