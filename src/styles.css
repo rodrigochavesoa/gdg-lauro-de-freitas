@@ -274,6 +274,7 @@ body:has(.login-page) footer,body:has(.admin-page) footer{border-top:none}
   .home-divider + .jobs-layout{padding-top:36px}
   .login-panel__curve--right{width:48px}
   .login-panel__curve--bottom{height:72px}
+  .admin-page{padding-bottom:72px}
 }
 .job-card a{color:inherit;text-decoration:none}
 .sort-wrap{position:relative}
@@ -287,6 +288,8 @@ button.outline.apply-checking:disabled{color:var(--color-text-muted);cursor:not-
 
 /* F-012 — dotted field like hero/login-panel; tokens flip in dark (DS-02). */
 .admin-page{
+  position:relative;
+  padding-bottom:88px;
   background-color:var(--color-surface-subtle);
   background-image:radial-gradient(var(--color-primary-100) 1px,transparent 1px);
   background-size:16px 16px;
