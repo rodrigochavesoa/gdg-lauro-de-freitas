@@ -226,7 +226,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               <div>
                 <span className="eyebrow">Área da comunidade</span>
                 <h1>Entrar para curadoria ou admin</h1>
-                <p>Use o e-mail e a senha da conta de teste (curador, moderador ou admin). Google OAuth fica para o Sprint 5.</p>
+                <p>Candidatos entram com Google na tela de Login. Staff (curador, moderador ou admin) usa e-mail e senha da conta de teste abaixo.</p>
               </div>
             </div>
             <form className="admin-auth-form" onSubmit={onLogin}>
