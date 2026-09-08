@@ -685,6 +685,63 @@ async function scenario12_withdraw() {
   await admin.auth.signOut();
 }
 
+/** Cenário 13 — F-019: candidato não eleva role (UPDATE grant + INSERT policy). */
+async function scenario13_profileRoleEscalation() {
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(13, "falta candidate em docs-local");
+    return;
+  }
+  const { client, user, error } = await signIn(testUsers.candidate);
+  assert(!error && user?.id, `candidato autentica (${error?.message ?? "ok"})`);
+  if (error || !user?.id) return;
+
+  const updateRole = await client
+    .from("profiles")
+    .update({ role: "admin" })
+    .eq("id", user.id)
+    .select("role");
+  assert(
+    Boolean(updateRole.error) || (updateRole.data ?? []).length === 0,
+    "candidato não atualiza role para admin",
+  );
+
+  const insertAdmin = await client
+    .from("profiles")
+    .insert({ id: user.id, full_name: "Escalation", role: "admin" })
+    .select("role");
+  assert(Boolean(insertAdmin.error), "insert com role admin bloqueado (policy ou duplicate)");
+
+  const probeEmail = `rls-f019-${Date.now()}@invalid.test`;
+  const probePass = `RlS-${Date.now()}-Aa1!`;
+  const signupClient = createClient(url, key);
+  const { data: signup, error: signupErr } = await signupClient.auth.signUp({
+    email: probeEmail,
+    password: probePass,
+  });
+  if (signupErr || !signup.user?.id) {
+    skip(`cenário 13 signup: ${signupErr?.message ?? "usuário não criado"}`);
+  } else {
+    const authed = createClient(url, key);
+    const { error: signErr } = await authed.auth.signInWithPassword({
+      email: probeEmail,
+      password: probePass,
+    });
+    if (signErr) {
+      skip(`cenário 13 signup: login falhou (${signErr.message})`);
+    } else {
+      const firstInsert = await authed
+        .from("profiles")
+        .insert({ id: signup.user.id, full_name: "Attacker", role: "admin" })
+        .select("role");
+      assert(Boolean(firstInsert.error), "primeiro insert com role admin bloqueado pela policy");
+      const readRole = await authed.from("profiles").select("role").eq("id", signup.user.id).maybeSingle();
+      assert(readRole.data?.role !== "admin", "role efetivo não é admin após tentativa");
+    }
+  }
+
+  await client.auth.signOut();
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -749,9 +806,14 @@ await scenario11_applyBlocked();
 console.log("\n=== Cenário 12: withdraw D-09 ===");
 await scenario12_withdraw();
 
+console.log("\n=== Cenário 13: profile role escalation (F-019) ===");
+await scenario13_profileRoleEscalation();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
-    const band = n >= 10 ? "S6-01 exige execução real de 10–12" : "S4-01 exige execução real de 3–9";
+    let band = "S4-01 exige execução real de 3–9";
+    if (n >= 10) band = "S6-01 exige execução real de 10–12";
+    if (n === 13) band = "F-019 exige execução real do cenário 13";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -762,5 +824,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1: ok (${skipped.length} aviso(s) opcionais; cenários 3–12 executados).`,
+  `\nRLS curadoria + apply V1 + F-019: ok (${skipped.length} aviso(s) opcionais; cenários 3–13 executados).`,
 );
