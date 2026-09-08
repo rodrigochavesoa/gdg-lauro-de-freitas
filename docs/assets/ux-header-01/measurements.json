@@ -1,0 +1,49 @@
+{
+  "id": "F-022",
+  "qaRef": "UX-HEADER-01",
+  "date": "2026-09-08",
+  "tool": "Playwriter 0.5.0 session 4 --browser headless",
+  "url": "http://localhost:5173",
+  "viewport": { "width": 1280, "height": 720 },
+  "session": "anon (fresh headless context, not logged in)",
+  "theme": "html[data-theme=light] forced; dark geometry sampled separately",
+  "note": "getBoundingClientRect() after click Vagas ↔ Área admin. Brand x is stable; nav recenters because .nav uses justify-content: space-between and .nav-actions shrinks when CTA unmounts.",
+  "home": {
+    "ctaVisible": true,
+    "ctaText": "Entrar ou criar conta",
+    "brand": { "x": 50, "y": 22.5, "width": 135.81 },
+    "vagas": { "x": 477.72 },
+    "adminLink": { "x": 552.91 },
+    "nav": { "x": 477.72, "width": 159.02 },
+    "actions": { "x": 928.63, "width": 301.38, "right": 1230 }
+  },
+  "admin": {
+    "ctaVisible": false,
+    "brand": { "x": 50, "y": 22.5, "width": 134.69 },
+    "vagas": { "x": 572.3 },
+    "adminLink": { "x": 648.39 },
+    "nav": { "x": 572.3, "width": 164.11 },
+    "actions": { "x": 1124, "width": 106, "right": 1230 }
+  },
+  "deltasHomeToAdmin": {
+    "brandDx": 0,
+    "navDx": 94.58,
+    "vagasDx": 94.58,
+    "adminLinkDx": 95.48,
+    "actionsDx": 195.37,
+    "actionsDw": -195.38
+  },
+  "deltasAdminToHomeSettled": {
+    "brandDx": 0,
+    "navDx": -98.57,
+    "vagasDx": -98.57,
+    "adminLinkDx": -98.56,
+    "actionsDx": -197.12,
+    "actionsDw": 197.13
+  },
+  "darkGeometry": {
+    "sameCtaToggle": true,
+    "navDxHomeToAdmin": 98.57,
+    "actionsDxHomeToAdmin": 197.12
+  }
+}
