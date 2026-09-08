@@ -46,6 +46,10 @@ describe("Admin", () => {
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Staff \(curador, moderador ou admin\) usa e-mail e senha da conta de teste abaixo/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Sprint 5/i)).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 

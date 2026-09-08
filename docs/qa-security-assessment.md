@@ -16,7 +16,7 @@
 | Falhou | 0 |
 | Bloqueado (env/credencial) | 0 |
 | Findings abertos (Critical/High) | 0 |
-| Findings Info novos | 1 (F-018 — copy admin login desatualizado) |
+| Findings Info novos | 0 (F-018 resolvido — copy admin login) |
 | Findings UX resolvidos (#37–#45) | 3 (F-015, F-016, F-017) |
 
 ## Baseline automatizado
@@ -38,7 +38,7 @@ Homolog visual P0 em `http://localhost:5173` (Vite na **5173**; IPv6 `localhost`
 
 | ID | Sev | QA ref | Evidência | Correção sugerida |
 |---|---|---|---|---|
-| F-018 | Info | QA-ADM-01 / copy | `/admin` login ainda diz *“Google OAuth fica para o Sprint 5”* enquanto candidato já autentica via Google em `/login` | Atualizar microcopy em `Admin.jsx` (login staff) — ONE-LINER polish |
+| F-018 | Info | QA-ADM-01 / copy | `/admin` login ainda diz *“Google OAuth fica para o Sprint 5”* enquanto candidato já autentica via Google em `/login` | Atualizar microcopy em `Admin.jsx` (login staff) — **resolvido** neste PR |
 
 ### Temas
 
@@ -54,7 +54,7 @@ Homolog visual P0 em `http://localhost:5173` (Vite na **5173**; IPv6 `localhost`
 ### Recomendação Plan
 
 - **APROVADO** homolog visual QA-SEC-01a (P0 amostrado).
-- Follow-up opcional: ONE-LINER polish **F-018** (copy admin). Sem bloqueio de merge visual.
+- **F-018** resolvido (microcopy staff em `/admin`). Sem bloqueio de merge visual.
 
 ### Evidências (15)
 
@@ -80,12 +80,11 @@ Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/).
 | F-015 | QA-ADM-07 | Medium | Nav admin assimétrica (sidebar vs tabs) | Desktop sidebar + mobile tabs duplicavam destinos | Tabs unificadas; sidebar removida | #37, #39 |
 | F-016 | QA-ADM-07 | Low | Card perfil duplicado na fila | `.admin-user` repetia info já no Header | Removido card/sidebar | #39 |
 | F-017 | QA-ADM-03 | Low | Lista vagas admin desorganizada | pending/approved misturados | Seções separadas; form acima | #40 |
+| F-018 | QA-ADM-01 | Info | Copy login admin desatualizado | Texto Sprint 5 no gate `/admin` com OAuth candidato já ativo | Microcopy: staff e-mail/senha; candidatos em Login | este PR |
 
 ## Findings — abertos
 
-| ID | QA ref | Severidade | Título | Descrição | Reprodução | Correção sugerida | Owner | Sprint/PR |
-|---|---|---|---|---|---|---|---|---|
-| F-018 | QA-ADM-01 | Info | Copy login admin desatualizado | Texto *“Google OAuth fica para o Sprint 5”* no gate `/admin` | Abrir `/admin` deslogado | Atualizar microcopy staff | Executor frontend | polish |
+Nenhum finding aberto.
 
 **Severidade:** Critical · High · Medium · Low · Info
 
@@ -142,14 +141,13 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 | F-015 | #37, #39 | — resolvido |
 | F-016 | #39 | — resolvido |
 | F-017 | #40 | — resolvido |
-| F-018 | Copy login admin (Sprint 5 stale) | P2 polish |
+| F-018 | Copy login admin (staff vs candidato) | — resolvido (este PR) |
 | PERF-CAT-02 | Cold load home &lt;900 ms | P2 opcional |
 
 ## Próximo passo
 
 1. **Plan:** revisar este assessment + screenshots → **Sim** para squash merge `docs(qa): record QA-SEC-01a visual homolog results` (sem push até Sim).
-2. **Opcional:** ONE-LINER Executor — F-018 microcopy `/admin`.
-3. **C-05:** fechar Resend para Sprint 7 (paralelo).
+2. **C-05:** fechar Resend para Sprint 7 (paralelo).
 
 ## Aprovação
 
