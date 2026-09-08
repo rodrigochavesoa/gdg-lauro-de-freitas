@@ -209,13 +209,16 @@ export function Admin({ setLogged, session, authReady = true }) {
                   <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
                 </div>
               </div>
-              <div className="form-section">
+              <div className="form-section admin-job-list">
                 <h2>Vagas pending e approved</h2>
                 {jobs.map((job) => (
                   <p key={job.id}>
-                    <button type="button" className="ghost" onClick={() => loadJob(job)}>
-                      {job.title} — {job.status}
-                      {job.companies?.name ? ` · ${job.companies.name}` : ""}
+                    <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
+                      <span className="admin-job-list-title">{job.title}</span>
+                      <span className="admin-job-list-meta">
+                        {" "}— {job.status}
+                        {job.companies?.name ? ` · ${job.companies.name}` : ""}
+                      </span>
                     </button>
                   </p>
                 ))}

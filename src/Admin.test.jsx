@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
+const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
@@ -11,7 +12,7 @@ vi.mock("./features/curation/curation-api.js", () => ({
 
 vi.mock("./lib/admin-api.js", () => ({
   createPendingJob: vi.fn(),
-  loadAdminJobs: vi.fn(async () => []),
+  loadAdminJobs: (...args) => loadAdminJobs(...args),
   loadCompanies: vi.fn(async () => []),
   updatePendingJob: vi.fn(),
 }));
@@ -26,6 +27,8 @@ describe("Admin", () => {
   beforeEach(() => {
     loadCurationProfile.mockReset();
     loadCurationProfile.mockResolvedValue(null);
+    loadAdminJobs.mockReset();
+    loadAdminJobs.mockResolvedValue([]);
   });
 
   it("usa admin-auth-form compacto, sem job-form do CRUD", async () => {
@@ -78,5 +81,27 @@ describe("Admin", () => {
     fireEvent.click(within(tabs).getByRole("button", { name: "Publicar vaga" }));
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(document.querySelector(".job-form .form-actions")).toBeTruthy();
+  });
+
+  it("lista pending e approved com título e meta separados", async () => {
+    loadCurationProfile.mockResolvedValue({
+      id: "a1",
+      role: "admin",
+      full_name: "Ada Admin",
+      email: "ada@example.invalid",
+    });
+    loadAdminJobs.mockResolvedValue([
+      {
+        id: "j1",
+        title: "Pessoa Desenvolvedora Front-end",
+        status: "approved",
+        companies: { name: "Nuvem Lauro Demo" },
+      },
+    ]);
+    render(<Admin session={{ user: { id: "a1" } }} authReady />);
+    expect(await screen.findByRole("heading", { name: "Vagas pending e approved" })).toBeInTheDocument();
+    const list = document.querySelector(".admin-job-list");
+    expect(within(list).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
+    expect(within(list).getByText(/approved · Nuvem Lauro Demo/)).toHaveClass("admin-job-list-meta");
   });
 });
