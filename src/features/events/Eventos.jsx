@@ -7,6 +7,7 @@ import {
   Filter,
   MapPin,
   Search,
+  Users,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -38,7 +39,7 @@ function statusClassName(status) {
   return "featured";
 }
 
-export function EventosIndex() {
+export function EventosIndex({ logged = false }) {
   const catalog = EVENT_SUMMARIES;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState([]);
@@ -145,6 +146,20 @@ export function EventosIndex() {
           </div>
         </div>
       </section>
+      {!logged && (
+        <section className="cta">
+          <div className="shell cta-inner">
+            <div>
+              <div className="eyebrow light"><Users size={15} /> {EVENTS_INDEX.ctaEyebrow}</div>
+              <h2>{EVENTS_INDEX.ctaTitle}<br />{EVENTS_INDEX.ctaTitleBreak}</h2>
+              <p>{EVENTS_INDEX.ctaLead}</p>
+            </div>
+            <Link to="/login" className="white-button">
+              {EVENTS_INDEX.ctaAction} <ArrowUpRight size={17} />
+            </Link>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

@@ -6,6 +6,11 @@ export const EVENTS_INDEX = {
   title: "Eventos",
   lead: "Encontros presenciais, híbridos ou online para aprender, conectar e construir junto.",
   viewEventLabel: "Ver evento",
+  ctaEyebrow: "Comunidade GDG",
+  ctaTitle: "Seu próximo encontro pode",
+  ctaTitleBreak: "estar a um clique.",
+  ctaLead: "Crie seu perfil e acompanhe vagas curadas e eventos da comunidade GDG.",
+  ctaAction: "Criar perfil gratuito",
 };
 
 export const EVENTS = [DEVFEST_2026, DEVOPSDAYS_SALVADOR_2026];
