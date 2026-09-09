@@ -39,7 +39,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
   const navLinks = (onNavigate) => (
     <>
       <NavLink end to="/" onClick={onNavigate}>Vagas</NavLink>
-      <NavLink end to="/eventos" onClick={onNavigate}>Eventos</NavLink>
+      <NavLink to="/eventos" onClick={onNavigate}>Eventos</NavLink>
       <NavLink end to="/newsletter" onClick={onNavigate}>Newsletter</NavLink>
       {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
       {staff || !logged ? (

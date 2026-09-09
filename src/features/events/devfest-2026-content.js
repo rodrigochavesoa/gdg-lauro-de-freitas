@@ -1,4 +1,5 @@
 export const DEVFEST_2026 = {
+  slug: "devfest-lauro-de-freitas-2026",
   title: "Devfest Lauro de Freitas 2026",
   datetimeLabel: "07/11/2026 · 08:00 – 17:30 GMT-3",
   format: "Presencial",

@@ -1,28 +1,37 @@
-# UX-SHELL-EVENTOS-01 — landing DevFest em `/eventos`
+# UX-SHELL-EVENTOS — índice e landings estáticas
 
-Página estática de evento único (V1) no shell GDGJobs. Visual **DS-06**. Casca igual à Home: `.hero` pontilhado + curva DS-07 canônica; **sem** `MarketingPageShell` e **sem** `.home-divider__avatar`.
+Páginas estáticas no shell GDGJobs. Visual **DS-06**. Casca igual à Home: `.hero` pontilhado + curva DS-07 canônica; **sem** `MarketingPageShell` e **sem** `.home-divider__avatar`.
+
+**Breaking (UX-SHELL-EVENTOS-02):** `/eventos` deixou de ser a landing do DevFest. Quem tinha bookmark da landing única deve usar `/eventos/devfest-lauro-de-freitas-2026`.
 
 ## Rotas
 
 | URL | Acesso | Conteúdo |
 |---|---|---|
-| `/eventos` | Anônimo e logado (sem redirect para `/login`) | Landing DevFest Lauro de Freitas 2026 |
-| Header → **Eventos** | Mesmo destino | `NavLink` em desktop e menu mobile |
+| `/eventos` | Anônimo e logado (sem redirect para `/login`) | Índice: H1 **Eventos** + 2 cards |
+| `/eventos/devfest-lauro-de-freitas-2026` | Idem | Landing DevFest (4 zonas, conteúdo de `devfest-2026-content.js`) |
+| `/eventos/devopsdays-salvador-2026` | Idem | Landing DevOpsDays Salvador 2026 |
+| `/eventos/:slug` desconhecido | — | Redirect para `/eventos` |
+| Header → **Eventos** | Índice | `NavLink` desktop e menu mobile |
 
-Gate de onboarding (`CatalogGate`) permanece o da home: só redireciona quem ainda precisa completar o perfil.
+Gate de onboarding (`CatalogGate`) permanece o da home.
 
-## Quatro zonas
+## Índice `/eventos`
 
-| Zona | Papel | Markup |
+Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb, título, data, local, **Ver evento**). **Sem** banner gigante.
+
+## Quatro zonas (detalhe)
+
+| Zona | DevFest | DevOpsDays |
 |---|---|---|
-| **A** | Banner no hero pontilhado | `img.event-banner` em `.hero` > `.shell.hero-content` (`public/events/1788886782636.png`), `loading="eager"` + `fetchpriority="high"` |
-| **B** | Card resumo (meta + CTA) | Flex desktop; empilha ≤768px. Título, data/hora, badge Presencial, local, **Realizar inscrição** |
-| **C** | Descrição editorial | Copy BUILD / SECURE / SCALE + local/data/horário + site do evento |
-| **D** | Organizado por | Logo GDG (`/favicon.svg`), “GDG Lauro de Freitas”, 3 CTAs `.outline` |
+| **A** | Banner 1280×720, `object-fit: cover` | Banner vertical 1170×5000, `event-banner--portrait` (`contain` + `max-height: min(420px, 50vh)`) |
+| **B** | Resumo + **Realizar inscrição** (Even3) | Resumo + **Garantir ingresso** (pretix) |
+| **C** | intro + pillars BUILD/SECURE/SCALE + facts | `intro[]` + `facts[]` (sem pillars) |
+| **D** | GDG Lauro de Freitas | DevOpsDays Salvador |
 
-Conteúdo em `src/features/events/devfest-2026-content.js`. O JSX só compõe o layout.
+JSX compartilhado: `EventLanding.jsx`. Catálogo: `events-catalog.js`.
 
-## Links externos
+## Links externos — DevFest
 
 | Destino | URL | Abertura |
 |---|---|---|
@@ -32,18 +41,28 @@ Conteúdo em `src/features/events/devfest-2026-content.js`. O JSX só compõe o 
 | Instagram | `https://www.instagram.com/gdglauro/` | nova aba |
 | LinkedIn | `https://www.linkedin.com/in/gdg-lauro-de-freitas-a9a743313` | nova aba |
 
-**0 network requests no mount** desta página: HTML estático, sem `useEffect`, sem Supabase, sem `jobs-api`.
+## Links externos — DevOpsDays Salvador 2026
+
+| Destino | URL | Abertura |
+|---|---|---|
+| Ingressos pretix | `https://tickets.devopsdays.org/devopsdays-salvador/2026/` | nova aba |
+| Site do evento | `https://devopsdays.org/events/2026-salvador/welcome/` | nova aba |
+| Contato | `mailto:salvador@devopsdays.org` | cliente de e-mail |
+| Instagram | `https://www.instagram.com/devopsdayssalvador/` | nova aba |
+| LinkedIn | `https://www.linkedin.com/company/devopsdayssalvador/` | nova aba |
+
+**0 network requests no mount** do índice e das landings: HTML estático, sem `useEffect`, sem Supabase, sem `jobs-api`.
 
 ## Fora de escopo
 
-- Checkout Even3, lotes, camisas, cupons
+- Checkout Even3/pretix, lotes, camisas, cupons
 - Programação, palestrantes, patrocinadores, FAQ
-- Mapa embed (Stay22/Leaflet) e iframe
-- CMS multi-evento / tabela `events` / admin de eventos
+- Mapa embed e iframe
+- CMS / tabela `events` / admin de eventos
 - Página `/newsletter`
 - `.home-divider__avatar` (onda canônica **sim**; avatar só na Home)
 
-O banner em `public/events/1788886782636.png` é a arte oficial DevFest (PO).
+Banner DevFest: `public/events/1788886782636.png`. Banner DevOpsDays: `public/events/d570782909129eef51789263259b10a0.1170x5000.png` (PO).
 
 ## Referências
 
