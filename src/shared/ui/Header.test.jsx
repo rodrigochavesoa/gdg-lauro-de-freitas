@@ -76,4 +76,34 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
   });
+
+  it("menu principal lista Vagas e Eventos no desktop e no mobile", () => {
+    renderHeader({ logged: false });
+    const desktopNav = document.querySelector(".topbar nav");
+    const desktopLinks = within(desktopNav).getAllByRole("link").map((el) => el.textContent);
+    expect(desktopLinks.slice(0, 2)).toEqual(["Vagas", "Eventos"]);
+    expect(within(desktopNav).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    const mobileLinks = within(mobile).getAllByRole("link").map((el) => el.textContent);
+    expect(mobileLinks.slice(0, 2)).toEqual(["Vagas", "Eventos"]);
+    expect(within(mobile).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+  });
+
+  it("marca Eventos como ativo em /eventos sem marcar Vagas", () => {
+    renderHeader({ logged: false, path: "/eventos" });
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getByRole("link", { name: "Eventos" })).toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
+  });
+
+  it("candidato e staff continuam com a nav de papel após o link Eventos", () => {
+    const { unmount } = renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
+    expect(screen.getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    unmount();
+    renderHeader({ logged: true, displayName: "Ada Admin", role: "admin" });
+    expect(screen.getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+  });
 });

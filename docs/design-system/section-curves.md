@@ -74,6 +74,7 @@ A onda preenche o **lado direito** da caixa; a borda esquerda do path é a curva
 | Superfície de origem (hero, painel login) | `--color-surface-subtle` + malha `radial-gradient(var(--color-primary-100) 1px, transparent 1px)` / `background-size: 16px 16px` |
 | Superfície de destino (lista, formulário, onda) | `--color-surface` |
 | Header sobre a home/login | `body:has(.hero) .topbar` e `body:has(.login-page) .topbar` → `border-bottom: none` |
+| Footer global | Chrome do **Login**: `footer { border-top: none }`. Sem hairline em nenhuma rota atual ou futura. Não reintroduzir `border-top: 1px`. |
 | Conteúdo da origem | `position: relative; z-index: 1` ou `4` (hero) — **sempre acima** da onda |
 | Onda | `z-index: 0` (login) ou `2` (divisor da home); `pointer-events: none` |
 | Ilustração / avatar | Decorativo; `alt=""`; nunca interceptar clique |
