@@ -208,6 +208,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".cta")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
   });
 
   it("abre o DevFest no slug e mantém o CTA Even3", async () => {
@@ -247,6 +249,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeNull();
+    expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
   });
 
   it("navega para Newsletter pelo menu principal", async () => {

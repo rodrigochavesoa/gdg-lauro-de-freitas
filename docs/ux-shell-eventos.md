@@ -24,6 +24,8 @@ Lead: “Encontros presenciais, híbridos ou online…”. Filtros client-side e
 
 Cards: thumb 16:9 com `object-fit: contain`, fundo `--color-surface` e **sem** borda interna; título + badge de status (ISO `startsAt`/`endsAt` GMT-3, sem parse de `datetimeLabel`); data; local; **Ver evento**. **Sem** banner gigante. O índice **não** tem botão voltar.
 
+**CTA (só anônimo):** após o grid, a mesma seção `.cta` da Home/Newsletter (`.cta-inner`, `.eyebrow.light`, `Link.white-button` → `/login`). Copy em `EVENTS_INDEX` (`ctaEyebrow` / `ctaTitle` / `ctaTitleBreak` / `ctaLead` / `ctaAction`). Logado: `.cta` **ausente**. `App.jsx` passa `logged={Boolean(auth.session)}`. Sem CTA nas landings `/eventos/:slug`.
+
 **0 network requests no mount:** HTML estático, sem `useEffect` de fetch, sem Supabase, sem `jobs-api`, sem skeleton.
 
 ## Quatro zonas (detalhe)

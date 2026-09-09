@@ -5,10 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventosIndex } from "./Eventos.jsx";
 import { EVENTS, EVENTS_INDEX } from "./events-catalog.js";
 
-function renderIndex() {
+function renderIndex(props) {
   return render(
     <MemoryRouter>
-      <EventosIndex />
+      <EventosIndex {...props} />
     </MemoryRouter>,
   );
 }
@@ -67,6 +67,26 @@ describe("EventosIndex", () => {
     expect(screen.getByRole("checkbox", { name: "Presencial" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Híbrido" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Online" })).toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeTruthy();
+  });
+
+  it("liga Criar perfil gratuito à rota de login", () => {
+    renderIndex();
+
+    const cta = screen.getByRole("link", { name: EVENTS_INDEX.ctaAction });
+    expect(cta).toHaveAttribute("href", "/login");
+    expect(cta).toHaveClass("white-button");
+    expect(screen.getByText(EVENTS_INDEX.ctaLead)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Seu próximo encontro pode/i })).toBeInTheDocument();
+  });
+
+  it("não mostra a seção CTA quando o visitante já está logado", () => {
+    renderIndex({ logged: true });
+
+    expect(screen.queryByRole("link", { name: EVENTS_INDEX.ctaAction })).not.toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeNull();
+    expect(document.querySelector(".hero")).toBeTruthy();
+    expect(document.querySelector(".jobs-layout")).toBeTruthy();
   });
 
   it("filtra o catálogo pela busca e mostra estado vazio", () => {
