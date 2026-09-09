@@ -1,15 +1,18 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EventLanding } from "./EventLanding.jsx";
 import { DEVFEST_2026 } from "./devfest-2026-content.js";
 import { DEVOPSDAYS_SALVADOR_2026 } from "./devopsdays-salvador-2026-content.js";
 
-function renderLanding(event) {
+function renderLanding(event, initialEntry = "/eventos/evento") {
   return render(
-    <MemoryRouter>
-      <EventLanding event={event} />
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/eventos" element={<p>indice-eventos</p>} />
+        <Route path="/eventos/:slug" element={<EventLanding event={event} />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -43,6 +46,8 @@ describe("EventLanding", () => {
     expect(screen.getByRole("heading", { name: /SCALE \(Escalar\)/ })).toBeInTheDocument();
     expect(screen.getByText(DEVFEST_2026.organizer.name)).toBeInTheDocument();
 
+    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("back");
+    expect(document.querySelector(".event-layout > .back")).toBeTruthy();
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
@@ -79,8 +84,17 @@ describe("EventLanding", () => {
       DEVOPSDAYS_SALVADOR_2026.moreInfoUrl,
     );
 
+    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("back");
+    expect(document.querySelector(".event-layout > .back")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
+  });
+
+  it("volta para o índice /eventos ao clicar em Voltar para eventos", () => {
+    renderLanding(DEVOPSDAYS_SALVADOR_2026, "/eventos/devopsdays-salvador-2026");
+    fireEvent.click(screen.getByRole("button", { name: /Voltar para eventos/i }));
+    expect(screen.getByText("indice-eventos")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: DEVOPSDAYS_SALVADOR_2026.title })).not.toBeInTheDocument();
   });
 
   it("não dispara fetch no mount", () => {

@@ -1,11 +1,13 @@
 import React from "react";
-import { ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 function isExternalHttp(href) {
   return href.startsWith("http://") || href.startsWith("https://");
 }
 
 export function EventLanding({ event }) {
+  const navigate = useNavigate();
   const portrait = event.banner.fit === "contain";
 
   return (
@@ -30,6 +32,9 @@ export function EventLanding({ event }) {
         </svg>
       </div>
       <section className="shell event-layout">
+        <button className="back" type="button" onClick={() => navigate("/eventos")}>
+          <ArrowLeft size={17} aria-hidden="true" /> Voltar para eventos
+        </button>
         <div className="job-card event-card event-summary">
           <div className="event-summary__meta">
             <h1>{event.title}</h1>
