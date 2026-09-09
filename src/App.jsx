@@ -3,7 +3,9 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
-import { Eventos } from "./features/events/Eventos.jsx";
+import { EventosIndex } from "./features/events/Eventos.jsx";
+import { EventLanding } from "./features/events/EventLanding.jsx";
+import { findEventBySlug } from "./features/events/events-catalog.js";
 import { Newsletter } from "./features/newsletter/Newsletter.jsx";
 import { findApprovedJobInCache, loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
 import { JobDetail, JobDetailSkeleton } from "./features/jobs/JobDetail.jsx";
@@ -54,7 +56,8 @@ export function App() {
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Home logged={Boolean(auth.session)} /></CatalogGate>} />
-        <Route path="/eventos" element={<CatalogGate auth={auth}><Eventos /></CatalogGate>} />
+        <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex /></CatalogGate>} />
+        <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
         <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
@@ -71,6 +74,13 @@ export function App() {
 function CatalogGate({ auth, children }) {
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   return children;
+}
+
+function EventLandingRoute() {
+  const { slug } = useParams();
+  const event = findEventBySlug(slug);
+  if (!event) return <Navigate to="/eventos" replace />;
+  return <EventLanding event={event} />;
 }
 
 function MyApplicationsRoute({ auth, authReady }) {

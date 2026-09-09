@@ -100,6 +100,13 @@ describe("Header", () => {
     expect(within(desktopNav).getByRole("link", { name: "Newsletter" })).not.toHaveClass("active");
   });
 
+  it("mantém Eventos ativo no slug de um evento", () => {
+    renderHeader({ logged: false, path: "/eventos/devopsdays-salvador-2026" });
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getByRole("link", { name: "Eventos" })).toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
+  });
+
   it("marca Newsletter como ativo em /newsletter sem marcar Vagas", () => {
     renderHeader({ logged: false, path: "/newsletter" });
     const desktopNav = document.querySelector(".topbar nav");

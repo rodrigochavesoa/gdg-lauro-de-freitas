@@ -191,23 +191,45 @@ describe("ARQ-01 — caracterização do shell", () => {
   it("navega para Eventos pelo menu principal", async () => {
     await renderHome();
     fireEvent.click(screen.getAllByRole("link", { name: "Eventos" })[0]);
-    expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Ver evento" })).toHaveLength(2);
+    expect(document.querySelector(".hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".event-banner")).toBeNull();
+  });
+
+  it("renderiza o índice em /eventos sem login", async () => {
+    await renderAt("/eventos");
+    expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /DevOpsDays Salvador 2026/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
   });
 
-  it("renderiza Eventos diretamente em /eventos sem login", async () => {
-    await renderAt("/eventos");
+  it("abre o DevFest no slug e mantém o CTA Even3", async () => {
+    await renderAt("/eventos/devfest-lauro-de-freitas-2026");
     expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Realizar inscrição/i })).toHaveAttribute(
       "href",
       "https://www.even3.com.br/devfest-lauro-de-freitas-2026-779585/",
     );
-    expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
-    expect(document.querySelector(".hero")).toBeTruthy();
-    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
-    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".event-banner")).toBeTruthy();
+    expect(document.querySelector(".event-banner--portrait")).toBeNull();
+  });
+
+  it("abre DevOpsDays no slug com banner vertical e CTA de tickets", async () => {
+    await renderAt("/eventos/devopsdays-salvador-2026");
+    expect(await screen.findByRole("heading", { name: /DevOpsDays Salvador 2026/i })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /DevOpsDays Salvador 2026/i })).toHaveClass("event-banner--portrait");
+    expect(screen.getByRole("link", { name: /Garantir ingresso/i })).toHaveAttribute(
+      "href",
+      "https://tickets.devopsdays.org/devopsdays-salvador/2026/",
+    );
+    expect(screen.getByText("DevOpsDays Salvador")).toBeInTheDocument();
   });
 
   it("mantém /eventos acessível com sessão logada", async () => {
@@ -220,7 +242,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     };
     authState.needsOnboarding = false;
     await renderAt("/eventos");
-    expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
   });

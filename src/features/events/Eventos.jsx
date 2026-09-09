@@ -1,26 +1,18 @@
 import React from "react";
-import { ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
-import { DEVFEST_2026 as event } from "./devfest-2026-content.js";
+import { CalendarDays, MapPin } from "lucide-react";
+import { Link } from "react-router-dom";
+import { EVENTS_INDEX, eventSummaries } from "./events-catalog.js";
 
-function isExternalHttp(href) {
-  return href.startsWith("http://") || href.startsWith("https://");
-}
+export function EventosIndex() {
+  const events = eventSummaries();
 
-export function Eventos() {
   return (
     <main>
       <section className="hero">
         <div className="shell hero-content">
-          <img
-            className="event-banner"
-            src={event.banner.src}
-            alt={event.banner.alt}
-            width={event.banner.width}
-            height={event.banner.height}
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-          />
+          <div className="eyebrow"><CalendarDays size={15} /> {EVENTS_INDEX.eyebrow}</div>
+          <h1>{EVENTS_INDEX.title}</h1>
+          <p>{EVENTS_INDEX.lead}</p>
         </div>
       </section>
       <div className="home-divider" aria-hidden="true">
@@ -29,86 +21,32 @@ export function Eventos() {
         </svg>
       </div>
       <section className="shell event-layout">
-        <div className="job-card event-card event-summary">
-          <div className="event-summary__meta">
-            <h1>{event.title}</h1>
-            <p className="event-summary__datetime">
-              <CalendarDays size={17} aria-hidden="true" />
-              <span>{event.datetimeLabel}</span>
-            </p>
-            <span className="featured">{event.format}</span>
-            <p className="event-summary__location">
-              <MapPin size={17} aria-hidden="true" />
-              <span>{event.location}</span>
-            </p>
-          </div>
-          <div className="event-summary__cta">
-            <a
-              className="primary"
-              href={event.registerUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {event.registerLabel} <ArrowUpRight size={17} aria-hidden="true" />
-            </a>
-          </div>
-        </div>
-
-        <article className="job-card event-card event-about" aria-labelledby="event-about-title">
-          <h2 id="event-about-title">{event.aboutTitle}</h2>
-          {event.intro.map((paragraph) => (
-            <p key={paragraph}>{paragraph}</p>
+        <div className="cards events-index__cards">
+          {events.map((event) => (
+            <article key={event.slug} className="job-card event-index-card">
+              <img
+                className={event.bannerFit === "contain" ? "event-index-card__thumb event-index-card__thumb--contain" : "event-index-card__thumb"}
+                src={event.bannerThumb}
+                alt=""
+                width={640}
+                height={180}
+                loading="lazy"
+                decoding="async"
+              />
+              <h2>{event.title}</h2>
+              <p className="event-index-card__meta">
+                <CalendarDays size={16} aria-hidden="true" />
+                <span>{event.datetimeLabel}</span>
+              </p>
+              <p className="event-index-card__meta">
+                <MapPin size={16} aria-hidden="true" />
+                <span>{event.location}</span>
+              </p>
+              <Link className="outline" to={`/eventos/${event.slug}`}>
+                {EVENTS_INDEX.viewEventLabel}
+              </Link>
+            </article>
           ))}
-          {event.pillars.map((pillar) => (
-            <div key={pillar.title} className="event-about__pillar">
-              <h3>{pillar.emoji} {pillar.title}</h3>
-              <p>{pillar.body}</p>
-            </div>
-          ))}
-          <p>{event.closing}</p>
-          <ul className="event-about__facts">
-            {event.facts.map((fact) => (
-              <li key={fact.label}>
-                <span aria-hidden="true">{fact.emoji}</span>
-                <span>{fact.label}: {fact.value}</span>
-              </li>
-            ))}
-          </ul>
-          <p>
-            Mais informações:{" "}
-            <a href={event.moreInfoUrl} target="_blank" rel="noopener noreferrer">
-              {event.moreInfoLabel}
-            </a>
-          </p>
-        </article>
-
-        <div className="job-card event-card event-organizer" aria-labelledby="event-organizer-title">
-          <h2 id="event-organizer-title">{event.organizerHeading}</h2>
-          <div className="event-organizer__brand">
-            <img
-              src={event.organizer.logoSrc}
-              alt={event.organizer.logoAlt}
-              width={48}
-              height={48}
-              loading="lazy"
-              decoding="async"
-            />
-            <p>{event.organizer.name}</p>
-          </div>
-          <div className="event-organizer__actions">
-            {event.organizer.links.map((link) => (
-              <a
-                key={link.href}
-                className="outline"
-                href={link.href}
-                {...(isExternalHttp(link.href)
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
         </div>
       </section>
     </main>
