@@ -451,7 +451,7 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
 .newsletter-issue h3{font-size:1rem;margin:0 0 var(--space-2)}
 .newsletter-issue__date{font-size:var(--font-size-caption);color:var(--color-text-subtle);margin:0 0 var(--space-3)}
 .newsletter-issue__excerpt{font-size:.9375rem;line-height:1.65;color:var(--color-text-muted);margin:0 0 var(--space-4)}
-.newsletter-issue__cta{margin-top:0;border-radius:var(--radius-md);padding:12px 17px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;background:var(--color-gdg-yellow);color:var(--color-white)}
+.newsletter-issue__cta{margin-top:0;border-radius:var(--radius-md);padding:12px 17px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--color-gdg-yellow) 62%,var(--color-grey-600));color:var(--color-grey-900)}
 .newsletter-issue__cta[aria-disabled="true"]{cursor:not-allowed}
 
 /* Footer canônico — Login é a fonte da verdade: sem hairline em Vagas, Eventos, Newsletter, Admin, Detalhe e rotas futuras. */
