@@ -398,7 +398,7 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
 
 /* UX-SHELL-EVENTOS-01 — landing /eventos no shell da Home (DS-07 sem avatar) */
 .event-layout{padding-bottom:64px}
-.event-banner{display:block;width:100%;height:auto;aspect-ratio:1024/409;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--color-surface-subtle)}
+.event-banner{display:block;width:100%;height:auto;aspect-ratio:1280/720;object-fit:cover;border-radius:var(--radius-lg);border:1px solid var(--color-border);background:var(--color-surface-subtle)}
 .event-card{margin-bottom:var(--space-6)}
 .event-layout .event-card:hover{transform:none}
 .event-layout a:focus-visible{outline:3px solid var(--color-focus);outline-offset:2px}

@@ -15,7 +15,7 @@ Gate de onboarding (`CatalogGate`) permanece o da home: só redireciona quem ain
 
 | Zona | Papel | Markup |
 |---|---|---|
-| **A** | Banner no hero pontilhado | `img.event-banner` em `.hero` > `.shell.hero-content` (`public/events/devfest-lauro-2026-banner.jpg`), `loading="eager"` + `fetchpriority="high"` |
+| **A** | Banner no hero pontilhado | `img.event-banner` em `.hero` > `.shell.hero-content` (`public/events/1788886782636.png`), `loading="eager"` + `fetchpriority="high"` |
 | **B** | Card resumo (meta + CTA) | Flex desktop; empilha ≤768px. Título, data/hora, badge Presencial, local, **Realizar inscrição** |
 | **C** | Descrição editorial | Copy BUILD / SECURE / SCALE + local/data/horário + site do evento |
 | **D** | Organizado por | Logo GDG (`/favicon.svg`), “GDG Lauro de Freitas”, 3 CTAs `.outline` |
@@ -43,7 +43,7 @@ Conteúdo em `src/features/events/devfest-2026-content.js`. O JSX só compõe o 
 - Página `/newsletter`
 - `.home-divider__avatar` (onda canônica **sim**; avatar só na Home)
 
-O banner em `public/events/devfest-lauro-2026-banner.jpg` é a arte oficial DevFest (PO).
+O banner em `public/events/1788886782636.png` é a arte oficial DevFest (PO).
 
 ## Referências
 
