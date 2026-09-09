@@ -116,7 +116,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | QA-SEC-03 | RPC SECURITY DEFINER | S | test:rls + doc | P0 | Candidato só apply/withdraw via RPC |
 | QA-SEC-04 | XSS em campos renderizados | S | manual pentest | P1 | Título/descrição/stack escapados |
 | QA-SEC-05 | OAuth redirect / open redirect | S | manual | P1 | Callback URLs allowlist Supabase |
-| QA-SEC-06 | Rate limit / abuse apply | S | manual | P2 | Spam apply (observação; sem WAF ainda) |
+| QA-SEC-06 | Rate limit / abuse apply | S | test:rls | P2 | 6ª `apply_to_job` / 60s → `rate limit exceeded` (cenário 14) |
 | QA-SEC-07 | LGPD gate produção | S | doc | P0 | Seis controles — inventário P-01–P-21 |
 
 **Pós Sprint 7 (Resend):** adicionar QA-SEC-10..12 (template e-mail, vazamento API key, SSRF webhook).
@@ -142,6 +142,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 | 11 — apply blocked | QA-CAND-04, 05 |
 | 12 — withdraw | QA-CAND-06, 07 |
 | 13 — profile role (F-019) | QA-ADM-02, QA-CAND-12 |
+| 14 — apply rate limit (F-023) | QA-SEC-06 |
 
 ---
 
