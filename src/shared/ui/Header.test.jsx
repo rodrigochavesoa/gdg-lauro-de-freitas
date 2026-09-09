@@ -77,17 +77,19 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
   });
 
-  it("menu principal lista Vagas e Eventos no desktop e no mobile", () => {
+  it("menu principal lista Vagas, Eventos e Newsletter no desktop e no mobile", () => {
     renderHeader({ logged: false });
     const desktopNav = document.querySelector(".topbar nav");
     const desktopLinks = within(desktopNav).getAllByRole("link").map((el) => el.textContent);
-    expect(desktopLinks.slice(0, 2)).toEqual(["Vagas", "Eventos"]);
+    expect(desktopLinks.slice(0, 3)).toEqual(["Vagas", "Eventos", "Newsletter"]);
     expect(within(desktopNav).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(within(desktopNav).getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     const mobileLinks = within(mobile).getAllByRole("link").map((el) => el.textContent);
-    expect(mobileLinks.slice(0, 2)).toEqual(["Vagas", "Eventos"]);
+    expect(mobileLinks.slice(0, 3)).toEqual(["Vagas", "Eventos", "Newsletter"]);
     expect(within(mobile).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(within(mobile).getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
   });
 
   it("marca Eventos como ativo em /eventos sem marcar Vagas", () => {
@@ -95,15 +97,26 @@ describe("Header", () => {
     const desktopNav = document.querySelector(".topbar nav");
     expect(within(desktopNav).getByRole("link", { name: "Eventos" })).toHaveClass("active");
     expect(within(desktopNav).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Newsletter" })).not.toHaveClass("active");
   });
 
-  it("candidato e staff continuam com a nav de papel após o link Eventos", () => {
+  it("marca Newsletter como ativo em /newsletter sem marcar Vagas", () => {
+    renderHeader({ logged: false, path: "/newsletter" });
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getByRole("link", { name: "Newsletter" })).toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Eventos" })).not.toHaveClass("active");
+  });
+
+  it("candidato e staff continuam com a nav de papel após Eventos e Newsletter", () => {
     const { unmount } = renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
     expect(screen.getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(screen.getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
     unmount();
     renderHeader({ logged: true, displayName: "Ada Admin", role: "admin" });
     expect(screen.getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(screen.getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
     expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
   });
 });
