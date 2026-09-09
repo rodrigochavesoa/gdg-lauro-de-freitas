@@ -219,6 +219,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     );
     expect(document.querySelector(".event-banner")).toBeTruthy();
     expect(document.querySelector(".event-banner--portrait")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Voltar para eventos/i }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
   });
 
   it("abre DevOpsDays no slug com banner vertical e CTA de tickets", async () => {

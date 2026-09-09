@@ -18,9 +18,11 @@ Gate de onboarding (`CatalogGate`) permanece o da home.
 
 ## Índice `/eventos`
 
-Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb, título, data, local, **Ver evento**). **Sem** banner gigante.
+Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb, título, data, local, **Ver evento**). **Sem** banner gigante. O índice **não** tem botão voltar.
 
 ## Quatro zonas (detalhe)
+
+O detalhe inclui **Voltar para eventos** (`button.back`, paridade JobDetail) imediatamente acima das zonas B–D (depois da curva DS-07); o clique vai para `/eventos` (não `history.back()`).
 
 | Zona | DevFest | DevOpsDays |
 |---|---|---|
