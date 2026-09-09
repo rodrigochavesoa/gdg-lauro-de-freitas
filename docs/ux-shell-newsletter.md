@@ -28,7 +28,7 @@ Gate de onboarding (`CatalogGate`) igual à home.
 |---|---|
 | **A** | Hero: eyebrow + H1 **GDG Jobs Letter** + lead |
 | **B** | **Inscrever-se** — nome + e-mail desabilitados em linha no desktop (empilha no mobile), CTA inerte “Em breve”, nota Sprint 7 (C-05) |
-| **C** | **Edições recentes** — 4 cards estáticos (`newsletter-content.js`); CTA inerte “Ler edição” no amarelo GDG (`--color-gdg-yellow`) com texto branco |
+| **C** | **Edições recentes** — 4 cards estáticos (`newsletter-content.js`); CTA inerte “Ler edição” em mostarda fosca (`color-mix` do amarelo GDG) com texto preto |
 | **D** | Faixa `.cta` (anon) — “Criar perfil gratuito” → `/login` |
 
 **0 network requests no mount:** HTML estático, sem `useEffect`, sem Supabase, sem `jobs-api`.
