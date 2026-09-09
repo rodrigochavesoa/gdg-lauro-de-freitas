@@ -2,6 +2,8 @@ export const DEVFEST_2026 = {
   slug: "devfest-lauro-de-freitas-2026",
   title: "Devfest Lauro de Freitas 2026",
   datetimeLabel: "07/11/2026 · 08:00 – 17:30 GMT-3",
+  startsAt: "2026-11-07T08:00:00-03:00",
+  endsAt: "2026-11-07T17:30:00-03:00",
   format: "Presencial",
   location: "SENAI Lauro de Freitas — Lauro de Freitas — Bahia — Brasil",
   banner: {

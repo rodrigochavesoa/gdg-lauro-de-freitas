@@ -8,7 +8,7 @@ Páginas estáticas no shell GDGJobs. Visual **DS-06**. Casca igual à Home: `.h
 
 | URL | Acesso | Conteúdo |
 |---|---|---|
-| `/eventos` | Anônimo e logado (sem redirect para `/login`) | Índice: H1 **Eventos** + 2 cards |
+| `/eventos` | Anônimo e logado (sem redirect para `/login`) | Índice: busca + filtros + cards (catálogo estático) |
 | `/eventos/devfest-lauro-de-freitas-2026` | Idem | Landing DevFest (4 zonas, conteúdo de `devfest-2026-content.js`) |
 | `/eventos/devopsdays-salvador-2026` | Idem | Landing DevOpsDays Salvador 2026 |
 | `/eventos/:slug` desconhecido | — | Redirect para `/eventos` |
@@ -18,7 +18,13 @@ Gate de onboarding (`CatalogGate`) permanece o da home.
 
 ## Índice `/eventos`
 
-Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb 16:9 com `object-fit: contain`, fundo `--color-surface` e **sem** borda interna, título, data, local, **Ver evento**). **Sem** banner gigante. O índice **não** tem botão voltar.
+Hero (eyebrow + H1 **Eventos** + lead) com searchbox **Evento, cidade ou organizador** e chips populares (DevFest, DevOpsDays, Salvador, Lauro) → curva DS-07 **sem** avatar → layout `.jobs-layout` (mesmas classes da Home: `.searchbox`, `.popular`, `.filters`, `.filter-group`, `.checkline`, `.result-head`, `.filter-mobile`, `.sort` / `.sort-menu`, `.empty`, `.cards`).
+
+Lead: “Encontros presenciais, híbridos ou online…”. Filtros client-side em `useMemo` sobre o catálogo estático (`filter-events.js`): **Status** (`upcoming` → **Em breve**, `ongoing` → **Em andamento**, `past` → **Encerrado**) e **Formato** (`Presencial`, **Híbrido**, **Online**). Os dois eventos atuais são presenciais; Online/Híbrido deixam o empty state pronto para o catálogo crescer. Ordenação padrão **Próximos primeiro** (`startsAt` asc). Contador: “N eventos encontrados”. Empty: “Nenhum evento encontrado” + **Limpar filtros**.
+
+Cards: thumb 16:9 com `object-fit: contain`, fundo `--color-surface` e **sem** borda interna; título + badge de status (ISO `startsAt`/`endsAt` GMT-3, sem parse de `datetimeLabel`); data; local; **Ver evento**. **Sem** banner gigante. O índice **não** tem botão voltar.
+
+**0 network requests no mount:** HTML estático, sem `useEffect` de fetch, sem Supabase, sem `jobs-api`, sem skeleton.
 
 ## Quatro zonas (detalhe)
 

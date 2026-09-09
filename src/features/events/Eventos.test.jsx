@@ -1,7 +1,7 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventosIndex } from "./Eventos.jsx";
 import { EVENTS, EVENTS_INDEX } from "./events-catalog.js";
 
@@ -14,7 +14,13 @@ function renderIndex() {
 }
 
 describe("EventosIndex", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T19:00:00-03:00"));
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -27,9 +33,13 @@ describe("EventosIndex", () => {
     expect(document.querySelector(".event-banner")).toBeNull();
     expect(document.querySelector(".marketing-page")).toBeNull();
     expect(document.querySelector(".job-card--skeleton")).toBeNull();
+    expect(document.querySelector(".jobs-layout")).toBeTruthy();
+    expect(document.querySelector(".searchbox")).toBeTruthy();
 
     expect(screen.getByRole("heading", { level: 1, name: EVENTS_INDEX.title })).toBeInTheDocument();
     expect(screen.getByText(EVENTS_INDEX.lead)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Evento, cidade ou organizador")).toBeInTheDocument();
+    expect(screen.getByText("2 eventos encontrados")).toBeInTheDocument();
 
     const cards = document.querySelectorAll(".event-index-card");
     expect(cards).toHaveLength(2);
@@ -49,6 +59,40 @@ describe("EventosIndex", () => {
     expect(viewLinks[1]).toHaveAttribute("href", `/eventos/${EVENTS[1].slug}`);
     expect(screen.getByRole("heading", { name: EVENTS[0].title })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: EVENTS[1].title })).toBeInTheDocument();
+    expect(document.querySelectorAll(".event-index-card .featured")).toHaveLength(2);
+    expect(
+      [...document.querySelectorAll(".event-index-card .featured")].map((node) => node.textContent),
+    ).toEqual(["Em breve", "Em breve"]);
+    expect(screen.getByRole("checkbox", { name: "Em breve" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Presencial" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Híbrido" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Online" })).toBeInTheDocument();
+  });
+
+  it("filtra o catálogo pela busca e mostra estado vazio", () => {
+    renderIndex();
+
+    const search = screen.getByPlaceholderText("Evento, cidade ou organizador");
+    fireEvent.change(search, { target: { value: "Salvador" } });
+    expect(screen.getByRole("heading", { name: EVENTS[1].title })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: EVENTS[0].title })).not.toBeInTheDocument();
+    expect(screen.getByText("1 eventos encontrados")).toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: "evento-inexistente" } });
+    expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
+    expect(document.querySelector(".empty")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: EVENTS[0].title })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: EVENTS[1].title })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    expect(screen.getByRole("heading", { name: EVENTS[0].title })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: EVENTS[1].title })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Online" }));
+    expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Limpar filtros" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Híbrido" }));
+    expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
   });
 
   it("não dispara fetch no mount", () => {
