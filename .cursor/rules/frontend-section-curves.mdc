@@ -11,6 +11,7 @@ Fonte da verdade: [`docs/design-system/section-curves.md`](docs/design-system/se
 Antes de criar ou alterar **section, hero, split, painel ou divisor**:
 
 1. Reutilize os SVG/classes canônicos. Não desenhe junta reta (`border-bottom` / `border-right` como transição de fundo).
+   Footer global: chrome do Login — `footer { border-top: none }`. Não reintroduzir hairline em página nova.
 2. Não invente `clip-path: ellipse`, path novo ou avatar centralizado na home.
 3. Onda inferior e/ou lateral direita: `fill: var(--color-surface)`, `preserveAspectRatio="none"`, `aria-hidden`, `pointer-events: none`.
 4. Extraia para `shared/ui` só na **terceira** tela (ARQ-01).

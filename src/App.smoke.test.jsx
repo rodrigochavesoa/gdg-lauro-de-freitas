@@ -188,6 +188,43 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(titles[titles.length - 1]).toBe("Pessoa Desenvolvedora Front-end");
   });
 
+  it("navega para Eventos pelo menu principal", async () => {
+    await renderHome();
+    fireEvent.click(screen.getAllByRole("link", { name: "Eventos" })[0]);
+    expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(document.querySelector(".hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+  });
+
+  it("renderiza Eventos diretamente em /eventos sem login", async () => {
+    await renderAt("/eventos");
+    expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Realizar inscrição/i })).toHaveAttribute(
+      "href",
+      "https://www.even3.com.br/devfest-lauro-de-freitas-2026-779585/",
+    );
+    expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
+    expect(document.querySelector(".hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+  });
+
+  it("mantém /eventos acessível com sessão logada", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/eventos");
+    expect(await screen.findByRole("heading", { name: /Devfest Lauro de Freitas 2026/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+  });
+
   it("abre o detalhe da vaga a partir do catálogo", async () => {
     await renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Ver vaga Pessoa Desenvolvedora Front-end" }));
@@ -247,6 +284,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     const mobile = document.getElementById("mobile-navigation");
     expect(mobile).toBeTruthy();
     expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
     expect(within(mobile).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
     expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
