@@ -18,7 +18,7 @@ Gate de onboarding (`CatalogGate`) permanece o da home.
 
 ## Índice `/eventos`
 
-Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb, título, data, local, **Ver evento**). **Sem** banner gigante. O índice **não** tem botão voltar.
+Hero curto (eyebrow + H1 + lead) → curva DS-07 → grid de cards (thumb 16:9 com `object-fit: contain`, fundo `--color-surface` e **sem** borda interna, título, data, local, **Ver evento**). **Sem** banner gigante. O índice **não** tem botão voltar.
 
 ## Quatro zonas (detalhe)
 

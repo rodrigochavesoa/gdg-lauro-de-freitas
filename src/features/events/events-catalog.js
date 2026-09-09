@@ -21,8 +21,8 @@ export function eventSummaries() {
     datetimeLabel: event.datetimeLabel,
     location: event.location,
     bannerThumb: event.banner.src,
-    bannerAlt: event.banner.alt,
-    bannerFit: event.banner.fit,
+    bannerWidth: event.banner.width,
+    bannerHeight: event.banner.height,
     registerUrl: event.registerUrl,
   }));
 }

@@ -33,6 +33,15 @@ describe("EventosIndex", () => {
 
     const cards = document.querySelectorAll(".event-index-card");
     expect(cards).toHaveLength(2);
+    const wraps = document.querySelectorAll(".event-index-card__thumb-wrap");
+    const thumbs = document.querySelectorAll(".event-index-card__thumb");
+    expect(wraps).toHaveLength(2);
+    expect(thumbs).toHaveLength(2);
+    expect(document.querySelector(".event-index-card__thumb--contain")).toBeNull();
+    thumbs.forEach((thumb) => {
+      expect(thumb).toHaveClass("event-index-card__thumb");
+      expect(thumb).not.toHaveClass("event-index-card__thumb--contain");
+    });
 
     const viewLinks = screen.getAllByRole("link", { name: EVENTS_INDEX.viewEventLabel });
     expect(viewLinks).toHaveLength(EVENTS.length);
