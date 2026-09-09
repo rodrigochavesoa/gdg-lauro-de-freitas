@@ -24,15 +24,17 @@ export function EventosIndex() {
         <div className="cards events-index__cards">
           {events.map((event) => (
             <article key={event.slug} className="job-card event-index-card">
-              <img
-                className={event.bannerFit === "contain" ? "event-index-card__thumb event-index-card__thumb--contain" : "event-index-card__thumb"}
-                src={event.bannerThumb}
-                alt=""
-                width={640}
-                height={180}
-                loading="lazy"
-                decoding="async"
-              />
+              <div className="event-index-card__thumb-wrap">
+                <img
+                  className="event-index-card__thumb"
+                  src={event.bannerThumb}
+                  alt=""
+                  width={event.bannerWidth}
+                  height={event.bannerHeight}
+                  loading="lazy"
+                  decoding="async"
+                />
+              </div>
               <h2>{event.title}</h2>
               <p className="event-index-card__meta">
                 <CalendarDays size={16} aria-hidden="true" />
