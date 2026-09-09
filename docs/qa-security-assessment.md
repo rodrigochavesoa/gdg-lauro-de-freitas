@@ -1,7 +1,7 @@
 # QA-SEC-01 — Assessment de homologação
 
-**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · QA-SEC-01d revisão estática + **pentest exploratório concluído** · **F-019 fechado (#51)** · **F-024 fechado (#62)** · **F-021 Pass homolog (#63)** · **F-023 fechado**  
-**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://localhost:5173` · **`main` @ `4e5c59e`** (#61–#63)  
+**Status:** QA-SEC-01b concluído · QA-SEC-01a browser concluído · QA-SEC-01d revisão estática + **pentest exploratório concluído** · **F-019 fechado (#51)** · **F-024 fechado (#62)** · **F-021 Pass homolog (#63)** · **F-023 fechado (#64)**  
+**Ambiente:** GDG-JOBS-SENAI (`pcdfxnfhgdmzmcmlhxuv`) · app local `http://127.0.0.1:5173` · **`main` @ `bf8b204`** (#61–#74)  
 **Setup:** SETUP-HOMOLOG-01 **ok** — 6 papéis; `docs-local/` + baseline automatizado verde.  
 **Ferramentas:** Playwriter 0.5.0 (01a + F-021 callback) · Codex CLI pentest + revisão Plan (01d) · `pnpm test:rls` **1–14** (F-023).
 
@@ -17,7 +17,7 @@
 | Findings abertos (Critical/High) | 1 (F-020 High) |
 | Findings Medium abertos | 0 (F-021 **Pass homolog**) |
 | Findings Low/Info abertos | 0 |
-| Findings resolvidos recentes | F-023 · F-021 · F-024 (#62) · F-019 (#51) · F-018 (#49) · UX perf/header (#52–#57) · PERF-ADM-05 (#59–#60) |
+| Findings resolvidos recentes | F-023 (#64) · F-021 (#63) · F-024 (#62) · F-019 (#51) · F-018 (#49) · UX perf/header (#52–#57) · PERF-ADM-05 (#59–#60) · UX shells Eventos/Newsletter (#65–#74) |
 | Findings UX resolvidos (#37–#45) | F-015, F-016, F-017 |
 
 ## Baseline automatizado
@@ -25,7 +25,7 @@
 | Comando | Resultado | Log / notas |
 |---|---|---|
 | `pnpm lint` | **pass** | `eslint .` — exit 0 |
-| `pnpm test` | **pass** (95/95) | Vitest 3.2.4; `Test Files  17 passed (17)`; exit 0 |
+| `pnpm test` | **pass** (130/130) | Vitest 3.2.4; `Test Files  22 passed (22)`; exit 0 |
 | `pnpm run build` | **pass** | Vite 8.2.1; exit 0 |
 | `pnpm test:rls` | **pass** | Cenários **1–14** · **0** FALHA — F-023 cenário 14 (`rate limit exceeded` na 6ª `apply_to_job`) |
 
@@ -186,10 +186,11 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 
 ## Próximo passo
 
-1. **Humano / PO — C-05:** Resend + domínio + API key em `docs-local/` → avisar Plan.
-2. **Plan:** ONE-LINER **Sprint 7** (Resend) após C-05.
-3. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
-4. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
+1. **Humano / PO — C-05 (bloqueio ativo):** Resend + domínio + API key em `docs-local/` → avisar Plan **“C-05 fechada”** (sem colar key no chat/Git).
+2. **Plan → Executor:** ONE-LINER **S7-NEWSLETTER-01** após C-05 (captura real `/newsletter`).
+3. **Frontend Visual QA:** DS-05 homolog `/eventos` + `/newsletter` (#65–#74) — evidências pendentes.
+4. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
+5. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
 
 ## Aprovação
 

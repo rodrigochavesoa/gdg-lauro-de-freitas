@@ -179,7 +179,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 
 1. Human: garantir `docs-local/*-test-user.md` + `.env.local` (GDG-JOBS-SENAI).
 2. **QA-ADM-07..09:** Visual QA **Pass** ([`perf-adm-05-visual-qa.md`](perf-adm-05-visual-qa.md)) — **pendente aceite PO**.
-3. **Concluído:** cenário 13 F-019 (`pnpm test:rls`) · UX-PERF-02–04 Visual QA (#55) · UX-HEADER-01 (#52/#57).
-4. Próximo épico funcional: **C-05 → Sprint 7 (Resend)** após PO fechar credenciais.
+3. **Concluído:** cenário 13 F-019 / F-024 (#62) · F-023 cenário 14 (#64) · F-021 Pass homolog (#63) · UX-PERF-02–04 Visual QA (#55) · UX-HEADER-01 (#52/#57) · UX shells `/eventos` + `/newsletter` (#65–#74) — **pendente DS-05 Visual QA formal**.
+4. Próximo épico funcional: **C-05 (PO) → Sprint 7 Resend** — captura real `/newsletter` + e-mails transacionais candidatura.
 
 **Paralelo:** C-05 (Resend) e QA P0 restante não se bloqueiam.
