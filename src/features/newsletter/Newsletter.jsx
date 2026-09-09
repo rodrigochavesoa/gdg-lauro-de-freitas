@@ -26,13 +26,19 @@ export function Newsletter({ logged = false }) {
         <form className="job-card newsletter-subscribe" onSubmit={inertActivate} noValidate>
           <h2>{copy.subscribeTitle}</h2>
           <p>{copy.subscribeLead}</p>
-          <label>
-            {copy.emailLabel}
-            <input type="email" name="email" autoComplete="email" placeholder={copy.emailPlaceholder} disabled />
-          </label>
-          <button className="primary" type="button" aria-disabled="true" onClick={inertActivate}>
-            {copy.subscribeCta}
-          </button>
+          <div className="newsletter-subscribe__fields">
+            <label>
+              {copy.nameLabel}
+              <input type="text" name="name" autoComplete="name" placeholder={copy.namePlaceholder} disabled />
+            </label>
+            <label>
+              {copy.emailLabel}
+              <input type="email" name="email" autoComplete="email" placeholder={copy.emailPlaceholder} disabled />
+            </label>
+            <button className="primary" type="button" aria-disabled="true" onClick={inertActivate}>
+              {copy.subscribeCta}
+            </button>
+          </div>
           <p className="newsletter-subscribe__note">{copy.subscribeNote}</p>
         </form>
 
@@ -50,7 +56,7 @@ export function Newsletter({ logged = false }) {
                   <h3>{issue.title}</h3>
                   <p className="newsletter-issue__date">{issue.date}</p>
                   <p className="newsletter-issue__excerpt">{issue.excerpt}</p>
-                  <button className="outline" type="button" aria-disabled="true" onClick={inertActivate}>
+                  <button className="newsletter-issue__cta" type="button" aria-disabled="true" onClick={inertActivate}>
                     {copy.issueCta}
                   </button>
                 </div>

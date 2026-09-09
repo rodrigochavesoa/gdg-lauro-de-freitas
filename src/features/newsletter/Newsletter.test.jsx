@@ -33,11 +33,18 @@ describe("Newsletter", () => {
     expect(screen.getByRole("heading", { name: NEWSLETTER.subscribeTitle })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: NEWSLETTER.subscribeCta })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText(NEWSLETTER.subscribeNote)).toBeInTheDocument();
+    expect(document.querySelector(".newsletter-subscribe__fields")).toBeTruthy();
+    expect(screen.getByLabelText(NEWSLETTER.nameLabel)).toBeDisabled();
     expect(screen.getByLabelText(NEWSLETTER.emailLabel)).toBeDisabled();
 
     expect(screen.getByRole("heading", { name: NEWSLETTER.issuesTitle })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: NEWSLETTER.issues[0].title })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: NEWSLETTER.issueCta })).toHaveLength(NEWSLETTER.issues.length);
+    const issueCtas = screen.getAllByRole("button", { name: NEWSLETTER.issueCta });
+    expect(issueCtas).toHaveLength(NEWSLETTER.issues.length);
+    issueCtas.forEach((button) => {
+      expect(button).toHaveClass("newsletter-issue__cta");
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    });
 
     const cta = screen.getByRole("link", { name: NEWSLETTER.ctaAction });
     expect(cta).toHaveAttribute("href", "/login");
