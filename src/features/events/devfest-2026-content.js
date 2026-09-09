@@ -4,10 +4,10 @@ export const DEVFEST_2026 = {
   format: "Presencial",
   location: "SENAI Lauro de Freitas — Lauro de Freitas — Bahia — Brasil",
   banner: {
-    src: "/events/devfest-lauro-2026-banner.jpg",
+    src: "/events/1788886782636.png",
     alt: "DevFest Lauro de Freitas 2026",
-    width: 1024,
-    height: 409,
+    width: 1280,
+    height: 720,
   },
   registerUrl: "https://www.even3.com.br/devfest-lauro-de-freitas-2026-779585/",
   registerLabel: "Realizar inscrição",
