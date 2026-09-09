@@ -225,6 +225,43 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
   });
 
+  it("navega para Newsletter pelo menu principal", async () => {
+    await renderHome();
+    fireEvent.click(screen.getAllByRole("link", { name: "Newsletter" })[0]);
+    expect(await screen.findByRole("heading", { level: 1, name: /GDG Jobs Letter/i })).toBeInTheDocument();
+    expect(document.querySelector(".hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".newsletter-layout")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Em breve/i })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("renderiza Newsletter diretamente em /newsletter sem login", async () => {
+    await renderAt("/newsletter");
+    expect(await screen.findByRole("heading", { level: 1, name: /GDG Jobs Letter/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Inscrever-se" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Edições recentes" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
+    expect(document.querySelector(".cta")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+  });
+
+  it("omite a faixa CTA da Newsletter quando há sessão", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/newsletter");
+    expect(await screen.findByRole("heading", { level: 1, name: /GDG Jobs Letter/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
+    expect(document.querySelector(".cta")).toBeNull();
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+  });
+
   it("abre o detalhe da vaga a partir do catálogo", async () => {
     await renderHome();
     fireEvent.click(screen.getByRole("button", { name: "Ver vaga Pessoa Desenvolvedora Front-end" }));
@@ -285,6 +322,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(mobile).toBeTruthy();
     expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
     expect(within(mobile).getByRole("link", { name: "Eventos" })).toHaveAttribute("href", "/eventos");
+    expect(within(mobile).getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
     expect(within(mobile).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
     expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();

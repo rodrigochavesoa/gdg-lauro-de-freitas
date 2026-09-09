@@ -264,7 +264,7 @@ body:has(.hero) .topbar,body:has(.login-page) .topbar,body:has(.admin-page) .top
 .home-divider{position:relative;z-index:2;height:120px;margin-top:-108px;overflow:visible;pointer-events:none}
 .home-divider__curve{display:block;position:relative;width:calc(100% + 16px);height:100%;margin-left:-8px}
 .home-divider__avatar{position:absolute;left:max(16px,calc((100% - 1180px) / 2));bottom:-12px;width:min(280px,32vw);max-height:200px;height:auto;object-fit:contain;z-index:3;display:block}
-.home-divider + .jobs-layout,.home-divider + .event-layout{padding-top:52px}
+.home-divider + .jobs-layout,.home-divider + .event-layout,.home-divider + .newsletter-layout{padding-top:52px}
 @media(max-width:1024px){
   .home-divider{height:112px;margin-top:-100px}
   .home-divider__avatar{left:16px;width:min(220px,34vw);max-height:168px}
@@ -273,7 +273,7 @@ body:has(.hero) .topbar,body:has(.login-page) .topbar,body:has(.admin-page) .top
   .hero{padding-bottom:108px}
   .home-divider{height:104px;margin-top:-92px}
   .home-divider__avatar{left:8px;width:min(42vw,148px);max-height:128px;bottom:-8px}
-  .home-divider + .jobs-layout,.home-divider + .event-layout{padding-top:36px}
+  .home-divider + .jobs-layout,.home-divider + .event-layout,.home-divider + .newsletter-layout{padding-top:36px}
   .login-panel__curve--right{width:48px}
   .login-panel__curve--bottom{height:72px}
   .admin-page,.detail-page{padding-bottom:72px}
@@ -430,6 +430,24 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
   .event-organizer__actions .outline{width:auto}
 }
 
-/* Footer canônico — Login é a fonte da verdade: sem hairline em Vagas, Eventos, Admin, Detalhe e rotas futuras. */
+/* UX-SHELL-NEWSLETTER-01 — placeholder /newsletter no shell da Home (DS-07 sem avatar) */
+.newsletter-layout{padding-bottom:64px}
+.newsletter-layout .job-card:hover{transform:none}
+.newsletter-layout a:focus-visible,.newsletter-layout button:focus-visible{outline:3px solid var(--color-focus);outline-offset:2px}
+.newsletter-subscribe{display:block;text-align:left;margin-bottom:var(--space-8)}
+.newsletter-subscribe h2{font-size:1.3125rem;margin:0 0 var(--space-3)}
+.newsletter-subscribe p{color:var(--color-text-muted);font-size:.9375rem;margin:0 0 var(--space-4)}
+.newsletter-subscribe label{font-size:var(--font-size-body-2);font-weight:600;color:var(--color-text);display:grid;gap:7px;margin:0 0 var(--space-4)}
+.newsletter-subscribe input{border:1px solid var(--color-border-strong);border-radius:var(--radius-sm);padding:12px;color:var(--color-text);background:var(--color-surface)}
+.newsletter-subscribe .primary{width:100%}
+.newsletter-subscribe .primary[aria-disabled="true"],.newsletter-issue .outline[aria-disabled="true"]{opacity:.72;cursor:not-allowed}
+.newsletter-subscribe__note{font-size:var(--font-size-caption);color:var(--color-text-subtle)!important;margin-top:var(--space-3)!important;margin-bottom:0!important}
+.newsletter-issue{display:block}
+.newsletter-issue h3{font-size:1rem;margin:0 0 var(--space-2)}
+.newsletter-issue__date{font-size:var(--font-size-caption);color:var(--color-text-subtle);margin:0 0 var(--space-3)}
+.newsletter-issue__excerpt{font-size:.9375rem;line-height:1.65;color:var(--color-text-muted);margin:0 0 var(--space-4)}
+.newsletter-issue .outline{margin-top:0}
+
+/* Footer canônico — Login é a fonte da verdade: sem hairline em Vagas, Eventos, Newsletter, Admin, Detalhe e rotas futuras. */
 footer{border-top:none;background:var(--color-surface)}
 body:has(.hero) footer,body:has(.jobs-layout) footer,body:has(.login-page) footer,body:has(.admin-page) footer,body:has(.detail-page) footer{border-top:none}

@@ -4,6 +4,7 @@ import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
 import { Eventos } from "./features/events/Eventos.jsx";
+import { Newsletter } from "./features/newsletter/Newsletter.jsx";
 import { findApprovedJobInCache, loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
 import { JobDetail, JobDetailSkeleton } from "./features/jobs/JobDetail.jsx";
 import { MyApplications } from "./features/jobs/MyApplications.jsx";
@@ -54,6 +55,7 @@ export function App() {
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Home logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos" element={<CatalogGate auth={auth}><Eventos /></CatalogGate>} />
+        <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
