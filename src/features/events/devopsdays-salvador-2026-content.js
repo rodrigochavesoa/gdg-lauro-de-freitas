@@ -2,6 +2,8 @@ export const DEVOPSDAYS_SALVADOR_2026 = {
   slug: "devopsdays-salvador-2026",
   title: "DevOpsDays Salvador 2026",
   datetimeLabel: "05/12/2026 · 08:15 – 18:00 GMT-3",
+  startsAt: "2026-12-05T08:15:00-03:00",
+  endsAt: "2026-12-05T18:00:00-03:00",
   format: "Presencial",
   location: "Auditório da UCSAL (Universidade Católica do Salvador) — Av. Prof. Pinto de Aguiar, 2589, Pituaçu — Salvador — Bahia — Brasil",
   banner: {

@@ -4,7 +4,7 @@ import { DEVOPSDAYS_SALVADOR_2026 } from "./devopsdays-salvador-2026-content.js"
 export const EVENTS_INDEX = {
   eyebrow: "Comunidade tech na Bahia",
   title: "Eventos",
-  lead: "Encontros presenciais para aprender, conectar e construir junto.",
+  lead: "Encontros presenciais, híbridos ou online para aprender, conectar e construir junto.",
   viewEventLabel: "Ver evento",
 };
 
@@ -24,5 +24,11 @@ export function eventSummaries() {
     bannerWidth: event.banner.width,
     bannerHeight: event.banner.height,
     registerUrl: event.registerUrl,
+    startsAt: event.startsAt,
+    endsAt: event.endsAt,
+    format: event.format,
+    organizerName: event.organizer?.name ?? "",
   }));
 }
+
+export const EVENT_SUMMARIES = eventSummaries();
