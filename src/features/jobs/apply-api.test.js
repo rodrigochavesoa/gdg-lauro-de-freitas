@@ -39,6 +39,8 @@ describe("mapeamento de erros RPC", () => {
     expect(createApplyError({ message: "authentication required" }).message).toBe("Entre para se candidatar.");
     expect(createApplyError({ message: "profile incomplete" }).code).toBe("profile incomplete");
     expect(createApplyError({ message: "already applied" }).message).toBe("Você já se candidatou a esta vaga.");
+    expect(createApplyError({ message: "rate limit exceeded" }).code).toBe("rate limit exceeded");
+    expect(createApplyError({ message: "rate limit exceeded" }).status).toBe(429);
     expect(createApplyError({ message: "job is not approved" }).message).toMatch(/não está disponível/);
   });
 });
@@ -106,6 +108,16 @@ describe("RPCs", () => {
   it("applyToJob mapeia already applied", async () => {
     rpcMock.mockResolvedValue({ data: null, error: { message: "already applied" } });
     await expect(applyToJob("job-1")).rejects.toMatchObject({ code: "already applied" });
+  });
+
+  it("applyToJob mapeia already applied no payload JSON (log persistido)", async () => {
+    rpcMock.mockResolvedValue({ data: { error: "already applied" }, error: null });
+    await expect(applyToJob("job-1")).rejects.toMatchObject({ code: "already applied" });
+  });
+
+  it("applyToJob mapeia rate limit exceeded para status 429", async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: "rate limit exceeded" } });
+    await expect(applyToJob("job-1")).rejects.toMatchObject({ code: "rate limit exceeded", status: 429 });
   });
 
   it("withdrawApplication chama withdraw_application", async () => {

@@ -18,6 +18,7 @@ const STABLE_CODES = [
   "job is not approved",
   "job not found",
   "already applied",
+  "rate limit exceeded",
   "cannot withdraw application",
   "application not found",
 ];
@@ -28,6 +29,7 @@ const UX_BY_CODE = {
   "job is not approved": "Esta vaga não está disponível para candidatura.",
   "job not found": "Esta vaga não está disponível para candidatura.",
   "already applied": "Você já se candidatou a esta vaga.",
+  "rate limit exceeded": "Muitas tentativas. Aguarde um minuto para se candidatar de novo.",
   "cannot withdraw application": "Não é possível retirar esta candidatura.",
   "application not found": "Candidatura não encontrada.",
 };
@@ -64,6 +66,7 @@ export function createApplyError(error) {
   const code = getApplyErrorCode(error);
   const mapped = new Error(UX_BY_CODE[code] || error?.message || "Não foi possível concluir a candidatura.");
   mapped.code = code;
+  if (code === "rate limit exceeded") mapped.status = 429;
   return mapped;
 }
 
@@ -104,6 +107,9 @@ export async function applyToJob(jobId) {
   const client = clientOrThrow();
   const { data, error } = await client.rpc("apply_to_job", { p_job_id: jobId });
   if (error) throw createApplyError(error);
+  if (data && typeof data === "object" && typeof data.error === "string") {
+    throw createApplyError({ message: data.error });
+  }
   return parseApplication(data);
 }
 

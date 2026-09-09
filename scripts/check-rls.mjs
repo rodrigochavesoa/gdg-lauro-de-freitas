@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01) e candidatura V1 (S6-01).
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019 e F-023.
  * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
  * pwsh: pnpm test:rls
  */
@@ -155,7 +155,12 @@ async function rpcReview(client, jobId, decision, rubricCode = RUBRIC) {
 }
 
 async function rpcApply(client, jobId) {
-  return client.rpc("apply_to_job", { p_job_id: jobId });
+  const res = await client.rpc("apply_to_job", { p_job_id: jobId });
+  if (res.error) return res;
+  if (res.data && typeof res.data === "object" && typeof res.data.error === "string") {
+    return { data: null, error: { message: res.data.error } };
+  }
+  return res;
 }
 
 async function rpcWithdraw(client, jobId) {
@@ -165,6 +170,11 @@ async function rpcWithdraw(client, jobId) {
 async function deleteApplication(admin, jobId, candidateId) {
   if (!jobId || !candidateId) return;
   await admin.from("applications").delete().eq("job_id", jobId).eq("candidate_id", candidateId);
+}
+
+async function deleteApplyRequestLog(admin, userId) {
+  if (!userId) return;
+  await admin.from("apply_request_log").delete().eq("user_id", userId);
 }
 
 function d01Preferences(current) {
@@ -533,6 +543,7 @@ async function scenario10_applyHappy() {
   if (adminErr || candErr || !user?.id) return;
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplyRequestLog(admin, user.id);
   const { previous } = await ensureD01Profile(candidate, user.id);
 
   const first = await rpcApply(candidate, SEED_APPROVED_A);
@@ -601,6 +612,7 @@ async function scenario11_applyBlocked() {
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);
+  await deleteApplyRequestLog(admin, user.id);
   const { previous } = await ensureD01Profile(candidate, user.id);
 
   const pending = await rpcApply(candidate, SEED_PENDING);
@@ -655,6 +667,7 @@ async function scenario12_withdraw() {
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_APPROVED_B, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);
+  await deleteApplyRequestLog(admin, user.id);
   await ensureD01Profile(candidate, user.id);
 
   const applied = await rpcApply(candidate, SEED_APPROVED_A);
@@ -792,6 +805,55 @@ async function scenario13_profileRoleEscalation() {
   }
 }
 
+/** Cenário 14 — F-023: 6ª apply_to_job na janela 60s retorna rate limit exceeded. */
+async function scenario14_applyRateLimit() {
+  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
+    skipRequired(14, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
+  if (adminErr || candErr || !user?.id) {
+    skipRequired(14, "admin ou candidato não autenticou");
+    return;
+  }
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplyRequestLog(admin, user.id);
+  await ensureD01Profile(candidate, user.id);
+
+  const results = [];
+  for (let i = 0; i < 6; i += 1) {
+    results.push(await rpcApply(candidate, SEED_APPROVED_A));
+  }
+
+  if (results[0].error?.message?.includes("Could not find the function")) {
+    skipRequired(14, "RPC apply_to_job não aplicada no ambiente");
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+    return;
+  }
+
+  assert(!results[0].error, `1ª apply ok (${results[0].error?.message ?? "ok"})`);
+  for (let i = 1; i <= 4; i += 1) {
+    const msg = [results[i].error?.message, results[i].error?.details].filter(Boolean).join(" ");
+    assert(Boolean(results[i].error), `chamada ${i + 1} falha`);
+    assert(/already applied/i.test(msg), `chamada ${i + 1} already applied (${msg || "sem mensagem"})`);
+  }
+
+  const sixthMsg = [results[5].error?.message, results[5].error?.details, results[5].error?.hint]
+    .filter(Boolean)
+    .join(" ");
+  assert(Boolean(results[5].error), "6ª chamada falha");
+  assert(/rate limit exceeded/i.test(sixthMsg), `6ª retorna rate limit exceeded (${sixthMsg || "sem mensagem"})`);
+  assert(!/already applied/i.test(sixthMsg), "6ª não é só already applied");
+
+  await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplyRequestLog(admin, user.id);
+  await candidate.auth.signOut();
+  await admin.auth.signOut();
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -859,11 +921,15 @@ await scenario12_withdraw();
 console.log("\n=== Cenário 13: profile role escalation (F-019) ===");
 await scenario13_profileRoleEscalation();
 
+console.log("\n=== Cenário 14: apply rate limit (F-023) ===");
+await scenario14_applyRateLimit();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
-    if (n >= 10) band = "S6-01 exige execução real de 10–12";
+    if (n >= 10 && n <= 12) band = "S6-01 exige execução real de 10–12";
     if (n === 13) band = "F-019 exige execução real do cenário 13";
+    if (n === 14) band = "F-023 exige execução real do cenário 14";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -874,5 +940,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019: ok (${skipped.length} aviso(s) opcionais; cenários 3–13 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023: ok (${skipped.length} aviso(s) opcionais; cenários 3–14 executados).`,
 );

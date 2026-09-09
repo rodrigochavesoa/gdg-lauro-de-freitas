@@ -21,7 +21,8 @@ Rota `/minhas-candidaturas` ([`MyApplications.jsx`](../src/features/jobs/MyAppli
 3. [`202608160003_admin_write_grants.sql`](../supabase/migrations/202608160003_admin_write_grants.sql)
 4. [`202608160004_curation_enums.sql`](../supabase/migrations/202608160004_curation_enums.sql)
 5. [`202608160005_curation_schema.sql`](../supabase/migrations/202608160005_curation_schema.sql)
-6. [`20260907041723_application_snapshot_rpc.sql`](../supabase/migrations/20260907041723_application_snapshot_rpc.sql) — **este PR**
+6. [`20260907041723_application_snapshot_rpc.sql`](../supabase/migrations/20260907041723_application_snapshot_rpc.sql)
+7. [`20260909003920_apply_rate_limit.sql`](../supabase/migrations/20260909003920_apply_rate_limit.sql) — F-023: 5 `apply_to_job` / 60s por `auth.uid()`
 
 Aplicar **somente via CLI** no projeto de teste já linkado (`npx supabase db push --linked --include-all --yes`). Não usar SQL Editor como caminho da história.
 
@@ -65,6 +66,7 @@ Pré-condições do apply (recusa no servidor):
 2. `profiles.id = auth.uid()` e `profile_meets_d01` (nome, e-mail, nível, ≥1 skill, localidade, modalidade).
 3. `jobs.status = approved`.
 4. UNIQUE `(job_id, candidate_id)` — segunda tentativa: `already applied` (inclusive após `withdrawn`).
+5. F-023: no máximo **5 chamadas** a `apply_to_job` por usuário nos **60 s** anteriores (inclui `already applied`). A 6ª levanta `rate limit exceeded` (`PT429` → HTTP 429).
 
 Retirada (D-09): sem editar snapshot, sem reenviar, sem reabrir `withdrawn`/`rejected`/`accepted`. Transições empresa (`reviewing`/`accepted`/`rejected`) ficam para admin via RLS, fora da UI V1.
 
@@ -77,6 +79,7 @@ Erros estáveis (mensagem):
 | `job not found` | UUID inexistente |
 | `job is not approved` | Apply ou withdraw com vaga ≠ `approved` |
 | `already applied` | Par já existe |
+| `rate limit exceeded` | Mais de 5 `apply_to_job` / 60s (F-023) |
 | `application not found` | Withdraw sem linha própria |
 | `cannot withdraw application` | Status ∉ `{submitted, reviewing}` |
 
@@ -99,7 +102,7 @@ Mesmos arquivos do Sprint 4. Candidato **obrigatório** para S6-01:
 | `admin` | `docs-local/admin-test-user.md` |
 | `candidate` | `docs-local/candidate-test-user.md` |
 
-`pnpm test:rls` **falha** se os cenários 3–9 (curadoria) ou 10–12 (apply) forem ignorados.
+`pnpm test:rls` **falha** se os cenários 3–9 (curadoria), 10–12 (apply), 13 (F-019) ou 14 (F-023) forem ignorados.
 
 ## Cenários `test:rls` (S6-01)
 
@@ -108,6 +111,7 @@ Mesmos arquivos do Sprint 4. Candidato **obrigatório** para S6-01:
 | 10 | Apply em vaga seed `approved`; `submitted`; snapshot com nome/e-mail/skills/preferences; `candidate_id = auth.uid()`; snapshot congelado após editar perfil; UNIQUE recusa o segundo apply |
 | 11 | Anon sem RPC; pending recusado; D-01 incompleto recusado; INSERT direto do candidato recusado |
 | 12 | `submitted` → `withdrawn`; sem reabrir/reenviar; `reviewing` → `withdrawn`; `accepted` recusado; withdraw com vaga pending recusado; UPDATE direto do candidato recusado |
+| 14 | 6ª `apply_to_job` consecutiva na mesma vaga/usuário → `rate limit exceeded` (não só `already applied`) |
 
 Limpeza: admin apaga linhas de teste nas vagas seed `0003`, `0004` e `0005`.
 
@@ -150,9 +154,19 @@ drop function if exists public.profile_meets_d01(text, text, text[], jsonb);
 alter table public.applications drop column if exists snapshot;
 ```
 
+## Rollback da migration `20260909003920` (F-023)
+
+Remove o throttle e a tabela de log. Restaura `apply_to_job` da `20260907041723` (reaplicar o `create or replace function` desse arquivo) **ou** o trecho abaixo só dropará o log — a função precisa ser recriada a partir da 000723.
+
+```sql
+drop table if exists public.apply_request_log;
+```
+
+Depois reexecutar o `create or replace function public.apply_to_job` de [`20260907041723_application_snapshot_rpc.sql`](../supabase/migrations/20260907041723_application_snapshot_rpc.sql).
+
 ## Referências
 
 - [`decisions-applications-v1.md`](decisions-applications-v1.md) — D-08 / D-09
 - [`s4-curation-flow.md`](s4-curation-flow.md) — padrão RPC + RLS
-- [`scripts/check-rls.mjs`](../scripts/check-rls.mjs) — cenários 10–12
+- [`scripts/check-rls.mjs`](../scripts/check-rls.mjs) — cenários 10–12 e 14 (F-023)
 - Inventário [P-11](lgpd-data-inventory.md) / [P-12](lgpd-data-inventory.md) — linha de candidatura e `cv_url` no snapshot; base legal = DPO
