@@ -135,6 +135,12 @@ Pasta [`docs/assets/qa-sec-01a/`](assets/qa-sec-01a/) — ver PR #48.
 
 Relatório: [`qa-sec-f021-oauth-visual-qa.md`](qa-sec-f021-oauth-visual-qa.md) · assets [`docs/assets/qa-sec-f021/`](assets/qa-sec-f021/).
 
+### GOV-VQA-01 — Stack Playwriter + scripts terminal (2026-09-09)
+
+| Escopo | Resultado | Evidência |
+|---|---|---|
+| GOV-VQA-01 stack Visual QA (anti-MCP) | **Pass** | [`gov-vqa-01-stack-validation.md`](gov-vqa-01-stack-validation.md) · DS-05 `audit-log.json` 13/13 · [`docs/assets/gov-vqa-01/`](assets/gov-vqa-01/) (Playwriter CLI light/dark) |
+
 ---
 
 ## Findings — resolvidos
@@ -188,7 +194,7 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 
 1. **Humano / PO — C-05 (bloqueio ativo):** Resend + domínio + API key em `docs-local/` → avisar Plan **“C-05 fechada”** (sem colar key no chat/Git).
 2. **Plan → Executor:** ONE-LINER **S7-NEWSLETTER-01** após C-05 (captura real `/newsletter`).
-3. **Frontend Visual QA:** DS-05 homolog `/eventos` + `/newsletter` (#65–#74) — evidências pendentes.
+3. **Frontend Visual QA:** **GOV-VQA-01 Pass** (stack Playwriter CLI + `_audit.mjs`, 2026-09-09). Aceite PO / DS-05 formal de produto ainda pendente.
 4. **Humano / PO:** aceite DS-05 formal + QA P0 restante (QA-ADM-07..09 admin perf/nav).
 5. **DPO:** bases legais e-mail (P-20); gate C-04 antes de habilitar F-020.
 
@@ -197,5 +203,6 @@ Referência: [`qa-test-plan-homolog.md`](qa-test-plan-homolog.md).
 | Papel | Nome | Data | Homologação OK para próximo sprint? |
 |---|---|---|---|
 | Frontend Visual QA | QA-SEC-01a + UX-PERF + **F-021 OAuth callback** | 2026-09-08 | ☑ Sim (#48, #55; QA-SEC-05 Pass homolog) |
+| Frontend Visual QA | **GOV-VQA-01** stack Playwriter CLI + scripts terminal | 2026-09-09 | ☑ Sim stack · ☐ aceite PO DS-05 |
 | Plan TL | F-019 #51 + pentest 01d + F-021/F-023 homolog | 2026-09-08 | ☑ Sim homolog · ☐ Não prod (LGPD) |
 | PO | | | |
