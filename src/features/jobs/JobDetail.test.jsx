@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { JobDetail } from "./JobDetail.jsx";
+import { jobDetailBackFrom, jobDetailBackLabel } from "./job-detail-nav.js";
 
 const job = {
   title: "Pessoa Desenvolvedora Front-end",
@@ -101,5 +102,28 @@ describe("JobDetail apply", () => {
     );
     expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("usa o rótulo contextual no botão voltar", () => {
+    render(
+      <JobDetail
+        job={job}
+        goBack={() => {}}
+        backLabel="Voltar para minhas candidaturas"
+        logged={false}
+        applicationStatus={null}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Voltar para minhas candidaturas" })).toHaveClass("back");
+    expect(screen.queryByRole("button", { name: /Voltar para vagas/i })).not.toBeInTheDocument();
+  });
+
+  it("jobDetailBackFrom nunca devolve o portal", () => {
+    expect(jobDetailBackFrom("/minhas-candidaturas")).toBe("/minhas-candidaturas");
+    expect(jobDetailBackFrom("/vagas")).toBe("/vagas");
+    expect(jobDetailBackFrom("/")).toBe("/vagas");
+    expect(jobDetailBackFrom(undefined)).toBe("/vagas");
+    expect(jobDetailBackLabel("/minhas-candidaturas")).toBe("Voltar para minhas candidaturas");
+    expect(jobDetailBackLabel("/vagas")).toBe("Voltar para vagas");
   });
 });

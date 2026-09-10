@@ -93,7 +93,7 @@ export function MyApplications({ userId }) {
                 <div className="job-main">
                   <div className="job-title">
                     <h3>
-                      <Link to={`/jobs/${row.jobId}`}>{row.jobTitle || "Vaga"}</Link>
+                      <Link to={`/jobs/${row.jobId}`} state={{ from: "/minhas-candidaturas" }}>{row.jobTitle || "Vaga"}</Link>
                     </h3>
                     <span className="featured">{applicationStatusLabel(row.status)}</span>
                   </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
@@ -10,6 +10,7 @@ import { findEventBySlug } from "./features/events/events-catalog.js";
 import { Newsletter } from "./features/newsletter/Newsletter.jsx";
 import { findApprovedJobInCache, loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
 import { JobDetail, JobDetailSkeleton } from "./features/jobs/JobDetail.jsx";
+import { jobDetailBackFrom, jobDetailBackLabel } from "./features/jobs/job-detail-nav.js";
 import { MyApplications } from "./features/jobs/MyApplications.jsx";
 import { applyToJob, loadMyApplication, loadMyApplications, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
@@ -125,6 +126,10 @@ function OnboardingRoute({ auth, setAuth }) {
 function JobDetailRoute({ logged, userId, needsOnboarding }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { state } = useLocation();
+  const from = jobDetailBackFrom(state?.from);
+  const backLabel = jobDetailBackLabel(from);
+  const goBack = () => navigate(from);
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
   const [applicationStatus, setApplicationStatus] = useState(null);
@@ -208,17 +213,18 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
   };
 
   if (status === "loading") {
-    return <JobDetailSkeleton goBack={() => navigate("/")} />;
+    return <JobDetailSkeleton goBack={goBack} backLabel={backLabel} />;
   }
   if (status === "missing" || status === "error") {
-    return <main className="detail-page"><div className="shell"><p>Vaga não encontrada ou indisponível.</p><button className="back" onClick={() => navigate("/")}>Voltar para vagas</button></div></main>;
+    return <main className="detail-page"><div className="shell"><p>Vaga não encontrada ou indisponível.</p><button className="back" onClick={goBack}>{backLabel}</button></div></main>;
   }
   if (status === "partial" || status === "ready") {
     return (
       <JobDetail
         job={job}
         isPartial={status === "partial"}
-        goBack={() => navigate("/")}
+        goBack={goBack}
+        backLabel={backLabel}
         logged={logged}
         needsOnboarding={needsOnboarding}
         onNeedLogin={() => navigate("/login")}
