@@ -1,25 +1,42 @@
 import React, { useEffect, useState } from "react";
-import { BriefcaseBusiness, Search } from "lucide-react";
+import { BriefcaseBusiness } from "lucide-react";
 import { Link } from "react-router-dom";
 import {
   applicationStatusLabel,
   canWithdrawStatus,
   formatApplicationDate,
   loadMyApplications,
+  peekMyApplicationsCache,
   withdrawApplication,
 } from "./apply-api.js";
 
+function ApplicationSkeletons() {
+  return (
+    <div className="cards" aria-hidden="true">
+      {[1, 2, 3].map((slot) => (
+        <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" />
+      ))}
+    </div>
+  );
+}
+
 export function MyApplications({ userId }) {
-  const [rows, setRows] = useState([]);
-  const [status, setStatus] = useState("loading");
+  const cached = peekMyApplicationsCache(userId);
+  const [rows, setRows] = useState(() => cached ?? []);
+  const [status, setStatus] = useState(() => (cached ? "ready" : "loading"));
   const [busyJobId, setBusyJobId] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (!userId) return undefined;
     let cancelled = false;
-    setStatus("loading");
-    setError("");
-    loadMyApplications(userId)
+    const hadCache = peekMyApplicationsCache(userId) != null;
+    if (!hadCache) {
+      setStatus("loading");
+      setError("");
+    }
+
+    loadMyApplications({ userId, forceRefresh: hadCache })
       .then((list) => {
         if (cancelled) return;
         setRows(list);
@@ -42,6 +59,10 @@ export function MyApplications({ userId }) {
       setRows((current) =>
         current.map((row) => (row.jobId === jobId ? { ...row, status: updated?.status ?? "withdrawn" } : row)),
       );
+      if (userId) {
+        const list = await loadMyApplications({ userId, forceRefresh: true });
+        setRows(list);
+      }
     } catch (err) {
       setError(err.message || "Não é possível retirar esta candidatura.");
     } finally {
@@ -49,18 +70,14 @@ export function MyApplications({ userId }) {
     }
   };
 
+  const loading = status === "loading" && rows.length === 0;
+
   return (
-    <main className="detail-page">
+    <main className="detail-page" aria-busy={loading}>
       <div className="shell">
         <h1>Minhas candidaturas</h1>
         {error ? <p className="tiny" role="alert">{error}</p> : null}
-        {status === "loading" ? (
-          <div className="empty">
-            <Search size={32} />
-            <h3>Carregando candidaturas</h3>
-            <p>Buscando as vagas em que você se candidatou.</p>
-          </div>
-        ) : null}
+        {loading ? <ApplicationSkeletons /> : null}
         {status === "ready" && rows.length === 0 ? (
           <div className="empty">
             <BriefcaseBusiness size={32} />

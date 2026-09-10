@@ -407,6 +407,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     await renderAt("/minhas-candidaturas");
     expect(await screen.findByRole("heading", { name: "Minhas candidaturas" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
+    expect(screen.queryByText("Carregando…")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Carregando candidaturas" })).not.toBeInTheDocument();
   });
 
   it("não mostra CTA azul antes do estado aplicado quando já candidatado", async () => {
