@@ -49,6 +49,7 @@ describe("Newsletter", () => {
     const cta = screen.getByRole("link", { name: NEWSLETTER.ctaAction });
     expect(cta).toHaveAttribute("href", "/login");
     expect(cta).toHaveClass("white-button");
+    expect(screen.getByRole("heading", { name: /O que importa para sua carreira/i })).toBeInTheDocument();
     expect(document.querySelector(".cta")).toBeTruthy();
     expect(screen.queryByText(/Carregando/i)).not.toBeInTheDocument();
   });

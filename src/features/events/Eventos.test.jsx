@@ -77,7 +77,7 @@ describe("EventosIndex", () => {
     expect(cta).toHaveAttribute("href", "/login");
     expect(cta).toHaveClass("white-button");
     expect(screen.getByText(EVENTS_INDEX.ctaLead)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /Seu próximo encontro pode/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /O evento termina/i })).toBeInTheDocument();
   });
 
   it("não mostra a seção CTA quando o visitante já está logado", () => {

@@ -40,9 +40,9 @@ export const NEWSLETTER = {
       excerpt: "Por que uma carta da comunidade, o que você vai receber e como vamos evitar ruído na caixa de entrada.",
     },
   ],
-  ctaEyebrow: "Comunidade GDG",
-  ctaTitle: "Seu próximo desafio pode",
-  ctaTitleBreak: "estar a um clique.",
-  ctaLead: "Crie seu perfil no GDG Jobs enquanto a letter abre inscrições.",
+  ctaEyebrow: "Menos ruído, mais sinal",
+  ctaTitle: "O que importa para sua carreira",
+  ctaTitleBreak: "chega até você.",
+  ctaLead: "Crie seu perfil no GDG Jobs e acompanhe oportunidades e novidades da comunidade no seu ritmo.",
   ctaAction: "Criar perfil gratuito",
 };

@@ -161,13 +161,23 @@ async function renderAt(path = "/") {
 }
 
 async function renderHome() {
-  await renderAt("/");
+  await renderAt("/vagas");
   await waitFor(() => {
     expect(screen.getByText("4 oportunidades encontradas")).toBeInTheDocument();
   });
 }
-
 describe("ARQ-01 — caracterização do shell", () => {
+  it("renderiza o portal como primeira tela e encaminha a busca para vagas", async () => {
+    await renderAt("/");
+    expect(screen.getByRole("heading", { name: /Seu futuro em tech tem endereço/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Vagas em destaque" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
+    fireEvent.change(screen.getByRole("search").querySelector("input"), { target: { value: "React" } });
+    fireEvent.submit(screen.getByRole("search"));
+    expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Cargo, tecnologia ou empresa")).toHaveValue("React");
+  });
+
   it("renderiza a home com busca e listagem de vagas aprovadas", async () => {
     await renderHome();
     expect(screen.getByRole("heading", { name: /carreira em tech/i })).toBeInTheDocument();

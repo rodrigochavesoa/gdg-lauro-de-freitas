@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from "react-router-do
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { Home } from "./features/catalog/Home.jsx";
+import { Portal } from "./features/portal/Portal.jsx";
 import { EventosIndex } from "./features/events/Eventos.jsx";
 import { EventLanding } from "./features/events/EventLanding.jsx";
 import { findEventBySlug } from "./features/events/events-catalog.js";
@@ -65,7 +66,8 @@ export function App() {
         onSignOut={signOutUser}
       />
       <Routes>
-        <Route path="/" element={<CatalogGate auth={auth}><Home logged={Boolean(auth.session)} /></CatalogGate>} />
+        <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} /></CatalogGate>} />
+        <Route path="/vagas" element={<CatalogGate auth={auth}><Home logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
         <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={Boolean(auth.session)} /></CatalogGate>} />
