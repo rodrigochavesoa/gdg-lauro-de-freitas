@@ -26,7 +26,7 @@ function loadLocalEnv() {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://localhost:5173").replace(/\/$/, "");
-const outDir = resolve("docs/assets/ux-perf-05");
+const outDir = resolve("docs-local/assets/ux-perf-05");
 mkdirSync(outDir, { recursive: true });
 const label = env.MEASURE_LABEL || "before";
 

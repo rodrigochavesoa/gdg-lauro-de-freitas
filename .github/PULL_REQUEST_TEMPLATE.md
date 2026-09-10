@@ -16,12 +16,12 @@
 - [ ] Testes automatizados (`pnpm lint`, `pnpm test`, `pnpm run build` no `pwsh`)
 - [ ] Captura de tela ou vídeo, se houver mudança de UI
 - [ ] Migration e rollback, quando aplicável
-- [ ] PR de interface cita `docs/design-system-communication.md` (DS-06)
-- [ ] PR de layout cita `docs/design-system/section-curves.md` (DS-07) e reutiliza as ondas canônicas
+- [ ] Se UI: seguir tokens e componentes em `src/styles.css` (não inventar paleta paralela)
+- [ ] Se layout / juntas de seção: reutilizar as ondas canônicas; DS completo só em `docs-local/` (mantenedor)
 
 ## Checklist
 - [ ] Branch a partir de `main` — **sem push direto em `main`**
 - [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)
 - [ ] Critérios de aceitação atendidos
-- [ ] Documentação atualizada
+- [ ] Documentação pública atualizada (`README.md`, `SETUP.md`, `CONTRIBUTING.md`) quando o clone precisar
 - [ ] Sem mudanças fora do escopo

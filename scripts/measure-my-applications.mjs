@@ -66,7 +66,7 @@ const label = (env.MEASURE_LABEL || "after").toLowerCase() === "before" ? "befor
 const supabaseUrl = env.VITE_SUPABASE_URL;
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY;
 const { email, password } = loadCandidateUser();
-const outDir = resolve(process.cwd(), "docs/assets/ux-perf-06");
+const outDir = resolve(process.cwd(), "docs-local/assets/ux-perf-06");
 mkdirSync(outDir, { recursive: true });
 
 if (!email || !password) {
@@ -282,6 +282,6 @@ const metrics = {
 
 writeFileSync(resolve(outDir, `metrics-${label}.json`), `${JSON.stringify(metrics, null, 2)}\n`);
 writeFileSync(resolve(outDir, `measure-${label}.log`), `${lines.join("\n")}\n`);
-log(`wrote docs/assets/ux-perf-06/metrics-${label}.json`);
+log(`wrote docs-local/assets/ux-perf-06/metrics-${label}.json`);
 
 await browser.close();

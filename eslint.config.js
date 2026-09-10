@@ -5,7 +5,7 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**", "node_modules/**", ".pnpm-store/**", "supabase/**", "docs/assets/**"],
+    ignores: ["dist/**", "node_modules/**", ".pnpm-store/**", "supabase/**", "docs-local/**"],
   },
   {
     files: ["**/*.{js,jsx}"],
