@@ -57,10 +57,23 @@ describe("Header", () => {
 
   it("candidato logado vê Minhas candidaturas e não vê Área admin", () => {
     renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
-    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
-    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Para empresas" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getAllByRole("link").map((el) => el.textContent)).toEqual([
+      "Vagas",
+      "Eventos",
+      "Newsletter",
+      "Minhas candidaturas",
+    ]);
+    expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(within(desktopNav).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
+    expect(within(desktopNav).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", () => {

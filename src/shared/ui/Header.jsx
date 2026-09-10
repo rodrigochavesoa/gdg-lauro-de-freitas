@@ -44,12 +44,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
       {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
       {staff || !logged ? (
         <NavLink to="/admin" onClick={onNavigate}>Área admin</NavLink>
-      ) : (
-        <>
-          <NavLink to="/admin" onClick={onNavigate}>Para empresas</NavLink>
-          <NavLink to="/admin" onClick={onNavigate}>Comunidade</NavLink>
-        </>
-      )}
+      ) : null}
     </>
   );
 
