@@ -5,11 +5,11 @@ import {
 } from "lucide-react";
 import { APPLICATION_STATUS_COPY, canWithdrawStatus } from "./apply-api.js";
 
-export function JobDetailSkeleton({ goBack }) {
+export function JobDetailSkeleton({ goBack, backLabel = "Voltar para vagas" }) {
   return (
     <main className="detail-page" aria-busy="true" aria-live="polite">
       <div className="shell">
-        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> Voltar para vagas</button>
+        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
         <div className="detail-grid">
           <article className="detail-main" aria-hidden="true">
             <div className="detail-top">
@@ -63,6 +63,7 @@ export function JobDetail({
   job,
   isPartial = false,
   goBack,
+  backLabel = "Voltar para vagas",
   logged,
   onNeedLogin,
   onNeedOnboarding,
@@ -96,7 +97,7 @@ export function JobDetail({
   return (
     <main className="detail-page" aria-busy={isPartial || undefined}>
       <div className="shell">
-        <button className="back" onClick={goBack}><ArrowLeft size={17}/> Voltar para vagas</button>
+        <button className="back" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
         <div className="detail-grid">
           <article className="detail-main">
             <div className="detail-top">

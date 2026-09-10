@@ -86,7 +86,7 @@ async function main() {
       if (kind === "heavy") await new Promise((r) => setTimeout(r, 900));
       await route.continue();
     });
-    await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
     await setTheme(page, "Claro");
     await page.locator(".job-card:not(.job-card--skeleton), .empty").first().waitFor({ timeout: 20_000 });
     const empty = await page.locator(".empty").count();
@@ -119,7 +119,7 @@ async function main() {
     await page.screenshot({ path: resolve(outDir, "from-home-ready-light-1280x720.png") });
 
     await page.getByRole("button", { name: /Voltar para vagas/i }).click();
-    await page.waitForURL((u) => u.pathname === "/" || u.pathname === "", { timeout: 10_000 });
+    await page.waitForURL((u) => u.pathname === "/vagas", { timeout: 10_000 });
 
     log.checks.push({
       id: "from-home-click",

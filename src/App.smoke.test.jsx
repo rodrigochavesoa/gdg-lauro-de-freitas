@@ -325,6 +325,9 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
+    expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
   });
 
   it("abre o Login a partir de Entrar ou criar conta", async () => {
@@ -345,6 +348,10 @@ describe("ARQ-01 — caracterização do shell", () => {
     await renderAt("/jobs/1");
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
+    expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
   });
 
   it("renderiza o Login diretamente em /login sem CTAs de auth no Header", async () => {
@@ -438,6 +445,32 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando…")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Carregando candidaturas" })).not.toBeInTheDocument();
+  });
+
+  it("volta de /jobs/:id para minhas candidaturas quando a origem é o dashboard", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Ana Demo", role: "candidate" };
+    authState.needsOnboarding = false;
+    loadMyApplicationsMock.mockResolvedValue([
+      {
+        id: "a1",
+        jobId: "1",
+        status: "submitted",
+        jobTitle: "Pessoa Desenvolvedora Front-end",
+        companyName: "Nuvem Lauro Demo",
+        updatedAt: "2026-09-07T00:00:00.000Z",
+      },
+    ]);
+    await renderAt("/minhas-candidaturas");
+    expect(await screen.findByRole("link", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Pessoa Desenvolvedora Front-end" }));
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Voltar para minhas candidaturas" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Voltar para vagas/i })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Voltar para minhas candidaturas" }));
+    expect(await screen.findByRole("heading", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
   });
 
   it("não mostra CTA azul antes do estado aplicado quando já candidatado", async () => {

@@ -124,6 +124,6 @@ function FilterGroup({ label, values, active, toggle }) { return <div className=
 
 function JobCard({ job }) {
   const navigate = useNavigate();
-  const openJob = () => navigate(`/jobs/${job.id}`);
+  const openJob = () => navigate(`/jobs/${job.id}`, { state: { from: "/vagas" } });
   return <article className="job-card" onClick={openJob}><div className="company-logo" style={{ background: job.color }}>{job.logo}</div><div className="job-main"><div className="job-title"><h3>{job.title}</h3>{job.featured && <span className="featured"><Sparkles size={13}/> Destaque</span>}</div><p className="company-name">{job.company} <BadgeCheck size={15}/></p><div className="meta"><span><MapPin size={15}/>{job.place}</span><span><BriefcaseBusiness size={15}/>{job.type}</span><span><CircleDollarSign size={15}/>{job.salary}</span></div><div className="tags">{(job.stack ?? []).map(t => <span key={t}>{t}</span>)}</div></div><div className="job-side"><span>{job.posted}</span><button className="round-arrow" aria-label={`Ver vaga ${job.title}`} onClick={(event) => { event.stopPropagation(); openJob(); }}><ArrowUpRight size={18}/></button></div></article>;
 }
