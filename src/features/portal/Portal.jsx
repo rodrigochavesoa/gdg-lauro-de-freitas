@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, Code2, Compass, Search, Sparkles, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
+import { isCandidateProfile, isD01Complete } from "../auth/profile-completeness.js";
 
-export function Portal({ logged = false }) {
+export function Portal({ logged = false, profile = null, email = "" }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const profileComplete = isD01Complete(profile, email);
+  const staff = logged && !isCandidateProfile(profile);
 
   const searchJobs = (event) => {
     event.preventDefault();
@@ -32,7 +35,9 @@ export function Portal({ logged = false }) {
           </div>
         </div>
       </section>
-      {!logged && (
+      {logged ? (
+        <PortalMemberCta profileComplete={profileComplete} staff={staff} />
+      ) : (
         <section className="cta portal-cta">
           <div className="shell cta-inner">
             <div>
@@ -45,6 +50,57 @@ export function Portal({ logged = false }) {
         </section>
       )}
     </main>
+  );
+}
+
+function PortalMemberCta({ profileComplete, staff }) {
+  const content = staff
+    ? {
+        icon: <Users size={15} />,
+        eyebrow: "Comunidade em movimento",
+        title: "Continue fazendo a tecnologia acontecer.",
+        description: "Acompanhe os próximos encontros e mantenha a comunidade mais conectada.",
+        primary: "Abrir painel",
+        primaryTo: "/admin",
+        secondary: "Ver eventos",
+        secondaryTo: "/eventos",
+      }
+    : profileComplete
+      ? {
+          icon: <BriefcaseBusiness size={15} />,
+          eyebrow: "Seu próximo movimento",
+          title: "Seu perfil já está pronto para novas oportunidades.",
+          description: "Explore vagas alinhadas ao seu momento e acompanhe cada candidatura de perto.",
+          primary: "Explorar vagas",
+          primaryTo: "/vagas",
+          secondary: "Minhas candidaturas",
+          secondaryTo: "/minhas-candidaturas",
+        }
+      : {
+          icon: <Sparkles size={15} />,
+          eyebrow: "Seu perfil em movimento",
+          title: "Deixe seu perfil trabalhar por você.",
+          description: "Complete suas preferências para receber oportunidades mais alinhadas.",
+          primary: "Completar meu perfil",
+          primaryTo: "/onboarding",
+          secondary: "Explorar vagas",
+          secondaryTo: "/vagas",
+        };
+
+  return (
+    <section className="cta portal-member-cta" aria-labelledby="portal-member-cta-title">
+      <div className="shell cta-inner portal-member-cta__inner">
+        <div className="portal-member-cta__copy">
+          <div className="eyebrow light">{content.icon} {content.eyebrow}</div>
+          <h2 id="portal-member-cta-title">{content.title}</h2>
+          <p>{content.description}</p>
+        </div>
+        <div className="portal-member-cta__actions">
+          <Link className="white-button" to={content.primaryTo}>{content.primary} <ArrowUpRight size={17} /></Link>
+          <Link className="portal-member-cta__secondary" to={content.secondaryTo}>{content.secondary}</Link>
+        </div>
+      </div>
+    </section>
   );
 }
 

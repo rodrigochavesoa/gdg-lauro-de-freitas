@@ -14,16 +14,18 @@ export function EventLanding({ event }) {
     <main>
       <section className="hero">
         <div className="shell hero-content">
-          <img
-            className={portrait ? "event-banner event-banner--portrait" : "event-banner"}
-            src={event.banner.src}
-            alt={event.banner.alt}
-            width={event.banner.width}
-            height={event.banner.height}
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-          />
+          <div className={`event-banner-wrap event-banner-wrap--seamless${portrait ? " event-banner-wrap--wide" : ""}`}>
+            <img
+              className={portrait ? "event-banner event-banner--portrait" : "event-banner"}
+              src={event.banner.src}
+              alt={event.banner.alt}
+              width={event.banner.width}
+              height={event.banner.height}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+            />
+          </div>
         </div>
       </section>
       <div className="home-divider" aria-hidden="true">

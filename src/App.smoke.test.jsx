@@ -178,6 +178,25 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByPlaceholderText("Cargo, tecnologia ou empresa")).toHaveValue("React");
   });
 
+  it("renderiza ações contextuais na home para candidato logado", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+
+    await renderAt("/");
+
+    expect(await screen.findByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
+    const memberCta = document.querySelector(".portal-member-cta");
+    expect(within(memberCta).getByRole("link", { name: "Explorar vagas" })).toHaveAttribute("href", "/vagas");
+    expect(within(memberCta).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+  });
+
   it("renderiza a home com busca e listagem de vagas aprovadas", async () => {
     await renderHome();
     expect(screen.getByRole("heading", { name: /carreira em tech/i })).toBeInTheDocument();

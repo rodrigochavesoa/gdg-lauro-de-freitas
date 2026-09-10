@@ -34,7 +34,7 @@ O detalhe inclui **Voltar para eventos** (`button.back`, paridade JobDetail) ime
 
 | Zona | DevFest | DevOpsDays |
 |---|---|---|
-| **A** | Banner 1280×720, `object-fit: cover` | Banner vertical 1170×5000, `event-banner--portrait` (`contain` + `max-height: min(420px, 50vh)`) |
+| **A** | `.event-banner-wrap` compartilhado: `width: min(720px, 100%)`, `max-height: min(320px, 38vh)`, `aspect-ratio: 16 / 9`, centralizado, `border-radius` DS-06; imagem com `object-fit: cover` | Mesmo `.event-banner-wrap` e mesmas dimensões/raio; `event-banner--portrait` altera apenas a imagem para `object-fit: contain` |
 | **B** | Resumo + **Realizar inscrição** (Even3) | Resumo + **Garantir ingresso** (pretix) |
 | **C** | intro + pillars BUILD/SECURE/SCALE + facts | `intro[]` + `facts[]` (sem pillars) |
 | **D** | GDG Lauro de Freitas | DevOpsDays Salvador |

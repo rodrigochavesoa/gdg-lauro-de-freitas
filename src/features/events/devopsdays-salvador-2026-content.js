@@ -10,7 +10,7 @@ export const DEVOPSDAYS_SALVADOR_2026 = {
     src: "/events/d570782909129eef51789263259b10a0.1170x5000.png",
     alt: "DevOpsDays Salvador 2026",
     width: 1170,
-    height: 5000,
+    height: 312,
     fit: "contain",
   },
   registerUrl: "https://tickets.devopsdays.org/devopsdays-salvador/2026/",

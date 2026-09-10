@@ -72,4 +72,49 @@ describe("Portal", () => {
     expect(stage).not.toHaveClass("is-portal-open");
     expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
   });
+
+  it("mostra ações úteis para quem já está logado e tem perfil completo", () => {
+    render(
+      <MemoryRouter>
+        <Portal
+          logged
+          email="ana@example.com"
+          profile={{
+            full_name: "Ana Demo",
+            role: "candidate",
+            skills: ["React"],
+            preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+          }}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Explorar vagas" })).toHaveAttribute("href", "/vagas");
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+  });
+
+  it("convida o usuário logado a completar o perfil quando necessário", () => {
+    render(
+      <MemoryRouter>
+        <Portal logged email="ana@example.com" profile={{ role: "candidate" }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Deixe seu perfil trabalhar por você." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Completar meu perfil" })).toHaveAttribute("href", "/onboarding");
+    expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+  });
+
+  it("direciona perfis de equipe para o painel da comunidade", () => {
+    render(
+      <MemoryRouter>
+        <Portal logged profile={{ full_name: "Ada Admin", role: "admin" }} email="ada@example.com" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Continue fazendo a tecnologia acontecer." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Abrir painel" })).toHaveAttribute("href", "/admin");
+  });
 });
