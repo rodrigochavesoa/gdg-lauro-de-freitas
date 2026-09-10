@@ -2,7 +2,9 @@
  * GOV-VQA-01 — amostragem Playwriter CLI (não MCP).
  * Uso: playwriter -s <id> --timeout 90000 -f docs/assets/gov-vqa-01/_sample.mjs
  */
-const out = "C:/Colab_Developer/gdg-senai/docs/assets/gov-vqa-01";
+import { resolve } from "node:path";
+
+const out = resolve("docs/assets/gov-vqa-01");
 const base = "http://127.0.0.1:5173";
 
 async function setTheme(label) {
@@ -23,18 +25,26 @@ async function setTheme(label) {
   }
 }
 
-await page.goto(`${base}/eventos`, { waitUntil: "networkidle" });
-await page.getByRole("heading", { name: "Eventos", exact: true }).waitFor({ state: "visible", timeout: 15_000 });
-await setTheme("Claro");
-await page.screenshot({ path: `${out}/eventos-light.png`, fullPage: true, scale: "css" });
-await setTheme("Escuro");
-await page.screenshot({ path: `${out}/eventos-dark.png`, fullPage: true, scale: "css" });
+async function main() {
+  await page.goto(`${base}/eventos`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Eventos", exact: true }).waitFor({ state: "visible", timeout: 15_000 });
+  await setTheme("Claro");
+  await page.screenshot({ path: `${out}/eventos-light.png`, fullPage: true, scale: "css" });
+  await setTheme("Escuro");
+  await page.screenshot({ path: `${out}/eventos-dark.png`, fullPage: true, scale: "css" });
 
-await page.goto(`${base}/newsletter`, { waitUntil: "networkidle" });
-await page.getByRole("heading", { name: "GDG Jobs Letter", exact: true }).waitFor({ state: "visible", timeout: 15_000 });
-await page.screenshot({ path: `${out}/newsletter-dark.png`, fullPage: true, scale: "css" });
-await setTheme("Claro");
-await page.screenshot({ path: `${out}/newsletter-light.png`, fullPage: true, scale: "css" });
+  await page.goto(`${base}/newsletter`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "GDG Jobs Letter", exact: true }).waitFor({ state: "visible", timeout: 15_000 });
+  await page.screenshot({ path: `${out}/newsletter-dark.png`, fullPage: true, scale: "css" });
+  await setTheme("Claro");
+  await page.screenshot({ path: `${out}/newsletter-light.png`, fullPage: true, scale: "css" });
 
-const theme = await page.locator("html").getAttribute("data-theme");
-return { url: page.url(), theme, files: ["eventos-light.png", "eventos-dark.png", "newsletter-dark.png", "newsletter-light.png"] };
+  const theme = await page.locator("html").getAttribute("data-theme");
+  return {
+    url: page.url(),
+    theme,
+    files: ["eventos-light.png", "eventos-dark.png", "newsletter-dark.png", "newsletter-light.png"],
+  };
+}
+
+await main();
