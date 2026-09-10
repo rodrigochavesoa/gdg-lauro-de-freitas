@@ -6,10 +6,10 @@ export const EVENTS_INDEX = {
   title: "Eventos",
   lead: "Encontros presenciais, híbridos ou online para aprender, conectar e construir junto.",
   viewEventLabel: "Ver evento",
-  ctaEyebrow: "Comunidade GDG",
-  ctaTitle: "Seu próximo encontro pode",
-  ctaTitleBreak: "estar a um clique.",
-  ctaLead: "Crie seu perfil e acompanhe vagas curadas e eventos da comunidade GDG.",
+  ctaEyebrow: "Conexões que continuam",
+  ctaTitle: "O evento termina,",
+  ctaTitleBreak: "a sua próxima conexão não.",
+  ctaLead: "Crie seu perfil e continue perto das pessoas, ideias e oportunidades da comunidade GDG.",
   ctaAction: "Criar perfil gratuito",
 };
 

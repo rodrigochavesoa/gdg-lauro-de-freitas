@@ -35,7 +35,7 @@ describe("MyApplications", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ver vagas" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Ver vagas" })).toHaveAttribute("href", "/vagas");
   });
 
   it("mostra skeleton estático no cold miss sem empty Carregando candidaturas", async () => {

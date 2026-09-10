@@ -83,7 +83,7 @@ export function MyApplications({ userId }) {
             <BriefcaseBusiness size={32} />
             <h3>Você ainda não se candidatou</h3>
             <p>Explore as vagas aprovadas e envie seu perfil em um clique.</p>
-            <Link className="outline" to="/">Ver vagas</Link>
+            <Link className="outline" to="/vagas">Ver vagas</Link>
           </div>
         ) : null}
         {rows.length > 0 ? (

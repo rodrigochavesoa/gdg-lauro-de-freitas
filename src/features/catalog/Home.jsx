@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsCache } from "./jobs-api.js";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 const levels = ["Estágio", "Júnior", "Pleno", "Sênior"];
 const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
@@ -14,7 +14,8 @@ const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dado
 export function Home({ logged = false }) {
   const [jobs, setJobs] = useState(() => peekApprovedJobsCache() ?? []);
   const [catalogStatus, setCatalogStatus] = useState(() => (peekApprovedJobsCache() ? "ready" : "loading"));
-  const [query, setQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [tech, setTech] = useState([]);
   const [level, setLevel] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -48,8 +49,10 @@ export function Home({ logged = false }) {
   const toggle = (item, values, setter) => setter(toggleFilterValue(item, values));
   const reset = () => { setQuery(""); setTech([]); setLevel([]); };
 
+  const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><div className="searchbox"><Search size={21}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa"/><button className="primary" onClick={() => {}}>Buscar vagas <ArrowUpRight size={17}/></button></div><div className="popular">Populares: <button onClick={() => setQuery("React")}>React</button><button onClick={() => setQuery("Node")}>Node.js</button><button onClick={() => setQuery("Python")}>Python</button><button onClick={() => setQuery("Designer")}>Product Design</button></div>    </div></section>;
+
   return <main>
-    <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><div className="searchbox"><Search size={21}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa"/><button className="primary" onClick={() => {}}>Buscar vagas <ArrowUpRight size={17}/></button></div><div className="popular">Populares: <button onClick={() => setQuery("React")}>React</button><button onClick={() => setQuery("Node")}>Node.js</button><button onClick={() => setQuery("Python")}>Python</button><button onClick={() => setQuery("Designer")}>Product Design</button></div>    </div></section>
+    {standardHero}
     <div className="home-divider" aria-hidden="true">
       <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
         <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
@@ -60,7 +63,7 @@ export function Home({ logged = false }) {
       <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{catalogStatus === "loading" && visibleJobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
     </section>
     {!logged && (
-      <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Comunidade GDG</div><h2>Seu próximo desafio pode<br/>estar a um clique.</h2><p>Crie seu perfil e receba vagas que combinam com você.</p></div><Link to="/login" className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></Link></div></section>
+      <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Seu perfil abre caminhos</div><h2>A vaga certa começa<br/>com um perfil que representa você.</h2><p>Crie seu perfil e apresente suas habilidades para oportunidades mais alinhadas.</p></div><Link to="/login" className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></Link></div></section>
     )}
   </main>;
 }
