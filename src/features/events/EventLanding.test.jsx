@@ -26,9 +26,11 @@ describe("EventLanding", () => {
     renderLanding(DEVFEST_2026);
 
     const banner = screen.getByRole("img", { name: DEVFEST_2026.banner.alt });
+    const bannerWrap = banner.closest(".event-banner-wrap");
     expect(banner).toHaveAttribute("src", DEVFEST_2026.banner.src);
     expect(banner).toHaveClass("event-banner");
     expect(banner).not.toHaveClass("event-banner--portrait");
+    expect(bannerWrap).toHaveClass("event-banner-wrap", "event-banner-wrap--seamless");
     expect(banner).toHaveAttribute("loading", "eager");
     expect(banner.getAttribute("fetchpriority") ?? banner.getAttribute("fetchPriority")).toBe("high");
 
@@ -54,12 +56,16 @@ describe("EventLanding", () => {
     expect(document.querySelector(".marketing-page")).toBeNull();
   });
 
-  it("renderiza DevOpsDays com banner vertical, CTA de tickets e organizador", () => {
+  it("renderiza DevOpsDays com banner panorâmico sem distorção, CTA de tickets e organizador", () => {
     renderLanding(DEVOPSDAYS_SALVADOR_2026);
 
     const banner = screen.getByRole("img", { name: DEVOPSDAYS_SALVADOR_2026.banner.alt });
+    const bannerWrap = banner.closest(".event-banner-wrap");
     expect(banner).toHaveAttribute("src", DEVOPSDAYS_SALVADOR_2026.banner.src);
+    expect(banner).toHaveAttribute("height", "312");
     expect(banner).toHaveClass("event-banner--portrait");
+    expect(bannerWrap).toHaveClass("event-banner-wrap", "event-banner-wrap--seamless");
+    expect(bannerWrap).toHaveClass("event-banner-wrap--wide");
 
     expect(screen.getByRole("heading", { name: DEVOPSDAYS_SALVADOR_2026.title })).toBeInTheDocument();
     expect(screen.getByText(DEVOPSDAYS_SALVADOR_2026.datetimeLabel)).toBeInTheDocument();

@@ -66,7 +66,7 @@ export function App() {
         onSignOut={signOutUser}
       />
       <Routes>
-        <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} /></CatalogGate>} />
+        <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} profile={auth.profile} email={auth.session?.user?.email} /></CatalogGate>} />
         <Route path="/vagas" element={<CatalogGate auth={auth}><Home logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />

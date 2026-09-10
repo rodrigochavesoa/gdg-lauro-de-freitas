@@ -11,6 +11,7 @@ export const DEVFEST_2026 = {
     alt: "DevFest Lauro de Freitas 2026",
     width: 1280,
     height: 720,
+    fit: "cover",
   },
   registerUrl: "https://www.even3.com.br/devfest-lauro-de-freitas-2026-779585/",
   registerLabel: "Realizar inscrição",
