@@ -150,7 +150,7 @@ pnpm test:rls   # requer .env.local + docs-local/*-test-user.md
 
 | Entrega | Quem executa | Ferramenta | Modelo / modo | Raciocínio | **Não usar** |
 |---|---|---|---|---|---|
-| **QA-SEC-01a** Execução manual checklist | **Frontend Visual QA** ou **Humano** PO/QA | Playwriter + [chrome-devtools-mcp](https://github.com/ChromeDevTools/chrome-devtools-mcp); ver [`setup-visual-qa-tools.md`](setup-visual-qa-tools.md) | Cursor Agent **standard** (não fast) | **Médio-alto** | Executor frontend declarando layout ok sem browser |
+| **QA-SEC-01a** Execução manual checklist | **Frontend Visual QA** ou **Humano** PO/QA | **Playwriter CLI** + scripts (`_audit.mjs`); ver [`setup-visual-qa-tools.md`](setup-visual-qa-tools.md) § tokens — **não** browser MCP no chat | Cursor Agent **standard** (não fast) | **Médio-alto** | Playwright MCP; auditoria completa via chrome-devtools-mcp no chat |
 | **QA-SEC-01a** Matriz + template (este doc) | Plan Tech Lead | **Cursor** Agent ou Chat | Modelo **principal / Max / thinking** (ex.: Claude Opus/Sonnet thinking, GPT-5.x high) | **Alto** — cruzar backlog, RLS, LGPD | Fast/autocomplete (`composer-2.5-fast`, “fast” genérico) |
 | **QA-SEC-01b** Rodar `test:rls` + registrar log | Executor | **Cursor** Shell subagent **ou** pwsh local | N/A (script determinístico) | Baixo | LLM para interpretar falha **sem** ler output |
 | **QA-SEC-01c** Playwright E2E (3 fluxos) | Executor frontend | **Cursor** Agent | **Default sólido** ou Composer **standard** (não fast) | **Médio-alto** | Fast-only para arquitetura E2E |
