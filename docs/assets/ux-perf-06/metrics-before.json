@@ -1,0 +1,127 @@
+{
+  "name": "before",
+  "baseUrl": "http://127.0.0.1:5173",
+  "measuredAt": "2026-09-10T02:01:01.275Z",
+  "runs": 5,
+  "t1": {
+    "ms": [
+      1812,
+      1197,
+      1133,
+      1543,
+      1336
+    ],
+    "medianMs": 1336,
+    "ready": [
+      "empty",
+      "empty",
+      "empty",
+      "empty",
+      "empty"
+    ],
+    "routeSpinnerHits": 0,
+    "gateHits": 5,
+    "skeletonRuns": 0,
+    "rest": [
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ]
+    ]
+  },
+  "t2": {
+    "ms": [
+      1111,
+      555,
+      695,
+      1015,
+      1069
+    ],
+    "medianMs": 1015,
+    "ready": [
+      "empty",
+      "empty",
+      "empty",
+      "empty",
+      "empty"
+    ],
+    "routeSpinnerHits": 0,
+    "gateHits": 5,
+    "skeletonRuns": 0,
+    "raf": [
+      {
+        "sampleCount": 49,
+        "routeSpinnerHits": 0,
+        "gateHits": 19,
+        "skeletonHits": 0,
+        "firstGateMs": 0,
+        "firstRouteMs": null,
+        "maxSkeletons": 0
+      },
+      {
+        "sampleCount": 50,
+        "routeSpinnerHits": 0,
+        "gateHits": 15,
+        "skeletonHits": 0,
+        "firstGateMs": 0,
+        "firstRouteMs": null,
+        "maxSkeletons": 0
+      },
+      {
+        "sampleCount": 49,
+        "routeSpinnerHits": 0,
+        "gateHits": 16,
+        "skeletonHits": 0,
+        "firstGateMs": 0,
+        "firstRouteMs": null,
+        "maxSkeletons": 0
+      },
+      {
+        "sampleCount": 50,
+        "routeSpinnerHits": 0,
+        "gateHits": 20,
+        "skeletonHits": 0,
+        "firstGateMs": 0,
+        "firstRouteMs": null,
+        "maxSkeletons": 0
+      },
+      {
+        "sampleCount": 50,
+        "routeSpinnerHits": 0,
+        "gateHits": 38,
+        "skeletonHits": 0,
+        "firstGateMs": 0,
+        "firstRouteMs": null,
+        "maxSkeletons": 0
+      }
+    ],
+    "rest": [
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ],
+      [
+        "applications"
+      ]
+    ]
+  }
+}

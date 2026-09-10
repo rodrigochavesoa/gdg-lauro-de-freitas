@@ -10,13 +10,14 @@ import { Newsletter } from "./features/newsletter/Newsletter.jsx";
 import { findApprovedJobInCache, loadApprovedJob, loadApprovedJobs } from "./features/catalog/jobs-api.js";
 import { JobDetail, JobDetailSkeleton } from "./features/jobs/JobDetail.jsx";
 import { MyApplications } from "./features/jobs/MyApplications.jsx";
-import { applyToJob, loadMyApplication, withdrawApplication } from "./features/jobs/apply-api.js";
+import { applyToJob, loadMyApplication, loadMyApplications, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import { loadAuthSnapshot, signOutUser, subscribeAuth } from "./features/auth/auth-api.js";
 import { Admin } from "./Admin.jsx";
 
 const EMPTY_AUTH = { session: null, profile: null, needsOnboarding: false };
+const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
@@ -45,6 +46,15 @@ export function App() {
   useEffect(() => {
     loadApprovedJobs().catch(() => {});
   }, []);
+
+  // UX-PERF-06 — warm minhas candidaturas for candidate sessions (dedupe via inflight/TTL)
+  useEffect(() => {
+    const userId = auth.session?.user?.id;
+    const role = auth.profile?.role;
+    if (!userId || !role || STAFF_ROLES.has(role)) return undefined;
+    loadMyApplications({ userId }).catch(() => {});
+    return undefined;
+  }, [auth.session?.user?.id, auth.profile?.role]);
 
   return (
     <>
@@ -84,12 +94,10 @@ function EventLandingRoute() {
 }
 
 function MyApplicationsRoute({ auth, authReady }) {
-  if (!authReady) {
-    return <main className="detail-page"><div className="shell"><p>Carregando…</p></div></main>;
-  }
-  if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
-  return <MyApplications userId={auth.session.user.id} />;
+  if (auth.session) return <MyApplications userId={auth.session.user.id} />;
+  if (!authReady) return <MyApplications />;
+  return <Navigate to="/login" replace />;
 }
 
 function LoginRoute({ auth }) {

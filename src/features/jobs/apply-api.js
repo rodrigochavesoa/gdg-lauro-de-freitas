@@ -85,6 +85,39 @@ export function formatApplicationDate(value) {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+export const MY_APPLICATIONS_CACHE_TTL_MS = 30_000;
+
+const myApplicationsCache = new Map();
+const myApplicationsInflight = new Map();
+
+function parseLoadMyApplicationsOptions(userIdOrOptions) {
+  if (userIdOrOptions && typeof userIdOrOptions === "object" && !Array.isArray(userIdOrOptions)) {
+    return {
+      userId: userIdOrOptions.userId,
+      forceRefresh: Boolean(userIdOrOptions.forceRefresh),
+    };
+  }
+  return { userId: userIdOrOptions, forceRefresh: false };
+}
+
+export function invalidateMyApplicationsCache(userId) {
+  if (userId) {
+    myApplicationsCache.delete(userId);
+    myApplicationsInflight.delete(userId);
+    return;
+  }
+  myApplicationsCache.clear();
+  myApplicationsInflight.clear();
+}
+
+export function peekMyApplicationsCache(userId) {
+  if (!userId) return null;
+  const entry = myApplicationsCache.get(userId);
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > MY_APPLICATIONS_CACHE_TTL_MS) return null;
+  return entry.data;
+}
+
 export function parseApplication(row) {
   if (!row || typeof row !== "object") return null;
   const job = row.jobs && !Array.isArray(row.jobs) ? row.jobs : null;
@@ -110,7 +143,9 @@ export async function applyToJob(jobId) {
   if (data && typeof data === "object" && typeof data.error === "string") {
     throw createApplyError({ message: data.error });
   }
-  return parseApplication(data);
+  const parsed = parseApplication(data);
+  invalidateMyApplicationsCache(parsed?.candidateId);
+  return parsed;
 }
 
 export async function withdrawApplication(jobId) {
@@ -118,7 +153,9 @@ export async function withdrawApplication(jobId) {
   const client = clientOrThrow();
   const { data, error } = await client.rpc("withdraw_application", { p_job_id: jobId });
   if (error) throw createApplyError(error);
-  return parseApplication(data);
+  const parsed = parseApplication(data);
+  invalidateMyApplicationsCache(parsed?.candidateId);
+  return parsed;
 }
 
 export async function loadMyApplication(jobId, userId) {
@@ -137,16 +174,38 @@ export async function loadMyApplication(jobId, userId) {
   return parseApplication(data);
 }
 
-export async function loadMyApplications(userId) {
+export async function loadMyApplications(userIdOrOptions) {
+  const { userId, forceRefresh } = parseLoadMyApplicationsOptions(userIdOrOptions);
   const client = getSupabaseBrowserClient();
   if (!client) return [];
-  const candidateId = await resolveCandidateId(client, userId);
+  const candidateId = userId ?? (await resolveCandidateId(client, userId));
   if (!candidateId) return [];
-  const { data, error } = await client
-    .from("applications")
-    .select(APPLICATION_LIST_SELECT)
-    .eq("candidate_id", candidateId)
-    .order("updated_at", { ascending: false });
-  if (error) throw createApplyError(error);
-  return (data ?? []).map(parseApplication).filter(Boolean);
+
+  if (!forceRefresh) {
+    const cached = peekMyApplicationsCache(candidateId);
+    if (cached) return cached;
+    const inflight = myApplicationsInflight.get(candidateId);
+    if (inflight) return inflight;
+  }
+
+  const request = (async () => {
+    const { data, error } = await client
+      .from("applications")
+      .select(APPLICATION_LIST_SELECT)
+      .eq("candidate_id", candidateId)
+      .order("updated_at", { ascending: false });
+    if (error) throw createApplyError(error);
+    const rows = (data ?? []).map(parseApplication).filter(Boolean);
+    myApplicationsCache.set(candidateId, { data: rows, fetchedAt: Date.now() });
+    return rows;
+  })();
+
+  myApplicationsInflight.set(candidateId, request);
+  try {
+    return await request;
+  } finally {
+    if (myApplicationsInflight.get(candidateId) === request) {
+      myApplicationsInflight.delete(candidateId);
+    }
+  }
 }

@@ -1,0 +1,28 @@
+BASE_URL=http://127.0.0.1:5173 label=before runs=5 (sem credenciais neste log)
+
+=== T1 cold — reload / → clique Minhas candidaturas ===
+T1 run 1 1812 ms ready=empty rafGate=18/49 rafRoute=0 rafSkel=0 rest=applications
+T1 run 2 1197 ms ready=empty rafGate=1/49 rafRoute=0 rafSkel=0 rest=applications
+T1 run 3 1133 ms ready=empty rafGate=6/50 rafRoute=0 rafSkel=0 rest=applications
+T1 run 4 1543 ms ready=empty rafGate=5/48 rafRoute=0 rafSkel=0 rest=applications
+T1 run 5 1336 ms ready=empty rafGate=21/49 rafRoute=0 rafSkel=0 rest=applications
+
+=== T2 remount — Vagas → Minhas candidaturas (cache SPA) ===
+T2 run 1 1111 ms ready=empty rafGate=19/49 rafRoute=0 rafSkel=0 rest=applications
+T2 run 2 555 ms ready=empty rafGate=15/50 rafRoute=0 rafSkel=0 rest=applications
+T2 run 3 695 ms ready=empty rafGate=16/49 rafRoute=0 rafSkel=0 rest=applications
+T2 run 4 1015 ms ready=empty rafGate=20/50 rafRoute=0 rafSkel=0 rest=applications
+T2 run 5 1069 ms ready=empty rafGate=38/50 rafRoute=0 rafSkel=0 rest=applications
+
+=== RESUMO UX-PERF-06 ===
+T1 cold → card/empty: 1812, 1197, 1133, 1543, 1336 | mediana 1336
+T1 "Carregando…" route: 0/5
+T1 "Carregando candidaturas" gate: 5/5
+T1 skeleton visível (amostra imediata): 0/5
+T1 ready: empty, empty, empty, empty, empty
+T2 remount → card/empty: 1111, 555, 695, 1015, 1069 | mediana 1015
+T2 "Carregando…" route: 0/5
+T2 "Carregando candidaturas" gate: 5/5
+T2 skeleton visível (amostra imediata): 0/5
+T2 ready: empty, empty, empty, empty, empty
+Meta remount: gate 0/5 · route 0/5 com cache quente · T2 mediana ≤500 ms
