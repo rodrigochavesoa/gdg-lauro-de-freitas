@@ -9,6 +9,7 @@ Painel **humano** para sprints, PRs e bloqueios. Execução continua no **Cursor
 | [`setup.md`](setup.md) | Checklist + `pnpm clickup:sync` |
 | [`bootstrap.config.example.json`](bootstrap.config.example.json) | Copiar → `docs-local/clickup/bootstrap.config.json` |
 | [`sprint-handoff.config.example.json`](sprint-handoff.config.example.json) | Copiar → `docs-local/clickup/sprint-handoff.config.json` |
+| [`task-metadata.md`](task-metadata.md) | **Assignee, datas, tags** — contrato para agentes (GOV-CLICKUP-03) |
 | [`../clickup.env.example`](../clickup.env.example) | Copiar → `docs-local/clickup.env` |
 | [`sprint-note-template.md`](sprint-note-template.md) | Template genérico de Sprint Note |
 
@@ -33,3 +34,9 @@ pnpm clickup:sync
 5. Sexta → Sprint Note (template)
 
 Backlog técnico longo permanece em `docs-local/` (local). ClickUp espelha **ID + status + resumo**.
+
+## Metadados de task (agentes) — obrigatório
+
+Toda task em `docs-local/clickup/` **deve** ter assignee humano, **1–3 tags** e datas (`openedAt` / `closedAt`). Sync aplica via GOV-CLICKUP-03. Detalhes: [`task-metadata.md`](task-metadata.md).
+
+**Scripts públicos** (`scripts/bootstrap-clickup.mjs`, `sprint-handoff-clickup.mjs`, `clickup-task-metadata.mjs`): ferramentas genéricas + testes CI — **sem** dados do squad. Configs e token só em `docs-local/`.

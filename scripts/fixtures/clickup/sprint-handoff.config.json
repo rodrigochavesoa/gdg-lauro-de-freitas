@@ -1,10 +1,16 @@
 {
   "spaceName": "Meu Produto MVP",
+  "defaults": {
+    "assignee": { "email": "ada@example.com" }
+  },
   "sprintNotes": [
     {
       "list": "Sprint 01",
       "taskName": "📋 Sprint Note — Sprint 01 (fechada)",
       "status": "Done",
+      "tags": ["Governança"],
+      "openedAt": "2026-01-01",
+      "closedAt": "2026-01-15",
       "fields": { "História ID": "SPRINT-01" },
       "description": "Resumo da sprint (fixture de teste)."
     }
@@ -22,6 +28,8 @@
       "list": "Sprint 02",
       "name": "Exemplo — próxima entrega",
       "status": "Backlog",
+      "tags": ["Frontend", "QA"],
+      "openedAt": "2026-01-16",
       "fields": { "História ID": "EXEMPLO-01" }
     }
   ]

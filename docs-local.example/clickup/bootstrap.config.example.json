@@ -3,6 +3,24 @@
     "name": "Meu Produto MVP",
     "multiple_assignees": true
   },
+  "defaults": {
+    "assignee": {
+      "email": "you@example.com"
+    }
+  },
+  "tagTaxonomy": [
+    "Frontend",
+    "Backend",
+    "QA",
+    "Arquitetura",
+    "Banco de dados",
+    "Segurança",
+    "DevOps",
+    "Governança",
+    "UX",
+    "Integração",
+    "Ops humano"
+  ],
   "folders": [
     { "name": "Product Backlog", "lists": [] },
     {
@@ -31,7 +49,26 @@
       "name": "Prioridade",
       "type": "drop_down",
       "options": ["P0", "P1", "P2", "P3", "—"]
-    }
+    },
+    { "name": "Aberta em", "type": "date" },
+    { "name": "Fechada em", "type": "date" }
   ],
-  "tasks": []
+  "tasks": [
+    {
+      "list": "Sprint 01",
+      "name": "Exemplo — entrega concluída",
+      "status": "Done",
+      "assignee": { "email": "you@example.com" },
+      "tags": ["Frontend", "UX"],
+      "openedAt": "2026-01-10",
+      "closedAt": "2026-01-20",
+      "fields": {
+        "História ID": "EXEMPLO-01",
+        "PR": "#1",
+        "Veredito Plan": "APROVADO",
+        "Prioridade": "P1"
+      },
+      "description": "Descrição da task de exemplo."
+    }
+  ]
 }

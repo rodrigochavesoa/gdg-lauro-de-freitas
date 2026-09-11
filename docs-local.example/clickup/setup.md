@@ -31,6 +31,8 @@ Com `docs-local/clickup/` preenchido (bootstrap + handoff do squad):
 pnpm clickup:sync
 ```
 
+Cada task criada/atualizada recebe **assignee** (e-mail ou user id em `clickup.env` / `defaults.assignee`), **1–3 tags** da taxonomia e **datas** (`openedAt` / `closedAt` → `start_date` + campos `Aberta em` / `Fechada em`). Reexecução é idempotente.
+
 Comandos separados:
 
 | Comando | O que faz |
@@ -41,7 +43,21 @@ Comandos separados:
 
 Credenciais **somente local**. `docs-local/` está no `.gitignore` — **nunca** commitar token nem configs de sprint.
 
-Token: ClickUp → **Settings → Apps → API**. Team ID: número na URL do workspace (`https://app.clickup.com/{id}/home`).
+Token: ClickUp → **Settings → Apps → API**. Team ID: número na URL do workspace (`https://app.clickup.com/{id}/home`). Assignee humano: [`task-metadata.md`](task-metadata.md) + `CLICKUP_ASSIGNEE_NAME` / `CLICKUP_ASSIGNEE_EMAIL` em `docs-local/clickup.env`.
+
+---
+
+## Metadados de task (assignee, datas, tags) — **obrigatório**
+
+**GOV-CLICKUP-03 implementado.** Toda task em `docs-local/clickup/*.config.json` **deve** declarar assignee humano (via `clickup.env` + `defaults`), **1–3 tags** da taxonomia e **`openedAt`** / **`closedAt`** (Done com abertura ≠ fechamento). Guia: [`task-metadata.md`](task-metadata.md).
+
+| Metadado | Onde | Regra |
+|---|---|---|
+| **Assignee** | `CLICKUP_ASSIGNEE_NAME` / `CLICKUP_ASSIGNEE_EMAIL` em `clickup.env` | Humano PO condutor; preencher só localmente |
+| **Aberta / Fechada** | `openedAt`, `closedAt` (`YYYY-MM-DD`) | Done exige ambas e datas diferentes |
+| **Tags** | `tags[]` por task | Vocabulário fixo em `task-metadata.md` §3 |
+
+**Agentes:** Plan inclui metadados ao abrir sprint; Executor valida sync idempotente (`skipped.assignees/tags/dates`). Scripts em `scripts/` são ferramentas genéricas versionadas; **dados** ficam em `docs-local/` — ver `task-metadata.md` § *Scripts no Git*.
 
 O script **não** liga GitHub. **Integração GitHub continua manual** (1 clique OAuth) — §3 abaixo é obrigatório após o bootstrap. Plugin Cursor (§4) continua opcional.
 
@@ -95,8 +111,10 @@ Em **Space settings → Custom Fields**, crie:
 | **PR** | Texto curto | `#42` |
 | **Veredito Plan** | Dropdown | `APROVADO` · `APROVADO COM RESSALVAS` · `REPROVADO` · `—` |
 | **Prioridade** | Dropdown | `P0` · `P1` · `P2` · `P3` |
+| **Aberta em** | Data | abertura da task |
+| **Fechada em** | Data | quando status → Done |
 
-- [ ] Quatro campos criados e visíveis nas Lists de Sprints e Backlog
+- [ ] Quatro campos (+ datas Aberta/Fechada) visíveis nas Lists de Sprints e Backlog
 
 ---
 

@@ -12,6 +12,11 @@ Antes de **criar ou mover qualquer arquivo**, o agente **deve** inspecionar o qu
 1. **Documentação operacional** (backlog, sprint, handoff, runbooks, credenciais, QA, agentes, configs de squad) → **`docs-local/`** (gitignored).
 2. **`docs-local.example/`** → só **modelos genéricos** (`*.example.json`, stubs, checklists sem dados do squad).
 3. **Git público** → produto + onboarding mínimo: `README.md`, `SETUP.md`, `CONTRIBUTING.md`, `LICENSE`, código, testes, fixtures sintéticas, `.github/`.
+4. **Scripts genéricos** (`scripts/*clickup*.mjs`, `check-rls.mjs`, …) **podem** ficar versionados — são ferramentas sem dados do squad; leem `docs-local/clickup/` e `clickup.env`. **Não** mover para `docs-local/` por padrão.
+
+## ClickUp — metadados obrigatórios
+
+Toda task em config local: assignee humano, 1–3 tags, `openedAt` / `closedAt`. Ver `docs-local.example/clickup/task-metadata.md`. Plan inclui ao criar sprint; Executor valida sync idempotente.
 
 ## Proibido sem decisão explícita do PO
 

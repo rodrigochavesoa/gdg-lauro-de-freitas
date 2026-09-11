@@ -1,5 +1,8 @@
 {
   "space": { "name": "Meu Produto MVP", "multiple_assignees": true },
+  "defaults": {
+    "assignee": { "email": "ada@example.com" }
+  },
   "folders": [
     { "name": "Sprints", "lists": [{ "name": "Sprint 01" }, { "name": "Sprint 02" }] }
   ],
@@ -7,12 +10,18 @@
     { "status": "to do", "type": "open", "color": "#87909e" },
     { "status": "complete", "type": "closed", "color": "#2ea44f" }
   ],
-  "customFields": [{ "name": "História ID", "type": "short_text" }],
+  "customFields": [
+    { "name": "História ID", "type": "short_text" },
+    { "name": "Aberta em", "type": "date" },
+    { "name": "Fechada em", "type": "date" }
+  ],
   "tasks": [
     {
       "list": "Sprint 01",
       "name": "Exemplo — credencial externa",
       "status": "Blocked",
+      "tags": ["Ops humano", "Integração"],
+      "openedAt": "2026-01-05",
       "fields": { "História ID": "EXEMPLO-BLOCKED" }
     }
   ]

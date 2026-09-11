@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   bootstrapClickUp,
   buildSummary,
+  createClickUpClient,
   customFieldPayload,
   findByName,
   hasCredentials,
@@ -36,6 +37,10 @@ function createMemoryClickUp() {
     tasksByList: {},
     comments: [],
     fieldValues: [],
+    spaceTags: [],
+    taskTags: [],
+    updates: [],
+    members: [{ user: { id: 42, username: "Ada Lovelace", email: "ada@example.com" } }],
   };
 
   function id() {
@@ -70,6 +75,20 @@ function createMemoryClickUp() {
       (store.foldersBySpace[spaceFolder[1]] ??= []).push(folder);
       store.listsByFolder[folder.id] = [];
       return jsonResponse(folder);
+    }
+
+    const spaceTag = path.match(/^\/space\/([^/]+)\/tag$/);
+    if (spaceTag && method === "GET") {
+      return jsonResponse({ tags: store.spaceTags });
+    }
+    if (spaceTag && method === "POST") {
+      store.spaceTags.push(body.tag ?? body);
+      return jsonResponse({});
+    }
+
+    const teamOnly = path.match(/^\/team\/([^/]+)$/);
+    if (teamOnly && method === "GET") {
+      return jsonResponse({ members: store.members });
     }
 
     const folderList = path.match(/^\/folder\/([^/]+)\/list$/);
@@ -130,9 +149,46 @@ function createMemoryClickUp() {
       return jsonResponse({ tasks: store.tasksByList[listTask[1]] ?? [], last_page: true });
     }
     if (listTask && method === "POST") {
-      const task = { id: id(), name: body.name, status: body.status };
+      const task = {
+        id: id(),
+        name: body.name,
+        status: body.status,
+        assignees: [],
+        tags: [],
+        start_date: null,
+        custom_fields: [],
+      };
       (store.tasksByList[listTask[1]] ??= []).push(task);
       return jsonResponse(task);
+    }
+
+    const taskPut = path.match(/^\/task\/([^/]+)$/);
+    if (taskPut && method === "PUT") {
+      store.updates.push({ taskId: taskPut[1], body });
+      for (const tasks of Object.values(store.tasksByList)) {
+        const task = tasks.find((item) => String(item.id) === String(taskPut[1]));
+        if (!task) continue;
+        if (body.assignees?.add) {
+          task.assignees = [
+            ...(task.assignees ?? []),
+            ...body.assignees.add.map((assigneeId) => ({ id: assigneeId })),
+          ];
+        }
+        if (body.start_date) task.start_date = body.start_date;
+        if (body.description) task.description = body.description;
+      }
+      return jsonResponse({ id: taskPut[1] });
+    }
+
+    const taskTag = path.match(/^\/task\/([^/]+)\/tag\/(.+)$/);
+    if (taskTag && method === "POST") {
+      const name = decodeURIComponent(taskTag[2]);
+      store.taskTags.push({ taskId: taskTag[1], name });
+      for (const tasks of Object.values(store.tasksByList)) {
+        const task = tasks.find((item) => String(item.id) === String(taskTag[1]));
+        if (task) task.tags = [...(task.tags ?? []), { name }];
+      }
+      return jsonResponse({});
     }
 
     const taskField = path.match(/^\/task\/([^/]+)\/field\/([^/]+)$/);
@@ -177,11 +233,15 @@ function sampleConfig() {
       { name: "História ID", type: "short_text" },
       { name: "Veredito Plan", type: "drop_down", options: ["APROVADO", "—"] },
     ],
+    defaults: { assignee: { email: "ada@example.com" } },
     tasks: [
       {
         list: "Sprint 01",
         name: "Exemplo — entrega concluída",
         status: "Done",
+        tags: ["Frontend", "UX"],
+        openedAt: "2026-01-10",
+        closedAt: "2026-01-20",
         fields: { "História ID": "EXEMPLO-DONE", "Veredito Plan": "APROVADO" },
         description: "Task de exemplo.",
         comment: "Merge em main.",
@@ -194,6 +254,7 @@ function clientFrom(fetchImpl) {
   return {
     get: (path) => call(fetchImpl, "GET", path),
     post: (path, body) => call(fetchImpl, "POST", path, body),
+    put: (path, body) => call(fetchImpl, "PUT", path, body),
   };
 }
 
@@ -225,6 +286,30 @@ VITE_OTHER=nope
     expect(pickClickUpEnv({ CLICKUP_API_TOKEN: " t ", VITE_X: "1", CLICKUP_TEAM_ID: "" })).toEqual({
       CLICKUP_API_TOKEN: "t",
     });
+  });
+
+  it("createClickUpClient retenta 429 e segue", async () => {
+    let n = 0;
+    const fetchImpl = vi.fn(async () => {
+      n += 1;
+      if (n === 1) {
+        return {
+          ok: false,
+          status: 429,
+          headers: { get: () => "0" },
+          text: async () => JSON.stringify({ err: "Rate limit reached" }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        text: async () => JSON.stringify({ ok: true }),
+      };
+    });
+    const client = createClickUpClient({ token: "t", fetchImpl });
+    await expect(client.get("/team/1")).resolves.toEqual({ ok: true });
+    expect(n).toBe(2);
   });
 
   it("loadClickUpEnvFromFiles lê clickup.env e cai para .env.local só com CLICKUP_*", () => {
@@ -328,6 +413,9 @@ describe("lógica idempotente", () => {
     expect(store.spaces).toHaveLength(1);
     expect(store.fieldValues.length).toBeGreaterThan(0);
     expect(store.comments).toHaveLength(1);
+    expect(first.created.assignees).toBe(1);
+    expect(first.created.tags).toBe(1);
+    expect(store.taskTags.map((item) => item.name).sort()).toEqual(["Frontend", "UX"]);
 
     const second = await bootstrapClickUp({ client, teamId: "team-1", config });
     expect(second.created.spaces).toBe(0);
@@ -340,6 +428,9 @@ describe("lógica idempotente", () => {
     expect(second.skipped.lists).toBe(2);
     expect(second.skipped.fields).toBe(4);
     expect(second.skipped.tasks).toBe(1);
+    expect(second.skipped.assignees).toBe(1);
+    expect(second.skipped.tags).toBe(1);
+    expect(store.taskTags).toHaveLength(2);
     expect(store.spaces).toHaveLength(1);
     expect(Object.values(store.tasksByList).flat()).toHaveLength(1);
     expect(first.spaceId).toBe(second.spaceId);
