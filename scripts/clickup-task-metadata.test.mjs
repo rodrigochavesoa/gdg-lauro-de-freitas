@@ -18,7 +18,7 @@ describe("clickup task metadata", () => {
       "UX",
       "QA",
     ]);
-    expect(TASK_TAG_TAXONOMY).toContain("Ops humano");
+    expect(TASK_TAG_TAXONOMY).toContain("Ops manual");
   });
 
   it("parseDefaults e assignee via env", () => {
