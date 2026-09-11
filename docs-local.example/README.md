@@ -20,7 +20,7 @@ A pasta `docs-local/` está no `.gitignore` e **não** vai para o GitHub. `AGENT
 docs-local/
   AGENTS.md                 ← papéis Plan / Executor / Visual QA (copie AGENTS.md.example)
   cursor/
-    rules/                  ← rules Cursor (cópia local; ver cursor/rules/README.md)
+    rules/                  ← rules Cursor (copie public-docs-boundary.mdc + demais de docs-local.example/cursor/rules/)
     mcp.json
   clickup/                  ← configs de sprint + handoff (copie *.example.json de docs-local.example/clickup/)
   assets/                   ← evidências Visual QA (PNG, audit-log.json)
