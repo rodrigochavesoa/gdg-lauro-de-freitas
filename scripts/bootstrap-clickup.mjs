@@ -7,6 +7,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  applyTaskMetadata,
+  collectConfigTags,
+  ensureSpaceTags,
+  loadWorkspaceMembers,
+  parseDefaults,
+  parseTaskMetadata,
+  tallyMetadata,
+} from "./clickup-task-metadata.mjs";
 
 export const CLICKUP_API_BASE = "https://api.clickup.com/api/v2";
 export const CLICKUP_API_V3_BASE = "https://api.clickup.com/api/v3";
@@ -20,7 +29,7 @@ export const FALLBACK_ENV_PATH = ".env.local";
 const SPACE_FEATURES = {
   due_dates: {
     enabled: true,
-    start_date: false,
+    start_date: true,
     remap_due_dates: true,
     remap_closed_due_date: false,
   },
@@ -109,6 +118,14 @@ export function findByName(items, name) {
   return items.find((item) => item && String(item.name ?? "").trim() === needle) ?? null;
 }
 
+export function findByNameInLists(tasksByList, name) {
+  for (const tasks of Object.values(tasksByList ?? {})) {
+    const hit = findByName(tasks, name);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 export function parseBootstrapConfig(raw) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error("bootstrap.config.json inválido: esperado objeto.");
@@ -173,6 +190,7 @@ export function parseBootstrapConfig(raw) {
       fields: task.fields && typeof task.fields === "object" ? { ...task.fields } : {},
       description: task.description ? String(task.description) : "",
       comment: task.comment ? String(task.comment) : "",
+      ...parseTaskMetadata(task),
     };
   });
   const listStatuses = Array.isArray(raw.listStatuses)
@@ -199,6 +217,7 @@ export function parseBootstrapConfig(raw) {
     customFields,
     tasks,
     listStatuses,
+    defaults: parseDefaults(raw),
   };
 }
 
@@ -242,7 +261,7 @@ export function customFieldPayload(field) {
 }
 
 export function emptyCounters() {
-  return { spaces: 0, folders: 0, lists: 0, fields: 0, tasks: 0 };
+  return { spaces: 0, folders: 0, lists: 0, fields: 0, tasks: 0, assignees: 0, tags: 0, dates: 0 };
 }
 
 export function buildSummary({ spaceId, listIds, taskIds, created, skipped }) {
@@ -281,15 +300,30 @@ export function createClickUpClient({ token, fetchImpl = globalThis.fetch }) {
       headers["Content-Type"] = "application/json";
       init.body = JSON.stringify(body);
     }
-    const res = await fetchImpl(url, init);
-    const text = await res.text();
+    const maxAttempts = 6;
+    let res;
     let data = null;
-    if (text) {
-      try {
-        data = JSON.parse(text);
-      } catch {
-        data = text;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      res = await fetchImpl(url, init);
+      const text = await res.text();
+      data = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
       }
+      if (res.status === 429 && attempt < maxAttempts) {
+        const retryAfter = Number(res.headers?.get?.("Retry-After"));
+        const waitMs =
+          Number.isFinite(retryAfter) && retryAfter >= 0
+            ? retryAfter * 1000
+            : Math.min(60_000, 1000 * 2 ** (attempt - 1));
+        await new Promise((resolveWait) => setTimeout(resolveWait, waitMs));
+        continue;
+      }
+      break;
     }
     if (!res.ok) {
       const error = new Error(apiErrorMessage(method, path, res.status, data));
@@ -303,6 +337,7 @@ export function createClickUpClient({ token, fetchImpl = globalThis.fetch }) {
     get: (path) => request("GET", path),
     post: (path, body) => request("POST", path, body),
     put: (path, body) => request("PUT", path, body),
+    delete: (path) => request("DELETE", path),
   };
 }
 
@@ -355,7 +390,7 @@ async function getAllTasks(client, listId) {
   return tasks;
 }
 
-export async function bootstrapClickUp({ client, teamId, config, log = () => {} }) {
+export async function bootstrapClickUp({ client, teamId, config, env = {}, log = () => {} }) {
   const created = emptyCounters();
   const skipped = emptyCounters();
   const listIds = {};
@@ -377,6 +412,22 @@ export async function bootstrapClickUp({ client, teamId, config, log = () => {} 
     log(`created space: ${config.space.name}`);
   }
   const spaceId = String(space.id);
+  let members = [];
+  try {
+    members = await loadWorkspaceMembers(client, teamId);
+  } catch (error) {
+    log(`membros do workspace indisponíveis: ${error.message}`);
+  }
+  const spaceTagMap = new Map();
+  try {
+    const tagsPayload = await client.get(`/space/${spaceId}/tag`);
+    for (const tag of tagsPayload?.tags ?? []) {
+      spaceTagMap.set(String(tag.name ?? "").trim().toLowerCase(), tag);
+    }
+  } catch (error) {
+    log(`tags do Space indisponíveis: ${error.message}`);
+  }
+  await ensureSpaceTags(client, spaceId, collectConfigTags(config.tasks), spaceTagMap, log);
 
   const foldersPayload = await client.get(`/space/${spaceId}/folder?archived=false`);
   const folders = foldersPayload?.folders ?? [];
@@ -445,7 +496,9 @@ export async function bootstrapClickUp({ client, teamId, config, log = () => {} 
     if (!listId) {
       throw new Error(`List "${taskCfg.list}" não encontrada para a task "${taskCfg.name}".`);
     }
-    const existing = findByName(tasksByList[taskCfg.list] ?? [], taskCfg.name);
+    const existing =
+      findByName(tasksByList[taskCfg.list] ?? [], taskCfg.name) ??
+      findByNameInLists(tasksByList, taskCfg.name);
     let task;
     if (existing) {
       skipped.tasks += 1;
@@ -473,6 +526,22 @@ export async function bootstrapClickUp({ client, teamId, config, log = () => {} 
       }
     }
     taskIds[taskCfg.name] = String(task.id);
+
+    const meta = await applyTaskMetadata({
+      client,
+      spaceId,
+      task,
+      taskCfg,
+      defaults: config.defaults,
+      env,
+      members,
+      spaceTagMap,
+      listFields: fieldByList[taskCfg.list] ?? [],
+      listStatuses: statusesByList[taskCfg.list] ?? [],
+      isNew: !existing,
+      log,
+    });
+    tallyMetadata(created, skipped, meta);
 
     const listFields = fieldByList[taskCfg.list] ?? [];
     for (const [fieldName, rawValue] of Object.entries(taskCfg.fields)) {
@@ -537,6 +606,7 @@ export async function main({
       client,
       teamId: credentials.CLICKUP_TEAM_ID,
       config,
+      env: credentials,
       log: stdout,
     });
     stdout(JSON.stringify(summary, null, 2));

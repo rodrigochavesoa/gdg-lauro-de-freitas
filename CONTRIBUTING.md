@@ -11,12 +11,12 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 1. **Inspecionar primeiro** — ler o que já existe no repo (`git ls-files`, `docs-local.example/`, `.gitignore`, seções deste arquivo). Não reinventar paths nem duplicar doc operacional no Git.
 2. **Default ao criar documentação** — rascunho e operação do squad vão para **`docs-local/`** (nunca commitados). Só depois o PO/mantenedor decide se algo vira template genérico em `docs-local.example/` ou texto público em `README` / `SETUP` / `CONTRIBUTING`.
 3. **`docs-local.example/`** — apenas **modelos** (`.example.json`, stubs, checklists genéricos). **Proibido** sprint vivo, handoff, backlog, credenciais, IDs ClickUp reais ou histórico de entregas do squad.
-4. **Git público** — código, testes, onboarding mínimo e ferramentas **genéricas** (ex.: scripts ClickUp leem config de `docs-local/clickup/`). Dados e configs operacionais ficam locais.
+4. **Git público** — código, testes, onboarding mínimo e ferramentas **genéricas** (ex.: `scripts/*clickup*.mjs` leem config de `docs-local/clickup/`; módulo `clickup-task-metadata.mjs` sem dados do squad). Dados e configs operacionais ficam locais.
 5. **Antes de abrir PR** — revisar o diff: nada operacional/squad-specific versionado por engano.
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 
-**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync` (token em `docs-local/clickup.env`). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
+**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Scripts ClickUp em `scripts/` são ferramentas genéricas versionadas (sem dados do squad). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
 
 ## Git — branch e PR
 

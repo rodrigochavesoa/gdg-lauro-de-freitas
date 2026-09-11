@@ -55,6 +55,9 @@ function createHandoffMemory() {
     updates: [],
     comments: [],
     fieldValues: [],
+    spaceTags: [],
+    taskTags: [],
+    members: [{ user: { id: 42, username: "Ada Lovelace", email: "ada@example.com" } }],
   };
 
   seedWorkspace(store);
@@ -67,9 +70,19 @@ function createHandoffMemory() {
     if (path.match(/^\/team\/[^/]+\/space$/) && method === "GET") {
       return jsonResponse({ spaces: store.spaces });
     }
+    if (path.match(/^\/team\/[^/]+$/) && method === "GET") {
+      return jsonResponse({ members: store.members });
+    }
     if (path.match(/^\/space\/[^/]+\/folder$/) && method === "GET") {
       const spaceId = path.split("/")[2];
       return jsonResponse({ folders: store.foldersBySpace[spaceId] ?? [] });
+    }
+    if (path.match(/^\/space\/[^/]+\/tag$/) && method === "GET") {
+      return jsonResponse({ tags: store.spaceTags });
+    }
+    if (path.match(/^\/space\/[^/]+\/tag$/) && method === "POST") {
+      store.spaceTags.push(body.tag ?? body);
+      return jsonResponse({});
     }
     if (path.match(/^\/folder\/[^/]+\/list$/) && method === "GET") {
       const folderId = path.split("/")[2];
@@ -105,10 +118,27 @@ function createHandoffMemory() {
       for (const listId of Object.keys(store.tasksByList)) {
         const task = store.tasksByList[listId].find((item) => item.id === taskId);
         if (task) {
-          Object.assign(task, body);
+          if (body.assignees?.add) {
+            task.assignees = [
+              ...(task.assignees ?? []),
+              ...body.assignees.add.map((assigneeId) => ({ id: assigneeId })),
+            ];
+          }
+          if (body.start_date) task.start_date = body.start_date;
+          Object.assign(task, body.assignees ? { ...body, assignees: task.assignees } : body);
         }
       }
       return jsonResponse({ id: taskId });
+    }
+    if (path.match(/^\/task\/[^/]+\/tag\/.+$/) && method === "POST") {
+      const taskId = path.split("/")[2];
+      const name = decodeURIComponent(path.split("/tag/")[1]);
+      store.taskTags.push({ taskId, name });
+      for (const listId of Object.keys(store.tasksByList)) {
+        const task = store.tasksByList[listId].find((item) => item.id === taskId);
+        if (task) task.tags = [...(task.tags ?? []), { name }];
+      }
+      return jsonResponse({});
     }
     if (path.match(/^\/api\/v3\/workspaces\/[^/]+\/tasks\/[^/]+\/home_list\/[^/]+$/) && method === "PUT") {
       const parts = path.split("/");
@@ -175,6 +205,11 @@ describe("sprintHandoffClickUp", () => {
     const second = await sprintHandoffClickUp({ client, teamId: "1", handoff, log: () => {} });
     expect(second.created.moved).toBe(0);
     expect(second.skipped.moved).toBe(1);
+    expect(second.skipped.assignees).toBeGreaterThan(0);
+    expect(store.taskTags.length).toBeGreaterThan(0);
+    const tagCount = store.taskTags.length;
+    await sprintHandoffClickUp({ client, teamId: "1", handoff, log: () => {} });
+    expect(store.taskTags.length).toBe(tagCount);
     expect(store.tasksByList["list-02"].filter((task) => task.name.includes("próxima entrega")).length).toBe(
       1,
     );

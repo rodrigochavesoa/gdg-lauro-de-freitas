@@ -21,6 +21,15 @@ import {
   resolveDropdownValue,
   resolveTaskStatus,
 } from "./bootstrap-clickup.mjs";
+import {
+  applyTaskMetadata,
+  collectConfigTags,
+  ensureSpaceTags,
+  loadWorkspaceMembers,
+  parseDefaults,
+  parseTaskMetadata,
+  tallyMetadata,
+} from "./clickup-task-metadata.mjs";
 
 export const DEFAULT_HANDOFF_CONFIG_PATH = "docs-local/clickup/sprint-handoff.config.json";
 export const DEFAULT_HANDOFF_CONFIG_EXAMPLE_PATH =
@@ -53,6 +62,7 @@ export function parseHandoffConfig(raw) {
       fields: task.fields && typeof task.fields === "object" ? { ...task.fields } : {},
       description: task.description ? String(task.description) : "",
       comment: task.comment ? String(task.comment) : "",
+      ...parseTaskMetadata(task),
     };
   };
 
@@ -83,11 +93,11 @@ export function parseHandoffConfig(raw) {
     ? raw.tasks.map((item, index) => parseTaskLike(item, index, "tasks"))
     : [];
 
-  return { spaceName, sprintNotes, moveTasks, tasks };
+  return { spaceName, sprintNotes, moveTasks, tasks, defaults: parseDefaults(raw) };
 }
 
 export function emptyHandoffCounters() {
-  return { notes: 0, moved: 0, tasks: 0, updated: 0 };
+  return { notes: 0, moved: 0, tasks: 0, updated: 0, assignees: 0, tags: 0, dates: 0 };
 }
 
 async function getAllTasks(client, listId) {
@@ -171,11 +181,18 @@ async function upsertTask({
   existingTasks,
   log,
   counters,
+  skipped,
   taskIds,
+  spaceId,
+  members,
+  spaceTagMap,
+  defaults,
+  env,
 }) {
   const name = taskCfg.taskName || taskCfg.name;
   let task = findByName(existingTasks, name);
   const resolvedStatus = resolveTaskStatus(taskCfg.status, listStatuses);
+  const isNew = !task;
 
   if (task) {
     const body = {};
@@ -211,15 +228,57 @@ async function upsertTask({
 
   taskIds[name] = String(task.id);
   await applyCustomFields(client, task.id, listFields, taskCfg.fields, log, name);
+  const meta = await applyTaskMetadata({
+    client,
+    spaceId,
+    task,
+    taskCfg: { ...taskCfg, name },
+    defaults,
+    env,
+    members,
+    spaceTagMap,
+    listFields,
+    listStatuses,
+    isNew,
+    log,
+  });
+  tallyMetadata(counters, skipped, meta);
 }
 
-export async function sprintHandoffClickUp({ client, teamId, handoff, log = () => {} }) {
+export async function sprintHandoffClickUp({ client, teamId, handoff, env = {}, log = () => {} }) {
   const created = emptyHandoffCounters();
   const skipped = emptyHandoffCounters();
   const taskIds = {};
 
   const workspace = await resolveSpaceLists(client, teamId, handoff.spaceName, log);
   const { listIds, statusesByList, tasksByList, fieldByList } = workspace;
+
+  let members = [];
+  try {
+    members = await loadWorkspaceMembers(client, teamId);
+  } catch (error) {
+    log(`membros do workspace indisponíveis: ${error.message}`);
+  }
+  const spaceTagMap = new Map();
+  try {
+    const tagsPayload = await client.get(`/space/${workspace.spaceId}/tag`);
+    for (const tag of tagsPayload?.tags ?? []) {
+      spaceTagMap.set(String(tag.name ?? "").trim().toLowerCase(), tag);
+    }
+  } catch (error) {
+    log(`tags do Space indisponíveis: ${error.message}`);
+  }
+  const allHandoffTasks = [...handoff.sprintNotes, ...handoff.tasks];
+  await ensureSpaceTags(client, workspace.spaceId, collectConfigTags(allHandoffTasks), spaceTagMap, log);
+
+  const metaCtx = {
+    spaceId: workspace.spaceId,
+    members,
+    spaceTagMap,
+    defaults: handoff.defaults,
+    env,
+    skipped,
+  };
 
   for (const note of handoff.sprintNotes) {
     const listId = listIds[note.list];
@@ -238,6 +297,7 @@ export async function sprintHandoffClickUp({ client, teamId, handoff, log = () =
       log,
       counters: created,
       taskIds,
+      ...metaCtx,
     });
     if (created.tasks > tasksBefore) created.notes += 1;
     else skipped.notes += 1;
@@ -303,6 +363,12 @@ export async function sprintHandoffClickUp({ client, teamId, handoff, log = () =
       log,
       counters: created,
       taskIds,
+      spaceId: workspace.spaceId,
+      members,
+      spaceTagMap,
+      defaults: handoff.defaults,
+      env,
+      skipped,
     });
   }
 
@@ -357,6 +423,7 @@ export async function main({
       client,
       teamId: credentials.CLICKUP_TEAM_ID,
       handoff,
+      env: credentials,
       log: stdout,
     });
     stdout(JSON.stringify(summary, null, 2));
