@@ -1,0 +1,37 @@
+{
+  "space": {
+    "name": "Meu Produto MVP",
+    "multiple_assignees": true
+  },
+  "folders": [
+    { "name": "Product Backlog", "lists": [] },
+    {
+      "name": "Sprints",
+      "lists": [{ "name": "Sprint 01" }]
+    },
+    { "name": "Ops / Bloqueios", "lists": [] }
+  ],
+  "listStatuses": [
+    { "status": "Backlog", "type": "open", "color": "#87909e" },
+    { "status": "Ready", "type": "custom", "color": "#3e63dd" },
+    { "status": "In progress", "type": "custom", "color": "#f8ae00" },
+    { "status": "In review", "type": "custom", "color": "#8347b9" },
+    { "status": "Done", "type": "closed", "color": "#2ea44f" },
+    { "status": "Blocked", "type": "custom", "color": "#e5484d" }
+  ],
+  "customFields": [
+    { "name": "História ID", "type": "short_text" },
+    { "name": "PR", "type": "short_text" },
+    {
+      "name": "Veredito Plan",
+      "type": "drop_down",
+      "options": ["APROVADO", "APROVADO COM RESSALVAS", "REPROVADO", "—"]
+    },
+    {
+      "name": "Prioridade",
+      "type": "drop_down",
+      "options": ["P0", "P1", "P2", "P3", "—"]
+    }
+  ],
+  "tasks": []
+}

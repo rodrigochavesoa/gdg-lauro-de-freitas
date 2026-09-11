@@ -1,6 +1,6 @@
-# ClickUp — configuração GDGJobs MVP
+# ClickUp — configuração (solo+IA)
 
-Checklist para squad **solo+IA**. Marque cada item ao concluir no ClickUp (nada disso vai para o Git além deste exemplo).
+Checklist para squad **solo+IA**. Marque cada item ao concluir no ClickUp. **Sprints, tasks e handoff** ficam em `docs-local/clickup/` (não vão para o Git). Esta pasta `docs-local.example/clickup/` traz só guia e modelos `.example.json`.
 
 Repositório GitHub: `rodrigochavesoa/gdg-lauro-de-freitas`
 
@@ -8,17 +8,40 @@ Repositório GitHub: `rodrigochavesoa/gdg-lauro-de-freitas`
 
 ## Bootstrap automatizado
 
-Provisiona (ou completa) Space `GDGJobs MVP`, Folders, Lists, statuses, 4 custom fields e as tasks da Sprint 09 (#80–#83 Done + C-05 Blocked) via **ClickUp API v2**. O script é **idempotente**: a 2ª execução não duplica Space nem tasks (log `skipped`).
+Provisiona (ou completa) Space, Folders, Lists, custom fields e tasks via **ClickUp API**. O script é **idempotente**: a 2ª execução não duplica Space nem tasks (log `skipped`).
 
-Credenciais **somente local**. `docs-local/clickup.env` está coberto pelo `.gitignore` da pasta `docs-local/` — **nunca** commitar token.
+**Configs operacionais** (`bootstrap.config.json`, `sprint-handoff.config.json`) ficam em **`docs-local/clickup/`** (gitignored). Quem clona o repo copia os modelos `.example.json` desta pasta e preenche com o squad.
+
+### Primeira vez
 
 ```powershell
+New-Item -ItemType Directory -Force docs-local/clickup
 Copy-Item docs-local.example/clickup.env.example docs-local/clickup.env
-# preencher token + team id
-pnpm clickup:bootstrap
+Copy-Item docs-local.example/clickup/bootstrap.config.example.json docs-local/clickup/bootstrap.config.json
+Copy-Item docs-local.example/clickup/sprint-handoff.config.example.json docs-local/clickup/sprint-handoff.config.json
+# preencher clickup.env + editar os .json com sprints/tasks do squad
+pnpm clickup:sync
 ```
 
-Token: ClickUp → **Settings → Apps → API**. Team ID: número na URL do workspace (`https://app.clickup.com/{id}/home`). Config declarativa: [`bootstrap.config.json`](bootstrap.config.json).
+### Sync completo
+
+Com `docs-local/clickup/` preenchido (bootstrap + handoff do squad):
+
+```powershell
+pnpm clickup:sync
+```
+
+Comandos separados:
+
+| Comando | O que faz |
+|---|---|
+| `pnpm clickup:bootstrap` | Space + tasks do `bootstrap.config.json` local |
+| `pnpm clickup:sprint-handoff` | Sprint Note + handoff do `sprint-handoff.config.json` local |
+| `pnpm clickup:sync` | Os dois em sequência |
+
+Credenciais **somente local**. `docs-local/` está no `.gitignore` — **nunca** commitar token nem configs de sprint.
+
+Token: ClickUp → **Settings → Apps → API**. Team ID: número na URL do workspace (`https://app.clickup.com/{id}/home`).
 
 O script **não** liga GitHub. **Integração GitHub continua manual** (1 clique OAuth) — §3 abaixo é obrigatório após o bootstrap. Plugin Cursor (§4) continua opcional.
 
@@ -37,13 +60,13 @@ Se preferir criar tudo na UI (sem token), use o checklist §1–§2 abaixo.
 
 ## 1. Space e pastas (Folder / List)
 
-- [ ] **Workspace:** GDG Lauro de Freitas (ou pessoal)
-- [ ] **Space:** `GDGJobs MVP`
+- [ ] **Workspace:** seu workspace ClickUp
+- [ ] **Space:** nome do produto (ex.: `Meu Produto MVP`)
 - [ ] **Folder:** `Product Backlog` — ideias P2/P3, polish
 - [ ] **Folder:** `Sprints` — uma **List** por sprint
-- [ ] **List:** `Sprint 09 (set/2026)` (criar agora)
-- [ ] **List:** `Sprint 10` (placeholder)
-- [ ] **Folder:** `Ops / Bloqueios` — C-05 Resend, credenciais, aceite PO
+- [ ] **List:** `Sprint 01` (sprint atual ou encerrada)
+- [ ] **List:** `Sprint 02` (próxima sprint)
+- [ ] **Folder:** `Ops / Bloqueios` — credenciais, aceite PO, dependências humanas
 
 ### Status (workflow da List)
 
@@ -68,8 +91,8 @@ Em **Space settings → Custom Fields**, crie:
 
 | Nome | Tipo | Exemplo |
 |---|---|---|
-| **História ID** | Texto curto | `UX-EVENTOS-SCROLL-01` |
-| **PR** | Texto curto | `#83` |
+| **História ID** | Texto curto | `EXEMPLO-01` |
+| **PR** | Texto curto | `#42` |
 | **Veredito Plan** | Dropdown | `APROVADO` · `APROVADO COM RESSALVAS` · `REPROVADO` · `—` |
 | **Prioridade** | Dropdown | `P0` · `P1` · `P2` · `P3` |
 
@@ -132,12 +155,13 @@ Standup async (comentário na task ativa):
 ```text
 Ontem: PR #N mergeado — [uma linha usuário]
 Hoje: [próximo P0 ou bloqueio]
-Bloqueio: [nenhum | C-05 Resend | …]
+Bloqueio: [nenhum | credencial externa | aceite PO | …]
 ```
 
 ---
 
 ## 6. Próximo passo
 
-1. Rodar o **bootstrap automatizado** (topo deste arquivo) **ou** colar tasks de [`sprint-09-done.md`](sprint-09-done.md) na List Sprint 09.
+1. Rodar **`pnpm clickup:sync`** (topo deste arquivo) após preencher `docs-local/clickup/`.
 2. **Humano:** concluir §3 — integração GitHub (OAuth). Sem isso, `ClickUp: CU-xxx` no PR não aparece na task.
+3. **Gates entre sprints:** quando uma task **Blocked** virar **Done**, avisar o Plan → ONE-LINER → task **Ready** → Cursor executa.

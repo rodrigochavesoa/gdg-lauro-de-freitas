@@ -1,5 +1,5 @@
 /**
- * Provisiona (ou completa) o Space GDGJobs MVP no ClickUp via API v2.
+ * Provisiona (ou completa) um Space ClickUp a partir de docs-local/clickup/bootstrap.config.json.
  * Idempotente: cria só o que falta; não duplica Space/Folder/List/task (match por nome).
  * Credenciais: docs-local/clickup.env (fallback .env.local, só CLICKUP_*).
  * Uso: pnpm clickup:bootstrap
@@ -9,9 +9,11 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const CLICKUP_API_BASE = "https://api.clickup.com/api/v2";
+export const CLICKUP_API_V3_BASE = "https://api.clickup.com/api/v3";
 export const NEXT_STEP_MANUAL =
   "próximo passo manual: GitHub integration (OAuth na UI ClickUp — setup.md §3)";
-export const DEFAULT_CONFIG_PATH = "docs-local.example/clickup/bootstrap.config.json";
+export const DEFAULT_CONFIG_PATH = "docs-local/clickup/bootstrap.config.json";
+export const DEFAULT_CONFIG_EXAMPLE_PATH = "docs-local.example/clickup/bootstrap.config.example.json";
 export const DEFAULT_ENV_PATH = "docs-local/clickup.env";
 export const FALLBACK_ENV_PATH = ".env.local";
 
@@ -69,7 +71,15 @@ export function missingCredentialsMessage() {
     "Faltam CLICKUP_API_TOKEN e/ou CLICKUP_TEAM_ID.",
     "Copie docs-local.example/clickup.env.example para docs-local/clickup.env",
     "e preencha o token (Settings → Apps → API) e o team id (URL do workspace).",
-    "Não commite docs-local/clickup.env — a pasta docs-local/ está no .gitignore.",
+    "Não commite docs-local/ — a pasta está no .gitignore.",
+  ].join(" ");
+}
+
+export function missingClickUpConfigMessage(configPath, examplePath) {
+  return [
+    `Arquivo de config não encontrado: ${configPath}`,
+    `Copie ${examplePath} para ${configPath} e ajuste ao seu squad (sprints, tasks, handoff).`,
+    "Configs operacionais ficam em docs-local/clickup/ — não vão para o GitHub.",
   ].join(" ");
 }
 
@@ -292,7 +302,17 @@ export function createClickUpClient({ token, fetchImpl = globalThis.fetch }) {
     request,
     get: (path) => request("GET", path),
     post: (path, body) => request("POST", path, body),
+    put: (path, body) => request("PUT", path, body),
   };
+}
+
+/** Move task home List (ClickUp API v3). PUT v2 /task/{id} com list_id não move. */
+export async function moveTaskToHomeList(
+  client,
+  { workspaceId, taskId, listId, body = { move_custom_fields: true } },
+) {
+  const path = `${CLICKUP_API_V3_BASE}/workspaces/${workspaceId}/tasks/${taskId}/home_list/${listId}`;
+  return client.request("PUT", path, body);
 }
 
 async function createList(client, folderId, name, listStatuses, log) {
@@ -495,7 +515,7 @@ export async function main({
 
   const configPath = resolve(cwd, env.CLICKUP_BOOTSTRAP_CONFIG || DEFAULT_CONFIG_PATH);
   if (!exists(configPath)) {
-    stderr(`Arquivo de config não encontrado: ${configPath}`);
+    stderr(missingClickUpConfigMessage(configPath, DEFAULT_CONFIG_EXAMPLE_PATH));
     return 1;
   }
 

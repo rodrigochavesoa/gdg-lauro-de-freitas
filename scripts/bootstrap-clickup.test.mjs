@@ -159,12 +159,12 @@ function createMemoryClickUp() {
 
 function sampleConfig() {
   return parseBootstrapConfig({
-    space: { name: "GDGJobs MVP" },
+    space: { name: "Meu Produto MVP" },
     folders: [
       { name: "Product Backlog", lists: [] },
       {
         name: "Sprints",
-        lists: [{ name: "Sprint 09 (set/2026)" }, { name: "Sprint 10" }],
+        lists: [{ name: "Sprint 01" }, { name: "Sprint 02" }],
       },
       { name: "Ops / Bloqueios", lists: [] },
     ],
@@ -179,12 +179,12 @@ function sampleConfig() {
     ],
     tasks: [
       {
-        list: "Sprint 09 (set/2026)",
-        name: "Evento abre no topo (sem scroll invertido)",
+        list: "Sprint 01",
+        name: "Exemplo — entrega concluída",
         status: "Done",
-        fields: { "História ID": "UX-EVENTOS-SCROLL-01", "Veredito Plan": "APROVADO" },
-        description: "ScrollToTop",
-        comment: "PR #83 em main.",
+        fields: { "História ID": "EXEMPLO-DONE", "Veredito Plan": "APROVADO" },
+        description: "Task de exemplo.",
+        comment: "Merge em main.",
       },
     ],
   });
@@ -260,46 +260,29 @@ VITE_OTHER=nope
     expect(() => parseBootstrapConfig({})).toThrow(/space.name/);
     expect(() => parseBootstrapConfig({ space: { name: "X" }, folders: [] })).toThrow(/folders/);
     const cfg = sampleConfig();
-    expect(cfg.space.name).toBe("GDGJobs MVP");
+    expect(cfg.space.name).toBe("Meu Produto MVP");
     expect(cfg.folders).toHaveLength(3);
     expect(cfg.customFields).toHaveLength(2);
-    expect(cfg.tasks[0].name).toContain("Evento abre no topo");
+    expect(cfg.tasks[0].name).toContain("Exemplo");
   });
 
-  it("bootstrap.config.json versionado é válido e espelha Sprint 09", () => {
+  it("fixture bootstrap.config.json é válido", () => {
     const raw = JSON.parse(
-      readFileSync(resolve("docs-local.example/clickup/bootstrap.config.json"), "utf8"),
+      readFileSync(resolve("scripts/fixtures/clickup/bootstrap.config.json"), "utf8"),
     );
     const cfg = parseBootstrapConfig(raw);
-    expect(cfg.space.name).toBe("GDGJobs MVP");
-    expect(cfg.folders.map((folder) => folder.name)).toEqual([
-      "Product Backlog",
-      "Sprints",
-      "Ops / Bloqueios",
-    ]);
-    expect(cfg.folders.find((folder) => folder.name === "Sprints").lists.map((list) => list.name)).toEqual([
-      "Sprint 09 (set/2026)",
-      "Sprint 10",
-    ]);
-    expect(cfg.customFields.map((field) => field.name)).toEqual([
-      "História ID",
-      "PR",
-      "Veredito Plan",
-      "Prioridade",
-    ]);
-    expect(cfg.tasks).toHaveLength(5);
-    expect(cfg.tasks.filter((task) => task.status === "Done")).toHaveLength(4);
-    expect(cfg.tasks.some((task) => task.name.startsWith("C-05") && task.status === "Blocked")).toBe(
-      true,
-    );
+    expect(cfg.space.name).toBe("Meu Produto MVP");
+    expect(cfg.folders[0].name).toBe("Sprints");
+    expect(cfg.tasks).toHaveLength(1);
+    expect(cfg.tasks[0].name.startsWith("Exemplo")).toBe(true);
   });
 });
 
 describe("lógica idempotente", () => {
   it("findByName faz match exato por título e ignora trim", () => {
-    const items = [{ id: "1", name: "Sprint 09 (set/2026)" }];
-    expect(findByName(items, " Sprint 09 (set/2026) ").id).toBe("1");
-    expect(findByName(items, "Sprint 10")).toBeNull();
+    const items = [{ id: "1", name: "Sprint 01" }];
+    expect(findByName(items, " Sprint 01 ").id).toBe("1");
+    expect(findByName(items, "Sprint 02")).toBeNull();
   });
 
   it("resolveTaskStatus mapeia Done/Blocked para complete/to do quando a List só tem o padrão da API", () => {
@@ -418,9 +401,9 @@ describe("main sem credenciais", () => {
     const logs = [];
     const files = {
       [resolve("/repo", "docs-local/clickup.env")]: "CLICKUP_API_TOKEN=test-token\nCLICKUP_TEAM_ID=99\n",
-      [resolve("/repo", "docs-local.example/clickup/bootstrap.config.json")]: JSON.stringify({
-        space: { name: "GDGJobs MVP" },
-        folders: [{ name: "Sprints", lists: [{ name: "Sprint 10" }] }],
+      [resolve("/repo", "docs-local/clickup/bootstrap.config.json")]: JSON.stringify({
+        space: { name: "Meu Produto MVP" },
+        folders: [{ name: "Sprints", lists: [{ name: "Sprint 02" }] }],
         customFields: [{ name: "PR", type: "short_text" }],
         tasks: [],
         listStatuses: [],

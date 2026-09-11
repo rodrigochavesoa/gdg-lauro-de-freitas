@@ -24,7 +24,7 @@ Substitua os placeholders `{{…}}`.
 
 ### Pendente PO / humano
 
-- {{ex.: C-05 Resend · preview README imagens}}
+- {{ex.: credencial externa · preview visual · aceite PO}}
 
 ### Próxima sprint (Ready no backlog)
 

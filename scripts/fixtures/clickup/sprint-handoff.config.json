@@ -1,0 +1,28 @@
+{
+  "spaceName": "Meu Produto MVP",
+  "sprintNotes": [
+    {
+      "list": "Sprint 01",
+      "taskName": "📋 Sprint Note — Sprint 01 (fechada)",
+      "status": "Done",
+      "fields": { "História ID": "SPRINT-01" },
+      "description": "Resumo da sprint (fixture de teste)."
+    }
+  ],
+  "moveTasks": [
+    {
+      "name": "Exemplo — credencial externa",
+      "fromList": "Sprint 01",
+      "toList": "Sprint 02",
+      "status": "Blocked"
+    }
+  ],
+  "tasks": [
+    {
+      "list": "Sprint 02",
+      "name": "Exemplo — próxima entrega",
+      "status": "Backlog",
+      "fields": { "História ID": "EXEMPLO-01" }
+    }
+  ]
+}
