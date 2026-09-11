@@ -22,11 +22,16 @@ docs-local/
   cursor/
     rules/                  ← rules Cursor (cópia local; ver cursor/rules/README.md)
     mcp.json
+  clickup/                  ← sprint humano + setup GitHub (copie de docs-local.example/clickup/)
   assets/                   ← evidências Visual QA (PNG, audit-log.json)
   design-system/            ← DS-06/DS-07 e referências
   *-test-user.md            ← credenciais de homologação (nunca commitar)
   contributing.md           ← se migrou do docs/ antigo (a pública é CONTRIBUTING.md na raiz)
 ```
+
+## ClickUp (squad solo+IA)
+
+Modelo em [`clickup/`](clickup/) — Space, Sprint Note e import Sprint 09 (#80–#83). Bootstrap: copie [`clickup.env.example`](clickup.env.example) para `docs-local/clickup.env` (gitignored) e rode `pnpm clickup:bootstrap`. Integração GitHub continua **manual** (OAuth) — [`clickup/setup.md`](clickup/setup.md) §3.
 
 ## O que pode ficar em docs-local/
 

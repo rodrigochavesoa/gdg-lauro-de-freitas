@@ -1,0 +1,145 @@
+{
+  "space": {
+    "name": "GDGJobs MVP",
+    "multiple_assignees": true
+  },
+  "folders": [
+    {
+      "name": "Product Backlog",
+      "lists": []
+    },
+    {
+      "name": "Sprints",
+      "lists": [
+        {
+          "name": "Sprint 09 (set/2026)"
+        },
+        {
+          "name": "Sprint 10"
+        }
+      ]
+    },
+    {
+      "name": "Ops / Bloqueios",
+      "lists": []
+    }
+  ],
+  "listStatuses": [
+    {
+      "status": "Backlog",
+      "type": "open",
+      "color": "#87909e"
+    },
+    {
+      "status": "Ready",
+      "type": "custom",
+      "color": "#3e63dd"
+    },
+    {
+      "status": "In progress",
+      "type": "custom",
+      "color": "#f8ae00"
+    },
+    {
+      "status": "In review",
+      "type": "custom",
+      "color": "#8347b9"
+    },
+    {
+      "status": "Done",
+      "type": "closed",
+      "color": "#2ea44f"
+    },
+    {
+      "status": "Blocked",
+      "type": "custom",
+      "color": "#e5484d"
+    }
+  ],
+  "customFields": [
+    {
+      "name": "História ID",
+      "type": "short_text"
+    },
+    {
+      "name": "PR",
+      "type": "short_text"
+    },
+    {
+      "name": "Veredito Plan",
+      "type": "drop_down",
+      "options": ["APROVADO", "APROVADO COM RESSALVAS", "REPROVADO", "—"]
+    },
+    {
+      "name": "Prioridade",
+      "type": "drop_down",
+      "options": ["P0", "P1", "P2", "P3"]
+    }
+  ],
+  "tasks": [
+    {
+      "list": "Sprint 09 (set/2026)",
+      "name": "Banner de eventos padronizado + CTA portal logado",
+      "status": "Done",
+      "fields": {
+        "História ID": "UX-EVENTOS-BANNER-01 + follow-up portal #79",
+        "PR": "#80",
+        "Veredito Plan": "APROVADO",
+        "Prioridade": "P1"
+      },
+      "description": "- Landings `/eventos/:slug` com banner no tamanho certo (720px / 38vh)\n- Candidato/staff logado vê atalhos úteis no portal (`/`)\n\n**Aceite:**\n- DevFest cover; DevOpsDays contain\n- `PortalMemberCta` para perfil completo/incompleto/staff\n- Testes verdes\n\n**GitHub:** https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/pull/80",
+      "comment": "Usuário vê banners de evento proporcionais e, logado, CTA claro no portal. PR #80 em main."
+    },
+    {
+      "list": "Sprint 09 (set/2026)",
+      "name": "Voltar do detalhe da vaga para minhas candidaturas (não portal)",
+      "status": "Done",
+      "fields": {
+        "História ID": "UX-NAV-01",
+        "PR": "#81",
+        "Veredito Plan": "APROVADO",
+        "Prioridade": "P0"
+      },
+      "description": "- Quem abre vaga a partir de **Minhas candidaturas** volta para lá, não para o portal\n\n**Aceite:**\n- `state.from` em links; fallback `/vagas`\n- Label contextual no botão voltar\n- Smoke + testes\n\n**GitHub:** https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/pull/81",
+      "comment": "Navegação contextual no detalhe da vaga; fim do “voltar” cair no portal por engano. PR #81 em main."
+    },
+    {
+      "list": "Sprint 09 (set/2026)",
+      "name": "Repositório público enxuto (docs operacionais locais)",
+      "status": "Done",
+      "fields": {
+        "História ID": "GOV-REPO-01",
+        "PR": "#82",
+        "Veredito Plan": "APROVADO COM RESSALVAS",
+        "Prioridade": "P1"
+      },
+      "description": "- Quem clona vê só README, SETUP, CONTRIBUTING, LICENSE\n- Backlog/QA/agentes ficam em `docs-local/` (máquina do mantenedor)\n\n**Aceite:**\n- `docs/` removido do Git\n- `public/readme/` para imagens do README\n- Clone limpo: test + build verdes\n\n**GitHub:** https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/pull/82",
+      "comment": "Repo público legível para novos contribuidores; operação do time continua local. PR #82 em main. Ressalvas F1–F3 no corpo do PR."
+    },
+    {
+      "list": "Sprint 09 (set/2026)",
+      "name": "Evento abre no topo (sem scroll invertido)",
+      "status": "Done",
+      "fields": {
+        "História ID": "UX-EVENTOS-SCROLL-01",
+        "PR": "#83",
+        "Veredito Plan": "APROVADO",
+        "Prioridade": "P0"
+      },
+      "description": "- Ao clicar **Ver evento**, a página mostra o banner primeiro, não o rodapé\n\n**Aceite:**\n- `ScrollToTop` global + `history.scrollRestoration = manual`\n- Testes 151/151\n\n**GitHub:** https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/pull/83",
+      "comment": "Landings de evento abrem no topo; benefício em todas as rotas SPA. PR #83 em main."
+    },
+    {
+      "list": "Sprint 09 (set/2026)",
+      "name": "C-05 — Resend / domínio newsletter",
+      "status": "Blocked",
+      "fields": {
+        "História ID": "C-05",
+        "PR": "—",
+        "Veredito Plan": "—",
+        "Prioridade": "P0"
+      },
+      "description": "Credenciais e domínio para captura real `/newsletter`. Bloqueia S7-NEWSLETTER-01.\n\n**Bloqueio:** Humano PO — credenciais em `docs-local/` (nunca no Git)."
+    }
+  ]
+}

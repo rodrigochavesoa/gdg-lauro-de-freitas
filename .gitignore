@@ -10,6 +10,7 @@ dist
 coverage
 
 # Documentação operacional — somente local (nunca commitar)
+# Cobre docs-local/clickup.env (token ClickUp) e demais runbooks
 docs-local/
 
 # Legado — conteúdo operacional vive em docs-local/ (não recriar no Git)

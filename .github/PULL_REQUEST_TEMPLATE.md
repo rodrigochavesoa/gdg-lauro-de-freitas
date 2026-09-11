@@ -1,5 +1,8 @@
 ## Contexto
-<!-- História ou item do backlog (ex.: S1-03). -->
+<!-- História ou item do backlog (ex.: UX-EVENTOS-SCROLL-01). -->
+
+ClickUp: CU-xxxxx
+<!-- ID da task (integração GitHub). Setup: docs-local.example/clickup/setup.md -->
 
 ## Alterações
 -
@@ -24,4 +27,5 @@
 - [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)
 - [ ] Critérios de aceitação atendidos
 - [ ] Documentação pública atualizada (`README.md`, `SETUP.md`, `CONTRIBUTING.md`) quando o clone precisar
+- [ ] Task ClickUp atualizada (In review → Done após merge), se aplicável
 - [ ] Sem mudanças fora do escopo
