@@ -1,0 +1,39 @@
+---
+description: Regra de ouro — nunca versionar doc operacional; default docs-local
+alwaysApply: true
+---
+
+# Fronteira público vs docs-local (regra de ouro)
+
+Antes de **criar ou mover qualquer arquivo**, o agente **deve** inspecionar o que já existe (`git ls-files`, `docs-local.example/`, `CONTRIBUTING.md`, `.gitignore`).
+
+## Default obrigatório
+
+1. **Documentação operacional** (backlog, sprint, handoff, runbooks, credenciais, QA, agentes, configs de squad) → **`docs-local/`** (gitignored).
+2. **`docs-local.example/`** → só **modelos genéricos** (`*.example.json`, stubs, checklists sem dados do squad).
+3. **Git público** → produto + onboarding mínimo: `README.md`, `SETUP.md`, `CONTRIBUTING.md`, `LICENSE`, código, testes, fixtures sintéticas, `.github/`.
+
+## Proibido sem decisão explícita do PO
+
+- Colocar histórico de sprint, tasks ClickUp, tokens, IDs de task reais ou runbooks em `docs-local.example/`, `scripts/` (como config) ou raiz versionada.
+- Duplicar doc operacional já em `docs-local/` no Git “para facilitar”.
+- Criar pasta/arquivo novo sem verificar se a governança (`GOV-REPO-01`) já define o destino.
+
+## Fluxo ao criar documentação
+
+```
+Novo conteúdo → docs-local/ (rascunho)
+       ↓
+PO/mantenedor decide: permanece local OU vira template genérico em docs-local.example/ OU entra em README/SETUP/CONTRIBUTING
+       ↓
+Só então commit no Git público
+```
+
+## Checklist rápido (antes do PR)
+
+- [ ] Nenhum segredo, token ou dado de squad no diff versionado
+- [ ] Configs operacionais só em `docs-local/`
+- [ ] `docs-local.example/` sem Sprint NN, CU-xxx reais ou backlog vivo
+- [ ] Scripts versionados = ferramenta genérica; dados = config local
+
+Referência: `CONTRIBUTING.md` § *Regra de ouro — fronteira público vs docs-local*.
