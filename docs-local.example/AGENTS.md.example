@@ -1,0 +1,21 @@
+# Agentes GDGJobs — stub (copiar para docs-local/AGENTS.md)
+
+Este arquivo é um **modelo**. A governança completa não é versionada no repositório público.
+
+```powershell
+Copy-Item docs-local.example/AGENTS.md.example docs-local/AGENTS.md
+# Se migrate-docs-to-local.ps1 já copiou AGENTS.md, não sobrescreva.
+```
+
+Papéis (resumo):
+
+| Agente | Onde vive a rule | Função |
+|---|---|---|
+| Executor frontend | `docs-local/cursor/rules/executor-frontend.mdc` | UI, API, Vitest — tokens em `src/styles.css` |
+| Frontend Visual QA | `docs-local/cursor/rules/frontend-visual-qa.mdc` | Playwriter + scripts; evidências em `docs-local/assets/` |
+| Plan Tech Lead | — | ONE-LINER e revisão; ver `CONTRIBUTING.md` na raiz |
+| Humano (PO/QA) | — | Aceite, credenciais, merge |
+
+Evidências visuais: `docs-local/assets/<id>/`. DS-06/DS-07: `docs-local/design-system-communication.md` e `docs-local/design-system/section-curves.md` após a migração.
+
+Fluxo Git e Conventional Commits: [`CONTRIBUTING.md`](../CONTRIBUTING.md). Setup: [`SETUP.md`](../SETUP.md).

@@ -1,8 +1,6 @@
 node_modules
-.cursor/*
-!.cursor/rules/
-!.cursor/rules/**
-!.cursor/mcp.json
+.cursor/
+AGENTS.md
 dist
 .pnpm-store
 .env
@@ -11,5 +9,8 @@ dist
 *.local
 coverage
 
-# Documentação operacional sensível — somente local (nunca commitar)
+# Documentação operacional — somente local (nunca commitar)
 docs-local/
+
+# Legado — conteúdo operacional vive em docs-local/ (não recriar no Git)
+docs/
