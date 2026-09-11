@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
+import { ScrollToTop } from "./shared/ui/ScrollToTop.jsx";
 import { Home } from "./features/catalog/Home.jsx";
 import { Portal } from "./features/portal/Portal.jsx";
 import { EventosIndex } from "./features/events/Eventos.jsx";
@@ -60,6 +61,7 @@ export function App() {
 
   return (
     <>
+      <ScrollToTop />
       <Header
         logged={Boolean(auth.session)}
         displayName={auth.profile?.full_name}

@@ -7,6 +7,10 @@ import "./styles.css";
 
 initTheme();
 
+if (typeof history !== "undefined" && "scrollRestoration" in history) {
+  history.scrollRestoration = "manual";
+}
+
 createRoot(document.getElementById("root")).render(
   <BrowserRouter>
     <App />
