@@ -1,0 +1,34 @@
+{
+  "spaceName": "Meu Produto MVP",
+  "sprintNotes": [
+    {
+      "list": "Sprint 01",
+      "taskName": "📋 Sprint Note — Sprint 01 (fechada)",
+      "status": "Done",
+      "fields": {
+        "História ID": "SPRINT-01",
+        "PR": "—",
+        "Veredito Plan": "—",
+        "Prioridade": "—"
+      },
+      "description": "Resumo humano da sprint encerrada (markdown).",
+      "comment": "Sprint fechada; próxima aberta."
+    }
+  ],
+  "moveTasks": [],
+  "tasks": [
+    {
+      "list": "Sprint 02",
+      "name": "Exemplo — próxima entrega",
+      "status": "Ready",
+      "fields": {
+        "História ID": "EXEMPLO-01",
+        "PR": "—",
+        "Veredito Plan": "—",
+        "Prioridade": "P1"
+      },
+      "description": "Descrição e aceite da task.",
+      "comment": "Comentário inicial na task."
+    }
+  ]
+}

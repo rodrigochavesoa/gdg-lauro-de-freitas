@@ -14,7 +14,10 @@
     "test:rls": "node scripts/check-rls.mjs",
     "qa:admin-nav": "node scripts/measure-admin-nav.mjs",
     "qa:job-detail": "node scripts/measure-job-detail.mjs",
-    "qa:my-applications": "node scripts/measure-my-applications.mjs"
+    "qa:my-applications": "node scripts/measure-my-applications.mjs",
+    "clickup:bootstrap": "node scripts/bootstrap-clickup.mjs",
+    "clickup:sprint-handoff": "node scripts/sprint-handoff-clickup.mjs",
+    "clickup:sync": "node scripts/bootstrap-clickup.mjs && node scripts/sprint-handoff-clickup.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.3",

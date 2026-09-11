@@ -22,11 +22,16 @@ docs-local/
   cursor/
     rules/                  ← rules Cursor (cópia local; ver cursor/rules/README.md)
     mcp.json
+  clickup/                  ← configs de sprint + handoff (copie *.example.json de docs-local.example/clickup/)
   assets/                   ← evidências Visual QA (PNG, audit-log.json)
   design-system/            ← DS-06/DS-07 e referências
   *-test-user.md            ← credenciais de homologação (nunca commitar)
   contributing.md           ← se migrou do docs/ antigo (a pública é CONTRIBUTING.md na raiz)
 ```
+
+## ClickUp (squad solo+IA)
+
+Modelo em [`clickup/`](clickup/) — copie `*.example.json` para `docs-local/clickup/` e preencha com sprints/tasks do squad. Token: [`clickup.env.example`](clickup.env.example) → `docs-local/clickup.env`. Sync: `pnpm clickup:sync`. Integração GitHub continua **manual** (OAuth) — [`clickup/setup.md`](clickup/setup.md) §3.
 
 ## O que pode ficar em docs-local/
 

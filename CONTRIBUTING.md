@@ -4,6 +4,8 @@ Padrões da comunidade para branch, Pull Request e mensagens de commit.
 
 Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) fica no Git. Backlog, design system, evidências QA e rules de agentes ficam em `docs-local/` (gitignored) — modelo em `docs-local.example/`.
 
+**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync` (token em `docs-local/clickup.env`). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
+
 ## Git — branch e PR
 
 **`main` é branch protegida.** O Executor Agent **nunca** commita, faz merge ou `git push origin main`.
