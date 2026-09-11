@@ -228,6 +228,18 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(document.querySelector(".event-banner")).toBeNull();
   });
 
+  it("rola ao topo ao abrir a landing a partir do índice de eventos", async () => {
+    const scrollTo = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    await renderAt("/eventos");
+    expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
+    scrollTo.mockClear();
+    fireEvent.click(screen.getAllByRole("link", { name: "Ver evento" })[0]);
+    expect(await screen.findByRole("button", { name: /Voltar para eventos/i })).toBeInTheDocument();
+    expect(document.querySelector(".event-banner")).toBeTruthy();
+    expect(scrollTo).toHaveBeenCalledWith(0, 0);
+    scrollTo.mockRestore();
+  });
+
   it("renderiza o índice em /eventos sem login", async () => {
     await renderAt("/eventos");
     expect(await screen.findByRole("heading", { level: 1, name: "Eventos" })).toBeInTheDocument();
