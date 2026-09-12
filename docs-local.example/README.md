@@ -23,6 +23,7 @@ docs-local/
     rules/                  ← rules Cursor (copie public-docs-boundary.mdc + demais de docs-local.example/cursor/rules/)
     mcp.json
   clickup/                  ← configs de sprint + handoff (copie *.example.json de docs-local.example/clickup/)
+  environments.md           ← mapa homolog vs prod (copie environments.md.example; refs só na cópia local)
   assets/                   ← evidências Visual QA (PNG, audit-log.json)
   design-system/            ← DS-06/DS-07 e referências
   *-test-user.md            ← credenciais de homologação (nunca commitar)

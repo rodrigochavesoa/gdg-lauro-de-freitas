@@ -1,0 +1,11 @@
+# Ambientes homologação vs produção (modelo)
+
+Copie para `docs-local/` e preencha **refs de projeto só na cópia local**. Este modelo não leva IDs, tokens nem URLs reais.
+
+| Papel | Preview / local | Production |
+|---|---|---|
+| Frontend | Vercel Preview | Vercel Production (`*.vercel.app` até haver domínio) |
+| Banco | Projeto Supabase A | Projeto Supabase B (outro ref) |
+| Seed fictício | Permitido | Proibido |
+
+Migrações de produção: comando versionado `pnpm migrations:prod`. Scan de bundle: `pnpm check:bundle`. Rollback: promover deploy anterior na Vercel; não reaplicar seed.

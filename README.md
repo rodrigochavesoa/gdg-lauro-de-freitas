@@ -55,9 +55,9 @@ A stack abaixo é a decisão do MVP paralelo. **Não migrar** neste recorte sem 
 | Dados e auth | Supabase PostgreSQL + Auth + RLS | Banco é a fonte de verdade; chave publishable/anon no browser |
 | Backend complementar | Supabase Edge Functions (TypeScript) | Segredos e integrações fora do navegador |
 | Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build`) | Entrega deixa evidência verificável |
-| Hospedagem prevista | Vercel servindo `dist/` estático | Confirmar plano e ambiente de **produção** à parte (ainda não é este repo em prod) |
+| Hospedagem | Vercel Hobby servindo `dist/` estático (`*.vercel.app`) | Produção neste recorte; domínio customizado é C-05 (fora) |
 
-Auth: **Supabase Auth** (Google OAuth em homologação). Sem `service_role` no frontend.
+Auth: **Supabase Auth** (Google OAuth). Sem `service_role` no frontend. Homologação e produção usam **projetos Supabase distintos**; Preview Vercel aponta para homologação, Production para o projeto de produção (sem seed fictício).
 
 ## Não-objetivos
 

@@ -36,3 +36,9 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Bundle secrets
+        run: pnpm check:bundle
+
+      - name: Production migrations
+        run: pnpm migrations:prod
