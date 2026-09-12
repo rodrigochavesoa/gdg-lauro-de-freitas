@@ -159,6 +159,25 @@ Não obrigatório para solo+IA.
 
 ---
 
+## 4b. Trabalho surgido fora do plano (mid-sprint)
+
+**Sempre que aparecer algo não programado** — correção mobile, decisão SEC, gov de Preview, typo em doc operacional — siga **antes** de mandar o Executor:
+
+1. **Escolher a list** — sprint **atual** por padrão; outra só se fizer mais sentido (ex.: C-05 continua Sprint 10).
+2. **Adicionar task** em `docs-local/clickup/sprint-handoff.config.json`:
+   - `name`, `status` (Ready / Backlog / Blocked), `tags` (1–3), `openedAt`, `fields.História ID`
+   - `description` com problema, aceite e referências (`docs-local/...`)
+   - `comment` curto: por que entrou mid-sprint e posição no fluxo
+3. **Documentar o assunto** — mínimo na `description` da task; se for decisão ou escopo técnico, arquivo em `docs-local/` (ex.: `decision-*.md`). **Docs-only também entra** (tag `Governança` ou `Ops manual`).
+4. **Atualizar Sprint Note** — incluir no fluxo numerado da sprint se mudar ordem ou dependências.
+5. **`pnpm clickup:sync`** — validar task no ClickUp; anotar `CU-xxx` para o PR.
+6. **ONE-LINER** — só então colar no Cursor; PR body: `ClickUp: CU-xxx`.
+7. **Antes do merge (UI/deploy):** Plan/Executor entrega ao PO o **link direto Preview Vercel** da branch (ver `CONTRIBUTING.md` § *Aceite de merge — link Preview Vercel*).
+
+**Exemplos já aplicados (Sprint 13):** `UX-MOBILE-OVERFLOW-01`, aceite `SEC-02-DEC` + `MVP-021` (`decision-security-definer-rpc-hardening.md`).
+
+---
+
 ## 5. Ritmo semanal (solo)
 
 | Quando | Ação | Onde |

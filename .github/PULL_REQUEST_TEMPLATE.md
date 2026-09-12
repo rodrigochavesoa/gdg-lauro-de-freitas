@@ -9,7 +9,15 @@ ClickUp: CU-xxxxx
 
 ## Como validar
 1.
-2. Se o PR altera frontend, `vercel.json` ou deploy: abrir o **Preview Vercel** (link do bot no PR) e testar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge.
+2. Se o PR altera frontend, `vercel.json` ou deploy: abrir o **Preview Vercel** e testar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge.
+
+**Preview Vercel (link direto da branch — obrigatório quando houver deploy):**
+
+```text
+https://<projeto>-git-<branch>-<team>.vercel.app
+```
+
+Copie a URL do bot **Vercel** na PR ou de Deployments → Preview. **Não** use a URL de Production para validar PR aberta.
 
 ## Segurança e dados
 - [ ] Não introduz segredo no repositório

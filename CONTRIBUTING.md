@@ -18,6 +18,22 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 
 **ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Scripts ClickUp em `scripts/` são ferramentas genéricas versionadas (sem dados do squad). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
 
+## Trabalho não programado (mid-sprint)
+
+**Regra obrigatória para Plan, Executor e PO:** qualquer tarefa que **não estava no plano da sprint** — bug, correção UX, decisão de segurança, ajuste de doc, follow-up de PR — **não** fica só no chat.
+
+| Passo | O que fazer |
+|---|---|
+| 1. Sprint | Colocar na **sprint atual** (default) ou na list mais adequada (ex.: bloqueio humano permanece em Sprint 10). |
+| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (task + metadados: assignee, 1–3 tags, `openedAt`) e rodar **`pnpm clickup:sync`**. |
+| 3. Documentação | Descrever **o que é** e **por que entrou**: corpo da task no JSON; se for decisão ou escopo não trivial, arquivo em **`docs-local/`** (ex.: `decision-*.md`, linha no backlog, nota na Sprint Note). Vale também para ajuste **só de documentação**. |
+| 4. Ordem | Se alterar a sequência da sprint, atualizar a **Sprint Note** (fluxo numerado) antes do Executor. |
+| 5. Execução | Só depois: ONE-LINER ao agente correto; PR com `ClickUp: CU-xxx`. |
+
+**Proibido:** Executor implementar mid-sprint sem task ClickUp rastreável; Plan declarar “feito” sem sync; trabalho invisible só em conversa.
+
+Detalhes operacionais: [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md) § *Trabalho surgido fora do plano* · [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md) § *Inserção mid-sprint*.
+
 ## Git — branch e PR
 
 **`main` é branch protegida.** O Executor Agent **nunca** commita, faz merge ou `git push origin main`.
@@ -29,12 +45,32 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 | 3. Validar (`pwsh`) | `pnpm lint` → `pnpm test` → `pnpm run build` |
 | 4. Publicar | `git push -u origin <branch>` — **somente a branch** |
 | 5. Revisão | PR **base: `main`** ← compare: `<branch>` |
-| 5b. Preview Vercel | Quando o diff tocar frontend, `vercel.json` ou deploy: abrir o **Preview** (link do bot Vercel no PR ou Deployments no dashboard) e validar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge. Preview usa homologação; Production só muda após merge em `main` (ver [`SETUP.md`](SETUP.md)). |
-| 6. Merge | Squash merge pelo **mantenedor** após CI verde, revisão e Preview validado (quando aplicável) |
+| 5b. Preview Vercel | Quando o diff tocar frontend, `vercel.json` ou deploy: validar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge. Preview usa homologação; Production só muda após merge em `main` (ver [`SETUP.md`](SETUP.md)). |
+| 5c. Link do Preview (obrigatório) | **Plan ou Executor** deve entregar ao PO/mantenedor o **link direto do deploy da branch** (URL `*.vercel.app` do Preview — não a Production) **antes** de pedir **Sim** para merge. Copiar do comentário **Vercel** na PR (botão *Preview*) ou de Vercel → Deployments → deploy da branch. Formato típico: `https://<projeto>-git-<branch>-<team>.vercel.app`. |
+| 6. Merge | Squash merge pelo **mantenedor** após CI verde, revisão, **link Preview entregue** e aceite PO (Sim no PR) |
 
 **Regra do Executor:** criar a branch (**etapa 2**) **antes** de editar qualquer arquivo de código ou documentação versionada. Trabalhar somente na branch da história. **Nunca** commitar em `main` local — push direto em `main` é bloqueado pelo ruleset.
 
 Template de PR: [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md).
+
+### Aceite de merge — link Preview Vercel (obrigatório)
+
+Quando a entrega alterar **frontend**, **`vercel.json`** ou **deploy**, o **Plan** (na revisão) ou o **Executor** (ao reportar “pronto para merge”) **deve** incluir na mensagem ao PO:
+
+1. **Número da PR** (ex.: `#91`)
+2. **Link direto do Preview** — URL completa do deploy **desta branch** (não `main`/Production)
+3. **Rotas a validar** — no mínimo `/`, `/vagas`, `/login` quando couber SPA
+4. Pedido explícito de **Sim** no PR após validação no celular ou DevTools mobile
+
+**Proibido** pedir merge só com “valide no Preview” sem colar a URL. **Production** (`https://gdg-lauro-de-freitas.vercel.app`) só reflete a branch **depois** do squash merge — não usar para validar PR aberta.
+
+Exemplo (Plan → PO):
+
+```text
+PR #91 — Preview: https://gdg-lauro-de-freitas-git-fix-ux-mobile-overflow-x-gdg-jobs-prod.vercel.app
+Validar no celular (ou DevTools ≤760px): /, /vagas, /login — sem scroll lateral.
+Responda Sim no PR para autorizar squash merge.
+```
 
 ## Tamanho e escopo do Pull Request
 
@@ -125,11 +161,11 @@ Quando o Executor reporta **“pronto na branch / PR #N”**, o Plan **revisa** 
 
 | Veredito | Quando usar |
 |---|---|
-| **APROVADO** | ONE-LINER cumprido; CI verde; escopo isolado; critérios de aceite ok |
+| **APROVADO** | ONE-LINER cumprido; CI verde; escopo isolado; critérios de aceite ok; se UI/deploy: **link direto Preview Vercel da branch** entregue ao PO |
 | **APROVADO com ressalvas** | Entrega válida; polish ou follow-up documentado (não bloqueia merge se P0 ok) |
 | **REPROVADO** | Fora de escopo; falha CI; critério P0 não atendido; divergência do ONE-LINER; **ONE-LINER sem `Função / Agente` (e `Modelo / ferramenta` quando couber)** |
 
-Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Registrar revisões relevantes em `docs-local/project-backlog-scrum.md` quando for marco de sprint.
+Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Se UI/deploy: incluir **link direto Preview Vercel da branch** na mensagem ao PO (não pedir merge sem URL). Registrar revisões relevantes em `docs-local/project-backlog-scrum.md` quando for marco de sprint.
 
 **Ressalva não bloqueante ≠ “só no chat”.** Se ficar só na conversa, vira **dívida técnica invisível** — ninguém executa, ninguém fecha. Toda ressalva do Plan **deve** sair do chat no mesmo ciclo de revisão (antes ou no merge).
 
@@ -143,6 +179,7 @@ Formato: tabela critério × resultado + veredito final + squash sugerido (se ap
 | **QA manual pendente** | [`docs-local/qa-test-plan-homolog.md`](docs-local/qa-test-plan-homolog.md) + coluna *Resultado* no assessment | **Humano** PO/QA | Linha *Pass* com evidência no assessment |
 | **Decisão do merge** (incluir arquivo, nota metodológica) | **Corpo do PR** — seção `## Ressalvas (não bloqueantes)` | Executor no merge ou PR doc follow-up | PR mergeado com seção preenchida |
 | **Trabalho novo com escopo** | **ONE-LINER** ao Executor (história nova, branch, critérios) | Executor | Revisão Plan APROVADO |
+| **Trabalho não programado (mid-sprint)** | Task ClickUp + doc em `docs-local/` + atualizar Sprint Note se mudar ordem; **depois** ONE-LINER | Plan (sync) → Executor | Ver [`CONTRIBUTING.md`](CONTRIBUTING.md) § *Trabalho não programado* |
 | **Marco de sprint / handoff** | [`docs-local/project-backlog-scrum.md`](docs-local/project-backlog-scrum.md) § *Handoff* | Plan TL | Próximo handoff referencia PRs e pendências |
 
 #### Regra anti-dívida (Plan + Executor + PO)
