@@ -266,7 +266,7 @@ html[data-theme="dark"] .avatar{background:#1e3a8a;color:#dbeafe}
 .hero{border-bottom:none;overflow:visible;padding-bottom:120px}
 .hero-content{position:relative;z-index:4}
 body:has(.hero) .topbar,body:has(.portal-hero) .topbar,body:has(.login-page) .topbar,body:has(.admin-page) .topbar,body:has(.detail-page) .topbar{border-bottom:none}
-.home-divider{position:relative;z-index:2;height:120px;margin-top:-108px;overflow:visible;pointer-events:none}
+.home-divider{position:relative;z-index:2;height:120px;margin-top:-108px;overflow-x:clip;overflow-y:visible;pointer-events:none}
 .home-divider__curve{display:block;position:relative;width:calc(100% + 16px);height:100%;margin-left:-8px}
 .home-divider__avatar{position:absolute;left:max(16px,calc((100% - 1180px) / 2));bottom:-12px;width:min(280px,32vw);max-height:200px;height:auto;object-fit:contain;z-index:3;display:block}
 .home-divider + .jobs-layout,.home-divider + .event-layout,.home-divider + .newsletter-layout{padding-top:52px}
