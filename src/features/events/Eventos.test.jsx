@@ -115,6 +115,18 @@ describe("EventosIndex", () => {
     expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
   });
 
+  it("fecha o sheet de filtros pelo backdrop e mantém a seleção", () => {
+    renderIndex();
+
+    fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+    expect(screen.getByRole("dialog", { name: "Filtros" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Online" }));
+    expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar filtros" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Nenhum evento encontrado" })).toBeInTheDocument();
+  });
+
   it("não dispara fetch no mount", () => {
     const spy = vi.spyOn(globalThis, "fetch");
     renderIndex();

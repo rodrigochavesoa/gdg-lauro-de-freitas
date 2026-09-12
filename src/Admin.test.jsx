@@ -1,5 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
@@ -27,6 +28,10 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
 
 import { Admin } from "./Admin.jsx";
 
+function renderAdmin(ui) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
 describe("Admin", () => {
   beforeEach(() => {
     loadCurationProfile.mockReset();
@@ -37,7 +42,7 @@ describe("Admin", () => {
   });
 
   it("usa admin-auth-form compacto, sem job-form do CRUD", async () => {
-    render(<Admin session={null} authReady />);
+    renderAdmin(<Admin session={null} authReady />);
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
     const form = document.querySelector("form.admin-auth-form");
     expect(form).toBeTruthy();
@@ -46,16 +51,19 @@ describe("Admin", () => {
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
     expect(screen.getByLabelText("Senha")).toBeInTheDocument();
-    expect(
-      screen.getByText(/Staff \(curador, moderador ou admin\) usa e-mail e senha da conta de teste abaixo/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Use o e-mail e a senha da sua conta de equipe GDG Jobs/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login");
+    expect(screen.getByPlaceholderText("seu-email@empresa.com")).toBeInTheDocument();
+    expect(screen.queryByText(/conta de teste/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/homolog/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/example\.invalid/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Sprint 5/i)).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
   it("staff com authProfile no snapshot vê as tabs sem buscar perfil de curadoria", () => {
     loadCurationProfile.mockImplementation(() => new Promise(() => {}));
-    render(
+    renderAdmin(
       <Admin
         authReady
         session={{ user: { id: "a1", email: "ada@example.invalid" } }}
@@ -81,7 +89,7 @@ describe("Admin", () => {
       full_name: "Cora Curadora",
       email: "curator-homolog@example.invalid",
     });
-    render(<Admin session={{ user: { id: "c1" } }} authReady />);
+    renderAdmin(<Admin session={{ user: { id: "c1" } }} authReady />);
     expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector(".admin-user")).toBeNull();
@@ -105,7 +113,7 @@ describe("Admin", () => {
       full_name: "Ada Admin",
       email: "ada@example.invalid",
     });
-    render(<Admin session={{ user: { id: "a1" } }} authReady />);
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
     expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
@@ -129,7 +137,7 @@ describe("Admin", () => {
       full_name: "Ada Admin",
       email: "ada@example.invalid",
     });
-    render(<Admin session={{ user: { id: "a1" } }} authReady />);
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
     expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(screen.queryByText("Ada Admin")).not.toBeInTheDocument();
@@ -166,7 +174,7 @@ describe("Admin", () => {
         companies: { name: "Nuvem Lauro Demo" },
       },
     ]);
-    render(<Admin session={{ user: { id: "a1" } }} authReady />);
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
     expect(await screen.findByRole("heading", { name: "Aguardando curadoria" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Vagas pending e approved" })).not.toBeInTheDocument();
     expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();

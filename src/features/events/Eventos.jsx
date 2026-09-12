@@ -8,8 +8,8 @@ import {
   MapPin,
   Search,
   Users,
-  X,
 } from "lucide-react";
+import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import { Link } from "react-router-dom";
 import { toggleFilterValue } from "../../lib/filter-jobs.js";
 import {
@@ -98,28 +98,32 @@ export function EventosIndex({ logged = false }) {
         </svg>
       </div>
       <section className="shell jobs-layout">
-        <aside className={`filters ${filterOpen ? "open" : ""}`}>
+        <FilterSheet
+          open={filterOpen}
+          onClose={() => setFilterOpen(false)}
+          resultCount={visibleEvents.length}
+          titleId="events-filters-title"
+        >
           <div className="filter-head">
-            <h2><Filter size={18} /> Filtros</h2>
+            <h2 id="events-filters-title"><Filter size={18} /> Filtros</h2>
             <button type="button" onClick={reset}>Limpar</button>
-            <button className="close-filter" type="button" onClick={() => setFilterOpen(false)}>
-              <X size={18} />
-            </button>
           </div>
-          <FilterGroup
-            label="Status"
-            values={EVENT_STATUS_FILTERS}
-            active={status}
-            toggle={(value) => toggle(value, status, setStatus)}
-            labels={EVENT_STATUS_LABELS}
-          />
-          <FilterGroup
-            label="Formato"
-            values={FORMAT_FILTERS}
-            active={format}
-            toggle={(value) => toggle(value, format, setFormat)}
-          />
-        </aside>
+          <div className="filters__body">
+            <FilterGroup
+              label="Status"
+              values={EVENT_STATUS_FILTERS}
+              active={status}
+              toggle={(value) => toggle(value, status, setStatus)}
+              labels={EVENT_STATUS_LABELS}
+            />
+            <FilterGroup
+              label="Formato"
+              values={FORMAT_FILTERS}
+              active={format}
+              toggle={(value) => toggle(value, format, setFormat)}
+            />
+          </div>
+        </FilterSheet>
         <div className="job-content">
           <div className="result-head">
             <div>

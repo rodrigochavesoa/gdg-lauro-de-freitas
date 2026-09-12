@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Check, Plus } from "lucide-react";
 import {
   createPendingJob,
@@ -226,7 +227,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               <div>
                 <span className="eyebrow">Área da comunidade</span>
                 <h1>Entrar para curadoria ou admin</h1>
-                <p>Candidatos entram com Google na tela de Login. Staff (curador, moderador ou admin) usa e-mail e senha da conta de teste abaixo.</p>
+                <p>Use o e-mail e a senha da sua conta de equipe GDG Jobs. Candidatos: acesse pelo <Link to="/login">Login</Link>.</p>
               </div>
             </div>
             <form className="admin-auth-form" onSubmit={onLogin}>
@@ -235,7 +236,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                 <div className="form-grid">
                   <label className="wide">
                     E-mail
-                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="curator-homolog@example.invalid" />
+                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu-email@empresa.com" />
                   </label>
                   <label className="wide">
                     Senha
