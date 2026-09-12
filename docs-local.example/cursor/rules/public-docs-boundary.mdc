@@ -18,6 +18,12 @@ Antes de **criar ou mover qualquer arquivo**, o agente **deve** inspecionar o qu
 
 Toda task em config local: assignee humano, 1–3 tags, `openedAt` / `closedAt`. Ver `docs-local.example/clickup/task-metadata.md`. Plan inclui ao criar sprint; Executor valida sync idempotente.
 
+## Trabalho não programado (mid-sprint)
+
+Qualquer tarefa **fora do plano** (bug, UX, decisão, doc) → **sprint atual** (ou list adequada) + task em `docs-local/clickup/sprint-handoff.config.json` + documentação do assunto em `docs-local/` + `pnpm clickup:sync` **antes** do ONE-LINER. Não executar só no chat. Ver `CONTRIBUTING.md` § *Trabalho não programado* e `docs-local.example/clickup/setup.md` § *Trabalho surgido fora do plano*.
+
+**Aceite de merge (UI/deploy):** Plan/Executor entrega ao PO o **link direto Preview Vercel da branch** antes de pedir Sim — ver `CONTRIBUTING.md` § *Aceite de merge — link Preview Vercel*.
+
 ## Proibido sem decisão explícita do PO
 
 - Colocar histórico de sprint, tasks ClickUp, tokens, IDs de task reais ou runbooks em `docs-local.example/`, `scripts/` (como config) ou raiz versionada.

@@ -143,4 +143,23 @@ Exemplo saudável após handoff já aplicado:
 - [ ] `pnpm clickup:sync` → validar no ClickUp; 2ª vez → `skipped` em metadados.
 - [ ] Nenhum dado squad no diff versionado.
 
-Referências: [`setup.md`](setup.md) · [`../clickup.env.example`](../clickup.env.example)
+---
+
+## 7. Inserção mid-sprint (trabalho não programado)
+
+**Obrigatório** quando surgir tarefa fora do plano — ver também `CONTRIBUTING.md` § *Trabalho não programado*.
+
+| Quem | Ação |
+|---|---|
+| **Plan / PO** | Task na sprint atual (ou list adequada) + doc do assunto em `docs-local/` + Sprint Note se mudar ordem |
+| **Plan** | `pnpm clickup:sync` **antes** do ONE-LINER ao Executor |
+| **Executor** | **Não** iniciar sem task ClickUp; PR com `ClickUp: CU-xxx` |
+
+Checklist mínimo da task no JSON:
+
+- [ ] `História ID` único (ex.: `UX-MOBILE-OVERFLOW-01`, `GOV-PREVIEW-01`)
+- [ ] `description`: o quê, por quê, aceite, paths `docs-local/`
+- [ ] `tags` + `openedAt` (+ assignee via defaults)
+- [ ] Sync idempotente validado
+
+Referências: [`setup.md`](setup.md) § *Trabalho surgido fora do plano* · [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) · [`../clickup.env.example`](../clickup.env.example)
