@@ -29,7 +29,8 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 | 3. Validar (`pwsh`) | `pnpm lint` → `pnpm test` → `pnpm run build` |
 | 4. Publicar | `git push -u origin <branch>` — **somente a branch** |
 | 5. Revisão | PR **base: `main`** ← compare: `<branch>` |
-| 6. Merge | Squash merge pelo **mantenedor** após CI verde e revisão |
+| 5b. Preview Vercel | Quando o diff tocar frontend, `vercel.json` ou deploy: abrir o **Preview** (link do bot Vercel no PR ou Deployments no dashboard) e validar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge. Preview usa homologação; Production só muda após merge em `main` (ver [`SETUP.md`](SETUP.md)). |
+| 6. Merge | Squash merge pelo **mantenedor** após CI verde, revisão e Preview validado (quando aplicável) |
 
 **Regra do Executor:** criar a branch (**etapa 2**) **antes** de editar qualquer arquivo de código ou documentação versionada. Trabalhar somente na branch da história. **Nunca** commitar em `main` local — push direto em `main` é bloqueado pelo ruleset.
 
