@@ -1,4 +1,6 @@
 -- GDGJobs Sprint 2: grants para o Data API + seed fictício (sem PII real).
+-- HOMOLOGAÇÃO APENAS. Não aplicar no projeto Supabase de produção (MVP-002).
+-- Grants de SELECT para prod: 20260912010000_data_api_select_grants.sql.
 -- Rollback: delete from public.jobs / public.companies where id in (UUIDs abaixo);
 -- a migration 202608150001 permanece.
 
