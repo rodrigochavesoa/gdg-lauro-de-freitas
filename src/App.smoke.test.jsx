@@ -381,9 +381,9 @@ describe("ARQ-01 — caracterização do shell", () => {
   it("anon em /admin não mostra sidebar nem CTA de candidato no Header", async () => {
     await renderAt("/admin");
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
-    expect(
-      screen.getByText(/Staff \(curador, moderador ou admin\) usa e-mail e senha da conta de teste abaixo/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Use o e-mail e a senha da sua conta de equipe GDG Jobs/)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("seu-email@empresa.com")).toBeInTheDocument();
+    expect(screen.queryByText(/conta de teste/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Sprint 5/i)).not.toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector("form.admin-auth-form")).toBeTruthy();

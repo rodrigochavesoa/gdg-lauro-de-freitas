@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Filter,
-  MapPin, Search, Sparkles, Users, X
+  MapPin, Search, Sparkles, Users
 } from "lucide-react";
+import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsCache } from "./jobs-api.js";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -59,8 +60,19 @@ export function Home({ logged = false }) {
       </svg>
       <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" loading="lazy" decoding="async" />
     </div>
-    <section className="shell jobs-layout"><aside className={`filters ${filterOpen ? "open" : ""}`}><div className="filter-head"><h2><Filter size={18}/> Filtros</h2><button onClick={reset}>Limpar</button><button className="close-filter" onClick={() => setFilterOpen(false)}><X size={18}/></button></div><FilterGroup label="Tecnologias" values={technologies} active={tech} toggle={x => toggle(x, tech, setTech)} /><FilterGroup label="Nível de experiência" values={levels} active={level} toggle={x => toggle(x, level, setLevel)} /><FilterGroup label="Modelo de trabalho" values={["Remoto", "Híbrido", "Presencial"]} active={[]} toggle={() => {}} /></aside>
-      <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{catalogStatus === "loading" && visibleJobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
+    <section className="shell jobs-layout">
+      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} resultCount={visibleJobs.length} titleId="catalog-filters-title">
+        <div className="filter-head">
+          <h2 id="catalog-filters-title"><Filter size={18}/> Filtros</h2>
+          <button type="button" onClick={reset}>Limpar</button>
+        </div>
+        <div className="filters__body">
+          <FilterGroup label="Tecnologias" values={technologies} active={tech} toggle={x => toggle(x, tech, setTech)} />
+          <FilterGroup label="Nível de experiência" values={levels} active={level} toggle={x => toggle(x, level, setLevel)} />
+          <FilterGroup label="Modelo de trabalho" values={["Remoto", "Híbrido", "Presencial"]} active={[]} toggle={() => {}} />
+        </div>
+      </FilterSheet>
+      <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {(tech.length + level.length) > 0 && <b>{tech.length + level.length}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{catalogStatus === "loading" && visibleJobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
     </section>
     {!logged && (
       <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Seu perfil abre caminhos</div><h2>A vaga certa começa<br/>com um perfil que representa você.</h2><p>Crie seu perfil e apresente suas habilidades para oportunidades mais alinhadas.</p></div><Link to="/login" className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></Link></div></section>
