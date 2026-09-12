@@ -86,7 +86,7 @@ Cada task: **1–3 tags** (`tags[]`). Fora da lista → erro de validação / lo
 | `Governança` | Repo, processo, ClickUp, CONTRIBUTING |
 | `UX` | Navegação, fluxo usuário, copy de interface |
 | `Integração` | Serviços externos (e-mail, ClickUp, OAuth) |
-| `Ops humano` | Credencial, domínio, aceite PO sem PR de código |
+| `Ops manual` | Credencial, domínio, aceite PO sem PR de código |
 
 Mapeie entregas do squad **somente** em `docs-local/clickup/*.config.json`.
 

@@ -20,7 +20,7 @@
       "list": "Sprint 01",
       "name": "Exemplo — credencial externa",
       "status": "Blocked",
-      "tags": ["Ops humano", "Integração"],
+      "tags": ["Ops manual", "Integração"],
       "openedAt": "2026-01-05",
       "fields": { "História ID": "EXEMPLO-BLOCKED" }
     }

@@ -14,7 +14,7 @@ export const TASK_TAG_TAXONOMY = [
   "Governança",
   "UX",
   "Integração",
-  "Ops humano",
+  "Ops manual",
 ];
 
 const TAG_COLORS = {
@@ -28,7 +28,7 @@ const TAG_COLORS = {
   Governança: { tag_fg: "#ffffff", tag_bg: "#57534e" },
   UX: { tag_fg: "#1f2937", tag_bg: "#f9a8d4" },
   Integração: { tag_fg: "#ffffff", tag_bg: "#0369a1" },
-  "Ops humano": { tag_fg: "#ffffff", tag_bg: "#e5484d" },
+  "Ops manual": { tag_fg: "#ffffff", tag_bg: "#e5484d" },
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
