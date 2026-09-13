@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019 e F-023.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023 e MVP-021.
  * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
  * pwsh: pnpm test:rls
  */
@@ -85,6 +85,15 @@ function assert(condition, message) {
 function skip(message) {
   skipped.push(message);
   console.log(`IGNORADO: ${message}`);
+}
+
+function errorText(error) {
+  return [error?.message, error?.details, error?.hint, error?.code].filter(Boolean).join(" ");
+}
+
+/** PostgREST/Postgres recusou EXECUTE (PGRST202 / 42501), não só RAISE interno. */
+function isExecuteDenied(error) {
+  return /could not find the function|permission denied|42501|PGRST202|schema cache/i.test(errorText(error));
 }
 
 function serviceRoleKey() {
@@ -229,6 +238,15 @@ async function scenario1_anon() {
     p_rubric_code: RUBRIC,
   });
   assert(Boolean(rpc.error), "anon não chama RPC de parecer");
+  assert(isExecuteDenied(rpc.error), `anon sem EXECUTE em submit_curation_review (${errorText(rpc.error) || "sem mensagem"})`);
+
+  const profiles = await anon.from("profiles").select("id");
+  assert(!profiles.error, `anon lê profiles sem erro de API (${profiles.error?.message ?? "ok"})`);
+  assert((profiles.data ?? []).length === 0, "anon não lê perfis");
+
+  const applications = await anon.from("applications").select("id");
+  assert(!applications.error, `anon lê applications sem erro de API (${applications.error?.message ?? "ok"})`);
+  assert((applications.data ?? []).length === 0, "anon não lê candidaturas");
 }
 
 /** Cenário 2 — candidato não cura, prioridade nem status. */
@@ -237,7 +255,7 @@ async function scenario2_candidate() {
     skip("candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
     return;
   }
-  const { client, error } = await signIn(testUsers.candidate);
+  const { client, user, error } = await signIn(testUsers.candidate);
   assert(!error, `candidato autentica (${error?.message ?? "ok"}`);
   if (error) return;
 
@@ -246,6 +264,20 @@ async function scenario2_candidate() {
 
   const reviews = await client.from("job_curation_reviews").select("id");
   assert((reviews.data ?? []).length === 0, "candidato não lê pareceres");
+
+  const profiles = await client.from("profiles").select("id");
+  assert(!profiles.error, `candidato lê profiles sem erro de API (${profiles.error?.message ?? "ok"})`);
+  assert(
+    (profiles.data ?? []).every((row) => row.id === user?.id),
+    "candidato não lê perfil de terceiros",
+  );
+
+  const applications = await client.from("applications").select("candidate_id");
+  assert(!applications.error, `candidato lê applications sem erro de API (${applications.error?.message ?? "ok"})`);
+  assert(
+    (applications.data ?? []).every((row) => row.candidate_id === user?.id),
+    "candidato não lê candidatura de terceiros",
+  );
 
   const rpc = await rpcReview(client, "b2b2b2b2-0005-4000-8000-000000000005", "approve");
   assert(Boolean(rpc.error), "candidato não registra parecer via RPC");
@@ -854,6 +886,76 @@ async function scenario14_applyRateLimit() {
   await admin.auth.signOut();
 }
 
+/** Cenário 15 — MVP-021: EXECUTE revogado de PUBLIC/anon nas RPCs administrativas. */
+async function scenario15_rpcExecuteHardening() {
+  const seedPending = SEED_PENDING;
+  const seedApproved = SEED_APPROVED_A;
+
+  const anonSubmit = await anon.rpc("submit_curation_review", {
+    p_job_id: seedPending,
+    p_decision: "approve",
+    p_rubric_code: RUBRIC,
+  });
+  assert(Boolean(anonSubmit.error) && isExecuteDenied(anonSubmit.error), "anon sem EXECUTE em submit_curation_review");
+
+  const anonResubmit = await anon.rpc("resubmit_job_for_curation", { p_job_id: seedPending });
+  assert(Boolean(anonResubmit.error) && isExecuteDenied(anonResubmit.error), "anon sem EXECUTE em resubmit_job_for_curation");
+
+  const anonPriority = await anon.rpc("set_job_curation_priority", {
+    p_job_id: seedPending,
+    p_priority: "urgent",
+    p_reason: "probe",
+  });
+  assert(Boolean(anonPriority.error) && isExecuteDenied(anonPriority.error), "anon sem EXECUTE em set_job_curation_priority");
+
+  const anonTrigger = await anon.rpc("jobs_set_submitted_by");
+  assert(Boolean(anonTrigger.error) && isExecuteDenied(anonTrigger.error), "anon não executa jobs_set_submitted_by via Data API");
+
+  const anonApply = await anon.rpc("apply_to_job", { p_job_id: seedApproved });
+  assert(Boolean(anonApply.error) && isExecuteDenied(anonApply.error), "anon sem EXECUTE em apply_to_job (revogação preservada)");
+
+  const anonWithdraw = await anon.rpc("withdraw_application", { p_job_id: seedApproved });
+  assert(Boolean(anonWithdraw.error) && isExecuteDenied(anonWithdraw.error), "anon sem EXECUTE em withdraw_application (revogação preservada)");
+
+  if (!hasCreds(testUsers.candidate) || !hasCreds(testUsers.admin)) {
+    skipRequired(15, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+
+  const { client: candidate, error: candErr } = await signIn(testUsers.candidate);
+  assert(!candErr, `candidato autentica (${candErr?.message ?? "ok"})`);
+  if (candErr) return;
+
+  const candTrigger = await candidate.rpc("jobs_set_submitted_by");
+  assert(
+    Boolean(candTrigger.error) && isExecuteDenied(candTrigger.error),
+    "authenticated não executa jobs_set_submitted_by via Data API",
+  );
+
+  const candResubmit = await candidate.rpc("resubmit_job_for_curation", { p_job_id: seedPending });
+  assert(Boolean(candResubmit.error), "candidato não reenvia curadoria");
+  assert(
+    !isExecuteDenied(candResubmit.error),
+    `candidato autenticado ainda tem EXECUTE em resubmit (checagem interna de papel) (${errorText(candResubmit.error) || "sem mensagem"})`,
+  );
+
+  await candidate.auth.signOut();
+
+  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  assert(!adminErr, `admin autentica (${adminErr?.message ?? "ok"})`);
+  if (adminErr) return;
+
+  const marker = `RLS mvp-021 trigger ${Date.now()}`;
+  const created = await createPendingJob(admin, marker);
+  assert(!created.error && created.data?.id, "admin cria pending após revoke do trigger RPC");
+  if (created.data?.id) {
+    const detail = await admin.from("jobs").select("submitted_by").eq("id", created.data.id).maybeSingle();
+    assert(Boolean(detail.data?.submitted_by), "trigger jobs_set_submitted_by continua preenchendo submitted_by");
+    await deleteJob(admin, created.data.id);
+  }
+  await admin.auth.signOut();
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -924,12 +1026,16 @@ await scenario13_profileRoleEscalation();
 console.log("\n=== Cenário 14: apply rate limit (F-023) ===");
 await scenario14_applyRateLimit();
 
+console.log("\n=== Cenário 15: RPC EXECUTE hardening (MVP-021) ===");
+await scenario15_rpcExecuteHardening();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
     if (n >= 10 && n <= 12) band = "S6-01 exige execução real de 10–12";
     if (n === 13) band = "F-019 exige execução real do cenário 13";
     if (n === 14) band = "F-023 exige execução real do cenário 14";
+    if (n === 15) band = "MVP-021 exige execução real do cenário 15";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -940,5 +1046,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023: ok (${skipped.length} aviso(s) opcionais; cenários 3–14 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021: ok (${skipped.length} aviso(s) opcionais; cenários 3–15 executados).`,
 );
