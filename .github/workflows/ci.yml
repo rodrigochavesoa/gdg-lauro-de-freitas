@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   quality:
     name: Lint, test and build
@@ -42,3 +45,49 @@ jobs:
 
       - name: Production migrations
         run: pnpm migrations:prod
+
+  rls:
+    name: RLS homolog
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: quality
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      ADMIN_TEST_EMAIL: ${{ secrets.ADMIN_TEST_EMAIL }}
+      ADMIN_TEST_PASSWORD: ${{ secrets.ADMIN_TEST_PASSWORD }}
+      CURATOR_TEST_EMAIL: ${{ secrets.CURATOR_TEST_EMAIL }}
+      CURATOR_TEST_PASSWORD: ${{ secrets.CURATOR_TEST_PASSWORD }}
+      CURATOR2_TEST_EMAIL: ${{ secrets.CURATOR2_TEST_EMAIL }}
+      CURATOR2_TEST_PASSWORD: ${{ secrets.CURATOR2_TEST_PASSWORD }}
+      CURATOR3_TEST_EMAIL: ${{ secrets.CURATOR3_TEST_EMAIL }}
+      CURATOR3_TEST_PASSWORD: ${{ secrets.CURATOR3_TEST_PASSWORD }}
+      MODERATOR_TEST_EMAIL: ${{ secrets.MODERATOR_TEST_EMAIL }}
+      MODERATOR_TEST_PASSWORD: ${{ secrets.MODERATOR_TEST_PASSWORD }}
+      CANDIDATE_TEST_EMAIL: ${{ secrets.CANDIDATE_TEST_EMAIL }}
+      CANDIDATE_TEST_PASSWORD: ${{ secrets.CANDIDATE_TEST_PASSWORD }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: RLS (homologação)
+        run: pnpm test:rls

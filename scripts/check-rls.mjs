@@ -59,6 +59,12 @@ const SEED_APPROVED_B = "b2b2b2b2-0004-4000-8000-000000000004";
 const SEED_PENDING = "b2b2b2b2-0005-4000-8000-000000000005";
 
 if (!url || !key) {
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.error(
+      "FALHA: test:rls no CI exige secrets VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY (ou VITE_SUPABASE_ANON_KEY).",
+    );
+    process.exit(1);
+  }
   console.log("test:rls ignorado: preencha VITE_SUPABASE_URL e a chave publishable/anon em .env.local.");
   process.exit(0);
 }
@@ -789,12 +795,14 @@ async function scenario13_profileRoleEscalation() {
 
   const svc = createServiceClient();
   // Hosted GoTrue rejeita RFC 2606 no signup público; SMTP built-in rate-limita domínios reais.
-  // Probe de conta nova exige Admin API (SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SECRET_KEY em .env.local).
-  assert(
-    Boolean(svc),
-    "cenário 13: service role disponível para probe Admin API",
-  );
-  if (!svc) return;
+  // Probe de conta nova exige Admin API (SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_SECRET_KEY).
+  if (!svc) {
+    skip(
+      "cenário 13 probe F-019: SUPABASE_SERVICE_ROLE_KEY ausente (skip documentado; UPDATE/INSERT no candidato já executados)",
+    );
+    await client.auth.signOut();
+    return;
+  }
 
   const probeEmail = `rls-f019-${Date.now()}@example.com`;
   const probePass = `RlS-${Date.now()}-Aa1!`;
