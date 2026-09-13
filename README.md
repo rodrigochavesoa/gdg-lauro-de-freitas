@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/actions/workflows/ci.yml">
-    <img src="https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/actions/workflows/ci.yml/badge.svg" alt="CI — lint, test and build" />
+    <img src="https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/actions/workflows/ci.yml/badge.svg" alt="CI — quality e RLS" />
   </a>
   <a href="https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/">
     <img src="https://img.shields.io/badge/Conventional%20Commits-1.0.0-FE5196?style=flat&logo=conventionalcommits&logoColor=white" alt="Conventional Commits" />
@@ -54,7 +54,7 @@ A stack abaixo é a decisão do MVP paralelo. **Não migrar** neste recorte sem 
 | Frontend | React 19 + Vite 8, SPA, CSS com tokens em `src/styles.css` | Sem Next.js, Tailwind ou shadcn/ui |
 | Dados e auth | Supabase PostgreSQL + Auth + RLS | Banco é a fonte de verdade; chave publishable/anon no browser |
 | Backend complementar | Supabase Edge Functions (TypeScript) | Segredos e integrações fora do navegador |
-| Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build`) | Entrega deixa evidência verificável |
+| Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build` / `check:bundle` / `migrations:prod` / `test:rls`) | Entrega deixa evidência verificável |
 | Hospedagem | Vercel Hobby servindo `dist/` estático (`*.vercel.app`) | Produção neste recorte; domínio customizado é C-05 (fora) |
 
 Auth: **Supabase Auth** (Google OAuth). Sem `service_role` no frontend. Homologação e produção usam **projetos Supabase distintos**; Preview Vercel aponta para homologação, Production para o projeto de produção (sem seed fictício).

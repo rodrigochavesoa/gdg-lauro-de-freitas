@@ -54,19 +54,40 @@ No Free/Hobby: backups do dashboard Supabase no projeto de **produção** (não 
 pnpm install
 pnpm dev          # http://127.0.0.1:5173
 pnpm lint
-pnpm test
+pnpm test         # inclui smoke P0 em src/App.smoke.test.jsx (sem Playwright)
 pnpm run build
 pnpm check:bundle  # falha se dist/ tiver service_role / sb_secret / chave privada
 pnpm migrations:prod
 ```
 
-RLS e papéis de homologação (opcional, fora do CI):
+## Gates de release (CI)
+
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs. Falha de qualquer um falha o workflow.
+
+| Job | Comando | Obrigatório |
+|---|---|---|
+| `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | Sempre |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–15, homologação) | Neste repositório: sim (falha se os secrets de URL/chave faltarem). PR de fork: omitido |
+
+Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via `App.smoke.test.jsx`. **Não** há Playwright neste recorte.
+
+### `pnpm test:rls` local
 
 ```powershell
 # Requer .env.local + contas em docs-local/*-test-user.md (gitignored)
-# e, para o cenário F-019, SUPABASE_SERVICE_ROLE_KEY só no .env.local
+# Probe F-019 (cenário 13, conta nova): SUPABASE_SERVICE_ROLE_KEY só no .env.local — skip se ausente
 pnpm test:rls
 ```
+
+No GitHub Actions o job `RLS homolog` recebe as mesmas variáveis por **secrets** (homologação, nunca produção). Nomes:
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY` (ou `VITE_SUPABASE_ANON_KEY`)
+- `ADMIN_TEST_EMAIL` / `ADMIN_TEST_PASSWORD`
+- `CURATOR_TEST_*`, `CURATOR2_TEST_*`, `CURATOR3_TEST_*`, `MODERATOR_TEST_*`, `CANDIDATE_TEST_*` (`EMAIL` e `PASSWORD`)
+- `SUPABASE_SERVICE_ROLE_KEY` — só o probe F-019; se ausente o cenário 13 registra skip e o restante segue
+
+Sem `VITE_SUPABASE_URL` e chave publishable/anon no CI, `test:rls` **falha** (não ignora). PRs de fork não recebem secrets e o job RLS é omitido. Colar os secrets no repositório é ação do mantenedor; nenhum valor entra neste arquivo nem no Git.
 
 Modelo de credenciais (sem senhas reais): copie [`docs-local.example/`](docs-local.example/) para `docs-local/`. Documentação operacional do time (backlog, DS, QA) também fica em `docs-local/` — ver o README dessa pasta exemplo.
 
