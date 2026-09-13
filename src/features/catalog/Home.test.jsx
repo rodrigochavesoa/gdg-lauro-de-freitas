@@ -76,4 +76,19 @@ describe("Home", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
   });
+
+  it("carrega o avatar DS-07 eager com dimensões intrínsecas", () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    const avatar = document.querySelector(".home-divider__avatar");
+    expect(avatar).toHaveAttribute("src", "/avatar-gdgjobs.png");
+    expect(avatar).toHaveAttribute("loading", "eager");
+    expect(avatar).toHaveAttribute("width", "1169");
+    expect(avatar).toHaveAttribute("height", "987");
+    expect(avatar).not.toHaveAttribute("loading", "lazy");
+  });
 });
