@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { embed } from "../_shared/gemini.ts";
+import { redactForLog } from "../_shared/redaction.ts";
 
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type" };
 
@@ -28,6 +29,11 @@ Deno.serve(async (request) => {
     if (matchError) throw matchError;
     return Response.json({ matches: data }, { headers: cors });
   } catch (error) {
+    console.error(redactForLog({
+      source: "match-jobs",
+      result: "failed",
+      error_code: error instanceof Error ? error.name : "unexpected",
+    }));
     return Response.json({ error: error instanceof Error ? error.message : "Erro inesperado." }, { status: 500, headers: cors });
   }
 });
