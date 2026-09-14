@@ -250,9 +250,10 @@ a.ghost,a.primary,a.outline,a.white-button{text-decoration:none}
 .white-button{background:var(--color-cta-action);color:var(--color-cta-action-text);box-shadow:0 4px 16px rgb(0 0 0 / 22%)}
 .white-button:hover{background:#f4f4f5;color:var(--color-cta-action-text)}
 .white-button:active{background:#e4e4e7}
-html[data-theme="dark"] .hero .eyebrow{color:var(--color-on-brand);background:rgb(255 255 255 / 14%);border:1px solid rgb(255 255 255 / 32%)}
+.hero .eyebrow{border:1px solid transparent}
+html[data-theme="dark"] .hero .eyebrow{color:var(--color-on-brand);background:rgb(255 255 255 / 14%);border-color:rgb(255 255 255 / 32%)}
 @media (prefers-color-scheme: dark) {
-  html[data-theme="system"] .hero .eyebrow{color:var(--color-on-brand);background:rgb(255 255 255 / 14%);border:1px solid rgb(255 255 255 / 32%)}
+  html[data-theme="system"] .hero .eyebrow{color:var(--color-on-brand);background:rgb(255 255 255 / 14%);border-color:rgb(255 255 255 / 32%)}
 }
 .searchbox input{background:transparent;color:var(--color-text);caret-color:var(--color-text)}
 .searchbox input::placeholder{color:var(--color-text-subtle)}
