@@ -42,6 +42,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
       <NavLink to="/eventos" onClick={onNavigate}>Eventos</NavLink>
       <NavLink end to="/newsletter" onClick={onNavigate}>Newsletter</NavLink>
       {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
+      {candidate ? <NavLink to="/preferencias" onClick={onNavigate}>Privacidade</NavLink> : null}
       {staff || !logged ? (
         <NavLink to="/admin" onClick={onNavigate}>Área admin</NavLink>
       ) : null}

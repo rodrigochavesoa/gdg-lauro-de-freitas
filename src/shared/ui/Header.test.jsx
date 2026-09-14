@@ -63,6 +63,7 @@ describe("Header", () => {
       "Eventos",
       "Newsletter",
       "Minhas candidaturas",
+      "Privacidade",
     ]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
@@ -71,6 +72,7 @@ describe("Header", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(within(mobile).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(mobile).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
     expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
