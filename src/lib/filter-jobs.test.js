@@ -8,6 +8,7 @@ const jobs = [
     company: "Zup Innovation",
     level: "Pleno",
     stack: ["React", "TypeScript", "Next.js"],
+    type: "Remoto",
   },
   {
     id: 2,
@@ -15,6 +16,7 @@ const jobs = [
     company: "Cora",
     level: "Júnior",
     stack: ["Node.js", "PostgreSQL", "AWS"],
+    type: "Híbrido",
   },
   {
     id: 3,
@@ -22,6 +24,7 @@ const jobs = [
     company: "Loft",
     level: "Pleno",
     stack: ["Figma", "UX Research", "Design System"],
+    type: "Presencial",
   },
   {
     id: 4,
@@ -29,6 +32,7 @@ const jobs = [
     company: "iFood",
     level: "Sênior",
     stack: ["Python", "SQL", "Databricks"],
+    type: "Remoto",
   },
 ];
 
@@ -54,10 +58,21 @@ describe("filterJobs", () => {
     expect(filterJobs(jobs, { level: ["Sênior"] }).map((job) => job.id)).toEqual([4]);
   });
 
+  it("filtra por modelo de trabalho (job.type) com match exato", () => {
+    expect(filterJobs(jobs, { workModel: ["Remoto"] }).map((job) => job.id)).toEqual([1, 4]);
+    expect(filterJobs(jobs, { workModel: ["Híbrido"] }).map((job) => job.id)).toEqual([2]);
+    expect(filterJobs(jobs, { workModel: ["Presencial"] }).map((job) => job.id)).toEqual([3]);
+    expect(filterJobs(jobs, { workModel: ["Remoto", "Híbrido"] }).map((job) => job.id)).toEqual([1, 2, 4]);
+    expect(filterJobs(jobs, { workModel: [] }).map((job) => job.id)).toEqual([1, 2, 3, 4]);
+  });
+
   it("combina busca e filtros e devolve lista vazia quando não há match", () => {
     expect(filterJobs(jobs, { query: "React", level: ["Pleno"] }).map((job) => job.id)).toEqual([1]);
     expect(filterJobs(jobs, { query: "React", level: ["Júnior"] })).toEqual([]);
     expect(filterJobs(jobs, { query: "inexistente" })).toEqual([]);
+    expect(filterJobs(jobs, { query: "React", workModel: ["Remoto"] }).map((job) => job.id)).toEqual([1]);
+    expect(filterJobs(jobs, { query: "React", workModel: ["Presencial"] })).toEqual([]);
+    expect(filterJobs(jobs, { level: ["Pleno"], workModel: ["Remoto"] }).map((job) => job.id)).toEqual([1]);
   });
 });
 
