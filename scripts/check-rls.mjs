@@ -102,6 +102,23 @@ function isExecuteDenied(error) {
   return /could not find the function|permission denied|42501|PGRST202|schema cache/i.test(errorText(error));
 }
 
+function isTransientSupabaseError(error) {
+  return /gateway timeout|502|503|504|522|524|ECONNRESET|fetch failed|Failed to fetch|NetworkError/i.test(errorText(error));
+}
+
+async function queryWithRetry(queryFn, { attempts = 3, pauseMs = 2500 } = {}) {
+  let last;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    last = await queryFn();
+    if (!last?.error || !isTransientSupabaseError(last.error)) return last;
+    if (attempt < attempts) {
+      console.log(`AVISO: erro transitório (${errorText(last.error)}); tentativa ${attempt}/${attempts}…`);
+      await new Promise((resolve) => setTimeout(resolve, pauseMs));
+    }
+  }
+  return last;
+}
+
 function serviceRoleKey() {
   return env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_SECRET_KEY || "";
 }
@@ -223,7 +240,7 @@ async function ensureD01Profile(client, userId) {
 
 /** Cenário 1 — anon só approved; sem fila nem pareceres. */
 async function scenario1_anon() {
-  const jobs = await anon.from("jobs").select("id,title,status");
+  const jobs = await queryWithRetry(() => anon.from("jobs").select("id,title,status"));
   assert(!jobs.error, `anon lê jobs sem erro (${jobs.error?.message ?? "ok"})`);
   const rows = jobs.data ?? [];
   assert(rows.length > 0, "visitante vê ao menos uma vaga");
