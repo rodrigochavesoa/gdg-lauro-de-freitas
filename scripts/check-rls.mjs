@@ -964,6 +964,116 @@ async function scenario15_rpcExecuteHardening() {
   await admin.auth.signOut();
 }
 
+/** Cenário 16 — MVP-003: catálogo, escolhas próprias e gate pending_dpo. */
+async function scenario16_privacyConsent() {
+  if (!hasCreds(testUsers.candidate) || !hasCreds(testUsers.admin)) {
+    skipRequired(16, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+
+  const catalog = await anon
+    .from("privacy_purposes")
+    .select("purpose_code,version,classification,status,legal_basis_status,retention_status,text_status");
+  if (catalog.error?.message?.includes("relation") || catalog.error?.message?.includes("schema cache")) {
+    skipRequired(16, "migration MVP-003 não aplicada no ambiente");
+    return;
+  }
+  assert(!catalog.error, `catálogo de privacidade acessível sem dados pessoais (${errorText(catalog.error) || "ok"})`);
+  if (catalog.error) return;
+
+  assert(catalog.data?.length === 10, "catálogo contém F-01 a F-10");
+  assert(
+    catalog.data?.every((row) => row.version === 1 && row.legal_basis_status === "pending_dpo" && row.retention_status === "pending_dpo"),
+    "catálogo mantém versão 1 e estados pending_dpo",
+  );
+  const inactive = catalog.data?.find((row) => row.purpose_code === "F-05");
+  assert(inactive?.status === "inactive", "newsletter permanece inativa");
+
+  const anonChoice = await anon.rpc("record_privacy_event", {
+    p_purpose_code: "F-06",
+    p_event_type: "accepted",
+    p_source: "preferences",
+  });
+  assert(Boolean(anonChoice.error) && isExecuteDenied(anonChoice.error), "anon não registra escolha de privacidade");
+
+  const { client: candidate, user, error: candidateError } = await signIn(testUsers.candidate);
+  const { client: admin, error: adminError } = await signIn(testUsers.admin);
+  if (candidateError || adminError || !user?.id) {
+    skipRequired(16, "admin ou candidato não autenticou");
+    return;
+  }
+
+  const svc = createServiceClient();
+  if (!svc) {
+    skipRequired(16, "SUPABASE_SERVICE_ROLE_KEY ausente para cleanup do histórico de teste");
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+    return;
+  }
+
+  await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+  try {
+    const accepted = await candidate.rpc("record_privacy_event", {
+      p_purpose_code: "F-06",
+      p_event_type: "accepted",
+      p_source: "preferences",
+    });
+    assert(!accepted.error, `candidato registra aceite de F-06 (${errorText(accepted.error) || "ok"})`);
+    assert(accepted.data?.purpose_code === "F-06" && accepted.data?.purpose_version === 1, "aceite guarda código e versão");
+
+    const gateBefore = await candidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-06" });
+    assert(!gateBefore.error && gateBefore.data === false, "pending_dpo não autoriza tratamento opcional");
+
+    const inactiveChoice = await candidate.rpc("record_privacy_event", {
+      p_purpose_code: "F-05",
+      p_event_type: "accepted",
+      p_source: "preferences",
+    });
+    assert(Boolean(inactiveChoice.error), "finalidade inativa não aceita escolha");
+
+    const ownEvents = await candidate
+      .from("privacy_consent_events")
+      .select("purpose_code,purpose_version,event_type,proof")
+      .eq("purpose_code", "F-06");
+    assert(!ownEvents.error && ownEvents.data?.length === 1, "candidato lê somente o próprio histórico");
+    assert(!ownEvents.data?.[0]?.proof?.profile && !ownEvents.data?.[0]?.proof?.token, "prova não contém perfil ou token");
+
+    const otherEvents = await admin
+      .from("privacy_consent_events")
+      .select("id")
+      .eq("subject_id", user.id);
+    assert(!otherEvents.error && (otherEvents.data ?? []).length === 0, "admin não lê consentimento de outro titular");
+
+    const directUpdate = await admin
+      .from("privacy_consent_events")
+      .update({ event_type: "revoked" })
+      .eq("subject_id", user.id)
+      .select("id");
+    assert(Boolean(directUpdate.error) || (directUpdate.data ?? []).length === 0, "admin não altera consentimento de outro titular");
+
+    const revoked = await candidate.rpc("record_privacy_event", {
+      p_purpose_code: "F-06",
+      p_event_type: "revoked",
+      p_source: "preferences",
+    });
+    assert(!revoked.error && revoked.data?.event_type === "revoked", "candidato revoga a própria escolha");
+
+    const gateAfter = await candidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-06" });
+    assert(!gateAfter.error && gateAfter.data === false, "revogação mantém o gate fechado");
+
+    const history = await candidate
+      .from("privacy_consent_events")
+      .select("event_type,purpose_version")
+      .eq("purpose_code", "F-06")
+      .order("created_at", { ascending: true });
+    assert(history.data?.map((row) => row.event_type).join(",") === "accepted,revoked", "histórico preserva aceite e revogação");
+  } finally {
+    await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+  }
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -1037,6 +1147,9 @@ await scenario14_applyRateLimit();
 console.log("\n=== Cenário 15: RPC EXECUTE hardening (MVP-021) ===");
 await scenario15_rpcExecuteHardening();
 
+console.log("\n=== Cenário 16: MVP-003 consentimento granular ===");
+await scenario16_privacyConsent();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1054,5 +1167,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021: ok (${skipped.length} aviso(s) opcionais; cenários 3–15 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003: ok (${skipped.length} aviso(s) opcionais; cenários 3–16 executados).`,
 );

@@ -67,7 +67,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs.
 | Job | Comando | Obrigatório |
 |---|---|---|
 | `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | Sempre |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–15, homologação) | Neste repositório: sim (falha se os secrets de URL/chave faltarem). PR de fork: omitido |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–16, homologação) | Neste repositório: sim (falha se os secrets de URL/chave faltarem). PR de fork: omitido |
 
 Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via `App.smoke.test.jsx`. **Não** há Playwright neste recorte.
 
@@ -75,7 +75,7 @@ Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via
 
 ```powershell
 # Requer .env.local + contas em docs-local/*-test-user.md (gitignored)
-# Probe F-019 (cenário 13, conta nova): SUPABASE_SERVICE_ROLE_KEY só no .env.local — skip se ausente
+# Probe F-019 (cenário 13) e cleanup MVP-003 (cenário 16): SUPABASE_SERVICE_ROLE_KEY só no .env.local
 pnpm test:rls
 ```
 
@@ -85,7 +85,7 @@ No GitHub Actions o job `RLS homolog` recebe as mesmas variáveis por **secrets*
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (ou `VITE_SUPABASE_ANON_KEY`)
 - `ADMIN_TEST_EMAIL` / `ADMIN_TEST_PASSWORD`
 - `CURATOR_TEST_*`, `CURATOR2_TEST_*`, `CURATOR3_TEST_*`, `MODERATOR_TEST_*`, `CANDIDATE_TEST_*` (`EMAIL` e `PASSWORD`)
-- `SUPABASE_SERVICE_ROLE_KEY` — só o probe F-019; se ausente o cenário 13 registra skip e o restante segue
+- `SUPABASE_SERVICE_ROLE_KEY` — probe F-019 (cenário 13) e cleanup do histórico de teste do MVP-003 (cenário 16); se ausente esses cenários registram skip e o restante segue
 
 Sem `VITE_SUPABASE_URL` e chave publishable/anon no CI, `test:rls` **falha** (não ignora). PRs de fork não recebem secrets e o job RLS é omitido. Colar os secrets no repositório é ação do mantenedor; nenhum valor entra neste arquivo nem no Git.
 

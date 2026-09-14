@@ -18,6 +18,7 @@ import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import { loadAuthSnapshot, signOutUser, subscribeAuth } from "./features/auth/auth-api.js";
 import { Admin } from "./Admin.jsx";
+import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 
 const EMPTY_AUTH = { session: null, profile: null, needsOnboarding: false };
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
@@ -76,6 +77,7 @@ export function App() {
         <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
+        <Route path="/preferencias" element={<PrivacyPreferencesRoute auth={auth} authReady={authReady} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
@@ -109,6 +111,13 @@ function LoginRoute({ auth }) {
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   if (auth.session) return <Navigate to="/" replace />;
   return <Login />;
+}
+
+function PrivacyPreferencesRoute({ auth, authReady }) {
+  if (!authReady) return <main className="privacy-page"><div className="shell privacy-loading">Carregando suas preferências…</div></main>;
+  if (!auth.session) return <Navigate to="/login" replace />;
+  if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
+  return <PrivacyPreferences />;
 }
 
 function OnboardingRoute({ auth, setAuth }) {
