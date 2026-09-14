@@ -28,6 +28,9 @@
         "required_status_checks": [
           {
             "context": "Lint, test and build"
+          },
+          {
+            "context": "RLS homolog"
           }
         ]
       }
