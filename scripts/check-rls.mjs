@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003 e MVP-005.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005 e MVP-022.
  * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
  * pwsh: pnpm test:rls
  */
@@ -101,6 +101,16 @@ function errorText(error) {
 /** PostgREST/Postgres recusou EXECUTE (PGRST202 / 42501), não só RAISE interno. */
 function isExecuteDenied(error) {
   return /could not find the function|permission denied|42501|PGRST202|schema cache/i.test(errorText(error));
+}
+
+/** Schema fora da lista exposta pelo PostgREST (PGRST106). */
+function isPostgrestSchemaHidden(error, schema) {
+  const text = errorText(error);
+  if (error?.code !== "PGRST106" && !/invalid schema/i.test(text)) return false;
+  const exposed = String(error?.hint ?? "").match(/exposed:\s*(.+)/i)?.[1] ?? "";
+  const list = exposed.split(",").map((item) => item.trim()).filter(Boolean);
+  if (list.length > 0) return !list.includes(schema);
+  return new RegExp(`invalid schema:\\s*${schema}\\b`, "i").test(text);
 }
 
 function isTransientSupabaseError(error) {
@@ -1358,6 +1368,57 @@ async function scenario17_privacyAudit() {
   }
 }
 
+const RLS_HELPER_RPCS = ["is_admin", "is_curator", "is_moderator", "can_review_curation"];
+
+/** Cenário 18 — MVP-022: helpers RLS fora da Data API. */
+async function scenario18_rlsHelperRpcSurface() {
+  const hidden = createClient(url, key, {
+    db: { schema: "private" },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const schemaProbe = await hidden.rpc("is_admin");
+  assert(
+    Boolean(schemaProbe.error) && isPostgrestSchemaHidden(schemaProbe.error, "private"),
+    `schema private não está no PostgREST (${errorText(schemaProbe.error) || "sem mensagem"})`,
+  );
+  const exposedHint = String(schemaProbe.error?.hint ?? "");
+  assert(
+    /public/i.test(exposedHint) && !/\bprivate\b/i.test(exposedHint),
+    `PostgREST expõe só schemas públicos (${exposedHint || errorText(schemaProbe.error) || "sem hint"})`,
+  );
+
+  for (const name of RLS_HELPER_RPCS) {
+    const probe = await anon.rpc(name);
+    assert(
+      Boolean(probe.error) && isExecuteDenied(probe.error),
+      `anon sem RPC REST ${name} (${errorText(probe.error) || "sem mensagem"})`,
+    );
+  }
+
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(18, "falta candidate em docs-local");
+    return;
+  }
+
+  const { client: candidate, error } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
+  if (error) {
+    skipRequired(18, `candidato não autenticou (${errorText(error) || "ok"})`);
+    return;
+  }
+
+  try {
+    for (const name of RLS_HELPER_RPCS) {
+      const probe = await candidate.rpc(name);
+      assert(
+        Boolean(probe.error) && isExecuteDenied(probe.error),
+        `candidato sem RPC REST ${name} (${errorText(probe.error) || "sem mensagem"})`,
+      );
+    }
+  } finally {
+    await candidate.auth.signOut();
+  }
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -1437,6 +1498,9 @@ await scenario16_privacyConsent();
 console.log("\n=== Cenário 17: MVP-005 auditoria e minimização ===");
 await scenario17_privacyAudit();
 
+console.log("\n=== Cenário 18: MVP-022 helpers RLS fora da Data API ===");
+await scenario18_rlsHelperRpcSurface();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1446,6 +1510,7 @@ if (skippedRequired.size > 0) {
     if (n === 15) band = "MVP-021 exige execução real do cenário 15";
     if (n === 16) band = "MVP-003 exige execução real do cenário 16";
     if (n === 17) band = "MVP-005 exige execução real do cenário 17";
+    if (n === 18) band = "MVP-022 exige execução real do cenário 18";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -1456,5 +1521,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005: ok (${skipped.length} aviso(s) opcionais; cenários 3–17 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022: ok (${skipped.length} aviso(s) opcionais; cenários 3–18 executados).`,
 );

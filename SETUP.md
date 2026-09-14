@@ -67,7 +67,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs.
 | Job | Comando | Obrigatório |
 |---|---|---|
 | `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | Sempre |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–17, homologação) | Neste repositório: sim (falha se os secrets de URL/chave faltarem). PR de fork: omitido |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–18, homologação) | Neste repositório: sim (falha se os secrets de URL/chave faltarem). PR de fork: omitido |
 
 Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via `App.smoke.test.jsx`. **Não** há Playwright neste recorte.
 
