@@ -1038,6 +1038,40 @@ async function scenario16_privacyConsent() {
     assert(!ownEvents.error && ownEvents.data?.length === 1, "candidato lê somente o próprio histórico");
     assert(!ownEvents.data?.[0]?.proof?.profile && !ownEvents.data?.[0]?.proof?.token, "prova não contém perfil ou token");
 
+    const directInsert = await candidate.from("privacy_consent_events").insert({
+      subject_id: user.id,
+      purpose_code: "F-06",
+      purpose_version: 1,
+      event_type: "refused",
+      source: "preferences",
+    }).select("id");
+    assert(
+      Boolean(directInsert.error) || (directInsert.data ?? []).length === 0,
+      "candidato não faz INSERT direto em privacy_consent_events",
+    );
+
+    const directUpdateOwn = await candidate
+      .from("privacy_consent_events")
+      .update({ event_type: "revoked" })
+      .eq("subject_id", user.id)
+      .eq("purpose_code", "F-06")
+      .select("id");
+    assert(
+      Boolean(directUpdateOwn.error) || (directUpdateOwn.data ?? []).length === 0,
+      "candidato não altera consentimento via UPDATE direto",
+    );
+
+    const directDeleteOwn = await candidate
+      .from("privacy_consent_events")
+      .delete()
+      .eq("subject_id", user.id)
+      .eq("purpose_code", "F-06")
+      .select("id");
+    assert(
+      Boolean(directDeleteOwn.error) || (directDeleteOwn.data ?? []).length === 0,
+      "candidato não apaga consentimento via DELETE direto",
+    );
+
     const otherEvents = await admin
       .from("privacy_consent_events")
       .select("id")

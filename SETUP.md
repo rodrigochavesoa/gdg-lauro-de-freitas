@@ -75,7 +75,7 @@ Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via
 
 ```powershell
 # Requer .env.local + contas em docs-local/*-test-user.md (gitignored)
-# Probe F-019 (cenário 13) e cleanup MVP-003 (cenário 16): SUPABASE_SERVICE_ROLE_KEY só no .env.local
+# Probe F-019 (cenário 13) e cleanup MVP-003 (cenário 16): SUPABASE_SERVICE_ROLE_KEY no .env.local (local) ou GitHub Secret (CI) — nunca no frontend nem versionado
 pnpm test:rls
 ```
 
