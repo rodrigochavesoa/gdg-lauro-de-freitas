@@ -4,10 +4,10 @@ import { describe, expect, it } from "vitest";
 const config = JSON.parse(readFileSync("vercel.json", "utf8"));
 const html = readFileSync("index.html", "utf8");
 
-function headerMap(source) {
-  const block = config.headers.find((entry) => entry.source === source);
-  expect(block, `headers for ${source}`).toBeTruthy();
-  return Object.fromEntries(block.headers.map((header) => [header.key, header.value]));
+function headerMap() {
+  expect(config.headers).toHaveLength(1);
+  expect(config.headers[0].source).toBe("/:path*");
+  return Object.fromEntries(config.headers[0].headers.map((header) => [header.key, header.value]));
 }
 
 const REQUIRED = {
@@ -21,8 +21,8 @@ describe("SEC-HEADERS-01", () => {
     expect(config.rewrites).toEqual([{ source: "/(.*)", destination: "/index.html" }]);
   });
 
-  it.each(["/", "/(.*)"])("define headers de proteção em %s", (source) => {
-    const headers = headerMap(source);
+  it("define headers de proteção em um único source /:path*", () => {
+    const headers = headerMap();
     for (const [key, value] of Object.entries(REQUIRED)) {
       expect(headers[key]).toBe(value);
     }
