@@ -77,6 +77,29 @@ describe("Home", () => {
     expect(screen.getByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
   });
 
+  it("liga o filtro de modelo de trabalho, marca o checkbox e zera no Limpar", () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Presencial" }));
+    expect(screen.getByRole("checkbox", { name: "Presencial" })).toBeChecked();
+    expect(screen.getByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Filtros/ })).toHaveTextContent("1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpar" }));
+    expect(screen.getByRole("checkbox", { name: "Presencial" })).not.toBeChecked();
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(document.querySelector(".filter-mobile b")).toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Remoto" }));
+    expect(screen.getByRole("checkbox", { name: "Remoto" })).toBeChecked();
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Filtros/ })).toHaveTextContent("1");
+  });
+
   it("carrega o avatar DS-07 eager com dimensões intrínsecas", () => {
     render(
       <MemoryRouter>

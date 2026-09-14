@@ -1,4 +1,4 @@
-export function filterJobs(jobs, { query = "", tech = [], level = [] } = {}) {
+export function filterJobs(jobs, { query = "", tech = [], level = [], workModel = [] } = {}) {
   const normalizedQuery = query.toLowerCase();
 
   return jobs.filter((job) => {
@@ -9,8 +9,9 @@ export function filterJobs(jobs, { query = "", tech = [], level = [] } = {}) {
       tech.length === 0 ||
       tech.some((item) => job.stack.join(" ").toLowerCase().includes(item.toLowerCase()));
     const hasLevel = level.length === 0 || level.includes(job.level);
+    const hasWorkModel = workModel.length === 0 || workModel.includes(job.type);
 
-    return searched && hasTech && hasLevel;
+    return searched && hasTech && hasLevel && hasWorkModel;
   });
 }
 
