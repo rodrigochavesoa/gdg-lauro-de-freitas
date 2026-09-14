@@ -263,13 +263,13 @@ async function scenario1_anon() {
   assert(rows.length > 0, "visitante vê ao menos uma vaga");
   assert(rows.every((row) => row.status === "approved"), "visitante só recebe approved");
 
-  const pendingProbe = await anon.from("jobs").select("id").eq("status", "pending");
+  const pendingProbe = await queryWithRetry(() => anon.from("jobs").select("id").eq("status", "pending"));
   assert((pendingProbe.data ?? []).length === 0, "anon não filtra pending");
 
-  const reviews = await anon.from("job_curation_reviews").select("id");
+  const reviews = await queryWithRetry(() => anon.from("job_curation_reviews").select("id"));
   assert((reviews.data ?? []).length === 0, "anon não lê pareceres");
 
-  const queue = await anon.from("jobs_needing_moderation").select("id");
+  const queue = await queryWithRetry(() => anon.from("jobs_needing_moderation").select("id"));
   assert((queue.data ?? []).length === 0, "anon não lê fila needs_moderation");
 
   const rpc = await anon.rpc("submit_curation_review", {
@@ -280,11 +280,11 @@ async function scenario1_anon() {
   assert(Boolean(rpc.error), "anon não chama RPC de parecer");
   assert(isExecuteDenied(rpc.error), `anon sem EXECUTE em submit_curation_review (${errorText(rpc.error) || "sem mensagem"})`);
 
-  const profiles = await anon.from("profiles").select("id");
+  const profiles = await queryWithRetry(() => anon.from("profiles").select("id"));
   assert(!profiles.error, `anon lê profiles sem erro de API (${profiles.error?.message ?? "ok"})`);
   assert((profiles.data ?? []).length === 0, "anon não lê perfis");
 
-  const applications = await anon.from("applications").select("id");
+  const applications = await queryWithRetry(() => anon.from("applications").select("id"));
   assert(!applications.error, `anon lê applications sem erro de API (${applications.error?.message ?? "ok"})`);
   assert((applications.data ?? []).length === 0, "anon não lê candidaturas");
 }
@@ -299,20 +299,20 @@ async function scenario2_candidate() {
   assert(!error, `candidato autentica (${error?.message ?? "ok"}`);
   if (error) return;
 
-  const pending = await client.from("jobs").select("id,status").eq("status", "pending");
+  const pending = await queryWithRetry(() => client.from("jobs").select("id,status").eq("status", "pending"));
   assert((pending.data ?? []).length === 0, "candidato não vê pending");
 
-  const reviews = await client.from("job_curation_reviews").select("id");
+  const reviews = await queryWithRetry(() => client.from("job_curation_reviews").select("id"));
   assert((reviews.data ?? []).length === 0, "candidato não lê pareceres");
 
-  const profiles = await client.from("profiles").select("id");
+  const profiles = await queryWithRetry(() => client.from("profiles").select("id"));
   assert(!profiles.error, `candidato lê profiles sem erro de API (${profiles.error?.message ?? "ok"})`);
   assert(
     (profiles.data ?? []).every((row) => row.id === user?.id),
     "candidato não lê perfil de terceiros",
   );
 
-  const applications = await client.from("applications").select("candidate_id");
+  const applications = await queryWithRetry(() => client.from("applications").select("candidate_id"));
   assert(!applications.error, `candidato lê applications sem erro de API (${applications.error?.message ?? "ok"})`);
   assert(
     (applications.data ?? []).every((row) => row.candidate_id === user?.id),
