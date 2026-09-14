@@ -5,10 +5,10 @@
 create schema if not exists private;
 
 comment on schema private is
-  'MVP-022: helpers de policy fora do schema exposto na Data API. Não adicionar a extra schemas/PostgREST.';
+  'MVP-022: helpers de policy fora do schema exposto na Data API. PostgREST homolog: public, graphql_public — não incluir private.';
 
-revoke all on schema private from public, anon, authenticated;
-grant usage on schema private to postgres, anon, authenticated, service_role;
+revoke all on schema private from public, anon, authenticated, service_role;
+grant usage on schema private to anon, authenticated;
 
 create or replace function private.is_admin()
 returns boolean
@@ -67,10 +67,12 @@ revoke all on function private.is_curator() from public;
 revoke all on function private.is_moderator() from public;
 revoke all on function private.can_review_curation() from public;
 
-grant execute on function private.is_admin() to anon, authenticated, service_role;
-grant execute on function private.is_curator() to anon, authenticated, service_role;
-grant execute on function private.is_moderator() to anon, authenticated, service_role;
-grant execute on function private.can_review_curation() to anon, authenticated, service_role;
+-- RLS avalia a policy como o invocador: anon/authenticated precisam EXECUTE.
+-- service_role faz BYPASSRLS; postgres é owner — sem GRANT extra.
+grant execute on function private.is_admin() to anon, authenticated;
+grant execute on function private.is_curator() to anon, authenticated;
+grant execute on function private.is_moderator() to anon, authenticated;
+grant execute on function private.can_review_curation() to anon, authenticated;
 
 comment on function private.is_admin() is
   'MVP-022: helper RLS. Não expor via PostgREST; EXECUTE só para avaliação de policy.';

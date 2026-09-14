@@ -100,7 +100,17 @@ function errorText(error) {
 
 /** PostgREST/Postgres recusou EXECUTE (PGRST202 / 42501), não só RAISE interno. */
 function isExecuteDenied(error) {
-  return /could not find the function|permission denied|42501|404|PGRST202|schema cache/i.test(errorText(error));
+  return /could not find the function|permission denied|42501|PGRST202|schema cache/i.test(errorText(error));
+}
+
+/** Schema fora da lista exposta pelo PostgREST (PGRST106). */
+function isPostgrestSchemaHidden(error, schema) {
+  const text = errorText(error);
+  if (error?.code !== "PGRST106" && !/invalid schema/i.test(text)) return false;
+  const exposed = String(error?.hint ?? "").match(/exposed:\s*(.+)/i)?.[1] ?? "";
+  const list = exposed.split(",").map((item) => item.trim()).filter(Boolean);
+  if (list.length > 0) return !list.includes(schema);
+  return new RegExp(`invalid schema:\\s*${schema}\\b`, "i").test(text);
 }
 
 function isTransientSupabaseError(error) {
@@ -1362,6 +1372,21 @@ const RLS_HELPER_RPCS = ["is_admin", "is_curator", "is_moderator", "can_review_c
 
 /** Cenário 18 — MVP-022: helpers RLS fora da Data API. */
 async function scenario18_rlsHelperRpcSurface() {
+  const hidden = createClient(url, key, {
+    db: { schema: "private" },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const schemaProbe = await hidden.rpc("is_admin");
+  assert(
+    Boolean(schemaProbe.error) && isPostgrestSchemaHidden(schemaProbe.error, "private"),
+    `schema private não está no PostgREST (${errorText(schemaProbe.error) || "sem mensagem"})`,
+  );
+  const exposedHint = String(schemaProbe.error?.hint ?? "");
+  assert(
+    /public/i.test(exposedHint) && !/\bprivate\b/i.test(exposedHint),
+    `PostgREST expõe só schemas públicos (${exposedHint || errorText(schemaProbe.error) || "sem hint"})`,
+  );
+
   for (const name of RLS_HELPER_RPCS) {
     const probe = await anon.rpc(name);
     assert(
