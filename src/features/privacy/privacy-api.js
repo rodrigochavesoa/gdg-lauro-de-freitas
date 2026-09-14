@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { redactForLog } from "../../lib/privacy-redaction.js";
 import { PRIVACY_PURPOSES, latestEventsByPurpose } from "./privacy-catalog.js";
 
 function clientOrThrow() {
@@ -8,7 +9,14 @@ function clientOrThrow() {
 }
 
 function throwIfError(error) {
-  if (error) throw new Error(error.message || "Não foi possível atualizar suas preferências.");
+  if (!error) return;
+  const safe = redactForLog({
+    message: error.message,
+    code: error.code,
+    details: error.details,
+    hint: error.hint,
+  });
+  throw new Error(safe.message || "Não foi possível atualizar suas preferências.");
 }
 
 function sortPurposes(rows) {

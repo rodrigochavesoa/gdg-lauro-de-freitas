@@ -1,11 +1,12 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023 e MVP-021.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003 e MVP-005.
  * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
  * pwsh: pnpm test:rls
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { findForbiddenLogFields } from "../src/lib/privacy-redaction.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -106,6 +107,10 @@ function isTransientSupabaseError(error) {
   return /gateway timeout|502|503|504|522|524|ECONNRESET|fetch failed|Failed to fetch|NetworkError/i.test(errorText(error));
 }
 
+function isTransientAuthError(error) {
+  return /rate limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(errorText(error));
+}
+
 async function queryWithRetry(queryFn, { attempts = 3, pauseMs = 2500 } = {}) {
   let last;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -155,6 +160,18 @@ async function signIn(credentials) {
   const { data, error } = await client.auth.signInWithPassword(credentials);
   if (error) return { client, error };
   return { client, user: data.user };
+}
+
+async function signInWithRetry(credentials, { attempts = 4, pauseMs = 2000, label = "usuário" } = {}) {
+  let last;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    last = await signIn(credentials);
+    if (!last.error && last.user?.id) return last;
+    if (!isTransientAuthError(last.error) || attempt === attempts) return last;
+    console.log(`AVISO: login ${label} (${errorText(last.error) || "sem mensagem"}); tentativa ${attempt}/${attempts}…`);
+    await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
+  }
+  return last;
 }
 
 async function createPendingJob(client, marker) {
@@ -1013,10 +1030,13 @@ async function scenario16_privacyConsent() {
   });
   assert(Boolean(anonChoice.error) && isExecuteDenied(anonChoice.error), "anon não registra escolha de privacidade");
 
-  const { client: candidate, user, error: candidateError } = await signIn(testUsers.candidate);
-  const { client: admin, error: adminError } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candidateError } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
+  const { client: admin, error: adminError } = await signInWithRetry(testUsers.admin, { label: "admin" });
   if (candidateError || adminError || !user?.id) {
-    skipRequired(16, "admin ou candidato não autenticou");
+    skipRequired(
+      16,
+      `admin ou candidato não autenticou (candidato: ${errorText(candidateError) || "ok"}; admin: ${errorText(adminError) || "ok"})`,
+    );
     return;
   }
 
@@ -1125,6 +1145,219 @@ async function scenario16_privacyConsent() {
   }
 }
 
+const AUDIT_SELECT =
+  "id,event_type,occurred_at,actor_id,subject_id,purpose_code,resource_type,resource_id,result,metadata_minimal,retention_status";
+
+function latestAudit(rows, eventType) {
+  return (rows ?? [])
+    .filter((row) => row.event_type === eventType)
+    .sort((left, right) => new Date(right.occurred_at) - new Date(left.occurred_at))[0];
+}
+
+function assertAuditMatrix(row, label) {
+  assert(Boolean(row), `${label} gerou evento de auditoria`);
+  if (!row) return;
+  assert(Boolean(row.event_type), `${label} tem event_type`);
+  assert(Boolean(row.occurred_at), `${label} tem occurred_at`);
+  assert(Boolean(row.actor_id), `${label} tem actor_id`);
+  assert(Boolean(row.subject_id), `${label} tem subject_id`);
+  assert(/^F-\d{2}$/.test(row.purpose_code || ""), `${label} tem purpose_code`);
+  assert(Boolean(row.resource_type), `${label} tem resource_type`);
+  assert(["success", "blocked", "failed", "revoked"].includes(row.result), `${label} tem result da matriz`);
+  assert(row.retention_status === "pending_dpo", `${label} retenção permanece pending_dpo`);
+  const hits = findForbiddenLogFields(row);
+  assert(hits.length === 0, `${label} sem campos proibidos da matriz §5.2 (${hits.join(", ") || "ok"})`);
+}
+
+/** Cenário 17 — MVP-005: trilha de auditoria, RLS e minimização. */
+async function scenario17_privacyAudit() {
+  if (!hasCreds(testUsers.candidate) || !hasCreds(testUsers.admin)) {
+    skipRequired(17, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+
+  const probe = await anon.from("privacy_audit_events").select("id").limit(1);
+  if (probe.error?.message?.includes("relation") || probe.error?.message?.includes("schema cache")) {
+    skipRequired(17, "migration MVP-005 não aplicada no ambiente");
+    return;
+  }
+
+  const { client: candidate, user, error: candidateError } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
+  const { client: admin, error: adminError } = await signInWithRetry(testUsers.admin, { label: "admin" });
+  if (candidateError || adminError || !user?.id) {
+    skipRequired(
+      17,
+      `admin ou candidato não autenticou (candidato: ${errorText(candidateError) || "ok"}; admin: ${errorText(adminError) || "ok"})`,
+    );
+    return;
+  }
+
+  const svc = createServiceClient();
+  if (!svc) {
+    skipRequired(17, "SUPABASE_SERVICE_ROLE_KEY ausente para cleanup da trilha de auditoria");
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+    return;
+  }
+
+  const otherSubject = "00000000-0000-4000-8000-000000000017";
+  const auditInsert = {
+    event_type: "consent.notice",
+    actor_id: user.id,
+    subject_id: user.id,
+    purpose_code: "F-01",
+    resource_type: "probe",
+    resource_id: "direct-write",
+    result: "success",
+    metadata_minimal: {},
+  };
+
+  await svc.from("applications").delete().eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
+  await svc.from("apply_request_log").delete().eq("user_id", user.id);
+  await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+  await svc.from("privacy_audit_events").delete().eq("subject_id", user.id);
+  await svc.from("privacy_audit_events").delete().eq("subject_id", otherSubject);
+
+  try {
+    const anonRead = await anon.from("privacy_audit_events").select("id").limit(1);
+    assert(Boolean(anonRead.error) || (anonRead.data ?? []).length === 0, "anon não lê a trilha de auditoria");
+
+    const anonInsert = await anon.from("privacy_audit_events").insert(auditInsert).select("id");
+    assert(Boolean(anonInsert.error) || (anonInsert.data ?? []).length === 0, "anon não faz INSERT direto em privacy_audit_events");
+
+    const directInsert = await candidate.from("privacy_audit_events").insert(auditInsert).select("id");
+    assert(
+      Boolean(directInsert.error) || (directInsert.data ?? []).length === 0,
+      "candidato não faz INSERT direto em privacy_audit_events",
+    );
+
+    const directRpc = await candidate.rpc("write_privacy_audit_event", {
+      p_event_type: "consent.notice",
+      p_purpose_code: "F-01",
+      p_resource_type: "probe",
+      p_resource_id: "rpc",
+      p_result: "success",
+      p_metadata: {},
+      p_subject_id: user.id,
+    });
+    assert(Boolean(directRpc.error) && isExecuteDenied(directRpc.error), "candidato sem EXECUTE em write_privacy_audit_event");
+
+    const granted = await candidate.rpc("record_privacy_event", {
+      p_purpose_code: "F-06",
+      p_event_type: "accepted",
+      p_source: "preferences",
+    });
+    assert(!granted.error, `candidato registra aceite auditável (${errorText(granted.error) || "ok"})`);
+
+    const revoked = await candidate.rpc("record_privacy_event", {
+      p_purpose_code: "F-06",
+      p_event_type: "revoked",
+      p_source: "preferences",
+    });
+    assert(!revoked.error, `candidato revoga com efeito técnico (${errorText(revoked.error) || "ok"})`);
+
+    await ensureD01Profile(candidate, user.id);
+    const headlineMarker = `audit-min-${Date.now()}`;
+    const profileUpdate = await candidate
+      .from("profiles")
+      .update({ headline: headlineMarker, updated_at: new Date().toISOString() })
+      .eq("id", user.id)
+      .select("id")
+      .single();
+    assert(!profileUpdate.error, `candidato altera o próprio perfil (${errorText(profileUpdate.error) || "ok"})`);
+
+    const applied = await rpcApply(candidate, SEED_APPROVED_A);
+    assert(!applied.error, `candidato aplica com auditoria F-03 (${errorText(applied.error) || "ok"})`);
+    const applicationId = applied.data?.id;
+
+    const withdrawn = await rpcWithdraw(candidate, SEED_APPROVED_A);
+    assert(!withdrawn.error, `candidato retira candidatura com auditoria (${errorText(withdrawn.error) || "ok"})`);
+
+    const blocked = await candidate.rpc("request_purpose_access", {
+      p_purpose_code: "F-06",
+      p_event_type: "recommendation.requested",
+    });
+    assert(!blocked.error && blocked.data?.authorized === false && blocked.data?.result === "blocked", "F-06 sem autorização gera evento blocked");
+
+    const own = await candidate
+      .from("privacy_audit_events")
+      .select(AUDIT_SELECT)
+      .eq("subject_id", user.id)
+      .order("occurred_at", { ascending: true });
+    assert(!own.error, `candidato lê a própria trilha (${errorText(own.error) || "ok"})`);
+
+    const consentGranted = latestAudit(own.data, "consent.granted");
+    const consentRevoked = latestAudit(own.data, "consent.revoked");
+    const profileUpdated = latestAudit(own.data, "profile.updated");
+    const applicationCreated = latestAudit(own.data, "application.created");
+    const applicationWithdrawn = latestAudit(own.data, "application.withdrawn");
+    const recommendationBlocked = latestAudit(own.data, "recommendation.requested");
+
+    assertAuditMatrix(consentGranted, "consentimento");
+    assertAuditMatrix(consentRevoked, "revogação");
+    assertAuditMatrix(profileUpdated, "perfil");
+    assertAuditMatrix(applicationCreated, "candidatura");
+    assertAuditMatrix(applicationWithdrawn, "retirada");
+    assertAuditMatrix(recommendationBlocked, "finalidade bloqueada");
+
+    assert(consentGranted?.actor_id === user.id && consentGranted?.purpose_code === "F-06", "aceite correlaciona ator, titular e F-06");
+    assert(consentRevoked?.result === "revoked" && consentRevoked?.metadata_minimal?.effect === "blocked", "revogação registra efeito blocked sem dados profissionais");
+    assert(
+      Array.isArray(profileUpdated?.metadata_minimal?.fields) && profileUpdated.metadata_minimal.fields.includes("headline"),
+      "perfil audita nomes de campos, não o conteúdo",
+    );
+    assert(!JSON.stringify(profileUpdated ?? {}).includes(headlineMarker), "auditoria de perfil não guarda headline/bio");
+    assert(applicationCreated?.purpose_code === "F-03" && applicationCreated?.resource_id === applicationId, "apply audita F-03 no recurso da candidatura");
+    assert(!applicationCreated?.metadata_minimal?.snapshot, "auditoria de apply não carrega snapshot D-08");
+    assert(applicationWithdrawn?.event_type === "application.withdrawn" && applicationWithdrawn?.metadata_minimal?.effect === "blocked", "withdraw audita interrupção futura");
+    assert(recommendationBlocked?.result === "blocked" && recommendationBlocked?.metadata_minimal?.reason === "purpose_not_authorized", "blocked sem autorização não expõe conteúdo profissional");
+    assert(!JSON.stringify(recommendationBlocked ?? {}).match(/React|Salvador|senior|Gemini|prompt/i), "evento bloqueado não diferencia com conteúdo profissional");
+
+    const planted = await svc.from("privacy_audit_events").insert({
+      event_type: "consent.notice",
+      actor_id: otherSubject,
+      subject_id: otherSubject,
+      purpose_code: "F-01",
+      resource_type: "consent",
+      resource_id: "isolation",
+      result: "success",
+      metadata_minimal: { source: "system" },
+    }).select("id").single();
+    assert(!planted.error && planted.data?.id, `service role planta evento de outro titular (${errorText(planted.error) || "ok"})`);
+
+    const leaked = await candidate
+      .from("privacy_audit_events")
+      .select("id")
+      .eq("subject_id", otherSubject);
+    assert(!leaked.error && (leaked.data ?? []).length === 0, "candidato não lê auditoria de outro titular");
+
+    const adminRead = await admin
+      .from("privacy_audit_events")
+      .select("id,event_type")
+      .eq("subject_id", user.id);
+    assert(!adminRead.error && (adminRead.data ?? []).length > 0, "admin lê a trilha por papel");
+
+    const adminInsert = await admin.from("privacy_audit_events").insert(auditInsert).select("id");
+    assert(Boolean(adminInsert.error) || (adminInsert.data ?? []).length === 0, "admin não faz INSERT direto em privacy_audit_events");
+
+    const adminUpdate = await admin
+      .from("privacy_audit_events")
+      .update({ result: "failed" })
+      .eq("subject_id", user.id)
+      .select("id");
+    assert(Boolean(adminUpdate.error) || (adminUpdate.data ?? []).length === 0, "admin não altera auditoria via UPDATE direto");
+  } finally {
+    await candidate.from("profiles").update({ headline: null, updated_at: new Date().toISOString() }).eq("id", user.id);
+    await svc.from("applications").delete().eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
+    await svc.from("apply_request_log").delete().eq("user_id", user.id);
+    await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+    await svc.from("privacy_audit_events").delete().eq("subject_id", user.id);
+    await svc.from("privacy_audit_events").delete().eq("subject_id", otherSubject);
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+  }
+}
+
 /** Baseline admin legado (S2/S3). */
 async function scenarioAdminBaseline() {
   if (!testUsers.admin.email || !testUsers.admin.password) {
@@ -1201,6 +1434,9 @@ await scenario15_rpcExecuteHardening();
 console.log("\n=== Cenário 16: MVP-003 consentimento granular ===");
 await scenario16_privacyConsent();
 
+console.log("\n=== Cenário 17: MVP-005 auditoria e minimização ===");
+await scenario17_privacyAudit();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1208,6 +1444,8 @@ if (skippedRequired.size > 0) {
     if (n === 13) band = "F-019 exige execução real do cenário 13";
     if (n === 14) band = "F-023 exige execução real do cenário 14";
     if (n === 15) band = "MVP-021 exige execução real do cenário 15";
+    if (n === 16) band = "MVP-003 exige execução real do cenário 16";
+    if (n === 17) band = "MVP-005 exige execução real do cenário 17";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -1218,5 +1456,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003: ok (${skipped.length} aviso(s) opcionais; cenários 3–16 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005: ok (${skipped.length} aviso(s) opcionais; cenários 3–17 executados).`,
 );

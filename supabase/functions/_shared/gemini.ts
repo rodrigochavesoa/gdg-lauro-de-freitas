@@ -14,7 +14,7 @@ async function request(path: string, body: unknown) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error(`Gemini respondeu ${response.status}: ${await response.text()}`);
+  if (!response.ok) throw new Error(`Gemini respondeu ${response.status}`);
   return response.json();
 }
 
