@@ -106,6 +106,10 @@ function isTransientSupabaseError(error) {
   return /gateway timeout|502|503|504|522|524|ECONNRESET|fetch failed|Failed to fetch|NetworkError/i.test(errorText(error));
 }
 
+function isTransientAuthError(error) {
+  return /rate limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(errorText(error));
+}
+
 async function queryWithRetry(queryFn, { attempts = 3, pauseMs = 2500 } = {}) {
   let last;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -155,6 +159,18 @@ async function signIn(credentials) {
   const { data, error } = await client.auth.signInWithPassword(credentials);
   if (error) return { client, error };
   return { client, user: data.user };
+}
+
+async function signInWithRetry(credentials, { attempts = 4, pauseMs = 2000, label = "usuário" } = {}) {
+  let last;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    last = await signIn(credentials);
+    if (!last.error && last.user?.id) return last;
+    if (!isTransientAuthError(last.error) || attempt === attempts) return last;
+    console.log(`AVISO: login ${label} (${errorText(last.error) || "sem mensagem"}); tentativa ${attempt}/${attempts}…`);
+    await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
+  }
+  return last;
 }
 
 async function createPendingJob(client, marker) {
@@ -1013,10 +1029,13 @@ async function scenario16_privacyConsent() {
   });
   assert(Boolean(anonChoice.error) && isExecuteDenied(anonChoice.error), "anon não registra escolha de privacidade");
 
-  const { client: candidate, user, error: candidateError } = await signIn(testUsers.candidate);
-  const { client: admin, error: adminError } = await signIn(testUsers.admin);
+  const { client: candidate, user, error: candidateError } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
+  const { client: admin, error: adminError } = await signInWithRetry(testUsers.admin, { label: "admin" });
   if (candidateError || adminError || !user?.id) {
-    skipRequired(16, "admin ou candidato não autenticou");
+    skipRequired(
+      16,
+      `admin ou candidato não autenticou (candidato: ${errorText(candidateError) || "ok"}; admin: ${errorText(adminError) || "ok"})`,
+    );
     return;
   }
 
@@ -1208,6 +1227,7 @@ if (skippedRequired.size > 0) {
     if (n === 13) band = "F-019 exige execução real do cenário 13";
     if (n === 14) band = "F-023 exige execução real do cenário 14";
     if (n === 15) band = "MVP-021 exige execução real do cenário 15";
+    if (n === 16) band = "MVP-003 exige execução real do cenário 16";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
