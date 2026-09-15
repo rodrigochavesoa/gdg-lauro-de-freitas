@@ -33,6 +33,18 @@ export function validateCurationReview({ decision, rubricCode }) {
   return errors;
 }
 
+export function rubricLabel(code) {
+  return RUBRIC_OPTIONS.find((option) => option.code === code)?.label ?? String(code ?? "").trim();
+}
+
+export function sortCurationReviews(reviews = []) {
+  return [...reviews].sort((left, right) => {
+    const byRound = (left.curation_round ?? 0) - (right.curation_round ?? 0);
+    if (byRound !== 0) return byRound;
+    return String(left.created_at ?? "").localeCompare(String(right.created_at ?? ""));
+  });
+}
+
 export function validateUrgentPriority(reason) {
   if (!String(reason ?? "").trim()) {
     return "Motivo interno é obrigatório para prioridade urgente.";

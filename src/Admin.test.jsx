@@ -12,12 +12,16 @@ vi.mock("./features/curation/curation-api.js", () => ({
   signInCuration: vi.fn(),
 }));
 
-vi.mock("./lib/admin-api.js", () => ({
-  createPendingJob: vi.fn(),
-  loadAdminJobs: (...args) => loadAdminJobs(...args),
-  loadCompanies: vi.fn(async () => []),
-  updatePendingJob: vi.fn(),
-}));
+vi.mock("./lib/admin-api.js", async () => {
+  const actual = await vi.importActual("./lib/admin-api.js");
+  return {
+    ...actual,
+    createPendingJob: vi.fn(),
+    loadAdminJobs: (...args) => loadAdminJobs(...args),
+    loadCompanies: vi.fn(async () => []),
+    updatePendingJob: vi.fn(),
+  };
+});
 
 vi.mock("./features/curation/CurationQueue.jsx", () => ({
   CurationQueue: (props) => {
@@ -200,5 +204,56 @@ describe("Admin", () => {
     expect(within(publishedSection).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
     expect(within(publishedSection).queryByRole("button", { name: /Pessoa Desenvolvedora Front-end/ })).not.toBeInTheDocument();
     expect(within(publishedSection).getByText("Edite via nova rodada na Curadoria.")).toBeInTheDocument();
+  });
+
+  it("lista vagas rejeitadas com histórico de parecer", async () => {
+    loadCurationProfile.mockResolvedValue({
+      id: "a1",
+      role: "admin",
+      full_name: "Ada Admin",
+      email: "ada@example.invalid",
+    });
+    loadAdminJobs.mockResolvedValue([
+      {
+        id: "j3",
+        title: "Pessoa Dev rejeitada",
+        status: "rejected",
+        companies: { name: "Nuvem Lauro Demo" },
+        job_curation_reviews: [
+          {
+            decision: "reject",
+            rubric_code: "R3-sem-discriminacao",
+            internal_comment: "Texto discriminatório no anúncio fictício.",
+            curation_round: 1,
+            created_at: "2026-09-15T12:00:00Z",
+          },
+        ],
+      },
+    ]);
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
+    expect(await screen.findByText("Vagas rejeitadas")).toBeInTheDocument();
+    const rejectedSection = screen.getByText("Vagas rejeitadas").closest("details");
+    expect(within(rejectedSection).getByText("Rejeitada")).toHaveClass("featured");
+    expect(within(rejectedSection).getByText("Pessoa Dev rejeitada")).toBeInTheDocument();
+    expect(within(rejectedSection).getByText(/R3-sem-discriminacao|Sem exigências discriminatórias/)).toBeInTheDocument();
+  });
+
+  it("mostra erros de validação visíveis ao cadastrar sem campos obrigatórios", async () => {
+    loadCurationProfile.mockResolvedValue({
+      id: "a1",
+      role: "admin",
+      full_name: "Ada Admin",
+      email: "ada@example.invalid",
+    });
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
+    expect(await screen.findByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    document.querySelectorAll("[required]").forEach((el) => el.removeAttribute("required"));
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar para curadoria" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveClass("form-alert");
+    expect(within(alert).getByText("Título é obrigatório.")).toBeInTheDocument();
+    expect(within(alert).getByText("Descrição é obrigatória.")).toBeInTheDocument();
+    expect(within(alert).getByText("Selecione uma empresa ou informe o nome de uma empresa fictícia.")).toBeInTheDocument();
+    expect(within(alert).getByText("Nível é obrigatório.")).toBeInTheDocument();
   });
 });

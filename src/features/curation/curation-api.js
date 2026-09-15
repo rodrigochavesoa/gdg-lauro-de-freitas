@@ -85,13 +85,6 @@ async function fetchCurationQueue({ includeRejected = false } = {}) {
 
   const pendingRows = pending.data ?? [];
   const pendingIds = pendingRows.map((row) => row.id);
-  const reviewsQuery = pendingIds.length
-    ? client
-        .from("job_curation_reviews")
-        .select("job_id,curation_round,reviewer_id,decision,rubric_code,created_at")
-        .in("job_id", pendingIds)
-        .order("created_at", { ascending: true })
-    : Promise.resolve({ data: [], error: null });
   const rejectedQuery = includeRejected
     ? client
         .from("jobs")
@@ -100,19 +93,28 @@ async function fetchCurationQueue({ includeRejected = false } = {}) {
         .order("rejected_at", { ascending: false })
     : Promise.resolve({ data: [], error: null });
 
-  const [moderation, reviews, rejected] = await Promise.all([
+  const [moderation, rejected] = await Promise.all([
     client.from("jobs_needing_moderation").select("id"),
-    reviewsQuery,
     rejectedQuery,
   ]);
   throwIfError(moderation.error);
-  throwIfError(reviews.error);
   throwIfError(rejected.error);
+
+  const rejectedRows = rejected.data ?? [];
+  const reviewJobIds = [...new Set([...pendingIds, ...rejectedRows.map((row) => row.id)])];
+  const reviews = reviewJobIds.length
+    ? await client
+        .from("job_curation_reviews")
+        .select("job_id,curation_round,reviewer_id,decision,rubric_code,internal_comment,created_at")
+        .in("job_id", reviewJobIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+  throwIfError(reviews.error);
 
   const moderationIds = (moderation.data ?? []).map((row) => row.id);
   return {
     queue: mergeCurationQueue(pendingRows, moderationIds),
-    rejected: rejected.data ?? [],
+    rejected: rejectedRows,
     reviews: reviews.data ?? [],
   };
 }

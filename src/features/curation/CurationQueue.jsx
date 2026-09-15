@@ -9,6 +9,7 @@ import {
   subscribeCurationJobs,
 } from "./curation-api.js";
 import { RUBRIC_OPTIONS } from "./rubric.js";
+import { CurationTimeline } from "./CurationTimeline.jsx";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -80,9 +81,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const selected = queue.find((job) => job.id === selectedId) ?? queue[0] ?? null;
   const selectedReviews = useMemo(() => {
     if (!selected) return [];
-    return reviews.filter(
-      (row) => row.job_id === selected.id && row.curation_round === selected.curation_round,
-    );
+    return reviews.filter((row) => row.job_id === selected.id);
   }, [reviews, selected]);
 
   const run = async (action, successMessage) => {
@@ -134,7 +133,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         </div>
       )}
       {error && (
-        <div className="success" role="alert">
+        <div className="form-alert" role="alert">
           {error}
         </div>
       )}
@@ -177,11 +176,9 @@ export function CurationQueue({ profile, includeRejected = false }) {
               ))}
             </div>
             <p>
-              Pareceres nesta rodada:{" "}
-              {selectedReviews.length === 0
-                ? "nenhum ainda"
-                : selectedReviews.map((row) => row.decision).join(", ")}
+              Pareceres nesta vaga:
             </p>
+            <CurationTimeline reviews={selectedReviews} />
           </div>
           <div className="form-section">
             <h2>Rubrica</h2>
@@ -287,22 +284,25 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <h2>Reenvio de rejeitadas</h2>
           {rejected.length === 0 && <p>Nenhuma vaga rejected para reenviar.</p>}
           {rejected.map((job) => (
-            <p key={job.id}>
-              {job.title} · rodada {job.curation_round}{" "}
-              <button
-                type="button"
-                className="ghost"
-                disabled={busy}
-                onClick={() =>
-                  run(
-                    () => resubmitJobForCuration(job.id),
-                    "Vaga reenviada em nova rodada.",
-                  )
-                }
-              >
-                Reenviar
-              </button>
-            </p>
+            <div key={job.id} className="admin-job-list-block">
+              <p>
+                {job.title} · rodada {job.curation_round}{" "}
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy}
+                  onClick={() =>
+                    run(
+                      () => resubmitJobForCuration(job.id),
+                      "Vaga reenviada em nova rodada.",
+                    )
+                  }
+                >
+                  Reenviar
+                </button>
+              </p>
+              <CurationTimeline reviews={reviews.filter((row) => row.job_id === job.id)} />
+            </div>
           ))}
         </div>
       )}

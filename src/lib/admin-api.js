@@ -20,6 +20,28 @@ export function parseStack(text) {
     .filter(Boolean);
 }
 
+/** Trim, colapsa espaços e lower — espelha `lower(btrim(title))` no índice único. */
+export function normalizeJobTitle(title) {
+  return String(title ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+export function findDuplicateJob(jobs, { companyId, title, excludeId } = {}) {
+  if (!companyId) return null;
+  const normalized = normalizeJobTitle(title);
+  if (!normalized) return null;
+  return (
+    (jobs ?? []).find(
+      (row) =>
+        row.company_id === companyId &&
+        row.id !== excludeId &&
+        normalizeJobTitle(row.title) === normalized,
+    ) ?? null
+  );
+}
+
 export function validateAdminJob(
   { title, description, companyId, newCompanyName, level, workModel },
   { requireCompany = true } = {},
@@ -35,6 +57,12 @@ export function validateAdminJob(
   return errors;
 }
 
+const DUPLICATE_JOB_MESSAGE = "Já existe vaga com este título para esta empresa.";
+
+function isUniqueViolation(error) {
+  return error?.code === "23505" || /jobs_company_normalized_title|duplicate key/i.test(error?.message ?? "");
+}
+
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
   if (!client) {
@@ -44,9 +72,11 @@ function clientOrThrow() {
 }
 
 function throwIfError(error) {
-  if (error) {
-    throw new Error(error.message || "Falha na API do Supabase.");
+  if (!error) return;
+  if (isUniqueViolation(error)) {
+    throw new Error(DUPLICATE_JOB_MESSAGE);
   }
+  throw new Error(error.message || "Falha na API do Supabase.");
 }
 
 export async function signInAdmin(email, password) {
@@ -89,11 +119,22 @@ export async function loadAdminJobs() {
   const client = clientOrThrow();
   const { data, error } = await client
     .from("jobs")
-    .select("id,title,status,company_id,level,work_model,location,description,stack,companies(name)")
-    .in("status", ["pending", "approved"])
+    .select(
+      "id,title,status,company_id,level,work_model,location,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)",
+    )
+    .in("status", ["pending", "approved", "rejected"])
     .order("created_at", { ascending: false });
   throwIfError(error);
   return data ?? [];
+}
+
+async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
+  if (!companyId) return;
+  const { data, error } = await client.from("jobs").select("id,title,company_id").eq("company_id", companyId);
+  throwIfError(error);
+  if (findDuplicateJob(data, { companyId, title, excludeId })) {
+    throw new Error(DUPLICATE_JOB_MESSAGE);
+  }
 }
 
 export async function createCompany({ name, description = "Empresa fictícia de homologação." }) {
@@ -118,6 +159,7 @@ export async function createPendingJob(input) {
     const company = await createCompany({ name: input.newCompanyName });
     companyId = company.id;
   }
+  await assertNoDuplicateTitle(client, { companyId, title: input.title });
   const payload = {
     company_id: companyId,
     title: input.title.trim(),
@@ -126,7 +168,6 @@ export async function createPendingJob(input) {
     level: LEVEL_TO_DB[input.level],
     work_model: MODEL_TO_DB[input.workModel],
     location: String(input.location ?? "").trim() || null,
-    status: "pending",
     requirements: { mandatory: [], desirable: [] },
   };
   const { data, error } = await client.from("jobs").insert(payload).select("id,title,status").single();
@@ -139,6 +180,13 @@ export async function updatePendingJob(id, input) {
   if (errors.length) throw new Error(errors[0]);
   if (!id) throw new Error("Vaga para atualizar não informada.");
   const client = clientOrThrow();
+  let companyId = input.companyId || "";
+  if (!companyId) {
+    const current = await client.from("jobs").select("company_id").eq("id", id).maybeSingle();
+    throwIfError(current.error);
+    companyId = current.data?.company_id ?? "";
+  }
+  await assertNoDuplicateTitle(client, { companyId, title: input.title, excludeId: id });
   const payload = {
     title: input.title.trim(),
     description: input.description.trim(),
