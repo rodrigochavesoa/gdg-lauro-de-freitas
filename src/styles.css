@@ -201,6 +201,11 @@ html[data-theme="dark"] {
 .admin-job-list-title{color:var(--color-text);font-weight:600}
 .admin-job-list-meta{color:var(--color-grey-700);font-weight:500}
 .admin-job-list summary{cursor:pointer;color:var(--color-text)}
+.admin-job-list-block{margin:0 0 var(--space-4)}
+.curation-timeline{margin:8px 0 0;padding-left:1.2em;color:var(--color-text-muted);font-size:var(--font-size-body-2);line-height:1.45}
+.form-alert{margin:0 28px 16px;padding:12px 14px;border-radius:var(--radius-sm);background:var(--color-danger-50);color:var(--color-danger-700);font-size:var(--font-size-body-2)}
+.form-alert ul,.form-alert p{margin:0}
+.form-alert ul{padding-left:1.2em}
 .admin-content fieldset label{display:flex;align-items:flex-start;gap:8px;font-size:var(--font-size-body-2);color:var(--color-text-muted)}
 .admin-content fieldset input[type="radio"]{margin-top:3px;accent-color:var(--color-action-primary)}
 .admin-content legend{font-size:var(--font-size-caption);font-weight:600;margin-bottom:8px}

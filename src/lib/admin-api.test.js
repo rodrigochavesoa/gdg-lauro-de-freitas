@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStack, validateAdminJob } from "./admin-api.js";
+import { parseStack, validateAdminJob, normalizeJobTitle, findDuplicateJob } from "./admin-api.js";
 
 describe("validateAdminJob", () => {
   const valid = {
@@ -32,5 +32,21 @@ describe("validateAdminJob", () => {
 describe("parseStack", () => {
   it("separa tecnologias por vírgula", () => {
     expect(parseStack("React, TypeScript, Next.js")).toEqual(["React", "TypeScript", "Next.js"]);
+  });
+});
+
+describe("normalizeJobTitle e duplicidade", () => {
+  it("normaliza trim, espaços e caixa", () => {
+    expect(normalizeJobTitle("  Pessoa   Dev  ")).toBe("pessoa dev");
+  });
+
+  it("detecta o mesmo título na mesma empresa", () => {
+    const jobs = [
+      { id: "a", company_id: "c1", title: "Pessoa Dev" },
+      { id: "b", company_id: "c2", title: "Pessoa Dev" },
+    ];
+    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV" })?.id).toBe("a");
+    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV", excludeId: "a" })).toBeNull();
+    expect(findDuplicateJob(jobs, { companyId: "c2", title: "Outra" })).toBeNull();
   });
 });

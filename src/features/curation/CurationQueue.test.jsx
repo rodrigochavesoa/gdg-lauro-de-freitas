@@ -97,6 +97,7 @@ describe("CurationQueue", () => {
     expect(screen.queryByText("Curador Homolog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    expect(screen.getByText("Ainda sem parecer nesta vaga.")).toBeInTheDocument();
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar parecer/i })).toBeInTheDocument();
   });

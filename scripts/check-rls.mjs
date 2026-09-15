@@ -1441,6 +1441,37 @@ async function scenarioAdminBaseline() {
     assert((hidden.data ?? []).length === 0, "visitante não vê pending recém-criada");
     await deleteJob(admin, created.data.id);
   }
+
+  const hijack = await admin
+    .from("jobs")
+    .insert({
+      company_id: SEED_COMPANY,
+      title: `RLS no approved ${Date.now()}`,
+      description: "Vaga fictícia para teste RLS de insert pending.",
+      level: "junior",
+      work_model: "remote",
+      status: "approved",
+      requirements: { mandatory: [], desirable: [] },
+    })
+    .select("id,status")
+    .single();
+  assert(!hijack.error && hijack.data?.status === "pending", "admin insert não persiste approved");
+  if (hijack.data?.id) await deleteJob(admin, hijack.data.id);
+
+  const duplicate = await admin
+    .from("jobs")
+    .insert({
+      company_id: SEED_COMPANY,
+      title: "Pessoa Desenvolvedora Front-end",
+      description: "Tentativa duplicada fictícia.",
+      level: "junior",
+      work_model: "remote",
+      status: "pending",
+      requirements: { mandatory: [], desirable: [] },
+    })
+    .select("id")
+    .single();
+  assert(Boolean(duplicate.error), "duplicidade company_id + título recusada");
   await admin.auth.signOut();
 }
 

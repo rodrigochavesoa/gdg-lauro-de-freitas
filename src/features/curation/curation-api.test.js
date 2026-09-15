@@ -94,7 +94,7 @@ describe("loadCurationQueue", () => {
     invalidateCurationQueueCache();
   });
 
-  it("busca pending e depois moderation, reviews filtrados e rejected em paralelo", async () => {
+  it("busca pending e depois moderation e rejected em paralelo; reviews vêm na sequência", async () => {
     const promiseAll = vi.spyOn(Promise, "all");
     const wave2 = mockQueueClient({
       pending: [PENDING_JOB],
@@ -106,13 +106,13 @@ describe("loadCurationQueue", () => {
     const result = await loadCurationQueue({ includeRejected: true });
 
     expect(promiseAll).toHaveBeenCalledTimes(1);
-    expect(promiseAll.mock.calls[0][0]).toHaveLength(3);
-    expect(wave2.max).toBe(3);
-    expect(wave2.labels.sort()).toEqual(["moderation", "rejected", "reviews"]);
+    expect(promiseAll.mock.calls[0][0]).toHaveLength(2);
+    expect(wave2.max).toBe(2);
+    expect(wave2.labels.filter((label) => label !== "reviews").sort()).toEqual(["moderation", "rejected"]);
 
     const reviewsBuilder = fromMock.mock.results.find((_, index) => fromMock.mock.calls[index][0] === "job_curation_reviews")
       ?.value;
-    expect(reviewsBuilder.in).toHaveBeenCalledWith("job_id", ["job-1"]);
+    expect(reviewsBuilder.in).toHaveBeenCalledWith("job_id", ["job-1", "job-r"]);
     expect(result.queue).toHaveLength(1);
     expect(result.queue[0].needsModeration).toBe(true);
     expect(result.rejected).toHaveLength(1);

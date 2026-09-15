@@ -6,9 +6,11 @@ import {
   loadAdminJobs,
   loadCompanies,
   updatePendingJob,
+  validateAdminJob,
 } from "./lib/admin-api.js";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
+import { CurationTimeline } from "./features/curation/CurationTimeline.jsx";
 
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
@@ -55,6 +57,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   const [jobs, setJobs] = useState([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [formErrors, setFormErrors] = useState([]);
   const [busy, setBusy] = useState(false);
   const [adminDataLoading, setAdminDataLoading] = useState(false);
   const staffBootId = useRef(null);
@@ -70,6 +73,10 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   );
   const publishedJobs = useMemo(
     () => jobs.filter((job) => job.status === "approved"),
+    [jobs],
+  );
+  const rejectedJobs = useMemo(
+    () => jobs.filter((job) => job.status === "rejected"),
     [jobs],
   );
 
@@ -161,7 +168,14 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   const persist = async (asUpdate) => {
     setBusy(true);
     setError("");
+    setFormErrors([]);
     setMessage("");
+    const fieldErrors = validateAdminJob(form, { requireCompany: !(asUpdate && editingId) });
+    if (fieldErrors.length) {
+      setFormErrors(fieldErrors);
+      setBusy(false);
+      return;
+    }
     try {
       if (asUpdate && editingId) {
         await updatePendingJob(editingId, form);
@@ -363,9 +377,17 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     <Check size={18} /> {message}
                   </div>
                 )}
-                {error && (
-                  <div className="success" role="alert">
-                    {error}
+                {(formErrors.length > 0 || error) && (
+                  <div className="form-alert" role="alert">
+                    {formErrors.length > 0 ? (
+                      <ul>
+                        {formErrors.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{error}</p>
+                    )}
                   </div>
                 )}
                 <div className="form-actions">
@@ -382,15 +404,18 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               <div className="form-section admin-job-list">
                 <h2>Aguardando curadoria</h2>
                 {pendingJobs.map((job) => (
-                  <p key={job.id}>
-                    <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
-                      <span className="featured">Pendente</span>
-                      <span className="admin-job-list-title">{job.title}</span>
-                      {job.companies?.name ? (
-                        <span className="admin-job-list-meta"> · {job.companies.name}</span>
-                      ) : null}
-                    </button>
-                  </p>
+                  <div key={job.id} className="admin-job-list-block">
+                    <p>
+                      <button type="button" className="ghost admin-job-list-item" onClick={() => loadJob(job)}>
+                        <span className="featured">Pendente</span>
+                        <span className="admin-job-list-title">{job.title}</span>
+                        {job.companies?.name ? (
+                          <span className="admin-job-list-meta"> · {job.companies.name}</span>
+                        ) : null}
+                      </button>
+                    </p>
+                    <CurationTimeline reviews={job.job_curation_reviews} />
+                  </div>
                 ))}
                 {pendingJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga aguardando curadoria.</p>}
               </div>
@@ -398,17 +423,35 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                 <summary>Vagas publicadas</summary>
                 <p>Edite via nova rodada na Curadoria.</p>
                 {publishedJobs.map((job) => (
-                  <p key={job.id}>
-                    <span className="ghost admin-job-list-item">
+                  <div key={job.id} className="admin-job-list-block">
+                    <p className="ghost admin-job-list-item">
                       <span className="featured">Publicada</span>
                       <span className="admin-job-list-title">{job.title}</span>
                       {job.companies?.name ? (
                         <span className="admin-job-list-meta"> · {job.companies.name}</span>
                       ) : null}
-                    </span>
-                  </p>
+                    </p>
+                    <CurationTimeline reviews={job.job_curation_reviews} />
+                  </div>
                 ))}
                 {publishedJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga publicada.</p>}
+              </details>
+              <details className="form-section admin-job-list">
+                <summary>Vagas rejeitadas</summary>
+                <p>Histórico de pareceres (rubrica e motivo). Reenvio na aba Curadoria.</p>
+                {rejectedJobs.map((job) => (
+                  <div key={job.id} className="admin-job-list-block">
+                    <p className="ghost admin-job-list-item">
+                      <span className="featured">Rejeitada</span>
+                      <span className="admin-job-list-title">{job.title}</span>
+                      {job.companies?.name ? (
+                        <span className="admin-job-list-meta"> · {job.companies.name}</span>
+                      ) : null}
+                    </p>
+                    <CurationTimeline reviews={job.job_curation_reviews} />
+                  </div>
+                ))}
+                {rejectedJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga rejeitada.</p>}
               </details>
             </div>
           )}
