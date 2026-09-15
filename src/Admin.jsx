@@ -257,16 +257,16 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                 <div className="form-grid">
                   <label className="wide">
                     E-mail
-                    <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu-email@empresa.com" />
+                    <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu-email@empresa.com" />
                   </label>
                   <label className="wide">
                     Senha
-                    <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                   </label>
                 </div>
               </div>
               {error && (
-                <div className="success" role="alert">
+                <div className="form-alert" role="alert">
                   {error}
                 </div>
               )}
