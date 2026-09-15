@@ -1,20 +1,38 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Filter,
   MapPin, Search, Sparkles, Users
 } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
-import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "../../lib/filter-jobs.js";
-import { loadApprovedJobs, peekApprovedJobsCache } from "./jobs-api.js";
+import {
+  CATALOG_LEVELS,
+  CATALOG_TECHNOLOGIES,
+  CATALOG_WORK_MODELS,
+  SORT_OLDEST,
+  SORT_RECENT,
+  toggleFilterValue,
+} from "../../lib/filter-jobs.js";
+import { loadApprovedJobs, peekApprovedJobsPage } from "./jobs-api.js";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-const levels = ["Estágio", "Júnior", "Pleno", "Sênior"];
-const technologies = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
+function mergeJobsById(current, incoming) {
+  const seen = new Set(current.map((job) => String(job.id)));
+  const extra = incoming.filter((job) => !seen.has(String(job.id)));
+  return [...current, ...extra];
+}
+
+function peekHomeCatalog(query) {
+  return peekApprovedJobsPage({
+    query: query ?? "",
+    tech: [],
+    level: [],
+    workModel: [],
+    sort: SORT_RECENT,
+  });
+}
 
 export function Home({ logged = false }) {
-  const [jobs, setJobs] = useState(() => peekApprovedJobsCache() ?? []);
-  const [catalogStatus, setCatalogStatus] = useState(() => (peekApprovedJobsCache() ? "ready" : "loading"));
   const [searchParams] = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [tech, setTech] = useState([]);
@@ -22,35 +40,68 @@ export function Home({ logged = false }) {
   const [workModel, setWorkModel] = useState([]);
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOrder, setSortOrder] = useState(SORT_RECENT);
+  const [jobs, setJobs] = useState(() => peekHomeCatalog(searchParams.get("query"))?.jobs ?? []);
+  const [resultCount, setResultCount] = useState(() => peekHomeCatalog(searchParams.get("query"))?.count ?? null);
+  const [catalogStatus, setCatalogStatus] = useState(() => (peekHomeCatalog(searchParams.get("query")) ? "ready" : "loading"));
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-    loadApprovedJobs()
-      .then((rows) => {
+    const peeked = peekApprovedJobsPage({ query, tech, level, workModel, sort: sortOrder });
+    if (peeked) {
+      setJobs(peeked.jobs);
+      setResultCount(peeked.count);
+      setCatalogStatus("ready");
+    } else {
+      setJobs([]);
+      setResultCount(null);
+      setCatalogStatus("loading");
+    }
+    setLoadingMore(false);
+
+    loadApprovedJobs({ query, tech, level, workModel, sort: sortOrder, offset: 0 })
+      .then((page) => {
         if (cancelled) return;
-        setJobs(rows);
+        setJobs(page.jobs);
+        setResultCount(page.count);
         setCatalogStatus("ready");
       })
       .catch(() => {
         if (cancelled) return;
         setJobs([]);
+        setResultCount(0);
         setCatalogStatus("error");
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [query, tech, level, workModel, sortOrder]);
 
-  const filtered = useMemo(
-    () => filterJobs(jobs, { query, tech, level, workModel }),
-    [jobs, query, tech, level, workModel],
-  );
-  const visibleJobs = useMemo(
-    () => sortJobs(filtered, sortOrder),
-    [filtered, sortOrder],
-  );
+  const loadMore = async () => {
+    if (loadingMore || catalogStatus !== "ready") return;
+    if (resultCount != null && jobs.length >= resultCount) return;
+    setLoadingMore(true);
+    try {
+      const page = await loadApprovedJobs({
+        query,
+        tech,
+        level,
+        workModel,
+        sort: sortOrder,
+        offset: jobs.length,
+      });
+      setJobs((current) => mergeJobsById(current, page.jobs));
+      setResultCount(page.count);
+    } catch {
+      /* mantém a lista já carregada */
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const toggle = (item, values, setter) => setter(toggleFilterValue(item, values));
   const reset = () => { setQuery(""); setTech([]); setLevel([]); setWorkModel([]); };
   const activeFilterCount = tech.length + level.length + workModel.length;
+  const displayedCount = resultCount ?? jobs.length;
+  const hasMore = catalogStatus === "ready" && resultCount != null && jobs.length < resultCount;
 
   const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><div className="searchbox"><Search size={21}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa"/><button className="primary" onClick={() => {}}>Buscar vagas <ArrowUpRight size={17}/></button></div><div className="popular">Populares: <button onClick={() => setQuery("React")}>React</button><button onClick={() => setQuery("Node")}>Node.js</button><button onClick={() => setQuery("Python")}>Python</button><button onClick={() => setQuery("Designer")}>Product Design</button></div>    </div></section>;
 
@@ -63,18 +114,40 @@ export function Home({ logged = false }) {
       <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
     </div>
     <section className="shell jobs-layout">
-      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} resultCount={visibleJobs.length} titleId="catalog-filters-title">
+      <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} resultCount={displayedCount} titleId="catalog-filters-title">
         <div className="filter-head">
           <h2 id="catalog-filters-title"><Filter size={18}/> Filtros</h2>
           <button type="button" onClick={reset}>Limpar</button>
         </div>
         <div className="filters__body">
-          <FilterGroup label="Tecnologias" values={technologies} active={tech} toggle={x => toggle(x, tech, setTech)} />
-          <FilterGroup label="Nível de experiência" values={levels} active={level} toggle={x => toggle(x, level, setLevel)} />
-          <FilterGroup label="Modelo de trabalho" values={["Remoto", "Híbrido", "Presencial"]} active={workModel} toggle={x => toggle(x, workModel, setWorkModel)} />
+          <FilterGroup label="Tecnologias" values={CATALOG_TECHNOLOGIES} active={tech} toggle={x => toggle(x, tech, setTech)} />
+          <FilterGroup label="Nível de experiência" values={CATALOG_LEVELS} active={level} toggle={x => toggle(x, level, setLevel)} />
+          <FilterGroup label="Modelo de trabalho" values={CATALOG_WORK_MODELS} active={workModel} toggle={x => toggle(x, workModel, setWorkModel)} />
         </div>
       </FilterSheet>
-      <div className="job-content"><div className="result-head"><div><h2>Vagas em destaque</h2><p>{visibleJobs.length} oportunidades encontradas</p></div><button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button><SortMenu value={sortOrder} onChange={setSortOrder} /></div><div className="cards">{catalogStatus === "loading" && visibleJobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}{visibleJobs.map(job => <JobCard key={job.id} job={job} />)}{catalogStatus === "error" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}{catalogStatus === "ready" && visibleJobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}</div></div>
+      <div className="job-content">
+        <div className="result-head">
+          <div>
+            <h2>Vagas em destaque</h2>
+            <p>{displayedCount} oportunidades encontradas</p>
+          </div>
+          <button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
+          <SortMenu value={sortOrder} onChange={setSortOrder} />
+        </div>
+        <div className="cards">
+          {catalogStatus === "loading" && jobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
+          {jobs.map(job => <JobCard key={job.id} job={job} />)}
+          {catalogStatus === "error" && jobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}
+          {catalogStatus === "ready" && jobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}
+        </div>
+        {hasMore ? (
+          <div className="catalog-more">
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Carregando…" : "Carregar mais"}
+            </button>
+          </div>
+        ) : null}
+      </div>
     </section>
     {!logged && (
       <section className="cta"><div className="shell cta-inner"><div><div className="eyebrow light"><Users size={15}/> Seu perfil abre caminhos</div><h2>A vaga certa começa<br/>com um perfil que representa você.</h2><p>Crie seu perfil e apresente suas habilidades para oportunidades mais alinhadas.</p></div><Link to="/login" className="white-button">Criar perfil gratuito <ArrowUpRight size={17}/></Link></div></section>

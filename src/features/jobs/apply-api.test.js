@@ -14,6 +14,7 @@ vi.mock("../../lib/supabase-client.js", () => ({
 
 import {
   applicationStatusLabel,
+  APPLICATION_LIST_LIMIT,
   applyToJob,
   canWithdrawStatus,
   createApplyError,
@@ -26,6 +27,22 @@ import {
   peekMyApplicationsCache,
   withdrawApplication,
 } from "./apply-api.js";
+
+function mockApplicationsList(data, pending) {
+  const limit = vi.fn(() => {
+    if (pending) {
+      return new Promise((resolve) => {
+        pending.resolveLimit = () => resolve({ data, error: null });
+      });
+    }
+    return Promise.resolve({ data, error: null });
+  });
+  const order = vi.fn().mockReturnValue({ limit });
+  const eq = vi.fn().mockReturnValue({ order });
+  const select = vi.fn().mockReturnValue({ eq });
+  fromMock.mockReturnValue({ select });
+  return { limit, order, eq, select };
+}
 
 describe("mapeamento de erros RPC", () => {
   it("lê o código estável em message, details ou hint", () => {
@@ -175,68 +192,53 @@ describe("RPCs", () => {
 
   it("loadMyApplications filtra o candidato e ordena por updated_at", async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
-    const order = vi.fn().mockResolvedValue({
-      data: [
-        {
-          id: "a1",
-          job_id: "job-1",
-          candidate_id: "u1",
-          status: "submitted",
-          jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
-        },
-      ],
-      error: null,
-    });
-    const eq = vi.fn().mockReturnValue({ order });
-    const select = vi.fn().mockReturnValue({ eq });
-    fromMock.mockReturnValue({ select });
+    const { eq, order, limit, select } = mockApplicationsList([
+      {
+        id: "a1",
+        job_id: "job-1",
+        candidate_id: "u1",
+        status: "submitted",
+        jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+      },
+    ]);
 
     const rows = await loadMyApplications();
     expect(fromMock).toHaveBeenCalledWith("applications");
     expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
     expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
+    expect(limit).toHaveBeenCalledWith(APPLICATION_LIST_LIMIT);
+    expect(select.mock.calls[0][0]).not.toMatch(/snapshot/);
     expect(rows).toHaveLength(1);
     expect(rows[0].jobTitle).toBe("Pessoa Dev");
   });
 
   it("loadMyApplications com userId não chama getUser", async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [
-        {
-          id: "a1",
-          job_id: "job-1",
-          candidate_id: "u1",
-          status: "submitted",
-          jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
-        },
-      ],
-      error: null,
-    });
-    const eq = vi.fn().mockReturnValue({ order });
-    const select = vi.fn().mockReturnValue({ eq });
-    fromMock.mockReturnValue({ select });
+    mockApplicationsList([
+      {
+        id: "a1",
+        job_id: "job-1",
+        candidate_id: "u1",
+        status: "submitted",
+        jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+      },
+    ]);
 
     const rows = await loadMyApplications("u1");
     expect(getUserMock).not.toHaveBeenCalled();
-    expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
     expect(rows).toHaveLength(1);
     expect(rows[0].jobTitle).toBe("Pessoa Dev");
   });
 
   it("reusa o cache na segunda chamada dentro do TTL", async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [
-        {
-          id: "a1",
-          job_id: "job-1",
-          candidate_id: "u1",
-          status: "submitted",
-          jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
-        },
-      ],
-      error: null,
-    });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([
+      {
+        id: "a1",
+        job_id: "job-1",
+        candidate_id: "u1",
+        status: "submitted",
+        jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+      },
+    ]);
 
     const first = await loadMyApplications({ userId: "u1" });
     const second = await loadMyApplications({ userId: "u1" });
@@ -246,13 +248,9 @@ describe("RPCs", () => {
   });
 
   it("ignora o cache quando forceRefresh é true", async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }],
-      error: null,
-    });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }]);
     await loadMyApplications({ userId: "u1" });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }]);
     await loadMyApplications({ userId: "u1", forceRefresh: true });
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
@@ -260,11 +258,7 @@ describe("RPCs", () => {
   it("expira o peek depois do TTL", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-09T00:00:00.000Z"));
-    const order = vi.fn().mockResolvedValue({
-      data: [{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }],
-      error: null,
-    });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }]);
     await loadMyApplications({ userId: "u1" });
     expect(peekMyApplicationsCache("u1")).not.toBeNull();
     vi.setSystemTime(new Date("2026-09-09T00:00:00.000Z").getTime() + MY_APPLICATIONS_CACHE_TTL_MS + 1);
@@ -273,34 +267,20 @@ describe("RPCs", () => {
   });
 
   it("deduplica fetches concorrentes enquanto o primeiro está em voo", async () => {
-    let resolveOrder;
-    const order = vi.fn().mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveOrder = () =>
-            resolve({
-              data: [{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }],
-              error: null,
-            });
-        }),
-    );
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    const pending = {};
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }], pending);
 
     const first = loadMyApplications({ userId: "u1" });
     const second = loadMyApplications({ userId: "u1" });
     expect(fromMock).toHaveBeenCalledTimes(1);
-    resolveOrder();
+    pending.resolveLimit();
     expect(await first).toHaveLength(1);
     expect(await second).toHaveLength(1);
     expect(fromMock).toHaveBeenCalledTimes(1);
   });
 
   it("applyToJob invalida o cache da lista", async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }],
-      error: null,
-    });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }]);
     await loadMyApplications({ userId: "u1" });
     expect(peekMyApplicationsCache("u1")).not.toBeNull();
 
@@ -313,11 +293,7 @@ describe("RPCs", () => {
   });
 
   it("withdrawApplication invalida o cache da lista", async () => {
-    const order = vi.fn().mockResolvedValue({
-      data: [{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }],
-      error: null,
-    });
-    fromMock.mockReturnValue({ select: vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue({ order }) }) });
+    mockApplicationsList([{ id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" }]);
     await loadMyApplications({ userId: "u1" });
     expect(peekMyApplicationsCache("u1")).not.toBeNull();
 

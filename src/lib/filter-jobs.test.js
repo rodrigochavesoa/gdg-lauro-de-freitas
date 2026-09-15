@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { filterJobs, SORT_OLDEST, SORT_RECENT, sortJobs, toggleFilterValue } from "./filter-jobs.js";
+import {
+  filterJobs,
+  mapLevelFiltersToDb,
+  mapWorkModelFiltersToDb,
+  SORT_OLDEST,
+  SORT_RECENT,
+  sortJobs,
+  stackTermsForSearch,
+  toggleFilterValue,
+} from "./filter-jobs.js";
 
 const jobs = [
   {
@@ -97,5 +106,24 @@ describe("toggleFilterValue", () => {
   it("adiciona e remove o valor selecionado", () => {
     expect(toggleFilterValue("React", [])).toEqual(["React"]);
     expect(toggleFilterValue("React", ["React", "Python"])).toEqual(["Python"]);
+  });
+});
+
+describe("mapeamento UI → enums do banco", () => {
+  it("mapeia nível da UI para enums, incluindo lead em Sênior", () => {
+    expect(mapLevelFiltersToDb(["Pleno"])).toEqual(["mid"]);
+    expect(mapLevelFiltersToDb(["Sênior"])).toEqual(["senior", "lead"]);
+    expect(mapLevelFiltersToDb(["Estágio", "Júnior"])).toEqual(["intern", "junior"]);
+  });
+
+  it("mapeia modelo de trabalho da UI para enums", () => {
+    expect(mapWorkModelFiltersToDb(["Remoto"])).toEqual(["remote"]);
+    expect(mapWorkModelFiltersToDb(["Híbrido", "Presencial"])).toEqual(["hybrid", "onsite"]);
+  });
+
+  it("resolve stack da busca por substring nos chips e tags conhecidas", () => {
+    expect(stackTermsForSearch("react")).toContain("React");
+    expect(stackTermsForSearch("Node")).toContain("Node.js");
+    expect(stackTermsForSearch("next")).toContain("Next.js");
   });
 });
