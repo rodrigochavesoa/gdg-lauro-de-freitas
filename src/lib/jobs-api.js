@@ -44,6 +44,7 @@ const JOB_LIST_SELECT = `
   companies ( name )
 `;
 
+/** Empty embed `co` + display embed — PostgREST OR across company needs co.not.is.null, not companies.name inside .or(). */
 const JOB_LIST_SELECT_SEARCH = `
   id,
   title,
@@ -54,7 +55,8 @@ const JOB_LIST_SELECT_SEARCH = `
   status,
   approved_at,
   created_at,
-  companies!inner ( name )
+  co:companies(),
+  companies ( name )
 `;
 
 export const CATALOG_CACHE_TTL_MS = 30_000;
@@ -137,17 +139,30 @@ export function quotePostgrestValue(value) {
   return `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
 }
 
+export function buildCatalogSearchPattern(query) {
+  const trimmed = String(query ?? "").trim();
+  if (!trimmed) return null;
+  return `%${trimmed.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+}
+
+function formatStackOvTermForOr(term) {
+  if (/^[A-Za-z0-9_]+$/.test(term)) return term;
+  return quotePostgrestValue(term);
+}
+
+/** OR de título, stack e empresa (empresa via empty embed `co` + filter separado). */
 export function buildCatalogSearchOr(query) {
   const trimmed = String(query ?? "").trim();
   if (!trimmed) return null;
-  const pattern = `%${trimmed.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  const pattern = buildCatalogSearchPattern(query);
   const quoted = quotePostgrestValue(pattern);
-  const clauses = [`title.ilike.${quoted}`, `companies.name.ilike.${quoted}`];
+  const clauses = [`title.ilike.${quoted}`];
   const stackTerms = stackTermsForSearch(trimmed);
   if (stackTerms.length > 0) {
-    const encoded = stackTerms.map((term) => quotePostgrestValue(term)).join(",");
+    const encoded = stackTerms.map(formatStackOvTermForOr).join(",");
     clauses.push(`stack.ov.{${encoded}}`);
   }
+  clauses.push("co.not.is.null");
   return clauses.join(",");
 }
 
@@ -209,7 +224,8 @@ async function fetchApprovedJobsPage(client, options) {
     request = request.in("work_model", workModelEnums);
   }
   if (searchOr) {
-    request = request.or(searchOr);
+    const searchPattern = buildCatalogSearchPattern(options.query);
+    request = request.filter("co.name", "ilike", searchPattern).or(searchOr);
   }
 
   const { data, error, count } = await request

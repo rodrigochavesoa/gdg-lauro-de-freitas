@@ -35,7 +35,7 @@ const SAMPLE_ROW = {
 
 function mockCatalogQuery({ data = [SAMPLE_ROW], count = data.length, error = null, pending } = {}) {
   const builder = {};
-  const methods = ["select", "eq", "overlaps", "in", "or", "order", "range"];
+  const methods = ["select", "eq", "overlaps", "in", "or", "filter", "order", "range"];
   for (const name of methods) {
     builder[name] = vi.fn(() => {
       if (name === "range") {
@@ -110,12 +110,13 @@ describe("loadApprovedJobs", () => {
       workModel: ["Remoto"],
     });
 
-    expect(builder.select.mock.calls[0][0]).toMatch(/companies!inner/);
+    expect(builder.select.mock.calls[0][0]).toMatch(/co:companies\(\)/);
+    expect(builder.filter).toHaveBeenCalledWith("co.name", "ilike", "%Nuvem%");
     expect(builder.overlaps).toHaveBeenCalledWith("stack", ["React"]);
     expect(builder.in).toHaveBeenCalledWith("level", ["mid"]);
     expect(builder.in).toHaveBeenCalledWith("work_model", ["remote"]);
     expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("title.ilike."));
-    expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("companies.name.ilike."));
+    expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("co.not.is.null"));
     expect(builder.or.mock.calls[0][0]).toMatch(/stack\.ov\./);
   });
 
@@ -207,10 +208,10 @@ describe("loadApprovedJobs", () => {
 });
 
 describe("buildCatalogSearchOr", () => {
-  it("busca título, empresa e stack na mesma cláusula or", () => {
+  it("busca título, stack e empresa (co.not.is.null) na mesma cláusula or", () => {
     const clause = buildCatalogSearchOr("React");
     expect(clause).toContain("title.ilike.");
-    expect(clause).toContain("companies.name.ilike.");
+    expect(clause).toContain("co.not.is.null");
     expect(clause).toContain("stack.ov.");
     expect(clause).toContain("React");
   });
