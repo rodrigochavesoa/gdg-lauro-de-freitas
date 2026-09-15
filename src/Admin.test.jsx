@@ -5,11 +5,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
+const signInCuration = vi.hoisted(() => vi.fn());
 const CurationQueueMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
-  signInCuration: vi.fn(),
+  signInCuration: (...args) => signInCuration(...args),
 }));
 
 vi.mock("./lib/admin-api.js", async () => {
@@ -42,6 +43,7 @@ describe("Admin", () => {
     loadCurationProfile.mockResolvedValue(null);
     loadAdminJobs.mockReset();
     loadAdminJobs.mockResolvedValue([]);
+    signInCuration.mockReset();
     CurationQueueMock.mockClear();
   });
 
@@ -53,8 +55,8 @@ describe("Admin", () => {
     expect(form).not.toHaveClass("job-form");
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
-    expect(screen.getByLabelText("E-mail")).toBeInTheDocument();
-    expect(screen.getByLabelText("Senha")).toBeInTheDocument();
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("autocomplete", "current-password");
     expect(screen.getByText(/Use o e-mail e a senha da sua conta de equipe GDG Jobs/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login");
     expect(screen.getByPlaceholderText("seu-email@empresa.com")).toBeInTheDocument();
@@ -273,5 +275,17 @@ describe("Admin", () => {
     await waitFor(() => {
       expect(screen.queryByText("Nenhuma vaga aguardando curadoria.")).not.toBeInTheDocument();
     });
+  });
+
+  it("anuncia falha de login com alerta, não com token de sucesso", async () => {
+    signInCuration.mockRejectedValue(new Error("Credenciais inválidas"));
+    renderAdmin(<Admin session={null} authReady />);
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ada@example.invalid" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "wrong-pass" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveClass("form-alert");
+    expect(alert).not.toHaveClass("success");
+    expect(alert).toHaveTextContent("Credenciais inválidas");
   });
 });

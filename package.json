@@ -14,6 +14,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:rls": "node scripts/check-rls.mjs",
+    "qa:a11y": "node scripts/qa-a11y.mjs",
     "qa:admin-nav": "node scripts/measure-admin-nav.mjs",
     "qa:job-detail": "node scripts/measure-job-detail.mjs",
     "qa:my-applications": "node scripts/measure-my-applications.mjs",
@@ -31,11 +32,13 @@
     "vite": "latest"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
     "@eslint/js": "9.39.1",
     "@testing-library/dom": "10.4.1",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "eslint": "9.39.1",
+    "eslint-plugin-jsx-a11y": "6.10.2",
     "eslint-plugin-react-hooks": "5.2.0",
     "eslint-plugin-react-refresh": "0.4.24",
     "globals": "16.5.0",
