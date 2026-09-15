@@ -60,6 +60,7 @@ describe("CurationQueue", () => {
     );
 
     expect(screen.getByText("Carregando fila de curadoria…")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
     expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
 
     resolveQueue(queuePayload);

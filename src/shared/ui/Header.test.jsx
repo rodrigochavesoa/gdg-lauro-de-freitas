@@ -141,4 +141,14 @@ describe("Header", () => {
     expect(screen.getByRole("link", { name: "Newsletter" })).toHaveAttribute("href", "/newsletter");
     expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
   });
+
+  it("fecha o menu móvel com Escape e devolve o foco ao botão", () => {
+    renderHeader({ logged: false });
+    const open = screen.getByRole("button", { name: "Abrir menu" });
+    fireEvent.click(open);
+    expect(document.getElementById("mobile-navigation")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+    expect(screen.getByRole("button", { name: "Abrir menu" })).toHaveFocus();
+  });
 });

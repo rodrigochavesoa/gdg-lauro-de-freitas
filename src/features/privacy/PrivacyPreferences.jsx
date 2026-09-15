@@ -138,7 +138,7 @@ export function PrivacyPreferences() {
   };
 
   return (
-    <main className="privacy-page">
+    <main id="conteudo" tabIndex={-1} className="privacy-page">
       <div className="shell privacy-shell">
         <div className="privacy-header">
           <div>

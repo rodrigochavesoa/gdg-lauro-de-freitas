@@ -73,7 +73,7 @@ export function MyApplications({ userId }) {
   const loading = status === "loading" && rows.length === 0;
 
   return (
-    <main className="detail-page" aria-busy={loading}>
+    <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy={loading}>
       <div className="shell">
         <h1>Minhas candidaturas</h1>
         {error ? <p className="tiny" role="alert">{error}</p> : null}

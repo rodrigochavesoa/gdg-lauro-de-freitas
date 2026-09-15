@@ -221,10 +221,10 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
 
   if (!ready) {
     return (
-      <main className="admin-page">
+      <main id="conteudo" tabIndex={-1} className="admin-page">
         <div className="shell admin-auth-shell">
           <section className="admin-content">
-            <p>Carregando área administrativa…</p>
+            <p role="status">Carregando área administrativa…</p>
           </section>
         </div>
         <AdminSurfaceCurve />
@@ -234,7 +234,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
 
   if (!profile) {
     return (
-      <main className="admin-page">
+      <main id="conteudo" tabIndex={-1} className="admin-page">
         <div className="shell admin-auth-shell">
           <section className="admin-content">
             <div className="admin-title">
@@ -277,7 +277,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   }
 
   return (
-    <main className="admin-page">
+    <main id="conteudo" tabIndex={-1} className="admin-page">
       <div className="shell admin-shell">
         <section className="admin-content">
           <div className="admin-tabs">
@@ -403,6 +403,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               </form>
               <div className="form-section admin-job-list">
                 <h2>Aguardando curadoria</h2>
+                {adminDataLoading ? <p role="status">Carregando vagas da área administrativa…</p> : null}
                 {pendingJobs.map((job) => (
                   <div key={job.id} className="admin-job-list-block">
                     <p>
@@ -417,7 +418,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     <CurationTimeline reviews={job.job_curation_reviews} />
                   </div>
                 ))}
-                {pendingJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga aguardando curadoria.</p>}
+                {pendingJobs.length === 0 && !adminDataLoading && <p role="status">Nenhuma vaga aguardando curadoria.</p>}
               </div>
               <details className="form-section admin-job-list">
                 <summary>Vagas publicadas</summary>

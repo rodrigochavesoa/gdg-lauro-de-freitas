@@ -59,7 +59,7 @@ describe("PrivacyPreferences", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Suas preferências de privacidade" })).toBeInTheDocument();
-    expect(screen.getByText("Necessário")).toBeInTheDocument();
+    expect(await screen.findByText("Necessário")).toBeInTheDocument();
     expect(screen.getByText("Em preparação. Esta finalidade não está disponível para escolha.")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Desativada" })).not.toBeChecked();
     expect(screen.getAllByText("pending_dpo").length).toBeGreaterThan(0);

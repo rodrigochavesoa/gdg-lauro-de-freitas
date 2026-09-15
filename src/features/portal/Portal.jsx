@@ -16,14 +16,14 @@ export function Portal({ logged = false, profile = null, email = "" }) {
   };
 
   return (
-    <main className="portal-page">
+    <main id="conteudo" tabIndex={-1} className="portal-page">
       <section className="prototype-hero prototype-hero--portal portal-hero" aria-labelledby="portal-title">
         <div className="shell prototype-hero__portal-layout">
           <div className="prototype-hero__copy">
             <div className="eyebrow"><Compass size={15} /> Explore novas possibilidades</div>
             <h1 id="portal-title">Seu futuro em tech <em>tem endereço.</em></h1>
             <p>Encontre uma vaga, conheça a comunidade e dê forma ao próximo capítulo da sua carreira.</p>
-            <form className="prototype-search" onSubmit={searchJobs} role="search">
+            <form className="prototype-search" onSubmit={searchJobs} role="search" aria-label="Buscar vagas">
               <Search size={18} aria-hidden="true" />
               <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Buscar vagas" />
               <button className="primary" type="submit">Buscar vagas <ArrowUpRight size={16} /></button>

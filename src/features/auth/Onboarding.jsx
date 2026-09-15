@@ -55,7 +55,7 @@ export function Onboarding({ profile, email, onSaved }) {
   };
 
   return (
-    <main className="admin-page">
+    <main id="conteudo" tabIndex={-1} className="admin-page">
       <section className="admin-content">
         <div className="admin-title">
           <div>

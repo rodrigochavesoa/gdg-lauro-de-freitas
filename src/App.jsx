@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "re
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { ScrollToTop } from "./shared/ui/ScrollToTop.jsx";
+import { SkipLink } from "./shared/ui/SkipLink.jsx";
 import { Home } from "./features/catalog/Home.jsx";
 import { Portal } from "./features/portal/Portal.jsx";
 import { EventosIndex } from "./features/events/Eventos.jsx";
@@ -63,6 +64,7 @@ export function App() {
   return (
     <>
       <ScrollToTop />
+      <SkipLink />
       <Header
         logged={Boolean(auth.session)}
         displayName={auth.profile?.full_name}
@@ -114,7 +116,7 @@ function LoginRoute({ auth }) {
 }
 
 function PrivacyPreferencesRoute({ auth, authReady }) {
-  if (!authReady) return <main className="privacy-page"><div className="shell privacy-loading">Carregando suas preferências…</div></main>;
+  if (!authReady) return <main id="conteudo" tabIndex={-1} className="privacy-page"><div className="shell privacy-loading" role="status">Carregando suas preferências…</div></main>;
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   return <PrivacyPreferences />;
@@ -227,7 +229,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
     return <JobDetailSkeleton goBack={goBack} backLabel={backLabel} />;
   }
   if (status === "missing" || status === "error") {
-    return <main className="detail-page"><div className="shell"><p>Vaga não encontrada ou indisponível.</p><button className="back" onClick={goBack}>{backLabel}</button></div></main>;
+    return <main id="conteudo" tabIndex={-1} className="detail-page"><div className="shell"><p role="status">Vaga não encontrada ou indisponível.</p><button className="back" type="button" onClick={goBack}>{backLabel}</button></div></main>;
   }
   if (status === "partial" || status === "ready") {
     return (

@@ -14,7 +14,7 @@ import {
   toggleFilterValue,
 } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsPage } from "./jobs-api.js";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 function mergeJobsById(current, incoming) {
   const seen = new Set(current.map((job) => String(job.id)));
@@ -33,7 +33,7 @@ function peekHomeCatalog(query) {
 }
 
 export function Home({ logged = false }) {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
   const [tech, setTech] = useState([]);
   const [level, setLevel] = useState([]);
@@ -98,14 +98,41 @@ export function Home({ logged = false }) {
   };
 
   const toggle = (item, values, setter) => setter(toggleFilterValue(item, values));
-  const reset = () => { setQuery(""); setTech([]); setLevel([]); setWorkModel([]); };
+  const commitQueryToUrl = (nextQuery) => {
+    const trimmed = String(nextQuery ?? "").trim();
+    const current = searchParams.get("query") ?? "";
+    if (trimmed === current) return;
+    const next = new URLSearchParams(searchParams);
+    if (trimmed) next.set("query", trimmed);
+    else next.delete("query");
+    setSearchParams(next, { replace: true });
+  };
+  const applyQuery = (nextQuery) => {
+    setQuery(nextQuery);
+    commitQueryToUrl(nextQuery);
+  };
+  const reset = () => {
+    setQuery("");
+    setTech([]);
+    setLevel([]);
+    setWorkModel([]);
+    commitQueryToUrl("");
+  };
   const activeFilterCount = tech.length + level.length + workModel.length;
   const displayedCount = resultCount ?? jobs.length;
   const hasMore = catalogStatus === "ready" && resultCount != null && jobs.length < resultCount;
+  const catalogAnnouncement =
+    catalogStatus === "loading" && jobs.length === 0
+      ? "Carregando vagas"
+      : catalogStatus === "error" && jobs.length === 0
+        ? "Catálogo indisponível"
+        : catalogStatus === "ready" && jobs.length === 0
+          ? "Nenhuma vaga encontrada"
+          : "";
 
-  const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><div className="searchbox"><Search size={21}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa"/><button className="primary" onClick={() => {}}>Buscar vagas <ArrowUpRight size={17}/></button></div><div className="popular">Populares: <button onClick={() => setQuery("React")}>React</button><button onClick={() => setQuery("Node")}>Node.js</button><button onClick={() => setQuery("Python")}>Python</button><button onClick={() => setQuery("Designer")}>Product Design</button></div>    </div></section>;
+  const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><form className="searchbox" role="search" aria-label="Buscar vagas no catálogo" onSubmit={(event) => { event.preventDefault(); commitQueryToUrl(query); }}><Search size={21} aria-hidden="true"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Cargo, tecnologia ou empresa"/><button className="primary" type="submit">Buscar vagas <ArrowUpRight size={17}/></button></form><div className="popular">Populares: <button type="button" onClick={() => applyQuery("React")}>React</button><button type="button" onClick={() => applyQuery("Node")}>Node.js</button><button type="button" onClick={() => applyQuery("Python")}>Python</button><button type="button" onClick={() => applyQuery("Designer")}>Product Design</button></div>    </div></section>;
 
-  return <main>
+  return <main id="conteudo" tabIndex={-1}>
     {standardHero}
     <div className="home-divider" aria-hidden="true">
       <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
@@ -135,10 +162,11 @@ export function Home({ logged = false }) {
           <SortMenu value={sortOrder} onChange={setSortOrder} />
         </div>
         <div className="cards">
+          {catalogAnnouncement ? <p className="sr-only" role="status">{catalogAnnouncement}</p> : null}
           {catalogStatus === "loading" && jobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
           {jobs.map(job => <JobCard key={job.id} job={job} />)}
-          {catalogStatus === "error" && jobs.length === 0 && <div className="empty"><Search size={32}/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}
-          {catalogStatus === "ready" && jobs.length === 0 && <div className="empty"><Search size={32}/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" onClick={reset}>Limpar filtros</button></div>}
+          {catalogStatus === "error" && jobs.length === 0 && <div className="empty"><Search size={32} aria-hidden="true"/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}
+          {catalogStatus === "ready" && jobs.length === 0 && <div className="empty"><Search size={32} aria-hidden="true"/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" type="button" onClick={reset}>Limpar filtros</button></div>}
         </div>
         {hasMore ? (
           <div className="catalog-more">
@@ -210,7 +238,26 @@ function SortMenu({ value, onChange }) {
 function FilterGroup({ label, values, active, toggle }) { return <div className="filter-group"><h3>{label}</h3>{values.map(value => <label key={value} className="checkline"><input type="checkbox" checked={active.includes(value)} onChange={() => toggle(value)} /><span className="check"><Check size={13}/></span>{value}</label>)}</div> }
 
 function JobCard({ job }) {
-  const navigate = useNavigate();
-  const openJob = () => navigate(`/jobs/${job.id}`, { state: { from: "/vagas" } });
-  return <article className="job-card" onClick={openJob}><div className="company-logo" style={{ background: job.color }}>{job.logo}</div><div className="job-main"><div className="job-title"><h3>{job.title}</h3>{job.featured && <span className="featured"><Sparkles size={13}/> Destaque</span>}</div><p className="company-name">{job.company} <BadgeCheck size={15}/></p><div className="meta"><span><MapPin size={15}/>{job.place}</span><span><BriefcaseBusiness size={15}/>{job.type}</span><span><CircleDollarSign size={15}/>{job.salary}</span></div><div className="tags">{(job.stack ?? []).map(t => <span key={t}>{t}</span>)}</div></div><div className="job-side"><span>{job.posted}</span><button className="round-arrow" aria-label={`Ver vaga ${job.title}`} onClick={(event) => { event.stopPropagation(); openJob(); }}><ArrowUpRight size={18}/></button></div></article>;
+  return (
+    <Link className="job-card" to={`/jobs/${job.id}`} state={{ from: "/vagas" }}>
+      <div className="company-logo" style={{ background: job.color }}>{job.logo}</div>
+      <div className="job-main">
+        <div className="job-title">
+          <h3>{job.title}</h3>
+          {job.featured && <span className="featured"><Sparkles size={13}/> Destaque</span>}
+        </div>
+        <p className="company-name">{job.company} <BadgeCheck size={15}/></p>
+        <div className="meta">
+          <span><MapPin size={15}/>{job.place}</span>
+          <span><BriefcaseBusiness size={15}/>{job.type}</span>
+          <span><CircleDollarSign size={15}/>{job.salary}</span>
+        </div>
+        <div className="tags">{(job.stack ?? []).map((t) => <span key={t}>{t}</span>)}</div>
+      </div>
+      <div className="job-side">
+        <span>{job.posted}</span>
+        <span className="round-arrow" aria-hidden="true"><ArrowUpRight size={18}/></span>
+      </div>
+    </Link>
+  );
 }

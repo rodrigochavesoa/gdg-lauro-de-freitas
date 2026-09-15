@@ -168,4 +168,44 @@ describe("Home", () => {
     expect(avatar).toHaveAttribute("height", "987");
     expect(avatar).not.toHaveAttribute("loading", "lazy");
   });
+
+  it("lê e escreve o param query existente na URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?query=Python"]}>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("Python");
+    fireEvent.click(screen.getByRole("button", { name: "React" }));
+    expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("React");
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "React", offset: 0 }));
+    });
+  });
+
+  it("anuncia catálogo vazio para tecnologias assistivas", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Python" }));
+    expect(await screen.findByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Nenhuma vaga encontrada");
+  });
+
+  it("abre o detalhe da vaga pelo card com teclado", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    const card = screen.getByRole("link", { name: /Pessoa Desenvolvedora Front-end/ });
+    expect(card).toHaveAttribute("href", "/jobs/1");
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(card).toHaveClass("job-card");
+  });
 });
