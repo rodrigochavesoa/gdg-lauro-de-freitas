@@ -2,7 +2,10 @@ import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 const APPLICATION_SELECT = "id,job_id,candidate_id,status,snapshot,created_at,updated_at";
 
-const APPLICATION_LIST_SELECT = `${APPLICATION_SELECT}, jobs ( title, companies ( name ) )`;
+/** Lista: sem snapshot (a UI não renderiza). Detalhe/RPC continua com APPLICATION_SELECT. */
+const APPLICATION_LIST_SELECT = "id,job_id,candidate_id,status,created_at,updated_at, jobs ( title, companies ( name ) )";
+
+export const APPLICATION_LIST_LIMIT = 100;
 
 export const APPLICATION_STATUS_COPY = {
   submitted: { label: "Enviada", title: "Candidatura enviada!", body: "Boa sorte — a empresa receberá seu perfil." },
@@ -193,7 +196,8 @@ export async function loadMyApplications(userIdOrOptions) {
       .from("applications")
       .select(APPLICATION_LIST_SELECT)
       .eq("candidate_id", candidateId)
-      .order("updated_at", { ascending: false });
+      .order("updated_at", { ascending: false })
+      .limit(APPLICATION_LIST_LIMIT);
     if (error) throw createApplyError(error);
     const rows = (data ?? []).map(parseApplication).filter(Boolean);
     myApplicationsCache.set(candidateId, { data: rows, fetchedAt: Date.now() });

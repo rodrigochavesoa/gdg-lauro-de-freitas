@@ -1,5 +1,12 @@
 import { mapJob } from "./map-job.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
+import {
+  mapLevelFiltersToDb,
+  mapWorkModelFiltersToDb,
+  SORT_OLDEST,
+  SORT_RECENT,
+  stackTermsForSearch,
+} from "./filter-jobs.js";
 
 const JOB_DETAIL_SELECT = `
   id,
@@ -37,46 +44,113 @@ const JOB_LIST_SELECT = `
   companies ( name )
 `;
 
-export const CATALOG_CACHE_TTL_MS = 30_000;
+const JOB_LIST_SELECT_SEARCH = `
+  id,
+  title,
+  stack,
+  level,
+  work_model,
+  location,
+  status,
+  approved_at,
+  created_at,
+  companies!inner ( name )
+`;
 
-let approvedJobsCache = { jobs: null, rows: null, fetchedAt: 0 };
-let approvedJobsInflight = null;
+export const CATALOG_CACHE_TTL_MS = 30_000;
+export const CATALOG_PAGE_SIZE = 24;
+
+const catalogCache = new Map();
+const catalogInflight = new Map();
 
 export function invalidateApprovedJobsCache() {
-  approvedJobsCache = { jobs: null, rows: null, fetchedAt: 0 };
-  approvedJobsInflight = null;
+  catalogCache.clear();
+  catalogInflight.clear();
 }
 
-function isCacheFresh() {
-  if (!approvedJobsCache.jobs) return false;
-  if (Date.now() - approvedJobsCache.fetchedAt > CATALOG_CACHE_TTL_MS) return false;
+function sortedCopy(values = []) {
+  return [...values].map(String).sort();
+}
+
+export function catalogCacheKey({
+  query = "",
+  tech = [],
+  level = [],
+  workModel = [],
+  sort = SORT_RECENT,
+} = {}) {
+  return JSON.stringify({
+    q: String(query ?? "").trim().toLowerCase(),
+    t: sortedCopy(tech),
+    l: sortedCopy(level),
+    w: sortedCopy(workModel),
+    s: sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+  });
+}
+
+function cacheEntryFresh(entry) {
+  if (!entry?.jobs) return false;
+  if (Date.now() - entry.fetchedAt > CATALOG_CACHE_TTL_MS) return false;
   return true;
 }
 
-export function peekApprovedJobsCache() {
-  if (!isCacheFresh()) return null;
-  return approvedJobsCache.jobs;
+export function peekApprovedJobsPage(params) {
+  const entry = catalogCache.get(catalogCacheKey(params));
+  if (!cacheEntryFresh(entry)) return null;
+  return { jobs: entry.jobs, count: entry.count, rows: entry.rows };
 }
 
-function peekApprovedJobRowsCache() {
-  if (!isCacheFresh()) return null;
-  return approvedJobsCache.rows;
+export function peekApprovedJobsCache(params) {
+  return peekApprovedJobsPage(params)?.jobs ?? null;
 }
 
-/** UX-PERF-03 — job parcial da lista (sem description/requirements). Não substitui loadApprovedJob. */
+/** UX-PERF-03 — job parcial das páginas já carregadas. Não substitui loadApprovedJob. */
 export function findApprovedJobInCache(id) {
-  const jobs = peekApprovedJobsCache();
-  if (!jobs || id == null || id === "") return null;
-  return jobs.find((job) => String(job.id) === String(id)) ?? null;
+  if (id == null || id === "") return null;
+  const needle = String(id);
+  for (const entry of catalogCache.values()) {
+    if (!cacheEntryFresh(entry)) continue;
+    const job = entry.jobs.find((item) => String(item.id) === needle);
+    if (job) return job;
+  }
+  return null;
 }
 
 function findApprovedJobRowInCache(id) {
-  const rows = peekApprovedJobRowsCache();
-  if (!rows || id == null || id === "") return null;
-  return rows.find((row) => String(row.id) === String(id)) ?? null;
+  if (id == null || id === "") return null;
+  const needle = String(id);
+  for (const entry of catalogCache.values()) {
+    if (!cacheEntryFresh(entry)) continue;
+    const row = entry.rows.find((item) => String(item.id) === needle);
+    if (row) return row;
+  }
+  return null;
 }
 
-/** Merge list row + heavy detail fields before mapJob (testável). */
+function mergeUniqueById(existing, incoming) {
+  const seen = new Set(existing.map((item) => String(item.id)));
+  const extra = incoming.filter((item) => !seen.has(String(item.id)));
+  return [...existing, ...extra];
+}
+
+export function quotePostgrestValue(value) {
+  return `"${String(value).replaceAll("\\", "\\\\").replaceAll('"', '\\"')}"`;
+}
+
+export function buildCatalogSearchOr(query) {
+  const trimmed = String(query ?? "").trim();
+  if (!trimmed) return null;
+  const pattern = `%${trimmed.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
+  const quoted = quotePostgrestValue(pattern);
+  const clauses = [`title.ilike.${quoted}`, `companies.name.ilike.${quoted}`];
+  const stackTerms = stackTermsForSearch(trimmed);
+  if (stackTerms.length > 0) {
+    const encoded = stackTerms.map((term) => quotePostgrestValue(term)).join(",");
+    clauses.push(`stack.ov.{${encoded}}`);
+  }
+  return clauses.join(",");
+}
+
 export function mergeJobDetailRows(listRow, heavyRow) {
   if (!listRow) return heavyRow ?? null;
   if (!heavyRow) return listRow;
@@ -91,11 +165,75 @@ export function mergeJobDetailRows(listRow, heavyRow) {
   };
 }
 
-export async function loadApprovedJobs({ forceRefresh = false } = {}) {
-  if (!forceRefresh) {
-    const cached = peekApprovedJobsCache();
-    if (cached) return cached;
-    if (approvedJobsInflight) return approvedJobsInflight;
+function normalizeCatalogOptions({
+  forceRefresh = false,
+  offset = 0,
+  query = "",
+  tech = [],
+  level = [],
+  workModel = [],
+  sort = SORT_RECENT,
+} = {}) {
+  return {
+    forceRefresh: Boolean(forceRefresh),
+    offset: Math.max(0, Number(offset) || 0),
+    query: String(query ?? "").trim(),
+    tech: [...tech],
+    level: [...level],
+    workModel: [...workModel],
+    sort: sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+  };
+}
+
+async function fetchApprovedJobsPage(client, options) {
+  const searchOr = buildCatalogSearchOr(options.query);
+  const select = searchOr ? JOB_LIST_SELECT_SEARCH : JOB_LIST_SELECT;
+  const levelEnums = mapLevelFiltersToDb(options.level);
+  const workModelEnums = mapWorkModelFiltersToDb(options.workModel);
+  const ascending = options.sort === SORT_OLDEST;
+  const from = options.offset;
+  const to = options.offset + CATALOG_PAGE_SIZE - 1;
+
+  let request = client
+    .from("jobs")
+    .select(select, { count: "exact" })
+    .eq("status", "approved");
+
+  if (options.tech.length > 0) {
+    request = request.overlaps("stack", options.tech);
+  }
+  if (levelEnums.length > 0) {
+    request = request.in("level", levelEnums);
+  }
+  if (workModelEnums.length > 0) {
+    request = request.in("work_model", workModelEnums);
+  }
+  if (searchOr) {
+    request = request.or(searchOr);
+  }
+
+  const { data, error, count } = await request
+    .order("approved_at", { ascending })
+    .order("id", { ascending })
+    .range(from, to);
+
+  if (error) throw error;
+  return { rows: data ?? [], count: count ?? (data ?? []).length };
+}
+
+export async function loadApprovedJobs(options = {}) {
+  const params = normalizeCatalogOptions(options);
+  const key = catalogCacheKey(params);
+  const inflightKey = `${key}:${params.offset}`;
+
+  if (!params.forceRefresh && params.offset === 0) {
+    const cached = peekApprovedJobsPage(params);
+    if (cached) return { jobs: cached.jobs, count: cached.count };
+    const inflight = catalogInflight.get(inflightKey);
+    if (inflight) return inflight;
+  } else if (!params.forceRefresh && params.offset > 0) {
+    const inflight = catalogInflight.get(inflightKey);
+    if (inflight) return inflight;
   }
 
   const client = getSupabaseBrowserClient();
@@ -104,27 +242,27 @@ export async function loadApprovedJobs({ forceRefresh = false } = {}) {
   }
 
   const request = (async () => {
-    const { data, error } = await client
-      .from("jobs")
-      .select(JOB_LIST_SELECT)
-      .eq("status", "approved")
-      .order("approved_at", { ascending: false });
-
-    if (error) {
-      throw error;
-    }
-
-    const rows = data ?? [];
+    const { rows, count } = await fetchApprovedJobsPage(client, params);
     const jobs = rows.map(mapJob);
-    approvedJobsCache = { jobs, rows, fetchedAt: Date.now() };
-    return jobs;
+    const previous = params.offset > 0 && !params.forceRefresh ? catalogCache.get(key) : null;
+    const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, rows) : rows;
+    const mergedJobs = previous?.jobs ? mergeUniqueById(previous.jobs, jobs) : jobs;
+    catalogCache.set(key, {
+      jobs: mergedJobs,
+      rows: mergedRows,
+      count,
+      fetchedAt: Date.now(),
+    });
+    return { jobs: mergedJobs, count };
   })();
 
-  approvedJobsInflight = request;
+  catalogInflight.set(inflightKey, request);
   try {
     return await request;
   } finally {
-    if (approvedJobsInflight === request) approvedJobsInflight = null;
+    if (catalogInflight.get(inflightKey) === request) {
+      catalogInflight.delete(inflightKey);
+    }
   }
 }
 

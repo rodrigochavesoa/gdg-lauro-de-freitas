@@ -9,7 +9,9 @@ vi.mock("./supabase-client.js", () => ({
 }));
 
 import {
+  buildCatalogSearchOr,
   CATALOG_CACHE_TTL_MS,
+  CATALOG_PAGE_SIZE,
   findApprovedJobInCache,
   invalidateApprovedJobsCache,
   JOB_DETAIL_HEAVY_SELECT,
@@ -18,28 +20,37 @@ import {
   mergeJobDetailRows,
 } from "./jobs-api.js";
 
-function mockApprovedQuery() {
-  const order = vi.fn().mockResolvedValue({
-    data: [
-      {
-        id: "1",
-        title: "Pessoa Desenvolvedora Front-end",
-        stack: ["React"],
-        level: "mid",
-        work_model: "remote",
-        location: "Brasil",
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        companies: { name: "Nuvem Lauro Demo" },
-      },
-    ],
-    error: null,
-  });
-  const eq = vi.fn().mockReturnValue({ order });
-  const select = vi.fn().mockReturnValue({ eq });
-  fromMock.mockReturnValue({ select });
-  return { order, eq, select };
+const SAMPLE_ROW = {
+  id: "1",
+  title: "Pessoa Desenvolvedora Front-end",
+  stack: ["React"],
+  level: "mid",
+  work_model: "remote",
+  location: "Brasil",
+  status: "approved",
+  approved_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+  companies: { name: "Nuvem Lauro Demo" },
+};
+
+function mockCatalogQuery({ data = [SAMPLE_ROW], count = data.length, error = null, pending } = {}) {
+  const builder = {};
+  const methods = ["select", "eq", "overlaps", "in", "or", "order", "range"];
+  for (const name of methods) {
+    builder[name] = vi.fn(() => {
+      if (name === "range") {
+        if (pending) {
+          return new Promise((resolve) => {
+            pending.resolveRange = () => resolve({ data, error, count });
+          });
+        }
+        return Promise.resolve({ data, error, count });
+      }
+      return builder;
+    });
+  }
+  fromMock.mockReturnValue(builder);
+  return builder;
 }
 
 function mockDetailChain({ data, selectCapture }) {
@@ -64,99 +75,150 @@ describe("loadApprovedJobs", () => {
     vi.useRealTimers();
   });
 
-  it("pede apenas status approved e mapeia as linhas", async () => {
-    const { eq, select } = mockApprovedQuery();
+  it("pede status approved, pagina 24, count exact e ordem estável", async () => {
+    const builder = mockCatalogQuery();
 
-    const jobs = await loadApprovedJobs();
+    const page = await loadApprovedJobs();
 
     expect(fromMock).toHaveBeenCalledWith("jobs");
-    expect(eq).toHaveBeenCalledWith("status", "approved");
-    expect(select.mock.calls[0][0]).not.toMatch(/description/);
-    expect(select.mock.calls[0][0]).not.toMatch(/requirements/);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].title).toBe("Pessoa Desenvolvedora Front-end");
-    expect(jobs[0].level).toBe("Pleno");
+    expect(builder.select).toHaveBeenCalledWith(expect.stringContaining("title"), { count: "exact" });
+    expect(builder.select.mock.calls[0][0]).not.toMatch(/description/);
+    expect(builder.select.mock.calls[0][0]).not.toMatch(/requirements/);
+    expect(builder.eq).toHaveBeenCalledWith("status", "approved");
+    expect(builder.order).toHaveBeenNthCalledWith(1, "approved_at", { ascending: false });
+    expect(builder.order).toHaveBeenNthCalledWith(2, "id", { ascending: false });
+    expect(builder.range).toHaveBeenCalledWith(0, CATALOG_PAGE_SIZE - 1);
+    expect(page.jobs).toHaveLength(1);
+    expect(page.count).toBe(1);
+    expect(page.jobs[0].title).toBe("Pessoa Desenvolvedora Front-end");
+    expect(page.jobs[0].level).toBe("Pleno");
+  });
+
+  it("ordena antiga com approved_at e id ascendentes", async () => {
+    const builder = mockCatalogQuery();
+    await loadApprovedJobs({ sort: "oldest" });
+    expect(builder.order).toHaveBeenNthCalledWith(1, "approved_at", { ascending: true });
+    expect(builder.order).toHaveBeenNthCalledWith(2, "id", { ascending: true });
+  });
+
+  it("envia busca e filtros na query PostgREST, não só no array", async () => {
+    const builder = mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({
+      query: "Nuvem",
+      tech: ["React"],
+      level: ["Pleno"],
+      workModel: ["Remoto"],
+    });
+
+    expect(builder.select.mock.calls[0][0]).toMatch(/companies!inner/);
+    expect(builder.overlaps).toHaveBeenCalledWith("stack", ["React"]);
+    expect(builder.in).toHaveBeenCalledWith("level", ["mid"]);
+    expect(builder.in).toHaveBeenCalledWith("work_model", ["remote"]);
+    expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("title.ilike."));
+    expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("companies.name.ilike."));
+    expect(builder.or.mock.calls[0][0]).toMatch(/stack\.ov\./);
+  });
+
+  it("mapeia Sênior para senior e lead", async () => {
+    const builder = mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({ level: ["Sênior"] });
+    expect(builder.in).toHaveBeenCalledWith("level", ["senior", "lead"]);
   });
 
   it("reusa o cache na segunda chamada dentro do TTL", async () => {
-    mockApprovedQuery();
+    mockCatalogQuery();
 
     const first = await loadApprovedJobs();
     const second = await loadApprovedJobs();
 
     expect(fromMock).toHaveBeenCalledTimes(1);
-    expect(second).toBe(first);
+    expect(second.jobs).toBe(first.jobs);
+    expect(second.count).toBe(first.count);
+  });
+
+  it("não reusa cache de outro conjunto de filtros", async () => {
+    mockCatalogQuery();
+    await loadApprovedJobs();
+    mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({ query: "Python" });
+    expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it("refaz o fetch depois que o TTL expira", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-08T00:00:00.000Z"));
-    mockApprovedQuery();
+    mockCatalogQuery();
 
     await loadApprovedJobs();
     expect(fromMock).toHaveBeenCalledTimes(1);
 
     vi.setSystemTime(new Date("2026-09-08T00:00:00.000Z").getTime() + CATALOG_CACHE_TTL_MS + 1);
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs();
 
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it("ignora o cache quando forceRefresh é true", async () => {
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs();
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs({ forceRefresh: true });
     expect(fromMock).toHaveBeenCalledTimes(2);
   });
 
   it("deduplica fetches concorrentes enquanto o primeiro está em voo", async () => {
-    let resolveOrder;
-    const order = vi.fn().mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveOrder = () =>
-            resolve({
-              data: [
-                {
-                  id: "1",
-                  title: "Pessoa Desenvolvedora Front-end",
-                  stack: ["React"],
-                  level: "mid",
-                  work_model: "remote",
-                  location: "Brasil",
-                  status: "approved",
-                  approved_at: new Date().toISOString(),
-                  created_at: new Date().toISOString(),
-                  companies: { name: "Nuvem Lauro Demo" },
-                },
-              ],
-              error: null,
-            });
-        }),
-    );
-    const eq = vi.fn().mockReturnValue({ order });
-    const select = vi.fn().mockReturnValue({ eq });
-    fromMock.mockReturnValue({ select });
+    const pending = {};
+    mockCatalogQuery({ pending });
 
     const first = loadApprovedJobs();
     const second = loadApprovedJobs();
     expect(fromMock).toHaveBeenCalledTimes(1);
-    resolveOrder();
+    pending.resolveRange();
     const [a, b] = await Promise.all([first, second]);
-    expect(a).toBe(b);
-    expect(a).toHaveLength(1);
+    expect(a.jobs).toBe(b.jobs);
+    expect(a.jobs).toHaveLength(1);
+  });
+
+  it("append de carregar mais acumula páginas já carregadas", async () => {
+    const firstRow = { ...SAMPLE_ROW, id: "1" };
+    const secondRow = { ...SAMPLE_ROW, id: "2", title: "Outra vaga" };
+    mockCatalogQuery({ data: [firstRow], count: 25 });
+    const first = await loadApprovedJobs();
+    expect(first.jobs).toHaveLength(1);
+
+    const builder = mockCatalogQuery({ data: [secondRow], count: 25 });
+    const appended = await loadApprovedJobs({ offset: 24 });
+    expect(builder.range).toHaveBeenCalledWith(24, 24 + CATALOG_PAGE_SIZE - 1);
+    expect(appended.jobs.map((job) => job.id)).toEqual(["1", "2"]);
+    expect(appended.count).toBe(25);
+    expect(findApprovedJobInCache("2")?.title).toBe("Outra vaga");
   });
 
   it("findApprovedJobInCache devolve o job parcial da lista e null fora do cache", async () => {
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs();
     expect(findApprovedJobInCache("1")?.title).toBe("Pessoa Desenvolvedora Front-end");
     expect(findApprovedJobInCache("1")?.description).toBeUndefined();
     expect(findApprovedJobInCache("missing")).toBeNull();
     invalidateApprovedJobsCache();
     expect(findApprovedJobInCache("1")).toBeNull();
+  });
+});
+
+describe("buildCatalogSearchOr", () => {
+  it("busca título, empresa e stack na mesma cláusula or", () => {
+    const clause = buildCatalogSearchOr("React");
+    expect(clause).toContain("title.ilike.");
+    expect(clause).toContain("companies.name.ilike.");
+    expect(clause).toContain("stack.ov.");
+    expect(clause).toContain("React");
+  });
+
+  it("escapa % e aspas do termo", () => {
+    const clause = buildCatalogSearchOr('100% "x"');
+    expect(clause).toContain("\\%");
+    expect(clause).not.toMatch(/title\.ilike\.%100%/);
   });
 });
 
@@ -190,7 +252,7 @@ describe("loadApprovedJob", () => {
   });
 
   it("cache hit usa só JOB_DETAIL_HEAVY_SELECT e faz merge", async () => {
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs();
     fromMock.mockReset();
 
@@ -250,7 +312,7 @@ describe("loadApprovedJob", () => {
   });
 
   it("cache hit sem heavy row devolve null", async () => {
-    mockApprovedQuery();
+    mockCatalogQuery();
     await loadApprovedJobs();
     fromMock.mockReset();
     mockDetailChain({ data: null });

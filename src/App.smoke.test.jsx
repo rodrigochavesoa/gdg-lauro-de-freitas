@@ -117,10 +117,52 @@ vi.mock("./features/catalog/jobs-api.js", () => {
       responsibilities: ["Pipelines"],
     },
   ];
+
+  function filterCatalog(opts = {}) {
+    const query = String(opts.query ?? "").toLowerCase();
+    let rows = [...catalogJobs];
+    if (query) {
+      rows = rows.filter((job) =>
+        `${job.title} ${job.company} ${job.stack.join(" ")}`.toLowerCase().includes(query),
+      );
+    }
+    const tech = opts.tech ?? [];
+    if (tech.length) {
+      rows = rows.filter((job) =>
+        tech.some((item) => job.stack.join(" ").toLowerCase().includes(item.toLowerCase())),
+      );
+    }
+    const level = opts.level ?? [];
+    if (level.length) {
+      rows = rows.filter((job) => level.includes(job.level));
+    }
+    const workModel = opts.workModel ?? [];
+    if (workModel.length) {
+      rows = rows.filter((job) => workModel.includes(job.type));
+    }
+    rows.sort((left, right) => {
+      const delta = Date.parse(right.postedAt) - Date.parse(left.postedAt);
+      return opts.sort === "oldest" ? -delta : delta;
+    });
+    const offset = opts.offset ?? 0;
+    const limit = opts.limit ?? 24;
+    return { jobs: rows.slice(offset, offset + limit), count: rows.length };
+  }
+
   return {
     findApprovedJobInCache: (id) => catalogJobs.find((job) => String(job.id) === String(id)) ?? null,
     peekApprovedJobsCache: () => catalogJobs,
-    loadApprovedJobs: async () => catalogJobs,
+    peekApprovedJobsPage: (params) => {
+      const query = params?.query ?? "";
+      const tech = params?.tech ?? [];
+      const level = params?.level ?? [];
+      const workModel = params?.workModel ?? [];
+      if (query || tech.length || level.length || workModel.length || params?.sort === "oldest") {
+        return filterCatalog(params);
+      }
+      return { jobs: catalogJobs, count: catalogJobs.length };
+    },
+    loadApprovedJobs: async (opts = {}) => filterCatalog(opts),
     loadApprovedJob: async (id) => ({
       id,
       title: "Pessoa Desenvolvedora Front-end",
@@ -138,6 +180,7 @@ vi.mock("./features/catalog/jobs-api.js", () => {
       about: "Empresa fictícia",
       responsibilities: ["Construir interfaces"],
     }),
+    CATALOG_PAGE_SIZE: 24,
   };
 });
 
@@ -212,9 +255,11 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(trigger).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(screen.getByRole("option", { name: "Mais antigas" }));
     expect(screen.getByRole("button", { name: /Mais antigas/i })).toHaveAttribute("aria-expanded", "false");
-    const titles = screen.getAllByRole("article").map((card) => within(card).getByRole("heading").textContent);
-    expect(titles[0]).toBe("Pessoa Engenheira de Dados");
-    expect(titles[titles.length - 1]).toBe("Pessoa Desenvolvedora Front-end");
+    await waitFor(() => {
+      const titles = screen.getAllByRole("article").map((card) => within(card).getByRole("heading").textContent);
+      expect(titles[0]).toBe("Pessoa Engenheira de Dados");
+      expect(titles[titles.length - 1]).toBe("Pessoa Desenvolvedora Front-end");
+    });
   });
 
   it("navega para Eventos pelo menu principal", async () => {

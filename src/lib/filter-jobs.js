@@ -1,3 +1,72 @@
+export const CATALOG_TECHNOLOGIES = ["React", "Node.js", "TypeScript", "Python", "UX/UI", "Dados"];
+export const CATALOG_LEVELS = ["Estágio", "Júnior", "Pleno", "Sênior"];
+export const CATALOG_WORK_MODELS = ["Remoto", "Híbrido", "Presencial"];
+
+/** Tags extras do seed / catálogo para busca de stack na query (sem coluna nova). */
+export const CATALOG_SEARCH_STACK_TERMS = [
+  ...CATALOG_TECHNOLOGIES,
+  "Next.js",
+  "PostgreSQL",
+  "AWS",
+  "Figma",
+  "UX Research",
+  "Design System",
+  "SQL",
+  "Databricks",
+];
+
+const LEVEL_LABEL_TO_DB = {
+  Estágio: ["intern"],
+  Júnior: ["junior"],
+  Pleno: ["mid"],
+  Sênior: ["senior", "lead"],
+  intern: ["intern"],
+  junior: ["junior"],
+  mid: ["mid"],
+  senior: ["senior", "lead"],
+  lead: ["lead"],
+};
+
+const WORK_MODEL_LABEL_TO_DB = {
+  Remoto: "remote",
+  Híbrido: "hybrid",
+  Presencial: "onsite",
+  remote: "remote",
+  hybrid: "hybrid",
+  onsite: "onsite",
+};
+
+export function mapLevelFiltersToDb(levelLabels = []) {
+  const enums = [];
+  for (const label of levelLabels) {
+    const mapped = LEVEL_LABEL_TO_DB[label];
+    if (mapped) enums.push(...mapped);
+  }
+  return [...new Set(enums)];
+}
+
+export function mapWorkModelFiltersToDb(workModels = []) {
+  const enums = [];
+  for (const label of workModels) {
+    const mapped = WORK_MODEL_LABEL_TO_DB[label];
+    if (mapped) enums.push(mapped);
+  }
+  return [...new Set(enums)];
+}
+
+export function stackTermsForSearch(query, dictionary = CATALOG_SEARCH_STACK_TERMS) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const matched = dictionary.filter(
+    (term) => term.toLowerCase().includes(q) || q.includes(term.toLowerCase()),
+  );
+  const exact = query.trim();
+  if (exact && !matched.some((term) => term.toLowerCase() === exact.toLowerCase())) {
+    matched.push(exact);
+  }
+  return matched;
+}
+
 export function filterJobs(jobs, { query = "", tech = [], level = [], workModel = [] } = {}) {
   const normalizedQuery = query.toLowerCase();
 
