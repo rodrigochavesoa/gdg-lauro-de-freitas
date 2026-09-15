@@ -65,7 +65,7 @@ export function EventosIndex({ logged = false }) {
   const activeFilterCount = status.length + format.length;
 
   return (
-    <main>
+    <main id="conteudo" tabIndex={-1}>
       <section className="hero">
         <div className="shell hero-content">
           <div className="eyebrow"><CalendarDays size={15} /> {EVENTS_INDEX.eyebrow}</div>

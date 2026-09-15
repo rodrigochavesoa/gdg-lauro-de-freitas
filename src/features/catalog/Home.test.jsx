@@ -1,6 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { filterJobs } from "../../lib/filter-jobs.js";
 
@@ -38,6 +38,16 @@ vi.mock("./jobs-api.js", () => ({
 }));
 
 import { Home } from "./Home.jsx";
+
+function CatalogHistory({ to }) {
+  const navigate = useNavigate();
+  return (
+    <div>
+      <button type="button" onClick={() => navigate(to)}>Abrir busca</button>
+      <button type="button" onClick={() => navigate(-1)}>Voltar</button>
+    </div>
+  );
+}
 
 function pageFor(options = {}) {
   const filtered = filterJobs([cachedJob], options);
@@ -167,5 +177,64 @@ describe("Home", () => {
     expect(avatar).toHaveAttribute("width", "1169");
     expect(avatar).toHaveAttribute("height", "987");
     expect(avatar).not.toHaveAttribute("loading", "lazy");
+  });
+
+  it("lê e escreve o param query existente na URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?query=Python"]}>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("Python");
+    fireEvent.click(screen.getByRole("button", { name: "React" }));
+    expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("React");
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "React", offset: 0 }));
+    });
+  });
+
+  it("sincroniza o param query com voltar e avançar do histórico", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?query=Python"]}>
+        <CatalogHistory to="/vagas?query=React" />
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("Python");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir busca" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("React");
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    await waitFor(() => {
+      expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("Python");
+    });
+  });
+
+  it("anuncia catálogo vazio para tecnologias assistivas", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Python" }));
+    expect(await screen.findByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Nenhuma vaga encontrada");
+  });
+
+  it("abre o detalhe da vaga pelo card com teclado", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    const card = screen.getByRole("link", { name: /Pessoa Desenvolvedora Front-end/ });
+    expect(card).toHaveAttribute("href", "/jobs/1");
+    fireEvent.keyDown(card, { key: "Enter" });
+    expect(card).toHaveClass("job-card");
   });
 });

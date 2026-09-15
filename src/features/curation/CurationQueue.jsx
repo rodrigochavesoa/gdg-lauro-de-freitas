@@ -126,7 +126,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
           </p>
         </div>
       </div>
-      {loading && <p>Carregando fila de curadoria…</p>}
+      {loading && <p role="status">Carregando fila de curadoria…</p>}
       {message && (
         <div className="success">
           <Check size={18} /> {message}
@@ -139,7 +139,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
       )}
       <div className="form-section">
         <h2>Vagas pending</h2>
-        {queue.length === 0 && !loading && <p>Nenhuma vaga pendente nesta fila.</p>}
+        {queue.length === 0 && !loading && <p role="status">Nenhuma vaga pendente nesta fila.</p>}
         {queue.map((job) => (
           <p key={job.id}>
             <button

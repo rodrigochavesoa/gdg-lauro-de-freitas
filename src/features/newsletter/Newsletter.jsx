@@ -9,7 +9,7 @@ function inertActivate(event) {
 
 export function Newsletter({ logged = false }) {
   return (
-    <main>
+    <main id="conteudo" tabIndex={-1}>
       <section className="hero">
         <div className="shell hero-content">
           <div className="eyebrow"><Mail size={15} /> {copy.eyebrow}</div>

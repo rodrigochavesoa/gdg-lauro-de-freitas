@@ -215,8 +215,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("heading", { name: /Seu futuro em tech tem endereço/i })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Vagas em destaque" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
-    fireEvent.change(screen.getByRole("search").querySelector("input"), { target: { value: "React" } });
-    fireEvent.submit(screen.getByRole("search"));
+    fireEvent.change(screen.getByRole("search", { name: "Buscar vagas" }).querySelector("input"), { target: { value: "React" } });
+    fireEvent.submit(screen.getByRole("search", { name: "Buscar vagas" }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Cargo, tecnologia ou empresa")).toHaveValue("React");
   });
@@ -256,7 +256,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     fireEvent.click(screen.getByRole("option", { name: "Mais antigas" }));
     expect(screen.getByRole("button", { name: /Mais antigas/i })).toHaveAttribute("aria-expanded", "false");
     await waitFor(() => {
-      const titles = screen.getAllByRole("article").map((card) => within(card).getByRole("heading").textContent);
+      const titles = [...document.querySelectorAll("a.job-card")].map((card) => within(card).getByRole("heading").textContent);
       expect(titles[0]).toBe("Pessoa Engenheira de Dados");
       expect(titles[titles.length - 1]).toBe("Pessoa Desenvolvedora Front-end");
     });
@@ -378,7 +378,7 @@ describe("ARQ-01 — caracterização do shell", () => {
 
   it("abre o detalhe da vaga a partir do catálogo", async () => {
     await renderHome();
-    fireEvent.click(screen.getByRole("button", { name: "Ver vaga Pessoa Desenvolvedora Front-end" }));
+    fireEvent.click(screen.getByRole("link", { name: /Pessoa Desenvolvedora Front-end/ }));
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
@@ -460,6 +460,17 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
     fireEvent.click(screen.getByRole("link", { name: "Entrar ou criar conta" }));
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
+  });
+
+  it("expõe skip link e landmark main nas rotas do MVP-019", async () => {
+    const routes = ["/", "/vagas", "/jobs/1", "/login", "/admin"];
+    for (const path of routes) {
+      const { unmount } = render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
+      expect(screen.getByRole("link", { name: "Ir para o conteúdo" })).toHaveAttribute("href", "#conteudo");
+      const main = document.querySelector("main#conteudo");
+      expect(main).toBeTruthy();
+      unmount();
+    }
   });
 
   it("mostra sessão no Header quando o adaptador devolve usuário", async () => {

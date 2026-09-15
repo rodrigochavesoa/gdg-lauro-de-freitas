@@ -7,7 +7,7 @@ import { APPLICATION_STATUS_COPY, canWithdrawStatus } from "./apply-api.js";
 
 export function JobDetailSkeleton({ goBack, backLabel = "Voltar para vagas" }) {
   return (
-    <main className="detail-page" aria-busy="true" aria-live="polite">
+    <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy="true" aria-live="polite">
       <div className="shell">
         <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
         <div className="detail-grid">
@@ -95,9 +95,9 @@ export function JobDetail({
   const showWithdraw = !showChecking && !applicationCheckFailed && canWithdrawStatus(applicationStatus);
 
   return (
-    <main className="detail-page" aria-busy={isPartial || undefined}>
+    <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy={isPartial || undefined}>
       <div className="shell">
-        <button className="back" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
+        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
         <div className="detail-grid">
           <article className="detail-main">
             <div className="detail-top">
@@ -158,12 +158,12 @@ export function JobDetail({
               </div>
             ) : null}
             {showApply ? (
-              <button className="primary apply" onClick={apply} disabled={applyBusy}>
+              <button className="primary apply" type="button" onClick={apply} disabled={applyBusy}>
                 <Send size={17}/> {applyBusy ? "Enviando…" : "Candidatar-se com 1 clique"}
               </button>
             ) : null}
             {showWithdraw ? (
-              <button className="outline apply" onClick={() => onWithdraw?.()} disabled={applyBusy}>
+              <button className="outline apply" type="button" onClick={() => onWithdraw?.()} disabled={applyBusy}>
                 {applyBusy ? "Retirando…" : "Retirar candidatura"}
               </button>
             ) : null}

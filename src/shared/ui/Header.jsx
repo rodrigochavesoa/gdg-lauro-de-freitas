@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
@@ -32,6 +32,15 @@ export function Header({ logged, displayName, role, onSignOut }) {
     closeMobileMenu();
   };
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const onKey = (event) => {
+      if (event.key === "Escape") closeMobileMenu();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [mobileMenuOpen]);
+
   const staff = Boolean(logged && isStaffRole(role));
   const candidate = Boolean(logged && !staff);
   const showAuthCta = !logged && pathname !== "/login" && pathname !== "/admin";
@@ -56,7 +65,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
           <span className="brand-mark"><img src="/favicon.svg" alt="" /></span>
           <span className="brand-name">GDG <span className="brand-accent">Jobs</span></span>
         </Link>
-        <nav>
+        <nav aria-label="Principal">
           {navLinks()}
         </nav>
         <div className="nav-actions">
@@ -80,6 +89,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
           )}
           <button
             ref={menuButtonRef}
+            type="button"
             className="menu"
             onClick={() => setMobileMenuOpen((open) => !open)}
             aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
@@ -91,7 +101,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
         </div>
       </div>
       {mobileMenuOpen && (
-        <div id="mobile-navigation" className="mobile-nav open">
+        <div id="mobile-navigation" className="mobile-nav open" role="navigation" aria-label="Menu móvel">
           {navLinks(closeMobileMenu)}
           {logged ? (
             <button type="button" onClick={signOut}><LogOut size={17} /> Sair</button>

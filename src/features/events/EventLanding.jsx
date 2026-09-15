@@ -11,7 +11,7 @@ export function EventLanding({ event }) {
   const portrait = event.banner.fit === "contain";
 
   return (
-    <main>
+    <main id="conteudo" tabIndex={-1}>
       <section className="hero">
         <div className="shell hero-content">
           <div className={`event-banner-wrap event-banner-wrap--seamless${portrait ? " event-banner-wrap--wide" : ""}`}>

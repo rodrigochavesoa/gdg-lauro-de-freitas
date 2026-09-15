@@ -20,9 +20,9 @@ export function Login() {
   };
 
   return (
-    <main className="login-page">
+    <main id="conteudo" tabIndex={-1} className="login-page">
       <section className="login-panel">
-        <button className="login-dynamic-brand" onClick={() => location.reload()} aria-label="GDGJobs — vagas em tempo real. Atualizar página de login">
+        <button type="button" className="login-dynamic-brand" onClick={() => location.reload()} aria-label="GDGJobs — vagas em tempo real. Atualizar página de login">
           <LoginDynamicBrand />
         </button>
         <img className="login-illustration" src="/login-gdg-illustration.svg" alt="" aria-hidden="true" />
