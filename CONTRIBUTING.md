@@ -144,10 +144,12 @@ Respeitar a função de cada agente. **Confusão de papéis invalida a entrega**
 | Papel | Faz | **Não faz** |
 |---|---|---|
 | **Executor frontend** | ONE-LINER de UI; implementar; Vitest/smoke; `lint`/`test`/`build`; PR após **Sim** | Auditoria visual browser; parecer “layout ok” só lendo TSX; preencher assessment *Pass* sem evidência |
-| **Frontend Visual QA** | ONE-LINER de homolog/DS-05; **Playwriter CLI** + scripts (`_audit.mjs`); screenshots light/dark em `docs-local/assets/`; relatório + assessment — **não** browser MCP no chat (§ tokens em [`docs-local/setup-visual-qa-tools.md`](docs-local/setup-visual-qa-tools.md)) | Implementar features; push em `main`; substituir Plan; Playwright MCP; auditoria completa via chrome-devtools-mcp no chat |
+| **Frontend Visual QA** | ONE-LINER de homolog/DS-05; **Playwriter CLI** + scripts (`_audit.mjs`, `pnpm qa:a11y`); screenshots e JSON light/dark em `docs-local/assets/`; relatório + assessment — **não** browser MCP no chat (§ tokens em [`docs-local/setup-visual-qa-tools.md`](docs-local/setup-visual-qa-tools.md)) | Implementar features; push em `main`; substituir Plan; Playwright MCP; auditoria completa via chrome-devtools-mcp no chat; declarar certificação WCAG |
 | **Plan Tech Lead** | ONE-LINER; **revisão** de entregas do Executor (aprovar / reprovar / aprovar com ressalvas); diagnóstico; backlog; decisões técnicas; **Sim** antes de push/PR | **Executar** `pnpm test`, `pnpm test:rls`, `pnpm lint`, `build`; editar código de produto; preencher assessment/checklist de execução; commit; push; abrir PR de implementação |
 | **Executor** | Branch → implementar ou **executar** ONE-LINER (comandos, docs preenchidos com log real) → validar → commit na branch → PR após **Sim** | Decisão de negócio; segredos reais; push em `main`; iniciar sem ONE-LINER |
 | **Humano (PO/mantenedor)** | C-05, credenciais, merge squash, testes manuais browser quando ONE-LINER pedir; aceite DS-05/PO | — |
+
+`pnpm qa:a11y` gera baseline axe-core **report-only** em `docs-local/assets/a11y-gov-01/`. É ferramenta local (como `pnpm qa:admin-nav`): **não** entra no CI, **não** é declaração pública e **não** afirma certificação WCAG.
 
 **Regra explícita:** se o ONE-LINER diz “Executor roda X”, o **Plan não roda X** — só publica o ONE-LINER e revisa o resultado. Se o Plan executou por engano, o Executor **reexecuta** e corrige artefatos (registrar no PR: “Revalidado pelo Executor”).
 

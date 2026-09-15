@@ -89,6 +89,7 @@ html[data-theme="dark"] {
   --color-danger-700: #fb7185;
   --shadow-card: 0 8px 24px rgb(0 0 0 / 36%);
   --color-brand-wordmark: #f4f4f5;
+  --color-brand-accent: #93c5fd;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -118,6 +119,7 @@ html[data-theme="dark"] {
     --color-danger-700: #fb7185;
     --shadow-card: 0 8px 24px rgb(0 0 0 / 36%);
     --color-brand-wordmark: #f4f4f5;
+    --color-brand-accent: #93c5fd;
   }
 }
 

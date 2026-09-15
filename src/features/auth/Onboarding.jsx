@@ -143,7 +143,7 @@ export function Onboarding({ profile, email, onSaved }) {
             </div>
           </div>
           {error && (
-            <div className="success" role="alert">
+            <div className="form-alert" role="alert">
               {error}
             </div>
           )}

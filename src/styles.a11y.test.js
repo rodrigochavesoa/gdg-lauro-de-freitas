@@ -25,6 +25,7 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
   it("usa tokens no dark para muted, danger e CTA do portal", () => {
     expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-text-muted:\s*#d4d4d8/);
     expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-danger-700:\s*#fb7185/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-brand-accent:\s*#93c5fd/);
     expect(css).toMatch(/\.form-alert\{[^}]*border:1px solid var\(--color-danger-700\)/);
     expect(css).toMatch(/\.portal-member-cta__copy p\{color:var\(--color-on-brand-muted\)\}/);
     expect(css).toMatch(/\.portal-member-cta__secondary\{[^}]*color:var\(--color-on-brand\)/);
