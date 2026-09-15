@@ -81,9 +81,16 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   );
 
   const refreshAdmin = async () => {
-    const [companyRows, jobRows] = await Promise.all([loadCompanies(), loadAdminJobs()]);
-    setCompanies(companyRows);
-    setJobs(jobRows);
+    try {
+      const [companyRows, jobRows] = await Promise.all([loadCompanies(), loadAdminJobs()]);
+      setCompanies(companyRows);
+      setJobs(jobRows);
+      setError("");
+    } catch (err) {
+      setCompanies([]);
+      setJobs([]);
+      setError(err.message || "Não foi possível carregar as vagas da área administrativa.");
+    }
   };
 
   useEffect(() => {
@@ -418,7 +425,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     <CurationTimeline reviews={job.job_curation_reviews} />
                   </div>
                 ))}
-                {pendingJobs.length === 0 && !adminDataLoading && <p role="status">Nenhuma vaga aguardando curadoria.</p>}
+                {pendingJobs.length === 0 && !adminDataLoading && !error && <p role="status">Nenhuma vaga aguardando curadoria.</p>}
               </div>
               <details className="form-section admin-job-list">
                 <summary>Vagas publicadas</summary>
@@ -435,7 +442,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     <CurationTimeline reviews={job.job_curation_reviews} />
                   </div>
                 ))}
-                {publishedJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga publicada.</p>}
+                {publishedJobs.length === 0 && !adminDataLoading && !error && <p>Nenhuma vaga publicada.</p>}
               </details>
               <details className="form-section admin-job-list">
                 <summary>Vagas rejeitadas</summary>
@@ -452,7 +459,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     <CurationTimeline reviews={job.job_curation_reviews} />
                   </div>
                 ))}
-                {rejectedJobs.length === 0 && !adminDataLoading && <p>Nenhuma vaga rejeitada.</p>}
+                {rejectedJobs.length === 0 && !adminDataLoading && !error && <p>Nenhuma vaga rejeitada.</p>}
               </details>
             </div>
           )}

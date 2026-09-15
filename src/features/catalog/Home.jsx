@@ -34,7 +34,8 @@ function peekHomeCatalog(query) {
 
 export function Home({ logged = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get("query") ?? "");
+  const urlQuery = searchParams.get("query") ?? "";
+  const [query, setQuery] = useState(() => urlQuery);
   const [tech, setTech] = useState([]);
   const [level, setLevel] = useState([]);
   const [workModel, setWorkModel] = useState([]);
@@ -44,6 +45,10 @@ export function Home({ logged = false }) {
   const [resultCount, setResultCount] = useState(() => peekHomeCatalog(searchParams.get("query"))?.count ?? null);
   const [catalogStatus, setCatalogStatus] = useState(() => (peekHomeCatalog(searchParams.get("query")) ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
+
+  useEffect(() => {
+    setQuery((current) => (current === urlQuery ? current : urlQuery));
+  }, [urlQuery]);
 
   useEffect(() => {
     let cancelled = false;

@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -255,5 +255,23 @@ describe("Admin", () => {
     expect(within(alert).getByText("Descrição é obrigatória.")).toBeInTheDocument();
     expect(within(alert).getByText("Selecione uma empresa ou informe o nome de uma empresa fictícia.")).toBeInTheDocument();
     expect(within(alert).getByText("Nível é obrigatório.")).toBeInTheDocument();
+  });
+
+  it("anuncia erro acessível quando o carregamento das vagas falha", async () => {
+    loadAdminJobs.mockRejectedValue(new Error("Falha ao listar vagas"));
+    renderAdmin(
+      <Admin
+        authReady
+        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+      />,
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveClass("form-alert");
+    expect(alert).toHaveTextContent("Falha ao listar vagas");
+    await waitFor(() => {
+      expect(screen.queryByText("Nenhuma vaga aguardando curadoria.")).not.toBeInTheDocument();
+    });
   });
 });

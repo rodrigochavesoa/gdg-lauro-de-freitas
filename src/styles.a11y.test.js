@@ -12,6 +12,8 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
     expect(css).toMatch(/\.job-card:focus-visible/);
     expect(css).toMatch(/\.sr-only\{/);
     expect(css).toMatch(/#conteudo\{scroll-margin-top:80px\}/);
+    expect(css).toMatch(/\.skip-link\{[^}]*padding:var\(--space-3\) var\(--space-4\)/);
+    expect(css).not.toMatch(/\.skip-link\{[^}]*padding:10px 14px/);
   });
 
   it("desliga animações longas com prefers-reduced-motion", () => {
