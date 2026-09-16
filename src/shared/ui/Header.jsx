@@ -22,14 +22,28 @@ function isStaffRole(role) {
   return STAFF_ROLES.includes(role);
 }
 
-export function Header({ logged, displayName, role, onSignOut }) {
+export function Header({ logged, displayName, role, onSignOut, needsOnboarding = false }) {
   const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [gateNotice, setGateNotice] = useState("");
   const menuButtonRef = useRef(null);
   const closeMobileMenu = () => { menuButtonRef.current?.focus(); setMobileMenuOpen(false); };
   const signOut = async () => {
     await onSignOut?.();
     closeMobileMenu();
+  };
+
+  useEffect(() => {
+    if (!needsOnboarding) setGateNotice("");
+  }, [needsOnboarding]);
+
+  const onGatedClick = (event, extra) => {
+    if (needsOnboarding) {
+      event.preventDefault();
+      setGateNotice("Complete o perfil para continuar");
+      return;
+    }
+    extra?.(event);
   };
 
   useEffect(() => {
@@ -47,13 +61,13 @@ export function Header({ logged, displayName, role, onSignOut }) {
 
   const navLinks = (onNavigate) => (
     <>
-      <NavLink end to="/vagas" onClick={onNavigate}>Vagas</NavLink>
-      <NavLink to="/eventos" onClick={onNavigate}>Eventos</NavLink>
-      <NavLink end to="/newsletter" onClick={onNavigate}>Newsletter</NavLink>
-      {candidate ? <NavLink to="/minhas-candidaturas" onClick={onNavigate}>Minhas candidaturas</NavLink> : null}
-      {candidate ? <NavLink to="/preferencias" onClick={onNavigate}>Privacidade</NavLink> : null}
+      <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink>
+      <NavLink to="/eventos" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Eventos</NavLink>
+      <NavLink end to="/newsletter" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Newsletter</NavLink>
+      {candidate ? <NavLink to="/minhas-candidaturas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Minhas candidaturas</NavLink> : null}
+      {candidate ? <NavLink to="/preferencias" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Privacidade</NavLink> : null}
       {staff || !logged ? (
-        <NavLink to="/admin" onClick={onNavigate}>Área admin</NavLink>
+        <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
       ) : null}
     </>
   );
@@ -61,7 +75,13 @@ export function Header({ logged, displayName, role, onSignOut }) {
   return (
     <header className="topbar">
       <div className="shell nav">
-        <Link className="brand" to="/" aria-label="Ir para a página inicial">
+        <Link
+          className="brand"
+          to="/"
+          aria-label="Ir para a página inicial"
+          aria-disabled={needsOnboarding || undefined}
+          onClick={(event) => onGatedClick(event)}
+        >
           <span className="brand-mark"><img src="/favicon.svg" alt="" /></span>
           <span className="brand-name">GDG <span className="brand-accent">Jobs</span></span>
         </Link>
@@ -69,6 +89,7 @@ export function Header({ logged, displayName, role, onSignOut }) {
           {navLinks()}
         </nav>
         <div className="nav-actions">
+          {gateNotice ? <span className="eyebrow" role="status">{gateNotice}</span> : null}
           <ThemeToggle className="hide-mobile" />
           {logged ? (
             <>

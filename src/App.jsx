@@ -69,6 +69,7 @@ export function App() {
         logged={Boolean(auth.session)}
         displayName={auth.profile?.full_name}
         role={auth.profile?.role}
+        needsOnboarding={auth.needsOnboarding}
         onSignOut={signOutUser}
       />
       <Routes>

@@ -28,4 +28,12 @@ describe("Onboarding", () => {
     expect(alert).not.toHaveClass("success");
     expect(alert).toHaveTextContent("Não foi possível salvar o perfil");
   });
+
+  it("reutiliza admin-shell, admin-content e admin-title com o eyebrow Perfil mínimo", () => {
+    const { container } = render(<Onboarding profile={{}} email="ada@example.invalid" onSaved={vi.fn()} />);
+    const main = container.querySelector("main.admin-page");
+    expect(main.querySelector(".shell.admin-shell")).toBeTruthy();
+    expect(main.querySelector(".admin-content")).toBeTruthy();
+    expect(main.querySelector(".admin-title .eyebrow")).toHaveTextContent("Perfil mínimo");
+  });
 });
