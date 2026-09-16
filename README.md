@@ -54,7 +54,7 @@ A stack abaixo é a decisão do MVP paralelo. **Não migrar** neste recorte sem 
 | Frontend | React 19 + Vite 8, SPA, CSS com tokens em `src/styles.css` | Sem Next.js, Tailwind ou shadcn/ui |
 | Dados e auth | Supabase PostgreSQL + Auth + RLS | Banco é a fonte de verdade; chave publishable/anon no browser |
 | Backend complementar | Supabase Edge Functions (TypeScript) | Segredos e integrações fora do navegador |
-| Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build` / `check:bundle` / `migrations:prod` / `test:rls`) | Entrega deixa evidência verificável |
+| Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build` / `check:bundle` / `migrations:prod` na PR; `test:rls` só após merge em `main`) | Entrega deixa evidência verificável |
 | Hospedagem | Vercel Hobby servindo `dist/` estático (`*.vercel.app`) | Produção neste recorte; domínio customizado é C-05 (fora) |
 
 Auth: **Supabase Auth** (Google OAuth). Sem `service_role` no frontend. Homologação e produção usam **projetos Supabase distintos**; Preview Vercel aponta para homologação, Production para o projeto de produção (sem seed fictício).
