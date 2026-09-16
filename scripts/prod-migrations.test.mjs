@@ -15,6 +15,8 @@ describe("prod migrations", () => {
   it("classifica seed fictício como homolog-only", () => {
     expect(isProdSafeMigration("202608160002_seed_fictitious_catalog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916122300_avatars_storage_homolog.sql")).toBe(false);
+    expect(isProdSafeMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(false);
+    expect(isProdSafeMigration("20260916153100_avatars_single_object.sql")).toBe(false);
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);
   });

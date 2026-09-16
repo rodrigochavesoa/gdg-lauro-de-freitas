@@ -297,6 +297,7 @@ describe("Header", () => {
       displayName: "Ana Demo",
       role: "candidate",
       email: "ana@example.invalid",
+      onSaveAvatar: () => {},
     });
     const trigger = screen.getByRole("button", { name: "Ana Demo" });
     fireEvent.click(trigger);
@@ -308,6 +309,18 @@ describe("Header", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+
+  it("omite Alterar foto quando o upload está desligado", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ana Demo" }));
+    expect(screen.queryByRole("button", { name: "Alterar foto" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Enviar foto de perfil")).not.toBeInTheDocument();
   });
 });
 
@@ -359,6 +372,7 @@ describe("Header crop dialog", () => {
       displayName: "Ana Demo",
       role: "candidate",
       email: "ana@example.invalid",
+      onSaveAvatar: () => {},
     });
     const dialog = await pickAvatar();
     expect(dialog.querySelector("img")).toHaveAttribute("src", CROP_BLOB_URL);
@@ -371,6 +385,7 @@ describe("Header crop dialog", () => {
       displayName: "Ana Demo",
       role: "candidate",
       email: "ana@example.invalid",
+      onSaveAvatar: () => {},
     });
     await pickAvatar();
     view.unmount();

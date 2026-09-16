@@ -200,20 +200,22 @@ export function Header({
                 avatarUrl={avatarUrl}
                 needsOnboarding={needsOnboarding}
                 onSignOut={signOut}
-                onChangePhoto={openPhotoPicker}
+                onChangePhoto={onSaveAvatar ? openPhotoPicker : undefined}
                 onGatedClick={(event) => onGatedClick(event)}
               />
               <button className="ghost hide-mobile" type="button" onClick={signOut}>
                 <LogOut size={16} /> Sair
               </button>
-              <input
-                ref={photoInputRef}
-                className="sr-only"
-                type="file"
-                aria-label="Enviar foto de perfil"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={onPhotoPicked}
-              />
+              {onSaveAvatar ? (
+                <input
+                  ref={photoInputRef}
+                  className="sr-only"
+                  type="file"
+                  aria-label="Enviar foto de perfil"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={onPhotoPicked}
+                />
+              ) : null}
             </>
           ) : showAuthCta ? (
             <Link className="primary small hide-mobile" to="/login">Entrar ou criar conta</Link>

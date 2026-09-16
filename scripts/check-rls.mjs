@@ -1459,7 +1459,7 @@ async function scenarioAdminBaseline() {
   await admin.auth.signOut();
 }
 
-/** Cenário 19 — Storage avatars: só a pasta {userId}/*; bucket privado. */
+/** Cenário 19 — Storage avatars: só `{userId}/avatar.jpg`; cruzado entre dois usuários. */
 async function scenario19_avatarStorage() {
   if (!hasCreds(testUsers.candidate)) {
     skipRequired(19, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
@@ -1473,21 +1473,36 @@ async function scenario19_avatarStorage() {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "base64",
   );
-  const ownPath = `${user.id}/rls-probe.png`;
-  const foreignPath = "00000000-0000-4000-8000-000000000099/rls-probe.png";
+  const ownPath = `${user.id}/avatar.jpg`;
+  const extraPath = `${user.id}/extra.png`;
+  const foreignPath = "00000000-0000-4000-8000-000000000099/avatar.jpg";
   const own = await client.storage.from("avatars").upload(ownPath, probe, {
     upsert: true,
     contentType: "image/png",
+    cacheControl: "0",
   });
   if (own.error && /bucket|not found|404/i.test(errorText(own.error))) {
     skipRequired(19, "migration avatars_storage_homolog não aplicada no ambiente");
     await client.auth.signOut();
     return;
   }
-  assert(!own.error, `candidato envia avatar na própria pasta (${own.error?.message ?? "ok"})`);
+  assert(!own.error, `candidato envia o próprio avatar.jpg (${own.error?.message ?? "ok"})`);
+
+  const extra = await client.storage.from("avatars").upload(extraPath, probe, {
+    upsert: true,
+    contentType: "image/png",
+  });
+  assert(Boolean(extra.error), "candidato não envia segundo objeto na própria pasta");
 
   const signed = await client.storage.from("avatars").createSignedUrl(ownPath, 60);
   assert(Boolean(signed.data?.signedUrl), "candidato gera signed URL do próprio arquivo");
+
+  const ownList = await client.storage.from("avatars").list(user.id);
+  const listed = (ownList.data ?? []).map((row) => row.name);
+  assert(
+    Boolean(ownList.error) || listed.every((name) => name === "avatar.jpg"),
+    "candidato só lista o próprio avatar.jpg",
+  );
 
   const foreign = await client.storage.from("avatars").upload(foreignPath, probe, {
     upsert: true,
@@ -1500,6 +1515,38 @@ async function scenario19_avatarStorage() {
     Boolean(anonList.error) || (anonList.data ?? []).length === 0,
     "anon não lista arquivos de avatars",
   );
+
+  const secondCreds = hasCreds(testUsers.curator) ? testUsers.curator : testUsers.admin;
+  if (!hasCreds(secondCreds)) {
+    skip("cenário 19 cruzado: faltam curator/admin");
+  } else {
+    const { client: other, error: otherErr } = await signIn(secondCreds);
+    assert(!otherErr, `segundo usuário autentica para avatars (${otherErr?.message ?? "ok"})`);
+    if (!otherErr) {
+      const crossSigned = await other.storage.from("avatars").createSignedUrl(ownPath, 60);
+      assert(
+        Boolean(crossSigned.error) || !crossSigned.data?.signedUrl,
+        "terceiro não assina avatar alheio",
+      );
+      const crossList = await other.storage.from("avatars").list(user.id);
+      assert(
+        Boolean(crossList.error) || (crossList.data ?? []).length === 0,
+        "terceiro não lista pasta alheia",
+      );
+      const crossUp = await other.storage.from("avatars").upload(ownPath, probe, {
+        upsert: true,
+        contentType: "image/png",
+      });
+      assert(Boolean(crossUp.error), "terceiro não sobrescreve avatar alheio");
+      const crossDel = await other.storage.from("avatars").remove([ownPath]);
+      const still = await client.storage.from("avatars").createSignedUrl(ownPath, 60);
+      assert(
+        Boolean(still.data?.signedUrl),
+        `delete cruzado não remove o avatar (${crossDel.error?.message || "ok"})`,
+      );
+      await other.auth.signOut();
+    }
+  }
 
   const removed = await client.storage.from("avatars").remove([ownPath]);
   assert(!removed.error, `candidato remove o próprio probe (${removed.error?.message ?? "ok"})`);

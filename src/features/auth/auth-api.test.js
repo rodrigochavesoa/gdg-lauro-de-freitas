@@ -31,8 +31,10 @@ vi.mock("../../lib/supabase-client.js", () => ({
 
 import {
   avatarPublicUrl,
+  avatarStoragePath,
   displayNameFromUser,
   emptyAuthSnapshot,
+  isAvatarUploadEnabled,
   mergeAuthSnapshot,
   saveProfileAvatar,
   subscribeAuth,
@@ -223,6 +225,10 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     supabaseState.getUser.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("sem path ou sem cliente não monta URL", async () => {
     expect(await avatarPublicUrl("")).toBeNull();
     supabaseState.enabled = false;
@@ -237,7 +243,8 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     expect(createSignedUrl).toHaveBeenCalledWith("u1/avatar.jpg", 3600);
   });
 
-  it("faz upload em {userId}/* e persiste avatar_path", async () => {
+  it("faz upload em {userId}/avatar.jpg, sem cache, e persiste avatar_path", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD", "1");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
     const upload = vi.fn(async () => ({ error: null }));
     supabaseState.storageFrom.mockReturnValue({ upload });
@@ -254,8 +261,36 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     expect(upload).toHaveBeenCalledWith(
       "u1/avatar.jpg",
       blob,
-      expect.objectContaining({ upsert: true, contentType: "image/jpeg" }),
+      expect.objectContaining({ upsert: true, contentType: "image/jpeg", cacheControl: "0" }),
     );
     expect(saved.avatar_path).toBe("u1/avatar.jpg");
+  });
+
+  it("repete o UPDATE se o perfil falhar depois do upload", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD", "1");
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    supabaseState.storageFrom.mockReturnValue({ upload: vi.fn(async () => ({ error: null })) });
+    const single = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: { message: "timeout" } })
+      .mockResolvedValueOnce({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null });
+    supabaseState.from.mockReturnValue({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({ single })),
+        })),
+      })),
+    });
+    const saved = await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
+    expect(single).toHaveBeenCalledTimes(2);
+    expect(saved.avatar_path).toBe("u1/avatar.jpg");
+  });
+
+  it("bloqueia upload no projeto de produção", async () => {
+    expect(isAvatarUploadEnabled("https://pcdfxnfhgdmzmcmlhxuv.supabase.co")).toBe(true);
+    expect(isAvatarUploadEnabled("https://kezmjqzybdtptpeiytqd.supabase.co")).toBe(false);
+    expect(avatarStoragePath("u1")).toBe("u1/avatar.jpg");
+    vi.stubEnv("VITE_AVATAR_UPLOAD", "0");
+    await expect(saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }))).rejects.toThrow(/indisponível/);
   });
 });

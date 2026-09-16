@@ -8,7 +8,23 @@ import {
 
 const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role,avatar_path";
 export const AVATAR_BUCKET = "avatars";
+export const AVATAR_OBJECT = "avatar.jpg";
 const AVATAR_SIGNED_TTL_SEC = 60 * 60;
+const AVATAR_CACHE_CONTROL = "0";
+/** Projeto Supabase de produção — bucket avatars só após Camada B. */
+const PROD_SUPABASE_REF = "kezmjqzybdtptpeiytqd";
+
+export function avatarStoragePath(userId) {
+  if (!userId) throw new Error("Sessão expirada. Entre novamente com Google.");
+  return `${userId}/${AVATAR_OBJECT}`;
+}
+
+/** Homologação liga o upload; produção fica desligada até a Camada B. */
+export function isAvatarUploadEnabled(supabaseUrl = import.meta.env.VITE_SUPABASE_URL) {
+  if (import.meta.env.VITE_AVATAR_UPLOAD === "0") return false;
+  if (import.meta.env.VITE_AVATAR_UPLOAD === "1") return true;
+  return !String(supabaseUrl ?? "").includes(PROD_SUPABASE_REF);
+}
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -250,6 +266,9 @@ export async function avatarPublicUrl(path) {
 }
 
 export async function saveProfileAvatar(blob) {
+  if (!isAvatarUploadEnabled()) {
+    throw new Error("Upload de foto indisponível neste ambiente.");
+  }
   if (!blob) throw new Error("Escolha uma imagem.");
   const client = clientOrThrow();
   const { data: userData, error: userError } = await client.auth.getUser();
@@ -257,23 +276,28 @@ export async function saveProfileAvatar(blob) {
   const user = userData.user;
   if (!user) throw new Error("Sessão expirada. Entre novamente com Google.");
 
-  const path = `${user.id}/avatar.jpg`;
+  const path = avatarStoragePath(user.id);
   const { error: uploadError } = await client.storage.from(AVATAR_BUCKET).upload(path, blob, {
     upsert: true,
     contentType: blob.type || "image/jpeg",
-    cacheControl: "3600",
+    cacheControl: AVATAR_CACHE_CONTROL,
   });
   throwIfError(uploadError);
 
-  const { data, error } = await client
-    .from("profiles")
-    .update({
-      avatar_path: path,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id)
-    .select(PROFILE_SELECT)
-    .single();
-  throwIfError(error);
-  return data;
+  const persistPath = async () =>
+    client
+      .from("profiles")
+      .update({
+        avatar_path: path,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+      .select(PROFILE_SELECT)
+      .single();
+
+  const first = await persistPath();
+  if (!first.error) return first.data;
+  const retry = await persistPath();
+  throwIfError(retry.error);
+  return retry.data;
 }

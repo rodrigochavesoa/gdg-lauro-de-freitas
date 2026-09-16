@@ -163,7 +163,9 @@ export function AccountMenu({
                 </Link>
               </>
             ) : null}
-            <button type="button" onClick={onChangePhoto}>Alterar foto</button>
+            {onChangePhoto ? (
+              <button type="button" onClick={onChangePhoto}>Alterar foto</button>
+            ) : null}
             <button type="button" onClick={onSignOut}><LogOut size={16} /> Sair</button>
           </div>
         </div>
