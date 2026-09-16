@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
+import { AccountMenu } from "./AccountMenu.jsx";
+import { AvatarCropDialog } from "./AvatarCropDialog.jsx";
+import { assertAvatarFile, cropImageToCircle, loadImageFromFile } from "../../features/auth/avatar-crop.js";
 
 const STAFF_ROLES = ["admin", "curator", "moderator"];
 const CANDIDATE_NAV = [
@@ -14,32 +17,67 @@ function candidateNavClassName(fadeIn) {
   return ({ isActive }) => [isActive ? "active" : null, "nav-link--hydrate"].filter(Boolean).join(" ");
 }
 
-function initialsFrom(name) {
-  const parts = String(name ?? "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  if (parts.length === 0) return "GD";
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function isStaffRole(role) {
   return STAFF_ROLES.includes(role);
 }
 
-export function Header({ logged, displayName, role, onSignOut, needsOnboarding = false, authReady = true }) {
+export function Header({
+  logged,
+  displayName,
+  role,
+  onSignOut,
+  needsOnboarding = false,
+  authReady = true,
+  email = "",
+  avatarUrl = null,
+  onSaveAvatar,
+}) {
   const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [gateNotice, setGateNotice] = useState("");
+  const [cropImage, setCropImage] = useState(null);
+  const [cropError, setCropError] = useState("");
+  const [cropBusy, setCropBusy] = useState(false);
   const menuButtonRef = useRef(null);
+  const photoInputRef = useRef(null);
   const closeMobileMenu = () => { menuButtonRef.current?.focus(); setMobileMenuOpen(false); };
   const signOut = async () => {
     await onSignOut?.();
     closeMobileMenu();
+  };
+
+  const openPhotoPicker = () => {
+    setCropError("");
+    photoInputRef.current?.click();
+  };
+
+  const onPhotoPicked = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    try {
+      assertAvatarFile(file);
+      const image = await loadImageFromFile(file);
+      setCropImage(image);
+      setCropError("");
+    } catch (error) {
+      setCropImage(null);
+      setCropError(error.message || "Não foi possível usar esta imagem.");
+    }
+  };
+
+  const confirmCrop = async () => {
+    if (!cropImage) return;
+    setCropBusy(true);
+    setCropError("");
+    try {
+      const blob = await cropImageToCircle(cropImage);
+      await onSaveAvatar?.(blob);
+      setCropImage(null);
+    } catch (error) {
+      setCropError(error.message || "Não foi possível salvar a foto.");
+    } finally {
+      setCropBusy(false);
+    }
   };
 
   useEffect(() => {
@@ -144,12 +182,27 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
           <ThemeToggle className="hide-mobile" />
           {logged ? (
             <>
-              <button className="icon-button" type="button" aria-label={displayName || "Conta"}>
-                <span className="avatar">{initialsFrom(displayName)}</span>
-              </button>
+              <AccountMenu
+                displayName={displayName}
+                email={email}
+                role={role}
+                avatarUrl={avatarUrl}
+                needsOnboarding={needsOnboarding}
+                onSignOut={signOut}
+                onChangePhoto={openPhotoPicker}
+                onGatedClick={(event) => onGatedClick(event)}
+              />
               <button className="ghost hide-mobile" type="button" onClick={signOut}>
                 <LogOut size={16} /> Sair
               </button>
+              <input
+                ref={photoInputRef}
+                className="sr-only"
+                type="file"
+                aria-label="Enviar foto de perfil"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={onPhotoPicked}
+              />
             </>
           ) : showAuthCta ? (
             <Link className="primary small hide-mobile" to="/login">Entrar ou criar conta</Link>
@@ -179,6 +232,20 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
             <Link to="/onboarding" className="nav-gate-notice__link">Continuar</Link>
           </p>
         </div>
+      ) : null}
+      {cropError && !cropImage ? (
+        <div className="nav-gate-notice-wrap">
+          <p className="nav-gate-notice shell" role="alert">{cropError}</p>
+        </div>
+      ) : null}
+      {cropImage ? (
+        <AvatarCropDialog
+          image={cropImage}
+          busy={cropBusy}
+          error={cropError}
+          onCancel={() => { setCropImage(null); setCropError(""); }}
+          onConfirm={confirmCrop}
+        />
       ) : null}
       {mobileMenuOpen && (
         <div id="mobile-navigation" className="mobile-nav open" role="navigation" aria-label="Menu móvel">

@@ -274,4 +274,39 @@ describe("Header", () => {
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).not.toHaveClass("nav-link--hydrate");
     expect(placeholderLabels(desktopNav)).toEqual([]);
   });
+
+  it("mostra foto circular quando há avatarUrl e cai nas iniciais se a imagem falhar", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      avatarUrl: "https://signed.example/u1",
+    });
+    const trigger = screen.getByRole("button", { name: "Ana Demo" });
+    const photo = trigger.querySelector("img");
+    expect(photo).toHaveAttribute("src", "https://signed.example/u1");
+    fireEvent.error(photo);
+    expect(trigger.querySelector("img")).toBeNull();
+    expect(trigger).toHaveTextContent("AD");
+  });
+
+  it("abre o popover no clique, fecha com Escape e devolve o foco", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    const trigger = screen.getByRole("button", { name: "Ana Demo" });
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Ana Demo" });
+    expect(within(dialog).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(dialog).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
+    expect(within(dialog).getByRole("button", { name: "Alterar foto" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Sair/i })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
 });

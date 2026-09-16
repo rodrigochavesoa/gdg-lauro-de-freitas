@@ -18,9 +18,11 @@ import { applyToJob, loadMyApplication, loadMyApplications, withdrawApplication 
 import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import {
+  avatarPublicUrl,
   displayNameFromUser,
   loadAuthSnapshot,
   mergeAuthSnapshot,
+  saveProfileAvatar,
   signOutUser,
   subscribeAuth,
 } from "./features/auth/auth-api.js";
@@ -34,6 +36,7 @@ const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(null);
   const authGeneration = useRef(0);
 
   useEffect(() => {
@@ -59,9 +62,29 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const path = auth.profile?.avatar_path;
+    if (!auth.session || !path) {
+      setAvatarUrl(null);
+      return undefined;
+    }
+    let cancelled = false;
+    avatarPublicUrl(path)
+      .then((url) => {
+        if (!cancelled) setAvatarUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setAvatarUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.session, auth.profile?.avatar_path]);
+
   const handleSignOut = async () => {
     authGeneration.current += 1;
     setAuth(EMPTY_AUTH);
+    setAvatarUrl(null);
     try {
       await signOutUser();
     } finally {
@@ -91,10 +114,16 @@ export function App() {
       <Header
         logged={Boolean(auth.session)}
         displayName={auth.profile?.full_name || displayNameFromUser(auth.session?.user)}
+        email={auth.session?.user?.email || ""}
         role={auth.profile?.role}
+        avatarUrl={avatarUrl}
         needsOnboarding={auth.needsOnboarding}
         authReady={authReady}
         onSignOut={handleSignOut}
+        onSaveAvatar={async (blob) => {
+          const profile = await saveProfileAvatar(blob);
+          setAuth((current) => (current.session ? { ...current, profile } : current));
+        }}
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} profile={auth.profile} email={auth.session?.user?.email} /></CatalogGate>} />

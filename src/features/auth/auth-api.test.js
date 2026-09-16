@@ -5,7 +5,9 @@ const supabaseState = vi.hoisted(() => ({
   session: null,
   listeners: [],
   getSession: vi.fn(),
+  getUser: vi.fn(),
   from: vi.fn(),
+  storageFrom: vi.fn(),
   unsubscribe: vi.fn(),
 }));
 
@@ -14,8 +16,10 @@ vi.mock("../../lib/supabase-client.js", () => ({
     supabaseState.enabled
       ? {
           from: supabaseState.from,
+          storage: { from: supabaseState.storageFrom },
           auth: {
             getSession: supabaseState.getSession,
+            getUser: supabaseState.getUser,
             onAuthStateChange: (cb) => {
               supabaseState.listeners.push(cb);
               return { data: { subscription: { unsubscribe: supabaseState.unsubscribe } } };
@@ -26,9 +30,11 @@ vi.mock("../../lib/supabase-client.js", () => ({
 }));
 
 import {
+  avatarPublicUrl,
   displayNameFromUser,
   emptyAuthSnapshot,
   mergeAuthSnapshot,
+  saveProfileAvatar,
   subscribeAuth,
 } from "./auth-api.js";
 
@@ -120,7 +126,9 @@ describe("subscribeAuth", () => {
     supabaseState.session = null;
     supabaseState.listeners = [];
     supabaseState.getSession.mockReset();
+    supabaseState.getUser.mockReset();
     supabaseState.from.mockReset();
+    supabaseState.storageFrom.mockReset();
     supabaseState.unsubscribe.mockReset();
     supabaseState.getSession.mockImplementation(async () => ({
       data: { session: supabaseState.session },
@@ -204,5 +212,50 @@ describe("subscribeAuth", () => {
     const syncCall = onChange.mock.calls.findLast((call) => call[0].session?.access_token === "t2");
     expect(syncCall[0].profile).toEqual(profile);
     expect(syncCall[0].needsOnboarding).toBe(false);
+  });
+});
+
+describe("avatarPublicUrl e saveProfileAvatar", () => {
+  beforeEach(() => {
+    supabaseState.enabled = true;
+    supabaseState.from.mockReset();
+    supabaseState.storageFrom.mockReset();
+    supabaseState.getUser.mockReset();
+  });
+
+  it("sem path ou sem cliente não monta URL", async () => {
+    expect(await avatarPublicUrl("")).toBeNull();
+    supabaseState.enabled = false;
+    expect(await avatarPublicUrl("u1/avatar.jpg")).toBeNull();
+  });
+
+  it("devolve signed URL centralizada", async () => {
+    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: "https://signed.example/u1" }, error: null }));
+    supabaseState.storageFrom.mockReturnValue({ createSignedUrl });
+    expect(await avatarPublicUrl("u1/avatar.jpg")).toBe("https://signed.example/u1");
+    expect(supabaseState.storageFrom).toHaveBeenCalledWith("avatars");
+    expect(createSignedUrl).toHaveBeenCalledWith("u1/avatar.jpg", 3600);
+  });
+
+  it("faz upload em {userId}/* e persiste avatar_path", async () => {
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const upload = vi.fn(async () => ({ error: null }));
+    supabaseState.storageFrom.mockReturnValue({ upload });
+    const single = vi.fn(async () => ({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null }));
+    supabaseState.from.mockReturnValue({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({ single })),
+        })),
+      })),
+    });
+    const blob = new Blob(["x"], { type: "image/jpeg" });
+    const saved = await saveProfileAvatar(blob);
+    expect(upload).toHaveBeenCalledWith(
+      "u1/avatar.jpg",
+      blob,
+      expect.objectContaining({ upsert: true, contentType: "image/jpeg" }),
+    );
+    expect(saved.avatar_path).toBe("u1/avatar.jpg");
   });
 });
