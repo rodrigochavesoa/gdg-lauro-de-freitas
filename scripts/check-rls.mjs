@@ -1475,6 +1475,53 @@ async function scenarioAdminBaseline() {
   await admin.auth.signOut();
 }
 
+/** Cenário 19 — Storage avatars: só a pasta {userId}/*; bucket privado. */
+async function scenario19_avatarStorage() {
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(19, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
+    return;
+  }
+  const { client, user, error } = await signIn(testUsers.candidate);
+  assert(!error, `candidato autentica para avatars (${error?.message ?? "ok"})`);
+  if (error || !user?.id) return;
+
+  const probe = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  const ownPath = `${user.id}/rls-probe.png`;
+  const foreignPath = "00000000-0000-4000-8000-000000000099/rls-probe.png";
+  const own = await client.storage.from("avatars").upload(ownPath, probe, {
+    upsert: true,
+    contentType: "image/png",
+  });
+  if (own.error && /bucket|not found|404/i.test(errorText(own.error))) {
+    skipRequired(19, "migration avatars_storage_homolog não aplicada no ambiente");
+    await client.auth.signOut();
+    return;
+  }
+  assert(!own.error, `candidato envia avatar na própria pasta (${own.error?.message ?? "ok"})`);
+
+  const signed = await client.storage.from("avatars").createSignedUrl(ownPath, 60);
+  assert(Boolean(signed.data?.signedUrl), "candidato gera signed URL do próprio arquivo");
+
+  const foreign = await client.storage.from("avatars").upload(foreignPath, probe, {
+    upsert: true,
+    contentType: "image/png",
+  });
+  assert(Boolean(foreign.error), "candidato não envia avatar na pasta de terceiro");
+
+  const anonList = await anon.storage.from("avatars").list(user.id);
+  assert(
+    Boolean(anonList.error) || (anonList.data ?? []).length === 0,
+    "anon não lista arquivos de avatars",
+  );
+
+  const removed = await client.storage.from("avatars").remove([ownPath]);
+  assert(!removed.error, `candidato remove o próprio probe (${removed.error?.message ?? "ok"})`);
+  await client.auth.signOut();
+}
+
 console.log("=== Cenário 1: anon ===");
 await scenario1_anon();
 
@@ -1532,6 +1579,9 @@ await scenario17_privacyAudit();
 console.log("\n=== Cenário 18: MVP-022 helpers RLS fora da Data API ===");
 await scenario18_rlsHelperRpcSurface();
 
+console.log("\n=== Cenário 19: Storage avatars (UX-PROFILE-AVATAR-01) ===");
+await scenario19_avatarStorage();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1542,6 +1592,7 @@ if (skippedRequired.size > 0) {
     if (n === 16) band = "MVP-003 exige execução real do cenário 16";
     if (n === 17) band = "MVP-005 exige execução real do cenário 17";
     if (n === 18) band = "MVP-022 exige execução real do cenário 18";
+    if (n === 19) band = "UX-PROFILE-AVATAR-01 exige execução real do cenário 19";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -1552,5 +1603,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022: ok (${skipped.length} aviso(s) opcionais; cenários 3–18 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars: ok (${skipped.length} aviso(s) opcionais; cenários 3–19 executados).`,
 );

@@ -6,7 +6,9 @@ import {
   validateOnboarding,
 } from "./profile-completeness.js";
 
-const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role";
+const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role,avatar_path";
+export const AVATAR_BUCKET = "avatars";
+const AVATAR_SIGNED_TTL_SEC = 60 * 60;
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -228,6 +230,45 @@ export async function saveOnboardingProfile({
       bio: String(bio ?? "").trim() || null,
       skills,
       preferences,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", user.id)
+    .select(PROFILE_SELECT)
+    .single();
+  throwIfError(error);
+  return data;
+}
+
+/** Signed URL — bucket `avatars` é privado para não expor foto de terceiros. */
+export async function avatarPublicUrl(path) {
+  if (!path) return null;
+  const client = getSupabaseBrowserClient();
+  if (!client) return null;
+  const { data, error } = await client.storage.from(AVATAR_BUCKET).createSignedUrl(path, AVATAR_SIGNED_TTL_SEC);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+export async function saveProfileAvatar(blob) {
+  if (!blob) throw new Error("Escolha uma imagem.");
+  const client = clientOrThrow();
+  const { data: userData, error: userError } = await client.auth.getUser();
+  throwIfError(userError);
+  const user = userData.user;
+  if (!user) throw new Error("Sessão expirada. Entre novamente com Google.");
+
+  const path = `${user.id}/avatar.jpg`;
+  const { error: uploadError } = await client.storage.from(AVATAR_BUCKET).upload(path, blob, {
+    upsert: true,
+    contentType: blob.type || "image/jpeg",
+    cacheControl: "3600",
+  });
+  throwIfError(uploadError);
+
+  const { data, error } = await client
+    .from("profiles")
+    .update({
+      avatar_path: path,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id)
