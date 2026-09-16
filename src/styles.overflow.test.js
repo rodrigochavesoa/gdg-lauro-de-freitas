@@ -32,4 +32,10 @@ describe("UX-ONBOARD-NOTICE-01 — inset do header", () => {
   it("não estica .topbar>.nav a 100% (preserva o respiro do .shell)", () => {
     expect(css).not.toMatch(/\.topbar>\.nav\{[^}]*width:\s*100%/);
   });
+
+  it("usa texto inverso no aviso de onboarding no dark", () => {
+    expect(css).toMatch(
+      /html\[data-theme="dark"\] \.nav-gate-notice,\s*html\[data-theme="dark"\] \.nav-gate-notice__link\{color:var\(--color-text-inverse\)\}/,
+    );
+  });
 });

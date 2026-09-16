@@ -247,6 +247,12 @@ header nav a{white-space:nowrap}
 .nav-gate-notice-wrap{width:100%;background:var(--color-danger-50);border-top:1px solid var(--color-danger-700)}
 .nav-gate-notice{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);margin:0 auto;padding:var(--space-2) 0;color:var(--color-danger-700);font-size:var(--font-size-caption);font-weight:600;white-space:nowrap}
 .nav-gate-notice__link{color:var(--color-danger-700);font-weight:700;text-decoration:underline;white-space:nowrap}
+html[data-theme="dark"] .nav-gate-notice,
+html[data-theme="dark"] .nav-gate-notice__link{color:var(--color-text-inverse)}
+@media (prefers-color-scheme: dark) {
+  html[data-theme="system"] .nav-gate-notice,
+  html[data-theme="system"] .nav-gate-notice__link{color:var(--color-text-inverse)}
+}
 @media(max-width:760px){
   .topbar{min-height:62px}
   .topbar>.nav{height:62px}
