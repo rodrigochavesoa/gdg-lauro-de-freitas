@@ -626,7 +626,7 @@ async function scenario10_applyHappy() {
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplyRequestLog(admin, user.id);
-  const { previous } = await ensureD01Profile(candidate, user.id);
+  const { previous, current } = await ensureD01Profile(candidate, user.id);
 
   const first = await rpcApply(candidate, SEED_APPROVED_A);
   if (first.error?.message?.includes("Could not find the function")) {
@@ -642,7 +642,8 @@ async function scenario10_applyHappy() {
   assert(Array.isArray(first.data?.snapshot?.skills), "snapshot inclui skills");
   assert(first.data?.snapshot?.preferences?.experience_level, "snapshot inclui preferences");
 
-  const renamed = `${previous.full_name || "Candidato"} ${Date.now()}`;
+  const stableName = String(current?.full_name || previous.full_name || "Candidato").trim() || "Candidato";
+  const renamed = `${stableName} ${Date.now()}`;
   await candidate
     .from("profiles")
     .update({ full_name: renamed, updated_at: new Date().toISOString() })
@@ -654,16 +655,8 @@ async function scenario10_applyHappy() {
     .eq("candidate_id", user.id)
     .single();
   assert(frozen.data?.snapshot?.full_name !== renamed, "snapshot não muda após editar perfil");
-  await candidate
-    .from("profiles")
-    .update({
-      full_name: previous.full_name,
-      skills: previous.skills,
-      preferences: previous.preferences,
-      bio: previous.bio,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  // Não restaurar `previous`: um run anterior pode ter deixado skills/prefs incompletos.
+  await ensureD01Profile(candidate, user.id);
 
   const dup = await rpcApply(candidate, SEED_APPROVED_A);
   const dupMsg = [dup.error?.message, dup.error?.details, dup.error?.hint].filter(Boolean).join(" ");
@@ -695,7 +688,7 @@ async function scenario11_applyBlocked() {
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);
   await deleteApplyRequestLog(admin, user.id);
-  const { previous } = await ensureD01Profile(candidate, user.id);
+  await ensureD01Profile(candidate, user.id);
 
   const pending = await rpcApply(candidate, SEED_PENDING);
   assert(Boolean(pending.error), "candidato não aplica em vaga pending");
@@ -708,16 +701,7 @@ async function scenario11_applyBlocked() {
   const incomplete = await rpcApply(candidate, SEED_APPROVED_A);
   assert(Boolean(incomplete.error), "perfil D-01 incompleto é recusado");
   assert(/profile incomplete/i.test(incomplete.error?.message ?? ""), "incompleto retorna profile incomplete");
-  await candidate
-    .from("profiles")
-    .update({
-      full_name: previous.full_name,
-      skills: previous.skills?.length ? previous.skills : ["JavaScript"],
-      preferences: d01Preferences(previous.preferences),
-      bio: previous.bio,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", user.id);
+  await ensureD01Profile(candidate, user.id);
 
   const direct = await candidate.from("applications").insert({
     job_id: SEED_APPROVED_A,
