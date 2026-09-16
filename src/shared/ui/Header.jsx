@@ -22,7 +22,7 @@ function isStaffRole(role) {
   return STAFF_ROLES.includes(role);
 }
 
-export function Header({ logged, displayName, role, onSignOut, needsOnboarding = false }) {
+export function Header({ logged, displayName, role, onSignOut, needsOnboarding = false, authReady = true }) {
   const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [gateNotice, setGateNotice] = useState("");
@@ -55,9 +55,10 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileMenuOpen]);
 
+  const roleKnown = Boolean(role);
   const staff = Boolean(logged && isStaffRole(role));
-  const candidate = Boolean(logged && !staff);
-  const showAuthCta = !logged && pathname !== "/login" && pathname !== "/admin";
+  const candidate = Boolean(logged && roleKnown && !staff);
+  const showAuthCta = Boolean(authReady) && !logged && pathname !== "/login" && pathname !== "/admin";
 
   const navLinks = (onNavigate) => (
     <>

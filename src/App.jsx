@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
@@ -17,7 +17,13 @@ import { MyApplications } from "./features/jobs/MyApplications.jsx";
 import { applyToJob, loadMyApplication, loadMyApplications, withdrawApplication } from "./features/jobs/apply-api.js";
 import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
-import { loadAuthSnapshot, signOutUser, subscribeAuth } from "./features/auth/auth-api.js";
+import {
+  displayNameFromUser,
+  loadAuthSnapshot,
+  mergeAuthSnapshot,
+  signOutUser,
+  subscribeAuth,
+} from "./features/auth/auth-api.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
@@ -28,12 +34,17 @@ const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
+  const authGeneration = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     const applySnapshot = (snapshot) => {
       if (cancelled) return;
-      setAuth(snapshot);
+      const generation = authGeneration.current;
+      setAuth((current) => {
+        if (generation !== authGeneration.current) return current;
+        return mergeAuthSnapshot(current, snapshot);
+      });
       setAuthReady(true);
     };
     loadAuthSnapshot()
@@ -47,6 +58,16 @@ export function App() {
       unsubscribe();
     };
   }, []);
+
+  const handleSignOut = async () => {
+    authGeneration.current += 1;
+    setAuth(EMPTY_AUTH);
+    try {
+      await signOutUser();
+    } finally {
+      setAuth(EMPTY_AUTH);
+    }
+  };
 
   // UX-PERF-05 — warm catalog on shell mount so /login → / avoids cold skeleton scroll jank
   useEffect(() => {
@@ -69,10 +90,11 @@ export function App() {
       <SkipLink />
       <Header
         logged={Boolean(auth.session)}
-        displayName={auth.profile?.full_name}
+        displayName={auth.profile?.full_name || displayNameFromUser(auth.session?.user)}
         role={auth.profile?.role}
         needsOnboarding={auth.needsOnboarding}
-        onSignOut={signOutUser}
+        authReady={authReady}
+        onSignOut={handleSignOut}
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} profile={auth.profile} email={auth.session?.user?.email} /></CatalogGate>} />

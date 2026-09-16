@@ -9,19 +9,28 @@ const authState = {
   needsOnboarding: false,
 };
 
-vi.mock("./features/auth/auth-api.js", () => ({
-  loadAuthSnapshot: async () => authState,
-  subscribeAuth: (onChange) => {
-    onChange(authState);
-    return () => {};
-  },
-  signOutUser: vi.fn(async () => {
-    authState.session = null;
-    authState.profile = null;
-    authState.needsOnboarding = false;
-  }),
-  startGoogleOAuth: vi.fn(),
-}));
+let authListener = null;
+
+vi.mock("./features/auth/auth-api.js", async () => {
+  const actual = await vi.importActual("./features/auth/auth-api.js");
+  return {
+    ...actual,
+    loadAuthSnapshot: async () => authState,
+    subscribeAuth: (onChange) => {
+      authListener = onChange;
+      onChange(authState);
+      return () => {
+        if (authListener === onChange) authListener = null;
+      };
+    },
+    signOutUser: vi.fn(async () => {
+      authState.session = null;
+      authState.profile = null;
+      authState.needsOnboarding = false;
+    }),
+    startGoogleOAuth: vi.fn(),
+  };
+});
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: async () => null,
@@ -194,12 +203,20 @@ vi.mock("./features/catalog/jobs-api.js", () => {
 });
 
 import { App } from "./App.jsx";
+import { signOutUser } from "./features/auth/auth-api.js";
 import { THEME_STORAGE_KEY } from "./shared/ui/theme.js";
 
 beforeEach(() => {
   authState.session = null;
   authState.profile = null;
   authState.needsOnboarding = false;
+  authListener = null;
+  signOutUser.mockReset();
+  signOutUser.mockImplementation(async () => {
+    authState.session = null;
+    authState.profile = null;
+    authState.needsOnboarding = false;
+  });
   localStorage.removeItem(THEME_STORAGE_KEY);
   document.documentElement.setAttribute("data-theme", "system");
   loadMyApplicationMock.mockReset();
@@ -592,5 +609,64 @@ describe("ARQ-01 — caracterização do shell", () => {
     authState.needsOnboarding = true;
     await renderAt("/vagas");
     expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+  });
+
+  it("sincroniza o Header no login sem flash de CTA e hidrata links de candidato depois", async () => {
+    await renderAt("/");
+    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+
+    await waitFor(() => expect(authListener).toEqual(expect.any(Function)));
+    authListener({
+      session: { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Ana Demo" } } },
+      profile: null,
+      needsOnboarding: false,
+    });
+
+    expect(await screen.findByRole("button", { name: /Sair/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Deixe seu perfil trabalhar por você." })).toBeInTheDocument();
+
+    authListener({
+      session: { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Ana Demo" } } },
+      profile: {
+        full_name: "Ana Demo",
+        role: "candidate",
+        skills: ["React"],
+        preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+      },
+      needsOnboarding: false,
+    });
+
+    expect(await screen.findByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+  });
+
+  it("limpa o Header no logout de forma otimista sem flash de avatar", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    signOutUser.mockImplementation(() => new Promise(() => {}));
+
+    await renderAt("/");
+    expect(await screen.findByRole("button", { name: /Sair/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Sair/i }));
+
+    expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toBeInTheDocument();
+    expect(signOutUser).toHaveBeenCalledTimes(1);
   });
 });
