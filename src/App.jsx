@@ -20,6 +20,7 @@ import { Onboarding } from "./features/auth/Onboarding.jsx";
 import {
   avatarPublicUrl,
   displayNameFromUser,
+  isAvatarUploadEnabled,
   loadAuthSnapshot,
   mergeAuthSnapshot,
   saveProfileAvatar,
@@ -120,10 +121,14 @@ export function App() {
         needsOnboarding={auth.needsOnboarding}
         authReady={authReady}
         onSignOut={handleSignOut}
-        onSaveAvatar={async (blob) => {
-          const profile = await saveProfileAvatar(blob);
-          setAuth((current) => (current.session ? { ...current, profile } : current));
-        }}
+        onSaveAvatar={
+          isAvatarUploadEnabled()
+            ? async (blob) => {
+                const profile = await saveProfileAvatar(blob);
+                setAuth((current) => (current.session ? { ...current, profile } : current));
+              }
+            : undefined
+        }
       />
       <Routes>
         <Route path="/" element={<CatalogGate auth={auth}><Portal logged={Boolean(auth.session)} profile={auth.profile} email={auth.session?.user?.email} /></CatalogGate>} />

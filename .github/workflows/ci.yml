@@ -54,7 +54,11 @@ jobs:
     concurrency:
       group: rls-homolog-${{ github.repository }}
       cancel-in-progress: false
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # Homologação é compartilhada: serializa os jobs e evita push+PR na mesma branch
+    # (o segundo run via estado leftover de apply / D-01).
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
 
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

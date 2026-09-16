@@ -12,7 +12,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 
 /** Arquivos que só existem para demo/RLS em homologação. */
-export const HOMOLOG_ONLY_PATTERN = /seed_fictitious|avatars_storage_homolog/i;
+export const HOMOLOG_ONLY_PATTERN = /seed_fictitious|avatars_storage_homolog|avatars_single_object/i;
 
 /** UUIDs do catálogo fictício — não podem aparecer em SQL de produção. */
 export const FICTITIOUS_SEED_UUIDS = [
