@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  # Reexecução manual de `pnpm test:rls` após merge (rollback / incidente). Só o job
+  # `rls` consome secrets, e apenas quando o ref é `main`.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -46,19 +49,23 @@ jobs:
       - name: Production migrations
         run: pnpm migrations:prod
 
+  # Segredos privilegiados só neste job, só em código já mergeado em main.
+  # Proibido: pull_request_target com checkout/execução de código da PR.
+  # Evolução futura (fora de escopo): harness externo imutável para test:rls.
   rls:
     name: RLS homolog
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: quality
+    environment: homolog-rls
     concurrency:
       group: rls-homolog-${{ github.repository }}
       cancel-in-progress: false
-    # Homologação é compartilhada: serializa os jobs e evita push+PR na mesma branch
-    # (o segundo run via estado leftover de apply / D-01).
+    # Homologação é compartilhada: serializa os jobs. Allowlist de eventos —
+    # não usar `github.ref == main` sozinho (pull_request_target também aponta para main).
     if: >
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
 
     env:
       VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}

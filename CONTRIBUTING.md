@@ -289,9 +289,9 @@ git push origin --delete nome-da-branch
 
 **Estado saudável:** `main` + no máximo uma branch por PR aberto (ex.: `docs/backlog-s3-handoff` enquanto o PR #6 estiver aberto).
 
-## Proteção de `main` (GitHub) — habilitada em 2026-08-16; required checks atualizados em 2026-09-14 (SEC-CI-01)
+## Proteção de `main` (GitHub) — habilitada em 2026-08-16; required checks atualizados em 2026-09-16 (SEC-CI-SECRETS-01)
 
-Ruleset **Protect main** (id `20903173`): PR obrigatório, checks **Lint, test and build** e **RLS homolog**, sem force-push e sem exclusão de `main`. Squash merge é o único método permitido no repositório. Zero aprovações humanas obrigatórias (único mantenedor).
+Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. O job **RLS homolog** (`pnpm test:rls`) corre só após o merge (`push` ou `workflow_dispatch` em `main`), com secrets no GitHub Environment `homolog-rls` — **não** é required check da PR e **não** injeta `service_role` nem senhas staff no checkout de PR. Squash merge é o único método permitido no repositório. Zero aprovações humanas obrigatórias (único mantenedor).
 
 Evidência (mantenedor): [`docs-local/s1-04-branch-protection.md`](docs-local/s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
 
