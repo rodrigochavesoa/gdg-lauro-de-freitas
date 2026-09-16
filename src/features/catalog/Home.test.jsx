@@ -9,7 +9,7 @@ const cachedJob = {
   title: "Pessoa Desenvolvedora Front-end",
   company: "Nuvem Lauro Demo",
   logo: "NL",
-  color: "#4285f4",
+  color: "#1e40af",
   level: "Pleno",
   place: "Brasil · Remoto",
   type: "Remoto",

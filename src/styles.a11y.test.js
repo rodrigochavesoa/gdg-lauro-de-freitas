@@ -22,10 +22,17 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
     expect(css).toMatch(/\.portal-chip\{animation:none\}/);
   });
 
-  it("usa tokens no dark para muted, danger e CTA do portal", () => {
+  it("separa CTA, marca, link e foco no dark e não reusa primary-700 como #93c5fd", () => {
     expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-text-muted:\s*#d4d4d8/);
     expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-danger-700:\s*#fb7185/);
-    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-brand-accent:\s*#93c5fd/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-action-primary:\s*#2563eb/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-action-primary-hover:\s*#1d4ed8/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-action-primary-active:\s*#1e3a8a/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-brand-accent:\s*#60a5fa/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-text-link:\s*#60a5fa/);
+    expect(css).toMatch(/html\[data-theme="dark"\][\s\S]*--color-focus:\s*#93c5fd/);
+    expect(css).not.toMatch(/html\[data-theme="dark"\][\s\S]*--color-primary-700:\s*#93c5fd/);
+    expect(css).not.toMatch(/html\[data-theme="dark"\][\s\S]*--color-action-primary:\s*#3b82f6/);
     expect(css).toMatch(/\.form-alert\{[^}]*border:1px solid var\(--color-danger-700\)/);
     expect(css).toMatch(/\.portal-member-cta__copy p\{color:var\(--color-on-brand-muted\)\}/);
     expect(css).toMatch(/\.portal-member-cta__secondary\{[^}]*color:var\(--color-on-brand\)/);

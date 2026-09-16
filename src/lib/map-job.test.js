@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyColor, companyLogo, formatPosted, mapJob } from "./map-job.js";
+import { companyColor, companyLogo, contrastRatio, formatPosted, LOGO_COLORS, LOGO_FG, mapJob, MIN_LOGO_CONTRAST_RATIO } from "./map-job.js";
 
 const row = {
   id: "b2b2b2b2-0001-4000-8000-000000000001",
@@ -43,6 +43,12 @@ describe("companyLogo e companyColor", () => {
   it("gera iniciais e cor determinística", () => {
     expect(companyLogo("Nuvem Lauro Demo")).toBe("NL");
     expect(companyColor("Nuvem Lauro Demo")).toMatch(/^#/);
+    expect(LOGO_COLORS).toHaveLength(4);
+    for (const background of LOGO_COLORS) {
+      expect(contrastRatio(LOGO_FG, background)).toBeGreaterThanOrEqual(MIN_LOGO_CONTRAST_RATIO);
+    }
+    expect(LOGO_COLORS).not.toContain("#fbbc04");
+    expect(LOGO_COLORS).not.toContain("#4285f4");
   });
 });
 

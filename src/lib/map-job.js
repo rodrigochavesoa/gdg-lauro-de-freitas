@@ -12,7 +12,25 @@ const WORK_MODEL_LABEL = {
   onsite: "Presencial",
 };
 
-const LOGO_COLORS = ["#4285f4", "#ea4335", "#fbbc04", "#34a853"];
+/** Paleta das iniciais: família GDG, fundo escurecido para texto branco ≥ 4,5:1 (WCAG 1.4.3). */
+export const LOGO_COLORS = ["#1e40af", "#991b1b", "#92400e", "#166534"];
+export const LOGO_FG = "#ffffff";
+export const MIN_LOGO_CONTRAST_RATIO = 4.5;
+
+export function relativeLuminance(hex) {
+  const value = String(hex ?? "").replace("#", "");
+  if (value.length !== 6) return 0;
+  const channel = (start) => {
+    const c = parseInt(value.slice(start, start + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+}
+
+export function contrastRatio(foreground, background) {
+  const [lighter, darker] = [relativeLuminance(foreground), relativeLuminance(background)].sort((a, b) => b - a);
+  return (lighter + 0.05) / (darker + 0.05);
+}
 
 export function mapJob(row) {
   const company = row.companies?.name ?? "Empresa";
