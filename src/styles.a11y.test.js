@@ -20,6 +20,8 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
     expect(css).toMatch(/prefers-reduced-motion:reduce[\s\S]*\.job-card\{transition:none\}/);
     expect(css).toMatch(/\.job-card:hover\{transform:none\}/);
     expect(css).toMatch(/\.portal-chip\{animation:none\}/);
+    expect(css).toMatch(/\.nav-link--hydrate\{animation:nav-link-hydrate 180ms ease-out\}/);
+    expect(css).toMatch(/prefers-reduced-motion:reduce[\s\S]*\.nav-link--hydrate\{animation:none\}/);
   });
 
   it("separa CTA, marca, link e foco no dark e não reusa primary-700 como #93c5fd", () => {

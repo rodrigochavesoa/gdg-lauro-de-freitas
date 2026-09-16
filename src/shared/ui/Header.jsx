@@ -4,6 +4,15 @@ import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
 
 const STAFF_ROLES = ["admin", "curator", "moderator"];
+const CANDIDATE_NAV = [
+  { to: "/minhas-candidaturas", label: "Minhas candidaturas" },
+  { to: "/preferencias", label: "Privacidade" },
+];
+
+function candidateNavClassName(fadeIn) {
+  if (!fadeIn) return undefined;
+  return ({ isActive }) => [isActive ? "active" : null, "nav-link--hydrate"].filter(Boolean).join(" ");
+}
 
 function initialsFrom(name) {
   const parts = String(name ?? "")
@@ -58,15 +67,38 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
   const roleKnown = Boolean(role);
   const staff = Boolean(logged && isStaffRole(role));
   const candidate = Boolean(logged && roleKnown && !staff);
+  const awaitingRole = Boolean(logged && !roleKnown);
+  const prevAwaitingRole = useRef(awaitingRole);
+  const fadeCandidateLinks = candidate && prevAwaitingRole.current;
   const showAuthCta = Boolean(authReady) && !logged && pathname !== "/login" && pathname !== "/admin";
+
+  useEffect(() => {
+    prevAwaitingRole.current = awaitingRole;
+  }, [awaitingRole]);
 
   const navLinks = (onNavigate) => (
     <>
       <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink>
       <NavLink to="/eventos" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Eventos</NavLink>
       <NavLink end to="/newsletter" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Newsletter</NavLink>
-      {candidate ? <NavLink to="/minhas-candidaturas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Minhas candidaturas</NavLink> : null}
-      {candidate ? <NavLink to="/preferencias" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Privacidade</NavLink> : null}
+      {awaitingRole
+        ? CANDIDATE_NAV.map((item) => (
+          <span key={item.to} className="nav-link-placeholder" aria-hidden="true">{item.label}</span>
+        ))
+        : null}
+      {candidate
+        ? CANDIDATE_NAV.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={candidateNavClassName(fadeCandidateLinks)}
+            aria-disabled={needsOnboarding || undefined}
+            onClick={(event) => onGatedClick(event, onNavigate)}
+          >
+            {item.label}
+          </NavLink>
+        ))
+        : null}
       {staff || !logged ? (
         <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
       ) : null}

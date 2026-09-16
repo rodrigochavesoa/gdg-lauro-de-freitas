@@ -206,6 +206,10 @@ import { App } from "./App.jsx";
 import { signOutUser } from "./features/auth/auth-api.js";
 import { THEME_STORAGE_KEY } from "./shared/ui/theme.js";
 
+function placeholderLabels(root = document) {
+  return [...root.querySelectorAll(".nav-link-placeholder")].map((el) => el.textContent);
+}
+
 beforeEach(() => {
   authState.session = null;
   authState.profile = null;
@@ -627,6 +631,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+    expect(placeholderLabels()).toEqual(["Minhas candidaturas", "Privacidade"]);
     expect(screen.getByRole("heading", { name: "Deixe seu perfil trabalhar por você." })).toBeInTheDocument();
 
     authListener({
@@ -642,6 +647,7 @@ describe("ARQ-01 — caracterização do shell", () => {
 
     expect(await screen.findByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
     const desktopNav = document.querySelector(".topbar nav");
+    expect(placeholderLabels(desktopNav)).toEqual([]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
   });
@@ -667,6 +673,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toBeInTheDocument();
+    expect(placeholderLabels()).toEqual([]);
     expect(signOutUser).toHaveBeenCalledTimes(1);
   });
 });

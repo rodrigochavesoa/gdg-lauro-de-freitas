@@ -18,6 +18,10 @@ function renderHeader({ path = "/", ...props } = {}) {
   );
 }
 
+function placeholderLabels(root = document) {
+  return [...root.querySelectorAll(".nav-link-placeholder")].map((el) => el.textContent);
+}
+
 describe("Header", () => {
   it("anon na home tem um CTA Entrar ou criar conta", () => {
     renderHeader({ logged: false, path: "/" });
@@ -193,7 +197,7 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
   });
 
-  it("com sessão e perfil ainda hidratando mostra Sair sem links de papel", () => {
+  it("com sessão e perfil ainda hidratando reserva placeholders sem links de papel", () => {
     renderHeader({ logged: true, displayName: "Ana Demo", authReady: true });
     expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
@@ -202,5 +206,66 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(document.querySelector(".nav-actions__spacer")).toBeNull();
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(placeholderLabels(desktopNav)).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(desktopNav.querySelector(".nav-link-placeholder")).toHaveAttribute("aria-hidden", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(placeholderLabels(mobile)).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(within(mobile).queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+  });
+
+  it("troca placeholders por links de candidato com fade-in quando o role chega", () => {
+    const pending = { logged: true, displayName: "Ana Demo", authReady: true };
+    const { rerender } = render(
+      <MemoryRouter>
+        <Header {...pending} />
+      </MemoryRouter>,
+    );
+    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas", "Privacidade"]);
+
+    rerender(
+      <MemoryRouter>
+        <Header {...pending} {...{ role: "candidate" }} />
+      </MemoryRouter>,
+    );
+
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(placeholderLabels(desktopNav)).toEqual([]);
+    const candidaturas = within(desktopNav).getByRole("link", { name: "Minhas candidaturas" });
+    const privacidade = within(desktopNav).getByRole("link", { name: "Privacidade" });
+    expect(candidaturas).toHaveClass("nav-link--hydrate");
+    expect(privacidade).toHaveClass("nav-link--hydrate");
+    expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+  });
+
+  it("staff hidratado não vê links nem placeholders de candidato", () => {
+    const pending = { logged: true, displayName: "Ada Admin", authReady: true };
+    const { rerender } = render(
+      <MemoryRouter>
+        <Header {...pending} />
+      </MemoryRouter>,
+    );
+    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas", "Privacidade"]);
+
+    rerender(
+      <MemoryRouter>
+        <Header {...pending} {...{ role: "admin" }} />
+      </MemoryRouter>,
+    );
+
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(placeholderLabels(desktopNav)).toEqual([]);
+    expect(within(desktopNav).queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(within(desktopNav).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
+    expect(within(desktopNav).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("candidato já hidratado no primeiro paint não anima os links", () => {
+    renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).not.toHaveClass("nav-link--hydrate");
+    expect(placeholderLabels(desktopNav)).toEqual([]);
   });
 });
