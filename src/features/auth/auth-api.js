@@ -22,12 +22,45 @@ function throwIfError(error) {
   }
 }
 
-function displayNameFromUser(user) {
+export function emptyAuthSnapshot() {
+  return { session: null, profile: null, needsOnboarding: false };
+}
+
+export function displayNameFromUser(user) {
   const meta = user?.user_metadata ?? {};
   const fromMeta = String(meta.full_name || meta.name || "").trim();
   if (fromMeta) return fromMeta;
   const email = String(user?.email ?? "").trim();
   return email ? email.split("@")[0] : "Candidato";
+}
+
+/** Mantém o perfil no TOKEN_REFRESHED / snapshot só-sessão do mesmo userId. */
+export function mergeAuthSnapshot(current, incoming) {
+  if (!incoming?.session?.user) {
+    return emptyAuthSnapshot();
+  }
+  const sameUser = current?.session?.user?.id === incoming.session.user.id;
+  if (incoming.profile == null && sameUser && current?.profile) {
+    return {
+      session: incoming.session,
+      profile: current.profile,
+      needsOnboarding: current.needsOnboarding,
+    };
+  }
+  return {
+    session: incoming.session,
+    profile: incoming.profile ?? null,
+    needsOnboarding: Boolean(incoming.needsOnboarding),
+  };
+}
+
+function snapshotFromSession(session, profile, needsOnboarding) {
+  if (!session?.user) return emptyAuthSnapshot();
+  return {
+    session,
+    profile: profile ?? null,
+    needsOnboarding: Boolean(needsOnboarding),
+  };
 }
 
 async function fetchProfile(client, userId) {
@@ -59,13 +92,13 @@ export async function ensureProfileRow(user) {
 export async function loadAuthSnapshot() {
   const client = getSupabaseBrowserClient();
   if (!client) {
-    return { session: null, profile: null, needsOnboarding: false };
+    return emptyAuthSnapshot();
   }
   const { data, error } = await client.auth.getSession();
   throwIfError(error);
   const session = data.session;
   if (!session?.user) {
-    return { session: null, profile: null, needsOnboarding: false };
+    return emptyAuthSnapshot();
   }
   const profile = await ensureProfileRow(session.user);
   const needsOnboarding =
@@ -76,15 +109,59 @@ export async function loadAuthSnapshot() {
 export function subscribeAuth(onChange) {
   const client = getSupabaseBrowserClient();
   if (!client) {
-    onChange({ session: null, profile: null, needsOnboarding: false });
+    onChange(emptyAuthSnapshot());
     return () => {};
   }
-  const { data } = client.auth.onAuthStateChange(() => {
-    loadAuthSnapshot().then(onChange).catch(() => {
-      onChange({ session: null, profile: null, needsOnboarding: false });
-    });
+
+  let lastUserId = null;
+  let lastProfile = null;
+  let lastNeedsOnboarding = false;
+  let hydrateGen = 0;
+
+  const applySignedOut = () => {
+    hydrateGen += 1;
+    lastUserId = null;
+    lastProfile = null;
+    lastNeedsOnboarding = false;
+    onChange(emptyAuthSnapshot());
+  };
+
+  const { data } = client.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_OUT" || !session?.user) {
+      applySignedOut();
+      return;
+    }
+
+    const sameUser = lastUserId === session.user.id;
+    const profile = sameUser ? lastProfile : null;
+    const needsOnboarding = sameUser ? lastNeedsOnboarding : false;
+    if (!sameUser) {
+      lastProfile = null;
+      lastNeedsOnboarding = false;
+    }
+    lastUserId = session.user.id;
+    onChange(snapshotFromSession(session, profile, needsOnboarding));
+
+    const gen = ++hydrateGen;
+    loadAuthSnapshot()
+      .then((snapshot) => {
+        if (gen !== hydrateGen) return;
+        if (!snapshot.session?.user) {
+          applySignedOut();
+          return;
+        }
+        lastUserId = snapshot.session.user.id;
+        lastProfile = snapshot.profile;
+        lastNeedsOnboarding = snapshot.needsOnboarding;
+        onChange(snapshot);
+      })
+      .catch(() => {
+        if (gen !== hydrateGen) return;
+      });
   });
+
   return () => {
+    hydrateGen += 1;
     data.subscription.unsubscribe();
   };
 }

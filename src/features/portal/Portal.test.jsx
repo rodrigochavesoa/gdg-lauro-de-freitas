@@ -95,6 +95,18 @@ describe("Portal", () => {
     expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
   });
 
+  it("com sessão e perfil ainda hidratando mostra CTA de membro, não o convite anônimo", () => {
+    render(
+      <MemoryRouter>
+        <Portal logged email="ana@example.com" />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Deixe seu perfil trabalhar por você." })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Completar meu perfil" })).toHaveAttribute("href", "/onboarding");
+    expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
+  });
+
   it("convida o usuário logado a completar o perfil quando necessário", () => {
     render(
       <MemoryRouter>

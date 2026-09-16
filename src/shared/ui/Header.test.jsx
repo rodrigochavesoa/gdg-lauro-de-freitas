@@ -179,4 +179,28 @@ describe("Header", () => {
     expect(within(desktopNav).getByRole("link", { name: "Eventos" })).not.toHaveClass("active");
     expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil para continuar");
   });
+
+  it("antes de authReady reserva o slot do CTA sem avatar nem Entrar", () => {
+    renderHeader({ logged: false, authReady: false, path: "/" });
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
+    const spacer = document.querySelector(".nav-actions__spacer");
+    expect(spacer).toBeTruthy();
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(spacer).toHaveClass("primary", "small", "hide-mobile");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+  });
+
+  it("com sessão e perfil ainda hidratando mostra Sair sem links de papel", () => {
+    renderHeader({ logged: true, displayName: "Ana Demo", authReady: true });
+    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(document.querySelector(".nav-actions__spacer")).toBeNull();
+  });
 });
