@@ -30,6 +30,7 @@ vi.mock("./features/curation/curation-api.js", () => ({
 
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
+const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));
 
 vi.mock("./features/jobs/apply-api.js", async () => {
   const actual = await vi.importActual("./features/jobs/apply-api.js");
@@ -39,6 +40,14 @@ vi.mock("./features/jobs/apply-api.js", async () => {
     withdrawApplication: vi.fn(),
     loadMyApplication: (...args) => loadMyApplicationMock(...args),
     loadMyApplications: (...args) => loadMyApplicationsMock(...args),
+  };
+});
+
+vi.mock("./features/privacy/privacy-api.js", async () => {
+  const actual = await vi.importActual("./features/privacy/privacy-api.js");
+  return {
+    ...actual,
+    loadPrivacyPreferences: (...args) => loadPrivacyPreferencesMock(...args),
   };
 });
 

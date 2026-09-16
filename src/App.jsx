@@ -20,6 +20,7 @@ import { Onboarding } from "./features/auth/Onboarding.jsx";
 import { loadAuthSnapshot, signOutUser, subscribeAuth } from "./features/auth/auth-api.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
+import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
 
 const EMPTY_AUTH = { session: null, profile: null, needsOnboarding: false };
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
@@ -52,12 +53,13 @@ export function App() {
     loadApprovedJobs().catch(() => {});
   }, []);
 
-  // UX-PERF-06 — warm minhas candidaturas for candidate sessions (dedupe via inflight/TTL)
+  // UX-PERF-06 / UX-PERF-07 — warm minhas candidaturas e privacidade (dedupe via inflight/TTL)
   useEffect(() => {
     const userId = auth.session?.user?.id;
     const role = auth.profile?.role;
     if (!userId || !role || STAFF_ROLES.has(role)) return undefined;
     loadMyApplications({ userId }).catch(() => {});
+    loadPrivacyPreferences({ userId }).catch(() => {});
     return undefined;
   }, [auth.session?.user?.id, auth.profile?.role]);
 
@@ -117,10 +119,10 @@ function LoginRoute({ auth }) {
 }
 
 function PrivacyPreferencesRoute({ auth, authReady }) {
-  if (!authReady) return <main id="conteudo" tabIndex={-1} className="privacy-page"><div className="shell privacy-loading" role="status">Carregando suas preferências…</div></main>;
-  if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
-  return <PrivacyPreferences />;
+  if (auth.session) return <PrivacyPreferences userId={auth.session.user.id} />;
+  if (!authReady) return <PrivacyPreferences />;
+  return <Navigate to="/login" replace />;
 }
 
 function OnboardingRoute({ auth, setAuth }) {
