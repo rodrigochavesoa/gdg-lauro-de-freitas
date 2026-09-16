@@ -6,11 +6,13 @@ import { PrivacyPreferences } from "./PrivacyPreferences.jsx";
 
 const {
   loadPrivacyPreferences,
+  peekPrivacyPreferencesCache,
   recordPrivacyNotice,
   saveOptionalChoice,
   revokePurpose,
 } = vi.hoisted(() => ({
   loadPrivacyPreferences: vi.fn(),
+  peekPrivacyPreferencesCache: vi.fn(() => null),
   recordPrivacyNotice: vi.fn(),
   saveOptionalChoice: vi.fn(),
   revokePurpose: vi.fn(),
@@ -22,6 +24,7 @@ vi.mock("./privacy-api.js", () => ({
     return result;
   }, {}),
   loadPrivacyPreferences,
+  peekPrivacyPreferencesCache,
   recordPrivacyNotice,
   saveOptionalChoice,
   revokePurpose,
@@ -45,14 +48,17 @@ const purposes = [
   },
 ];
 
-function renderPage(events = []) {
-  loadPrivacyPreferences.mockResolvedValue({ purposes, events, source: "supabase" });
-  return render(<MemoryRouter><PrivacyPreferences /></MemoryRouter>);
+function renderPage(events = [], { cached } = {}) {
+  const payload = { purposes, events, source: "supabase" };
+  peekPrivacyPreferencesCache.mockReturnValue(cached ? payload : null);
+  loadPrivacyPreferences.mockResolvedValue(payload);
+  return render(<MemoryRouter><PrivacyPreferences userId="u1" /></MemoryRouter>);
 }
 
 describe("PrivacyPreferences", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    peekPrivacyPreferencesCache.mockReturnValue(null);
   });
 
   it("mostra avisos necessários sem checkbox opcional e deixa escolhas desmarcadas", async () => {
@@ -98,5 +104,29 @@ describe("PrivacyPreferences", () => {
     expect(screen.getByText(/Histórico desta finalidade/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Revogar" }));
     await waitFor(() => expect(revokePurpose).toHaveBeenCalledWith("F-06"));
+  });
+
+  it("mostra skeleton no cold miss sem gate de texto Carregando", async () => {
+    let resolveLoad;
+    peekPrivacyPreferencesCache.mockReturnValue(null);
+    loadPrivacyPreferences.mockImplementation(
+      () => new Promise((resolve) => { resolveLoad = resolve; }),
+    );
+    render(<MemoryRouter><PrivacyPreferences userId="u1" /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Suas preferências de privacidade" })).toBeInTheDocument();
+    expect(document.querySelectorAll(".privacy-card.job-card--skeleton-static")).toHaveLength(3);
+    expect(screen.queryByText("Carregando suas preferências…")).not.toBeInTheDocument();
+    expect(loadPrivacyPreferences).toHaveBeenCalledWith({ userId: "u1", forceRefresh: false });
+    resolveLoad({ purposes, events: [], source: "supabase" });
+    expect(await screen.findByText("Necessário")).toBeInTheDocument();
+    expect(document.querySelector(".privacy-card.job-card--skeleton-static")).toBeNull();
+  });
+
+  it("reusa o cache no remount e não mostra skeleton nem loading", async () => {
+    renderPage([], { cached: true });
+    expect(screen.getByText("Necessário")).toBeInTheDocument();
+    expect(document.querySelector(".privacy-card.job-card--skeleton-static")).toBeNull();
+    expect(screen.queryByText("Carregando suas preferências…")).not.toBeInTheDocument();
+    expect(loadPrivacyPreferences).toHaveBeenCalledWith({ userId: "u1", forceRefresh: true });
   });
 });

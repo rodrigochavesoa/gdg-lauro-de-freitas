@@ -549,7 +549,7 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
 .privacy-header p{max-width:700px;color:var(--color-text-muted);line-height:1.65;margin:0}
 .privacy-header .outline{flex:0 0 auto;margin-top:34px;white-space:nowrap}
 .privacy-list{display:grid;gap:14px}
-.privacy-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow-card)}
+.privacy-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-lg);padding:24px;box-shadow:var(--shadow-card)}.privacy-card.job-card--skeleton-static{min-height:148px;border-style:dashed}
 .privacy-card--inactive{opacity:.8;background:color-mix(in srgb,var(--color-surface) 82%,var(--color-grey-100))}
 .privacy-card__topline{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
 .privacy-card__code{font-size:var(--font-size-caption);font-weight:700;color:var(--color-text-link);letter-spacing:.04em}

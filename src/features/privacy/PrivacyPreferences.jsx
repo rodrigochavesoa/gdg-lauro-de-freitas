@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   groupCurrentPrivacyEvents,
   loadPrivacyPreferences,
+  peekPrivacyPreferencesCache,
   recordPrivacyNotice,
   revokePurpose,
   saveOptionalChoice,
@@ -98,24 +99,45 @@ function PurposeCard({ purpose, event, history, busy, onNotice, onChoice, onRevo
   );
 }
 
-export function PrivacyPreferences() {
-  const [data, setData] = useState({ purposes: [], events: [], source: "supabase" });
-  const [status, setStatus] = useState("loading");
+function PurposeSkeletons() {
+  return (
+    <div className="privacy-list" aria-hidden="true">
+      {[1, 2, 3].map((slot) => (
+        <article key={slot} className="privacy-card job-card--skeleton-static" />
+      ))}
+    </div>
+  );
+}
+
+export function PrivacyPreferences({ userId }) {
+  const cached = peekPrivacyPreferencesCache(userId);
+  const [data, setData] = useState(() => cached ?? { purposes: [], events: [], source: "supabase" });
+  const [status, setStatus] = useState(() => (cached ? "ready" : "loading"));
   const [error, setError] = useState("");
   const [busyCode, setBusyCode] = useState(null);
 
-  const load = async () => {
-    setError("");
-    try {
-      setData(await loadPrivacyPreferences());
-      setStatus("ready");
-    } catch (loadError) {
-      setError(loadError.message || "Não foi possível carregar suas preferências.");
-      setStatus("error");
+  useEffect(() => {
+    if (!userId) return undefined;
+    let cancelled = false;
+    const hadCache = peekPrivacyPreferencesCache(userId) != null;
+    if (!hadCache) {
+      setStatus("loading");
+      setError("");
     }
-  };
 
-  useEffect(() => { load(); }, []);
+    loadPrivacyPreferences({ userId, forceRefresh: hadCache })
+      .then((payload) => {
+        if (cancelled) return;
+        setData(payload);
+        setStatus("ready");
+      })
+      .catch((loadError) => {
+        if (cancelled) return;
+        setError(loadError.message || "Não foi possível carregar suas preferências.");
+        setStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   const currentEvents = useMemo(() => groupCurrentPrivacyEvents(data.events), [data.events]);
   const historyByPurpose = useMemo(() => data.events.reduce((result, event) => {
@@ -129,7 +151,9 @@ export function PrivacyPreferences() {
     setError("");
     try {
       await action();
-      await load();
+      const payload = await loadPrivacyPreferences({ userId, forceRefresh: true });
+      setData(payload);
+      setStatus("ready");
     } catch (actionError) {
       setError(actionError.message || "Não foi possível atualizar essa finalidade.");
     } finally {
@@ -137,8 +161,10 @@ export function PrivacyPreferences() {
     }
   };
 
+  const loading = status === "loading" && data.purposes.length === 0;
+
   return (
-    <main id="conteudo" tabIndex={-1} className="privacy-page">
+    <main id="conteudo" tabIndex={-1} className="privacy-page" aria-busy={loading}>
       <div className="shell privacy-shell">
         <div className="privacy-header">
           <div>
@@ -150,7 +176,7 @@ export function PrivacyPreferences() {
         </div>
         {data.source === "fallback" ? <p className="privacy-page__note" role="status">As preferências serão salvas quando o ambiente Supabase estiver configurado.</p> : null}
         {error ? <p className="privacy-alert" role="alert">{error}</p> : null}
-        {status === "loading" ? <div className="privacy-loading" aria-busy="true">Carregando suas preferências…</div> : null}
+        {loading ? <PurposeSkeletons /> : null}
         {status === "ready" ? (
           <div className="privacy-list">
             {data.purposes.map((purpose) => (
