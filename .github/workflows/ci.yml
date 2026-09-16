@@ -51,7 +51,8 @@ jobs:
 
   # Segredos privilegiados só neste job, só em código já mergeado em main.
   # Proibido: pull_request_target com checkout/execução de código da PR.
-  # Evolução futura (fora de escopo): harness externo imutável para test:rls.
+  # Falha aqui não bloqueia deploy Vercel (gate de confiança pós-merge + rollback).
+  # Evolução futura (fora de escopo): deploy condicionado ao RLS; harness externo imutável.
   rls:
     name: RLS homolog
     runs-on: ubuntu-latest

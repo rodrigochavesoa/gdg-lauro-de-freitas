@@ -62,12 +62,26 @@ pnpm migrations:prod
 
 ## Gates de release (CI)
 
-O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs. Falha de qualquer um falha o workflow.
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs com papéis distintos:
 
-| Job | Comando | Quando corre |
-|---|---|---|
-| `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | PR e push. É o único required check para merge em `main`. Sem `service_role` e sem senhas staff. |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–18, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Falha se os secrets de URL/chave faltarem. **Não** corre na PR. |
+| Job | Comando | Quando corre | Efeito de falha |
+|---|---|---|---|
+| `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | PR e push em `main`. É o **único** required check para merge. Sem `service_role` e sem senhas staff. | **Bloqueia** merge na PR e marca o workflow como falho. |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–18, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
+
+Na **PR**, apenas `Lint, test and build` precisa ficar verde. `RLS homolog` skipped é o comportamento esperado.
+
+### Gate pós-merge e Vercel (SEC-CI-SECRETS-01)
+
+Neste recorte (Vercel Hobby + deploy automático em `main`), **não** há promoção condicionada ao `RLS homolog`. A Vercel pode publicar antes do job terminar.
+
+Se `RLS homolog` falhar após o merge:
+
+1. tratar o deploy associado como **não confiável** (não promover nem assumir homologação íntegra);
+2. seguir o rollback em [`docs-local/sec-ci-secrets-01-rollback.md`](docs-local/sec-ci-secrets-01-rollback.md) (gitignored; cópia local do mantenedor);
+3. reexecutar `workflow_dispatch` em `main` ou `pnpm test:rls` local após corrigir.
+
+Um workflow de deploy condicionado ao RLS permanece **fora de escopo** desta história (follow-up DevOps).
 
 Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via `App.smoke.test.jsx`. **Não** há Playwright neste recorte.
 
