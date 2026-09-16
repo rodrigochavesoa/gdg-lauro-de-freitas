@@ -15,7 +15,6 @@ export function loadImageFromFile(file) {
     const url = URL.createObjectURL(file);
     const image = new Image();
     image.onload = () => {
-      URL.revokeObjectURL(url);
       resolve(image);
     };
     image.onerror = () => {
@@ -24,6 +23,14 @@ export function loadImageFromFile(file) {
     };
     image.src = url;
   });
+}
+
+/** O preview do crop reusa `image.src`; só revogar depois de fechar o diálogo. */
+export function revokeLoadedImageUrl(image) {
+  const src = image?.src;
+  if (typeof src === "string" && src.startsWith("blob:")) {
+    URL.revokeObjectURL(src);
+  }
 }
 
 /** Recorte circular mínimo: cobre o canvas (object-fit cover) e clipa em círculo. */

@@ -4,7 +4,7 @@ import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
 import { AccountMenu } from "./AccountMenu.jsx";
 import { AvatarCropDialog } from "./AvatarCropDialog.jsx";
-import { assertAvatarFile, cropImageToCircle, loadImageFromFile } from "../../features/auth/avatar-crop.js";
+import { assertAvatarFile, cropImageToCircle, loadImageFromFile, revokeLoadedImageUrl } from "../../features/auth/avatar-crop.js";
 
 const STAFF_ROLES = ["admin", "curator", "moderator"];
 const CANDIDATE_NAV = [
@@ -65,6 +65,12 @@ export function Header({
     }
   };
 
+  const closeCropDialog = (image = cropImage) => {
+    revokeLoadedImageUrl(image);
+    setCropImage(null);
+    setCropError("");
+  };
+
   const confirmCrop = async () => {
     if (!cropImage) return;
     setCropBusy(true);
@@ -72,7 +78,7 @@ export function Header({
     try {
       const blob = await cropImageToCircle(cropImage);
       await onSaveAvatar?.(blob);
-      setCropImage(null);
+      closeCropDialog(cropImage);
     } catch (error) {
       setCropError(error.message || "Não foi possível salvar a foto.");
     } finally {
@@ -243,7 +249,7 @@ export function Header({
           image={cropImage}
           busy={cropBusy}
           error={cropError}
-          onCancel={() => { setCropImage(null); setCropError(""); }}
+          onCancel={() => closeCropDialog()}
           onConfirm={confirmCrop}
         />
       ) : null}
