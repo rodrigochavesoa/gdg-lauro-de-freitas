@@ -604,7 +604,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     fireEvent.click(within(desktopNav).getByRole("link", { name: "Newsletter" }));
     expect(screen.getByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
     expect(screen.queryByText("4 oportunidades encontradas")).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil para continuar");
+    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil");
+    expect(screen.getByRole("link", { name: "Continuar" })).toHaveAttribute("href", "/onboarding");
   });
 
   it("URL direta de /vagas com perfil incompleto ainda cai no onboarding", async () => {

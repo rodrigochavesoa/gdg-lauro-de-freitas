@@ -49,7 +49,7 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
   const onGatedClick = (event, extra) => {
     if (needsOnboarding) {
       event.preventDefault();
-      setGateNotice("Complete o perfil para continuar");
+      setGateNotice("visible");
       return;
     }
     extra?.(event);
@@ -76,16 +76,16 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
     prevAwaitingRole.current = awaitingRole;
   }, [awaitingRole]);
 
-  const navLinks = (onNavigate) => (
+  const baseNavLinks = (onNavigate) => (
     <>
       <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink>
       <NavLink to="/eventos" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Eventos</NavLink>
       <NavLink end to="/newsletter" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Newsletter</NavLink>
-      {awaitingRole
-        ? CANDIDATE_NAV.map((item) => (
-          <span key={item.to} className="nav-link-placeholder" aria-hidden="true">{item.label}</span>
-        ))
-        : null}
+    </>
+  );
+
+  const candidateAndStaffLinks = (onNavigate) => (
+    <>
       {candidate
         ? CANDIDATE_NAV.map((item) => (
           <NavLink
@@ -105,6 +105,25 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
     </>
   );
 
+  const desktopNavLinks = (
+    <>
+      {baseNavLinks()}
+      {awaitingRole
+        ? CANDIDATE_NAV.map((item) => (
+          <span key={item.to} className="nav-link-placeholder" aria-hidden="true">{item.label}</span>
+        ))
+        : null}
+      {candidateAndStaffLinks()}
+    </>
+  );
+
+  const mobileNavLinks = (onNavigate) => (
+    <>
+      {baseNavLinks(onNavigate)}
+      {candidateAndStaffLinks(onNavigate)}
+    </>
+  );
+
   return (
     <header className="topbar">
       <div className="shell nav">
@@ -119,10 +138,9 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
           <span className="brand-name">GDG <span className="brand-accent">Jobs</span></span>
         </Link>
         <nav aria-label="Principal">
-          {navLinks()}
+          {desktopNavLinks}
         </nav>
         <div className="nav-actions">
-          {gateNotice ? <span className="eyebrow" role="status">{gateNotice}</span> : null}
           <ThemeToggle className="hide-mobile" />
           {logged ? (
             <>
@@ -154,9 +172,17 @@ export function Header({ logged, displayName, role, onSignOut, needsOnboarding =
           </button>
         </div>
       </div>
+      {gateNotice ? (
+        <div className="nav-gate-notice-wrap">
+          <p className="nav-gate-notice shell" role="status" aria-live="polite">
+            Complete o perfil
+            <Link to="/onboarding" className="nav-gate-notice__link">Continuar</Link>
+          </p>
+        </div>
+      ) : null}
       {mobileMenuOpen && (
         <div id="mobile-navigation" className="mobile-nav open" role="navigation" aria-label="Menu móvel">
-          {navLinks(closeMobileMenu)}
+          {mobileNavLinks(closeMobileMenu)}
           {logged ? (
             <button type="button" onClick={signOut}><LogOut size={17} /> Sair</button>
           ) : showAuthCta ? (
