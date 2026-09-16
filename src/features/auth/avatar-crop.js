@@ -25,12 +25,11 @@ export function loadImageFromFile(file) {
   });
 }
 
-/** O preview do crop reusa `image.src`; só revogar depois de fechar o diálogo. */
+/** O preview do crop reusa `image.src`; só revogar ao fechar o diálogo ou desmontar. */
 export function revokeLoadedImageUrl(image) {
   const src = image?.src;
-  if (typeof src === "string" && src.startsWith("blob:")) {
-    URL.revokeObjectURL(src);
-  }
+  if (typeof src !== "string" || !src.startsWith("blob:")) return;
+  URL.revokeObjectURL?.(src);
 }
 
 /** Recorte circular mínimo: cobre o canvas (object-fit cover) e clipa em círculo. */

@@ -1,7 +1,7 @@
 import React from "react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Header } from "./Header.jsx";
 
 function LocationProbe() {
@@ -308,5 +308,72 @@ describe("Header", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
+  });
+});
+
+const CROP_BLOB_URL = "blob:https://preview.test/avatar";
+
+describe("Header crop dialog", () => {
+  let OriginalImage;
+  const originalCreateObjectURL = URL.createObjectURL;
+  const originalRevokeObjectURL = URL.revokeObjectURL;
+
+  beforeEach(() => {
+    OriginalImage = globalThis.Image;
+    URL.createObjectURL = vi.fn(() => CROP_BLOB_URL);
+    URL.revokeObjectURL = vi.fn();
+    class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this._src = "";
+      }
+      set src(value) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+      get src() {
+        return this._src;
+      }
+    }
+    globalThis.Image = FakeImage;
+  });
+
+  afterEach(() => {
+    cleanup();
+    globalThis.Image = OriginalImage;
+    URL.createObjectURL = originalCreateObjectURL;
+    URL.revokeObjectURL = originalRevokeObjectURL;
+  });
+
+  async function pickAvatar() {
+    fireEvent.change(screen.getByLabelText("Enviar foto de perfil"), {
+      target: { files: [new File(["x"], "foto.jpg", { type: "image/jpeg" })] },
+    });
+    return screen.findByRole("dialog", { name: "Recortar foto" });
+  }
+
+  it("coloca o blob URL no img do diálogo depois de escolher o arquivo", async () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    const dialog = await pickAvatar();
+    expect(dialog.querySelector("img")).toHaveAttribute("src", CROP_BLOB_URL);
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+  });
+
+  it("revoga o object URL se o Header desmontar com o diálogo aberto", async () => {
+    const view = renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    await pickAvatar();
+    view.unmount();
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith(CROP_BLOB_URL);
   });
 });

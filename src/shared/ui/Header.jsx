@@ -71,6 +71,11 @@ export function Header({
     setCropError("");
   };
 
+  useEffect(() => {
+    const image = cropImage;
+    return () => revokeLoadedImageUrl(image);
+  }, [cropImage]);
+
   const confirmCrop = async () => {
     if (!cropImage) return;
     setCropBusy(true);
