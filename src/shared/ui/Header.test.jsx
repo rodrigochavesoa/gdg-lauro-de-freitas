@@ -1,13 +1,19 @@
 import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { Header } from "./Header.jsx";
+
+function LocationProbe() {
+  const { pathname } = useLocation();
+  return <div data-testid="pathname">{pathname}</div>;
+}
 
 function renderHeader({ path = "/", ...props } = {}) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Header {...props} />
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -150,5 +156,27 @@ describe("Header", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(document.getElementById("mobile-navigation")).toBeNull();
     expect(screen.getByRole("button", { name: "Abrir menu" })).toHaveFocus();
+  });
+
+  it("com perfil incompleto bloqueia nav e brand sem mudar a rota nem marcar item ativo", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ada Demo",
+      role: "candidate",
+      needsOnboarding: true,
+      path: "/onboarding",
+    });
+    const desktopNav = document.querySelector(".topbar nav");
+    const vagas = within(desktopNav).getByRole("link", { name: "Vagas" });
+    expect(vagas).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("link", { name: "Ir para a página inicial" })).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(vagas);
+    fireEvent.click(vagas);
+    fireEvent.click(within(desktopNav).getByRole("link", { name: "Eventos" }));
+    fireEvent.click(screen.getByRole("link", { name: "Ir para a página inicial" }));
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/onboarding");
+    expect(vagas).not.toHaveClass("active");
+    expect(within(desktopNav).getByRole("link", { name: "Eventos" })).not.toHaveClass("active");
+    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil para continuar");
   });
 });

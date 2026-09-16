@@ -562,4 +562,26 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
   });
+
+  it("com perfil incompleto permanece em /onboarding ao clicar Vagas", async () => {
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/onboarding");
+    expect(screen.getByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    const desktopNav = document.querySelector(".topbar nav");
+    fireEvent.click(within(desktopNav).getByRole("link", { name: "Vagas" }));
+    fireEvent.click(within(desktopNav).getByRole("link", { name: "Newsletter" }));
+    expect(screen.getByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    expect(screen.queryByText("4 oportunidades encontradas")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil para continuar");
+  });
+
+  it("URL direta de /vagas com perfil incompleto ainda cai no onboarding", async () => {
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/vagas");
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+  });
 });

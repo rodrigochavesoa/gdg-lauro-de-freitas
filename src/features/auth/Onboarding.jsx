@@ -56,18 +56,19 @@ export function Onboarding({ profile, email, onSaved }) {
 
   return (
     <main id="conteudo" tabIndex={-1} className="admin-page">
-      <section className="admin-content">
-        <div className="admin-title">
-          <div>
-            <span className="eyebrow">Perfil mínimo</span>
-            <h1>Complete seus dados para usar o GDGJobs</h1>
-            <p>
-              Nome, nível, tecnologias e localidade/modalidade são obrigatórios na homologação (D-01).
-              E-mail vem da conta Google. Isto não é um fluxo de consentimento LGPD.
-            </p>
+      <div className="shell admin-shell">
+        <section className="admin-content">
+          <div className="admin-title">
+            <div>
+              <span className="eyebrow">Perfil mínimo</span>
+              <h1>Complete seus dados para usar o GDGJobs</h1>
+              <p>
+                Nome, nível, tecnologias e localidade/modalidade são obrigatórios na homologação (D-01).
+                E-mail vem da conta Google. Isto não é um fluxo de consentimento LGPD.
+              </p>
+            </div>
           </div>
-        </div>
-        <form className="job-form" onSubmit={onSubmit}>
+          <form className="job-form" onSubmit={onSubmit}>
           <div className="form-section">
             <h2>Obrigatório</h2>
             <div className="form-grid">
@@ -153,7 +154,8 @@ export function Onboarding({ profile, email, onSaved }) {
             </button>
           </div>
         </form>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
