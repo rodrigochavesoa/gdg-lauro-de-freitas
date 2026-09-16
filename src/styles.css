@@ -217,6 +217,9 @@ html[data-theme="dark"] {
 .admin-content .ghost[aria-pressed="true"]{background:var(--color-primary-50);color:var(--color-text-link)}
 .admin-content .ghost .featured{margin-right:8px}
 @media(max-width:760px){
+  .topbar{height:auto;min-height:62px}
+  .topbar>.nav{height:62px}
+  .nav-gate-notice{justify-content:center;white-space:normal;text-align:center;flex-wrap:wrap}
   .admin-page .admin-content{padding-top:var(--space-6);padding-bottom:64px}
   .admin-tabs{margin-top:var(--space-4);padding-top:var(--space-2)}
   .admin-tabs button{min-height:44px;flex:1}
@@ -238,6 +241,15 @@ header nav a{white-space:nowrap}
 .nav-actions a.ghost,.nav-actions a.primary{text-decoration:none;border-bottom:none}
 /* UX-HEADER-01: keep .nav-actions width when anon CTA is hidden on /admin|/login */
 .nav-actions__spacer{visibility:hidden;pointer-events:none;user-select:none}
+.topbar{flex-direction:column;align-items:stretch;height:auto;min-height:75px}
+.topbar>.nav{width:100%;height:75px;box-sizing:border-box}
+.nav-gate-notice-wrap{width:100%;background:var(--color-danger-50);border-top:1px solid var(--color-danger-700)}
+.nav-gate-notice{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);margin:0 auto;padding:var(--space-2) 0;color:var(--color-danger-700);font-size:var(--font-size-caption);font-weight:600;white-space:nowrap}
+.nav-gate-notice__link{color:var(--color-danger-700);font-weight:700;text-decoration:underline;white-space:nowrap}
+@media(max-width:760px){
+  .topbar{min-height:62px}
+  .topbar>.nav{height:62px}
+}
 /* UX-AUTH-NAV-HYDRATE-01: reserve candidate link width while role hydrates */
 .nav-link-placeholder{visibility:hidden;pointer-events:none;user-select:none;white-space:nowrap;font-weight:500;padding:27px 1px 23px;border-bottom:3px solid transparent}
 .mobile-nav .nav-link-placeholder{min-height:44px;padding:0 var(--space-3);font-weight:600;display:flex;align-items:center;gap:var(--space-2)}

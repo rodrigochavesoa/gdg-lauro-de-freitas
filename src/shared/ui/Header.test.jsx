@@ -181,7 +181,12 @@ describe("Header", () => {
     expect(screen.getByTestId("pathname")).toHaveTextContent("/onboarding");
     expect(vagas).not.toHaveClass("active");
     expect(within(desktopNav).getByRole("link", { name: "Eventos" })).not.toHaveClass("active");
-    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil para continuar");
+    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("link", { name: "Continuar" })).toHaveAttribute("href", "/onboarding");
+    expect(document.querySelector(".nav-actions .eyebrow")).toBeNull();
+    expect(document.querySelector(".nav-actions .nav-gate-notice")).toBeNull();
+    expect(document.querySelector(".nav-gate-notice")).toBeTruthy();
   });
 
   it("antes de authReady reserva o slot do CTA sem avatar nem Entrar", () => {
@@ -211,9 +216,10 @@ describe("Header", () => {
     expect(desktopNav.querySelector(".nav-link-placeholder")).toHaveAttribute("aria-hidden", "true");
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
-    expect(placeholderLabels(mobile)).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(placeholderLabels(mobile)).toEqual([]);
     expect(within(mobile).queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
   });
 
   it("troca placeholders por links de candidato com fade-in quando o role chega", () => {
