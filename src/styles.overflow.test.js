@@ -27,3 +27,9 @@ describe("UX-MOBILE-OVERFLOW-01 — junta DS-07", () => {
     expect(css).not.toMatch(/\bbody\{[^}]*overflow-x:\s*hidden/);
   });
 });
+
+describe("UX-ONBOARD-NOTICE-01 — inset do header", () => {
+  it("não estica .topbar>.nav a 100% (preserva o respiro do .shell)", () => {
+    expect(css).not.toMatch(/\.topbar>\.nav\{[^}]*width:\s*100%/);
+  });
+});

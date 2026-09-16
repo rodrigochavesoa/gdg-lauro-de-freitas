@@ -242,7 +242,8 @@ header nav a{white-space:nowrap}
 /* UX-HEADER-01: keep .nav-actions width when anon CTA is hidden on /admin|/login */
 .nav-actions__spacer{visibility:hidden;pointer-events:none;user-select:none}
 .topbar{flex-direction:column;align-items:stretch;height:auto;min-height:75px}
-.topbar>.nav{width:100%;height:75px;box-sizing:border-box}
+/* height only — width:100% would override .shell (calc(100% - 48px)) and glue brand/CTA to the edges */
+.topbar>.nav{height:75px;box-sizing:border-box}
 .nav-gate-notice-wrap{width:100%;background:var(--color-danger-50);border-top:1px solid var(--color-danger-700)}
 .nav-gate-notice{display:flex;align-items:center;justify-content:flex-end;gap:var(--space-2);margin:0 auto;padding:var(--space-2) 0;color:var(--color-danger-700);font-size:var(--font-size-caption);font-weight:600;white-space:nowrap}
 .nav-gate-notice__link{color:var(--color-danger-700);font-weight:700;text-decoration:underline;white-space:nowrap}
