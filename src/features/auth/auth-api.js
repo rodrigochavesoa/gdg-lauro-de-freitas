@@ -11,19 +11,15 @@ export const AVATAR_BUCKET = "avatars";
 export const AVATAR_OBJECT = "avatar.jpg";
 const AVATAR_SIGNED_TTL_SEC = 60 * 60;
 const AVATAR_CACHE_CONTROL = "0";
-/** Projeto Supabase de produção — bucket avatars só após Camada B. */
-const PROD_SUPABASE_REF = "kezmjqzybdtptpeiytqd";
 
 export function avatarStoragePath(userId) {
   if (!userId) throw new Error("Sessão expirada. Entre novamente com Google.");
   return `${userId}/${AVATAR_OBJECT}`;
 }
 
-/** Homologação liga o upload; produção fica desligada até a Camada B. */
-export function isAvatarUploadEnabled(supabaseUrl = import.meta.env.VITE_SUPABASE_URL) {
-  if (import.meta.env.VITE_AVATAR_UPLOAD === "0") return false;
-  if (import.meta.env.VITE_AVATAR_UPLOAD === "1") return true;
-  return !String(supabaseUrl ?? "").includes(PROD_SUPABASE_REF);
+/** Homologação/Preview: VITE_AVATAR_UPLOAD_ENABLED=true. Production: ausente até Camada B. */
+export function isAvatarUploadEnabled() {
+  return import.meta.env.VITE_AVATAR_UPLOAD_ENABLED === "true";
 }
 
 function clientOrThrow() {
