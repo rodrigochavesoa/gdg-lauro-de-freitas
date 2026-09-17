@@ -248,7 +248,10 @@ async function signInStaffAal2({ email, password, totpSecret }, options = {}) {
   const signed = await signInWithRetry({ email, password }, options);
   if (signed.error || !signed.user) return signed;
   const promoteError = await promoteSessionToAal2(signed.client, totpSecret);
-  if (promoteError) return { client: signed.client, error: promoteError };
+  if (promoteError) {
+    await signed.client.auth.signOut();
+    return { client: null, error: promoteError };
+  }
   return signed;
 }
 
@@ -515,7 +518,7 @@ async function scenario5_quorum() {
   const jobR = await createPendingJob(admin, rejectMarker);
 
   const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signIn(curatorB);
+  const { client: c2 } = await signInStaff("curator2");
 
   await rpcReview(c1, jobA.data.id, "approve");
   const approved = await rpcReview(c2, jobA.data.id, "approve");
@@ -550,7 +553,7 @@ async function scenario6_tie() {
   const jobId = job.data?.id;
 
   const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signIn(reviewerB);
+  const { client: c2 } = await signInStaff("curator2");
 
   await rpcReview(c1, jobId, "approve");
   await rpcReview(c2, jobId, "reject");
@@ -627,7 +630,7 @@ async function scenario8_resubmit() {
   const jobId = job.data?.id;
 
   const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signIn(reviewerB);
+  const { client: c2 } = await signInStaff("curator2");
   await rpcReview(c1, jobId, "reject");
   await rpcReview(c2, jobId, "reject");
 
@@ -1654,6 +1657,34 @@ async function scenario19_avatarStorage() {
   await client.auth.signOut();
 }
 
+async function assertPasswordOnlyNotAal2(role) {
+  const { client, error } = await signIn(testUsers[role]);
+  assert(!error, `${role} autentica só com senha (${error?.message ?? "ok"})`);
+  if (error) return null;
+  const { data: aal } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  assert(aal?.currentLevel !== "aal2", `${role} sessão de controle do cenário 20 não é AAL2`);
+  return client;
+}
+
+async function assertAal1CannotReview(role, jobId) {
+  if (!hasCreds(testUsers[role])) {
+    skipRequired(20, `falta ${role} em docs-local`);
+    return;
+  }
+  const aal1 = await assertPasswordOnlyNotAal2(role);
+  if (!aal1) return;
+  try {
+    const review = await rpcReview(aal1, jobId, "approve");
+    assert(Boolean(review.error), `${role} AAL1 não submete curadoria`);
+    assert(
+      /aal2 required/i.test(errorText(review.error)),
+      `curadoria AAL1 ${role} recusada (${errorText(review.error) || "sem mensagem"})`,
+    );
+  } finally {
+    await aal1.auth.signOut();
+  }
+}
+
 /** Cenário 20 — SEC-STAFF-MFA-02: senha só (AAL1) não muta staff; TOTP (AAL2) muta.
  * Enhanced MFA Security (15 min AAL1) do Dashboard não substitui este teste. */
 async function scenario20_staffAal1Blocked() {
@@ -1662,18 +1693,14 @@ async function scenario20_staffAal1Blocked() {
     return;
   }
 
-  const { client: aal1, error: aal1Error } = await signIn(testUsers.admin);
-  assert(!aal1Error, `admin autentica só com senha (${aal1Error?.message ?? "ok"})`);
-  if (aal1Error) return;
+  const aal1Admin = await assertPasswordOnlyNotAal2("admin");
+  if (!aal1Admin) return;
 
   try {
-    const { data: aal } = await aal1.auth.mfa.getAuthenticatorAssuranceLevel();
-    assert(aal?.currentLevel !== "aal2", "sessão de controle do cenário 20 não é AAL2");
-
     const marker = `RLS aal1 blocked ${Date.now()}`;
-    const created = await createPendingJob(aal1, marker);
+    const created = await createPendingJob(aal1Admin, marker);
     if (!created.error && created.data?.id) {
-      await deleteJob(aal1, created.data.id);
+      await deleteJob(aal1Admin, created.data.id);
       assert(
         false,
         "AAL1 não insere vaga staff — aplique 20260917140000_staff_rls_aal2.sql só em homologação",
@@ -1686,14 +1713,14 @@ async function scenario20_staffAal1Blocked() {
       `insert AAL1 recusado por RLS/AAL2 (${errorText(created.error) || "sem mensagem"})`,
     );
 
-    const review = await rpcReview(aal1, SEED_PENDING, "approve");
+    const review = await rpcReview(aal1Admin, SEED_PENDING, "approve");
     assert(Boolean(review.error), "AAL1 não submete curadoria");
     assert(
       /aal2 required/i.test(errorText(review.error)),
       `curadoria AAL1 recusada (${errorText(review.error) || "sem mensagem"})`,
     );
   } finally {
-    await aal1.auth.signOut();
+    await aal1Admin.auth.signOut();
   }
 
   if (!totpSecrets.admin) {
@@ -1703,7 +1730,16 @@ async function scenario20_staffAal1Blocked() {
 
   const { client: aal2, error: aal2Error } = await signInStaff("admin");
   assert(!aal2Error, `admin AAL2 autentica (${aal2Error?.message ?? "ok"})`);
-  if (aal2Error) return;
+  if (aal2Error || !aal2) return;
+
+  const probeMarker = `RLS aal1 staff probe ${Date.now()}`;
+  const probe = await createPendingJob(aal2, probeMarker);
+  assert(!probe.error && probe.data?.id, "AAL2 cadastra pending para prova negativa staff");
+  if (probe.data?.id) {
+    await assertAal1CannotReview("curator", probe.data.id);
+    await assertAal1CannotReview("moderator", probe.data.id);
+    await deleteJob(aal2, probe.data.id);
+  }
 
   const okMarker = `RLS aal2 ok ${Date.now()}`;
   const createdAal2 = await createPendingJob(aal2, okMarker);

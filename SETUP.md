@@ -60,7 +60,7 @@ O toggle **Enhanced MFA Security** (AAL1 expira ~15 min) do Dashboard **não** s
 Após aplicar a migration `staff_rls_aal2` **só em homologação** (Camada B / PO para produção):
 
 1. Preencha `docs-local/staff-mfa-totp-secrets.md` (gitignored) ou `ADMIN_TEST_TOTP_SECRET` / `CURATOR_TEST_TOTP_SECRET` / `CURATOR2_TEST_TOTP_SECRET` / `CURATOR3_TEST_TOTP_SECRET` / `MODERATOR_TEST_TOTP_SECRET` no `.env.local` e no GitHub Environment `homolog-rls`.
-2. `pnpm test:rls` — logins staff usam TOTP (AAL2). Cenário 20: senha só (AAL1) **não** insere vaga nem chama `submit_curation_review`; AAL2 insere pending.
+2. `pnpm test:rls` — logins staff usam TOTP (AAL2). Cenário 20: senha só (AAL1) **não** insere vaga (admin) nem chama `submit_curation_review` (admin, curator, moderator); AAL2 insere pending.
 3. Teste humano na API: `signInWithPassword` sem verify MFA → mutação staff bloqueada; fluxo com TOTP → a mesma mutação ok. Candidato sem regressão.
 4. Enhanced MFA Security do Dashboard é regra de **sessão Auth**, não de policy — não conta como este teste.
 

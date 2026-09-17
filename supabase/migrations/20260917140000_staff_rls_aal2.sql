@@ -131,11 +131,9 @@ create policy "Candidaturas: leitura própria"
   on public.applications for select
   using (candidate_id = auth.uid() or private.is_admin_aal2());
 
+-- S6-01: candidato não faz UPDATE direto (nem status). Retirada só via
+-- withdraw_application. Não recriar "Candidaturas: atualização própria".
 drop policy if exists "Candidaturas: atualização própria" on public.applications;
-create policy "Candidaturas: atualização própria"
-  on public.applications for update
-  using (candidate_id = auth.uid() or private.is_admin_aal2())
-  with check (candidate_id = auth.uid() or private.is_admin_aal2());
 
 drop policy if exists "Candidaturas: inserção administrativa" on public.applications;
 create policy "Candidaturas: inserção administrativa"
