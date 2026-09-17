@@ -6,6 +6,7 @@ import {
   FICTITIOUS_SEED_UUIDS,
   PROD_MANIFEST_FILENAME,
   assertProdSafeSql,
+  classifyNonManifestSql,
   isHomologOnlyMigration,
   isProdSafeMigration,
   listHomologOnlyMigrations,
@@ -42,13 +43,15 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);
 
-    const { prod, homologOnly } = validateProdMigrations();
+    const { prod, homologOnly, camadaB } = validateProdMigrations();
     expect(prod).toHaveLength(15);
     expect(prod.some((name) => name.includes("job_submission_staff_dedup"))).toBe(false);
+    expect(camadaB.some((name) => name.includes("job_submission_staff_dedup"))).toBe(true);
     expect(homologOnly.some((name) => name.includes("seed_fictitious"))).toBe(true);
     expect(prod.some((name) => name.includes("data_api_select_grants"))).toBe(true);
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);
+    expect(classifyNonManifestSql().unclassified).toEqual([]);
   });
 
   it("rejeita UUID de seed em arquivo que deveria ir para produção", () => {
@@ -91,5 +94,30 @@ describe("prod migrations", () => {
       manifest: ["ghost.sql"],
     });
     expect(() => validateProdMigrations(dir)).toThrow(/não existe/);
+  });
+
+  it("falha se houver migration sem classificação", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: {
+        "ok.sql": "select 1;\n",
+        "orphan.sql": "select 1;\n",
+      },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/orphan\.sql/);
+  });
+
+  it("aceita migration fora do manifesto só quando marcada para não aplicar", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: {
+        "ok.sql": "select 1;\n",
+        "pending.sql": "-- Produção: não aplicar (Camada B / PO).\nselect 1;\n",
+      },
+    });
+    const { prod, camadaB } = validateProdMigrations(dir);
+    expect(prod).toEqual(["ok.sql"]);
+    expect(camadaB).toEqual(["pending.sql"]);
   });
 });

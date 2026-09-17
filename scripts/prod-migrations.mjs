@@ -92,6 +92,27 @@ export function listHomologOnlyMigrations(dir = MIGRATIONS_DIR) {
   return listMigrationFiles(dir).filter(isHomologOnlyMigration);
 }
 
+/**
+ * `.sql` fora do manifesto e fora do pattern homolog-only.
+ * Marker «Produção: não aplicar» = Camada B (classificado, sem apply).
+ * Sem marker = não classificado (deve falhar).
+ */
+export function classifyNonManifestSql(dir = MIGRATIONS_DIR, prodFilenames = loadProdManifest(dir)) {
+  const prodSet = new Set(prodFilenames);
+  const camadaB = [];
+  const unclassified = [];
+  for (const filename of listMigrationFiles(dir)) {
+    if (prodSet.has(filename) || isHomologOnlyMigration(filename)) continue;
+    const sql = readFileSync(join(dir, filename), "utf8");
+    if (PROD_DO_NOT_APPLY_MARKER.test(sql)) {
+      camadaB.push(filename);
+    } else {
+      unclassified.push(filename);
+    }
+  }
+  return { camadaB, unclassified };
+}
+
 export function assertProdSafeSql(sql, filename) {
   if (PROD_DO_NOT_APPLY_MARKER.test(sql)) {
     throw new Error(
@@ -125,7 +146,13 @@ export function validateProdMigrations(dir = MIGRATIONS_DIR) {
     const sql = readFileSync(join(dir, filename), "utf8");
     assertProdSafeSql(sql, filename);
   }
-  return { prod, homologOnly };
+  const { camadaB, unclassified } = classifyNonManifestSql(dir, prod);
+  if (unclassified.length > 0) {
+    throw new Error(
+      `Migration(s) sem classificação (não estão no manifesto, não são homolog-only e não têm «Produção: não aplicar»): ${unclassified.join(", ")}`,
+    );
+  }
+  return { prod, homologOnly, camadaB };
 }
 
 function main() {
