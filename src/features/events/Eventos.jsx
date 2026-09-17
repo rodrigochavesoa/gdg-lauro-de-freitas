@@ -180,7 +180,7 @@ function EventIndexCard({ event }) {
           alt=""
           width={event.bannerWidth}
           height={event.bannerHeight}
-          loading="lazy"
+          loading="eager"
           decoding="async"
         />
       </div>
