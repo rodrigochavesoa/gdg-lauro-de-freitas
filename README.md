@@ -70,6 +70,7 @@ Auth: **Supabase Auth** (Google OAuth). Sem `service_role` no frontend. Homologa
 
 | Arquivo | Conteúdo |
 |---|---|
+| [**PROJECT_OVERVIEW.md**](PROJECT_OVERVIEW.md) | Visão técnica completa para novos desenvolvedores |
 | [**SETUP.md**](SETUP.md) | Node 22, pnpm, `.env.local`, `pnpm dev`, testes, RLS |
 | [**CONTRIBUTING.md**](CONTRIBUTING.md) | Branch, PR, Conventional Commits, papéis Plan / Executor |
 | [**LICENSE**](LICENSE) | MIT — GDG Lauro de Freitas, 2026 |
