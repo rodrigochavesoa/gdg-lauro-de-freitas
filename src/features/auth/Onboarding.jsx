@@ -74,11 +74,11 @@ export function Onboarding({ profile, email, onSaved }) {
             <div className="form-grid">
               <label className="wide">
                 Nome
-                <input id="onboarding-full-name" name="fullName" autoComplete="name" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <input id="onboarding-full-name" name="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </label>
               <label className="wide">
                 E-mail
-                <input id="onboarding-email" name="email" type="email" autoComplete="email" value={email ?? ""} readOnly />
+                <input id="onboarding-email" name="email" type="email" value={email ?? ""} readOnly />
               </label>
               <label>
                 Nível
@@ -118,7 +118,6 @@ export function Onboarding({ profile, email, onSaved }) {
                 <input
                   id="onboarding-location"
                   name="location"
-                  autoComplete="address-level2"
                   required
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
@@ -136,15 +135,15 @@ export function Onboarding({ profile, email, onSaved }) {
               </label>
               <label>
                 LinkedIn
-                <input id="onboarding-linkedin" name="linkedin" autoComplete="url" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://" />
+                <input id="onboarding-linkedin" name="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://" />
               </label>
               <label>
                 GitHub
-                <input id="onboarding-github" name="github" autoComplete="url" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://" />
+                <input id="onboarding-github" name="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://" />
               </label>
               <label className="wide">
                 Currículo (URL)
-                <input id="onboarding-cv-url" name="cvUrl" autoComplete="url" value={cvUrl} onChange={(e) => setCvUrl(e.target.value)} placeholder="https://" />
+                <input id="onboarding-cv-url" name="cvUrl" value={cvUrl} onChange={(e) => setCvUrl(e.target.value)} placeholder="https://" />
               </label>
             </div>
           </div>
