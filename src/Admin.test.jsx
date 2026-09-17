@@ -37,13 +37,17 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
   },
 }));
 
-vi.mock("./features/auth/staff-mfa.js", () => ({
-  isStaffMfaRequired: () => staffMfa.required,
-  needsStaffMfaStep: (assurance) => Boolean(assurance) && assurance.currentLevel !== "aal2",
-  getStaffMfaAssurance: (...args) => staffMfa.getStaffMfaAssurance(...args),
-  enrollStaffTotp: (...args) => staffMfa.enrollStaffTotp(...args),
-  verifyStaffTotp: (...args) => staffMfa.verifyStaffTotp(...args),
-}));
+vi.mock("./features/auth/staff-mfa.js", async () => {
+  const actual = await vi.importActual("./features/auth/staff-mfa.js");
+  return {
+    ...actual,
+    isStaffMfaRequired: () => staffMfa.required,
+    needsStaffMfaStep: (assurance) => Boolean(assurance) && assurance.currentLevel !== "aal2",
+    getStaffMfaAssurance: (...args) => staffMfa.getStaffMfaAssurance(...args),
+    enrollStaffTotp: (...args) => staffMfa.enrollStaffTotp(...args),
+    verifyStaffTotp: (...args) => staffMfa.verifyStaffTotp(...args),
+  };
+});
 
 import { Admin } from "./Admin.jsx";
 
@@ -453,7 +457,10 @@ describe("Admin", () => {
     expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Gerar QR do autenticador" }));
-    expect(await screen.findByAltText("QR code do autenticador")).toBeInTheDocument();
+    const qr = await screen.findByAltText("QR code do autenticador");
+    expect(qr.tagName).toBe("IMG");
+    expect(qr).toHaveAttribute("src", "data:image/svg+xml,<svg></svg>");
+    expect(document.querySelector(".admin-mfa-qr[aria-hidden]")).toBeNull();
     expect(screen.getByText(/SECRETBASE32/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Código do autenticador"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar código" }));

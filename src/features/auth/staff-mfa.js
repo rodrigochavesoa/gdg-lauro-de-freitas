@@ -19,6 +19,18 @@ export function isStaffMfaRequired(value = import.meta.env.VITE_STAFF_MFA_REQUIR
   return value === "true";
 }
 
+/** QR do autenticador só como `src` de imagem (data URL ou https). Nunca HTML. */
+export function staffMfaQrSrc(qrCode) {
+  const value = String(qrCode ?? "").trim();
+  if (!value) return "";
+  if (value.startsWith("data:image/")) return value;
+  if (/^https:\/\//i.test(value)) return value;
+  if (value.startsWith("<svg")) {
+    return `data:image/svg+xml;utf-8,${encodeURIComponent(value)}`;
+  }
+  return "";
+}
+
 export function needsStaffMfaStep(assurance) {
   return Boolean(assurance) && assurance.currentLevel !== "aal2";
 }

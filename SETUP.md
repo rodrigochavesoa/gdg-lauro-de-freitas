@@ -38,6 +38,8 @@ Configure as mesmas origens no provedor Google e em Authentication → URL Confi
 
 ## MFA staff (homolog)
 
+**Alcance:** MFA obrigatório para acesso à interface `/admin`, não como proteção completa das operações staff. Sem claim `aal` nas policies RLS, uma sessão só com senha (AAL1) ainda pode chamar a Data API se as policies permitirem. Enforcement server-side/AAL2 é follow-up (`SEC-STAFF-MFA-02`) — obrigatório antes de dados reais em produção.
+
 O segundo fator (TOTP) na área `/admin` **só** vale para papéis `admin`, `curator` e `moderator`. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
 
 | `VITE_STAFF_MFA_REQUIRED` | Comportamento |

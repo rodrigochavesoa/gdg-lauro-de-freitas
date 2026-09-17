@@ -31,6 +31,7 @@ import {
   getStaffMfaAssurance,
   isStaffMfaRequired,
   needsStaffMfaStep,
+  staffMfaQrSrc,
   verifyStaffTotp,
 } from "./staff-mfa.js";
 
@@ -46,6 +47,17 @@ describe("staff-mfa", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it("converte QR TOTP em src de imagem sem HTML", () => {
+    expect(staffMfaQrSrc("")).toBe("");
+    expect(staffMfaQrSrc("data:image/svg+xml,qr")).toBe("data:image/svg+xml,qr");
+    expect(staffMfaQrSrc("https://example.invalid/qr.svg")).toBe("https://example.invalid/qr.svg");
+    expect(staffMfaQrSrc("<svg xmlns='http://www.w3.org/2000/svg'></svg>")).toBe(
+      "data:image/svg+xml;utf-8," + encodeURIComponent("<svg xmlns='http://www.w3.org/2000/svg'></svg>"),
+    );
+    expect(staffMfaQrSrc("<script>alert(1)</script>")).toBe("");
+    expect(staffMfaQrSrc("javascript:alert(1)")).toBe("");
   });
 
   it("só exige MFA quando a flag é exatamente true", () => {

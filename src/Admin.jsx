@@ -14,6 +14,7 @@ import {
   getStaffMfaAssurance,
   isStaffMfaRequired,
   needsStaffMfaStep,
+  staffMfaQrSrc,
   verifyStaffTotp,
 } from "./features/auth/staff-mfa.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
@@ -52,11 +53,9 @@ function AdminSurfaceCurve() {
 }
 
 function StaffMfaQr({ qrCode }) {
-  if (!qrCode) return null;
-  if (qrCode.trim().startsWith("<svg")) {
-    return <div className="admin-mfa-qr" aria-hidden="true" dangerouslySetInnerHTML={{ __html: qrCode }} />;
-  }
-  return <img className="admin-mfa-qr" alt="QR code do autenticador" src={qrCode} />;
+  const src = staffMfaQrSrc(qrCode);
+  if (!src) return null;
+  return <img className="admin-mfa-qr" alt="QR code do autenticador" src={src} />;
 }
 
 export function Admin({ setLogged, session, authReady = true, authProfile = null }) {
