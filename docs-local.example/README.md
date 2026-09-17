@@ -31,6 +31,7 @@ docs-local/
   assets/                   ← evidências Visual QA (PNG, audit-log.json)
   design-system/            ← DS-06/DS-07 e referências
   *-test-user.md            ← credenciais de homologação (nunca commitar)
+  staff-mfa-totp-secrets.md ← secrets TOTP staff para `pnpm test:rls` (nunca commitar)
   contributing.md           ← se migrou do docs/ antigo (a pública é CONTRIBUTING.md na raiz)
 ```
 
