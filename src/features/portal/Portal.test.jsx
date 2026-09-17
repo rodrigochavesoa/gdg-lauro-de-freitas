@@ -39,18 +39,7 @@ describe("Portal", () => {
         <Portal />
       </MemoryRouter>,
     );
-    const search = screen.getByLabelText("Buscar vagas");
-    expect(search).toHaveAttribute("id", "portal-query");
-    expect(search).toHaveAttribute("name", "q");
-  });
-
-  it("coloca id e name na busca do hero", () => {
-    render(
-      <MemoryRouter>
-        <Portal />
-      </MemoryRouter>,
-    );
-    const search = screen.getByLabelText("Buscar vagas");
+    const search = screen.getByRole("textbox", { name: "Buscar vagas" });
     expect(search).toHaveAttribute("id", "portal-query");
     expect(search).toHaveAttribute("name", "q");
   });
