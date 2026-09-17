@@ -1661,8 +1661,16 @@ async function assertPasswordOnlyNotAal2(role) {
   const { client, error } = await signIn(testUsers[role]);
   assert(!error, `${role} autentica só com senha (${error?.message ?? "ok"})`);
   if (error) return null;
-  const { data: aal } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
-  assert(aal?.currentLevel !== "aal2", `${role} sessão de controle do cenário 20 não é AAL2`);
+  const { data: aal, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  assert(!aalError, `${role} lê AAL (${errorText(aalError) || "ok"})`);
+  assert(
+    aal?.currentLevel === "aal1",
+    `${role} sessão de controle do cenário 20 é AAL1 (atual: ${aal?.currentLevel ?? "ausente"})`,
+  );
+  if (aalError || aal?.currentLevel !== "aal1") {
+    await client.auth.signOut();
+    return null;
+  }
   return client;
 }
 
