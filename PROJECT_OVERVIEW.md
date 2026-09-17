@@ -277,6 +277,7 @@ VITE_SUPABASE_URL
 VITE_SUPABASE_PUBLISHABLE_KEY
 VITE_SUPABASE_ANON_KEY        # compatibilidade/fallback em alguns scripts
 VITE_STAFF_MFA_REQUIRED       # false/ausente por padrão
+VITE_AVATAR_UPLOAD_ENABLED    # só "true" liga upload; Production ausente até Camada B
 SUPABASE_SERVICE_ROLE_KEY     # somente runtime protegido/Environment homolog-rls
 *_TEST_EMAIL                  # somente Environment protegido
 *_TEST_PASSWORD               # somente Environment protegido

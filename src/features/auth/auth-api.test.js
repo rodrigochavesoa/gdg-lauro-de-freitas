@@ -244,7 +244,7 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
   });
 
   it("faz upload em {userId}/avatar.jpg, sem cache, e persiste avatar_path", async () => {
-    vi.stubEnv("VITE_AVATAR_UPLOAD", "1");
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
     const upload = vi.fn(async () => ({ error: null }));
     supabaseState.storageFrom.mockReturnValue({ upload });
@@ -267,7 +267,7 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
   });
 
   it("repete o UPDATE se o perfil falhar depois do upload", async () => {
-    vi.stubEnv("VITE_AVATAR_UPLOAD", "1");
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
     supabaseState.storageFrom.mockReturnValue({ upload: vi.fn(async () => ({ error: null })) });
     const single = vi
@@ -286,11 +286,20 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     expect(saved.avatar_path).toBe("u1/avatar.jpg");
   });
 
-  it("bloqueia upload no projeto de produção", async () => {
-    expect(isAvatarUploadEnabled("https://pcdfxnfhgdmzmcmlhxuv.supabase.co")).toBe(true);
-    expect(isAvatarUploadEnabled("https://kezmjqzybdtptpeiytqd.supabase.co")).toBe(false);
+  it("fail-closed por default e só liga com true", () => {
+    import.meta.env.VITE_AVATAR_UPLOAD_ENABLED = undefined;
+    expect(isAvatarUploadEnabled()).toBe(false);
+    for (const value of ["", "0", "1", "false", "yes"]) {
+      vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", value);
+      expect(isAvatarUploadEnabled()).toBe(false);
+    }
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
+    expect(isAvatarUploadEnabled()).toBe(true);
     expect(avatarStoragePath("u1")).toBe("u1/avatar.jpg");
-    vi.stubEnv("VITE_AVATAR_UPLOAD", "0");
+  });
+
+  it("bloqueia saveProfileAvatar quando a flag está off", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "");
     await expect(saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }))).rejects.toThrow(/indisponível/);
   });
 });

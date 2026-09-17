@@ -55,6 +55,17 @@ Passos do mantenedor **só no projeto Supabase de homologação**:
 
 O toggle **Enhanced MFA Security** (AAL1 expira ~15 min) do Dashboard **não** substitui RLS AAL2.
 
+## Upload de avatar (homolog / Preview)
+
+**Alcance:** a flag Vite controla só o gate de upload no frontend (`isAvatarUploadEnabled`). Storage, RLS, crop e popover são outra história (UX-PROFILE-AVATAR-01). Produção permanece fail-closed até Camada B / PO.
+
+| `VITE_AVATAR_UPLOAD_ENABLED` | Comportamento |
+|---|---|
+| `true` | UI de upload ligada (homologação / Preview). |
+| ausente, `false`, `1`, `0` ou qualquer outro valor | Fail-closed: upload indisponível. |
+
+Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar o fluxo. **Não** defina em Production.
+
 ## Teste SEC-STAFF-MFA-02 (RLS AAL2)
 
 Após aplicar a migration `staff_rls_aal2` **só em homologação** (Camada B / PO para produção):
