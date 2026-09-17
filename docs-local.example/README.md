@@ -19,6 +19,9 @@ A pasta `docs-local/` está no `.gitignore` e **não** vai para o GitHub. `AGENT
 ```
 docs-local/
   AGENTS.md                 ← papéis Plan / Executor / Visual QA (copie AGENTS.md.example)
+  security-project-bootstrap.md        ← setup inicial de segurança (copie security-project-bootstrap.example.md + expanda)
+  guideline-credentials-lifecycle.md   ← ciclo de vida de credenciais (copie do exemplo + expanda local)
+  guideline-agents-secret-hygiene.md   ← regras agents (gerar na cópia local; ver exemplo)
   cursor/
     rules/                  ← rules Cursor (copie public-docs-boundary.mdc + demais de docs-local.example/cursor/rules/)
     mcp.json
