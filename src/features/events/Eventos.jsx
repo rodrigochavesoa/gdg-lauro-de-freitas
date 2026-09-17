@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import { Link } from "react-router-dom";
-import { toggleFilterValue } from "../../lib/filter-jobs.js";
+import { formOptionId, toggleFilterValue } from "../../lib/filter-jobs.js";
 import {
   EVENT_STATUS_FILTERS,
   EVENT_STATUS_LABELS,
@@ -74,9 +74,12 @@ export function EventosIndex({ logged = false }) {
           <div className="searchbox">
             <Search size={21} />
             <input
+              id="events-query"
+              name="q"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Evento, cidade ou organizador"
+              aria-label="Evento, cidade ou organizador"
             />
             <button className="primary" type="button" onClick={() => {}}>
               Buscar eventos <ArrowUpRight size={17} />
@@ -110,6 +113,7 @@ export function EventosIndex({ logged = false }) {
           </div>
           <div className="filters__body">
             <FilterGroup
+              name="events-status"
               label="Status"
               values={EVENT_STATUS_FILTERS}
               active={status}
@@ -117,6 +121,7 @@ export function EventosIndex({ logged = false }) {
               labels={EVENT_STATUS_LABELS}
             />
             <FilterGroup
+              name="events-format"
               label="Formato"
               values={FORMAT_FILTERS}
               active={format}
@@ -259,17 +264,20 @@ function SortMenu({ value, onChange }) {
   );
 }
 
-function FilterGroup({ label, values, active, toggle, labels }) {
+function FilterGroup({ name, label, values, active, toggle, labels }) {
   return (
     <div className="filter-group">
       <h3>{label}</h3>
-      {values.map((value) => (
-        <label key={value} className="checkline">
-          <input type="checkbox" checked={active.includes(value)} onChange={() => toggle(value)} />
-          <span className="check"><Check size={13} /></span>
-          {labels?.[value] ?? value}
-        </label>
-      ))}
+      {values.map((value) => {
+        const id = formOptionId(name, value);
+        return (
+          <label key={value} className="checkline">
+            <input type="checkbox" id={id} name={name} value={value} checked={active.includes(value)} onChange={() => toggle(value)} />
+            <span className="check"><Check size={13} /></span>
+            {labels?.[value] ?? value}
+          </label>
+        );
+      })}
     </div>
   );
 }

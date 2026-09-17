@@ -393,6 +393,8 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                       <label className="wide">
                         Código do autenticador
                         <input
+                          id="admin-totp"
+                          name="totp"
                           inputMode="numeric"
                           autoComplete="one-time-code"
                           pattern="[0-9]{6}"
@@ -441,11 +443,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                 <div className="form-grid">
                   <label className="wide">
                     E-mail
-                    <input type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu-email@empresa.com" />
+                    <input id="admin-email" name="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu-email@empresa.com" />
                   </label>
                   <label className="wide">
                     Senha
-                    <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                    <input id="admin-password" name="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
                   </label>
                 </div>
               </div>
@@ -501,11 +503,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                   <div className="form-grid">
                     <label className="wide">
                       Título da vaga
-                      <input required value={form.title} onChange={field("title")} placeholder="Ex.: Pessoa Desenvolvedora Front-end" />
+                      <input id="admin-job-title" name="title" required value={form.title} onChange={field("title")} placeholder="Ex.: Pessoa Desenvolvedora Front-end" />
                     </label>
                     <label>
                       Empresa
-                      <select value={form.companyId} onChange={field("companyId")}>
+                      <select id="admin-job-company" name="companyId" value={form.companyId} onChange={field("companyId")}>
                         <option value="">Selecione uma empresa</option>
                         {companies.map((company) => (
                           <option key={company.id} value={company.id}>
@@ -516,11 +518,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     </label>
                     <label>
                       Nova empresa fictícia
-                      <input value={form.newCompanyName} onChange={field("newCompanyName")} placeholder="Opcional se já selecionou" />
+                      <input id="admin-job-new-company" name="newCompanyName" value={form.newCompanyName} onChange={field("newCompanyName")} placeholder="Opcional se já selecionou" />
                     </label>
                     <label>
                       Nível
-                      <select required value={form.level} onChange={field("level")}>
+                      <select id="admin-job-level" name="level" required value={form.level} onChange={field("level")}>
                         <option value="">Selecione o nível</option>
                         <option>Júnior</option>
                         <option>Pleno</option>
@@ -530,7 +532,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     </label>
                     <label className="wide">
                       Descrição
-                      <textarea required value={form.description} onChange={field("description")} placeholder="Descreva a oportunidade, responsabilidades e requisitos..." rows="6" />
+                      <textarea id="admin-job-description" name="description" required value={form.description} onChange={field("description")} placeholder="Descreva a oportunidade, responsabilidades e requisitos..." rows="6" />
                     </label>
                   </div>
                 </div>
@@ -539,15 +541,15 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                   <div className="form-grid">
                     <label>
                       Tecnologias
-                      <input value={form.stackText} onChange={field("stackText")} placeholder="React, TypeScript, Next.js" />
+                      <input id="admin-job-stack" name="stackText" value={form.stackText} onChange={field("stackText")} placeholder="React, TypeScript, Next.js" />
                     </label>
                     <label>
                       Localidade
-                      <input value={form.location} onChange={field("location")} placeholder="Ex.: Remoto · Brasil" />
+                      <input id="admin-job-location" name="location" value={form.location} onChange={field("location")} placeholder="Ex.: Remoto · Brasil" />
                     </label>
                     <label>
                       Modelo
-                      <select value={form.workModel} onChange={field("workModel")}>
+                      <select id="admin-job-work-model" name="workModel" value={form.workModel} onChange={field("workModel")}>
                         <option>Remoto</option>
                         <option>Híbrido</option>
                         <option>Presencial</option>
@@ -555,7 +557,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                     </label>
                     <label>
                       Tipo de contrato
-                      <select defaultValue="CLT">
+                      <select id="admin-job-contract" name="contractType" defaultValue="CLT">
                         <option>CLT</option>
                         <option>PJ</option>
                         <option>Estágio</option>

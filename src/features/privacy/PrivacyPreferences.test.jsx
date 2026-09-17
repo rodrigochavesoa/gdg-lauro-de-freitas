@@ -68,6 +68,8 @@ describe("PrivacyPreferences", () => {
     expect(await screen.findByText("Necessário")).toBeInTheDocument();
     expect(screen.getByText("Em preparação. Esta finalidade não está disponível para escolha.")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Desativada" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Desativada" })).toHaveAttribute("id", "privacy-F-06");
+    expect(screen.getByRole("checkbox", { name: "Desativada" })).toHaveAttribute("name", "privacy-F-06");
     expect(screen.getAllByText("pending_dpo").length).toBeGreaterThan(0);
   });
 

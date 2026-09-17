@@ -38,5 +38,6 @@ describe("Login", () => {
       "href",
       "/admin",
     );
+    expect(document.querySelectorAll("input, select, textarea")).toHaveLength(0);
   });
 });

@@ -187,6 +187,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
               {RUBRIC_OPTIONS.map((option) => (
                 <label key={option.code} className="wide">
                   <input
+                    id={`curation-rubric-${option.code}`}
                     type="radio"
                     name="rubric"
                     value={option.code}
@@ -202,6 +203,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
               <legend>Decisão</legend>
               <label>
                 <input
+                  id="curation-decision-approve"
                   type="radio"
                   name="decision"
                   value="approve"
@@ -212,6 +214,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
               </label>
               <label>
                 <input
+                  id="curation-decision-reject"
                   type="radio"
                   name="decision"
                   value="reject"
@@ -224,6 +227,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
             <label className="wide">
               Comentário interno (opcional)
               <textarea
+                id="curation-comment"
+                name="comment"
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
                 rows="3"
@@ -237,6 +242,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
               <label className="wide">
                 Motivo interno para urgente
                 <input
+                  id="curation-priority-reason"
+                  name="priorityReason"
                   value={priorityReason}
                   onChange={(event) => setPriorityReason(event.target.value)}
                   placeholder="Obrigatório ao marcar urgente"

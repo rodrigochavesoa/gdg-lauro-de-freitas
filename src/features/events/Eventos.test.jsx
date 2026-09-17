@@ -75,6 +75,22 @@ describe("EventosIndex", () => {
     expect(document.querySelector(".cta")).toBeTruthy();
   });
 
+  it("coloca id e name na busca e nos checkboxes de filtro", () => {
+    renderIndex();
+
+    const search = screen.getByLabelText("Evento, cidade ou organizador");
+    expect(search).toHaveAttribute("id", "events-query");
+    expect(search).toHaveAttribute("name", "q");
+    const upcoming = screen.getByRole("checkbox", { name: "Em breve" });
+    expect(upcoming).toHaveAttribute("id", "events-status-upcoming");
+    expect(upcoming).toHaveAttribute("name", "events-status");
+    const presencial = screen.getByRole("checkbox", { name: "Presencial" });
+    expect(presencial).toHaveAttribute("id", "events-format-presencial");
+    expect(presencial).toHaveAttribute("name", "events-format");
+    const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamed).toEqual([]);
+  });
+
   it("liga Criar perfil gratuito à rota de login", () => {
     renderIndex();
 

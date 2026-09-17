@@ -101,5 +101,11 @@ describe("CurationQueue", () => {
     expect(screen.getByText("Ainda sem parecer nesta vaga.")).toBeInTheDocument();
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar parecer/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Aprovar/i })).toHaveAttribute("name", "decision");
+    expect(screen.getByRole("radio", { name: /Aprovar/i })).toHaveAttribute("id", "curation-decision-approve");
+    expect(screen.getByLabelText("Comentário interno (opcional)")).toHaveAttribute("id", "curation-comment");
+    expect(screen.getByLabelText("Comentário interno (opcional)")).toHaveAttribute("name", "comment");
+    const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamed).toEqual([]);
   });
 });

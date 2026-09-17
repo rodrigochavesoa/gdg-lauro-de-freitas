@@ -89,7 +89,11 @@ describe("Admin", () => {
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector(".admin-auth-shell")).toBeTruthy();
     expect(screen.getByLabelText("E-mail")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("id", "admin-email");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("name", "email");
     expect(screen.getByLabelText("Senha")).toHaveAttribute("autocomplete", "current-password");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("id", "admin-password");
+    expect(screen.getByLabelText("Senha")).toHaveAttribute("name", "password");
     expect(screen.getByText(/Use o e-mail e a senha da sua conta de equipe GDG Jobs/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Login" })).toHaveAttribute("href", "/login");
     expect(screen.getByPlaceholderText("seu-email@empresa.com")).toBeInTheDocument();
@@ -112,6 +116,10 @@ describe("Admin", () => {
     expect(screen.getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("id", "admin-job-title");
+    expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("name", "title");
+    const unnamedJobs = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamedJobs).toEqual([]);
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
     expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
@@ -433,6 +441,8 @@ describe("Admin", () => {
     expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Confirme o segundo fator para acessar a área da equipe.");
     expect(screen.getByLabelText("Código do autenticador")).toBeInTheDocument();
+    expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("id", "admin-totp");
+    expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("name", "totp");
     expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
   });

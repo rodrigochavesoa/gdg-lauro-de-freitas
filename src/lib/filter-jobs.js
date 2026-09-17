@@ -88,6 +88,17 @@ export function toggleFilterValue(item, values) {
   return values.includes(item) ? values.filter((value) => value !== item) : [...values, item];
 }
 
+/** id estável para checkbox de filtro (único na view, ASCII). */
+export function formOptionId(group, value) {
+  const slug = String(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${group}-${slug}`;
+}
+
 export const SORT_RECENT = "recent";
 export const SORT_OLDEST = "oldest";
 

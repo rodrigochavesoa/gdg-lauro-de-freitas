@@ -25,7 +25,7 @@ export function Portal({ logged = false, profile = null, email = "" }) {
             <p>Encontre uma vaga, conheça a comunidade e dê forma ao próximo capítulo da sua carreira.</p>
             <form className="prototype-search" onSubmit={searchJobs} role="search" aria-label="Buscar vagas">
               <Search size={18} aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Buscar vagas" />
+              <input id="portal-query" name="q" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Buscar vagas" />
               <button className="primary" type="submit">Buscar vagas <ArrowUpRight size={16} /></button>
             </form>
             <div className="prototype-hero__portal-note"><Sparkles size={15} /> Vagas selecionadas para a comunidade</div>

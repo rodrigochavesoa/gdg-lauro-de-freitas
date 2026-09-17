@@ -74,15 +74,15 @@ export function Onboarding({ profile, email, onSaved }) {
             <div className="form-grid">
               <label className="wide">
                 Nome
-                <input required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+                <input id="onboarding-full-name" name="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </label>
               <label className="wide">
                 E-mail
-                <input type="email" value={email ?? ""} readOnly />
+                <input id="onboarding-email" name="email" type="email" value={email ?? ""} readOnly />
               </label>
               <label>
                 Nível
-                <select required value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}>
+                <select id="onboarding-experience-level" name="experienceLevel" required value={experienceLevel} onChange={(e) => setExperienceLevel(e.target.value)}>
                   <option value="">Selecione</option>
                   {LEVEL_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -93,7 +93,7 @@ export function Onboarding({ profile, email, onSaved }) {
               </label>
               <label>
                 Modalidade
-                <select required value={workModel} onChange={(e) => setWorkModel(e.target.value)}>
+                <select id="onboarding-work-model" name="workModel" required value={workModel} onChange={(e) => setWorkModel(e.target.value)}>
                   <option value="">Selecione</option>
                   {MODEL_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -105,6 +105,8 @@ export function Onboarding({ profile, email, onSaved }) {
               <label className="wide">
                 Tecnologias (separe por vírgula)
                 <input
+                  id="onboarding-skills"
+                  name="skills"
                   required
                   value={skillsText}
                   onChange={(e) => setSkillsText(e.target.value)}
@@ -114,6 +116,8 @@ export function Onboarding({ profile, email, onSaved }) {
               <label className="wide">
                 Localidade
                 <input
+                  id="onboarding-location"
+                  name="location"
                   required
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
@@ -127,19 +131,19 @@ export function Onboarding({ profile, email, onSaved }) {
             <div className="form-grid">
               <label className="wide">
                 Bio
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows="3" />
+                <textarea id="onboarding-bio" name="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows="3" />
               </label>
               <label>
                 LinkedIn
-                <input value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://" />
+                <input id="onboarding-linkedin" name="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://" />
               </label>
               <label>
                 GitHub
-                <input value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://" />
+                <input id="onboarding-github" name="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://" />
               </label>
               <label className="wide">
                 Currículo (URL)
-                <input value={cvUrl} onChange={(e) => setCvUrl(e.target.value)} placeholder="https://" />
+                <input id="onboarding-cv-url" name="cvUrl" value={cvUrl} onChange={(e) => setCvUrl(e.target.value)} placeholder="https://" />
               </label>
             </div>
           </div>
