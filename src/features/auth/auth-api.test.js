@@ -287,12 +287,12 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
   });
 
   it("fail-closed por default e só liga com true", () => {
-    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "");
+    import.meta.env.VITE_AVATAR_UPLOAD_ENABLED = undefined;
     expect(isAvatarUploadEnabled()).toBe(false);
-    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "1");
-    expect(isAvatarUploadEnabled()).toBe(false);
-    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "false");
-    expect(isAvatarUploadEnabled()).toBe(false);
+    for (const value of ["", "0", "1", "false", "yes"]) {
+      vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", value);
+      expect(isAvatarUploadEnabled()).toBe(false);
+    }
     vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     expect(isAvatarUploadEnabled()).toBe(true);
     expect(avatarStoragePath("u1")).toBe("u1/avatar.jpg");
