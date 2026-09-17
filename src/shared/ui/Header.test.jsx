@@ -374,6 +374,9 @@ describe("Header crop dialog", () => {
       email: "ana@example.invalid",
       onSaveAvatar: () => {},
     });
+    const file = screen.getByLabelText("Enviar foto de perfil");
+    expect(file).toHaveAttribute("id", "header-avatar-file");
+    expect(file).toHaveAttribute("name", "avatar");
     const dialog = await pickAvatar();
     expect(dialog.querySelector("img")).toHaveAttribute("src", CROP_BLOB_URL);
     expect(URL.revokeObjectURL).not.toHaveBeenCalled();

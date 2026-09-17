@@ -36,4 +36,14 @@ describe("Onboarding", () => {
     expect(main.querySelector(".admin-content")).toBeTruthy();
     expect(main.querySelector(".admin-title .eyebrow")).toHaveTextContent("Perfil mínimo");
   });
+
+  it("coloca id e name nos campos nativos do onboarding", () => {
+    render(<Onboarding profile={{}} email="ada@example.invalid" onSaved={vi.fn()} />);
+    expect(screen.getByLabelText("Nome")).toHaveAttribute("id", "onboarding-full-name");
+    expect(screen.getByLabelText("Nome")).toHaveAttribute("name", "fullName");
+    expect(screen.getByLabelText("E-mail")).toHaveAttribute("name", "email");
+    expect(screen.getByLabelText("Nível")).toHaveAttribute("id", "onboarding-experience-level");
+    const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamed).toEqual([]);
+  });
 });

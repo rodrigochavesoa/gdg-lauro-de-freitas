@@ -33,6 +33,28 @@ describe("Portal", () => {
     expect(stage.querySelector("video")).toBeNull();
   });
 
+  it("coloca id e name na busca do hero", () => {
+    render(
+      <MemoryRouter>
+        <Portal />
+      </MemoryRouter>,
+    );
+    const search = screen.getByLabelText("Buscar vagas");
+    expect(search).toHaveAttribute("id", "portal-query");
+    expect(search).toHaveAttribute("name", "q");
+  });
+
+  it("coloca id e name na busca do hero", () => {
+    render(
+      <MemoryRouter>
+        <Portal />
+      </MemoryRouter>,
+    );
+    const search = screen.getByLabelText("Buscar vagas");
+    expect(search).toHaveAttribute("id", "portal-query");
+    expect(search).toHaveAttribute("name", "q");
+  });
+
   it("abre o portal somente ao clicar em Abra o portal", () => {
     render(
       <MemoryRouter>

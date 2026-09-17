@@ -11,6 +11,7 @@ import {
   CATALOG_WORK_MODELS,
   SORT_OLDEST,
   SORT_RECENT,
+  formOptionId,
   toggleFilterValue,
 } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsPage } from "./jobs-api.js";
@@ -135,7 +136,7 @@ export function Home({ logged = false }) {
           ? "Nenhuma vaga encontrada"
           : "";
 
-  const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><form className="searchbox" role="search" aria-label="Buscar vagas no catálogo" onSubmit={(event) => { event.preventDefault(); commitQueryToUrl(query); }}><Search size={21} aria-hidden="true"/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Cargo, tecnologia ou empresa"/><button className="primary" type="submit">Buscar vagas <ArrowUpRight size={17}/></button></form><div className="popular">Populares: <button type="button" onClick={() => applyQuery("React")}>React</button><button type="button" onClick={() => applyQuery("Node")}>Node.js</button><button type="button" onClick={() => applyQuery("Python")}>Python</button><button type="button" onClick={() => applyQuery("Designer")}>Product Design</button></div>    </div></section>;
+  const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><form className="searchbox" role="search" aria-label="Buscar vagas no catálogo" onSubmit={(event) => { event.preventDefault(); commitQueryToUrl(query); }}><Search size={21} aria-hidden="true"/><input id="catalog-query" name="q" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Cargo, tecnologia ou empresa"/><button className="primary" type="submit">Buscar vagas <ArrowUpRight size={17}/></button></form><div className="popular">Populares: <button type="button" onClick={() => applyQuery("React")}>React</button><button type="button" onClick={() => applyQuery("Node")}>Node.js</button><button type="button" onClick={() => applyQuery("Python")}>Python</button><button type="button" onClick={() => applyQuery("Designer")}>Product Design</button></div>    </div></section>;
 
   return <main id="conteudo" tabIndex={-1}>
     {standardHero}
@@ -152,9 +153,9 @@ export function Home({ logged = false }) {
           <button type="button" onClick={reset}>Limpar</button>
         </div>
         <div className="filters__body">
-          <FilterGroup label="Tecnologias" values={CATALOG_TECHNOLOGIES} active={tech} toggle={x => toggle(x, tech, setTech)} />
-          <FilterGroup label="Nível de experiência" values={CATALOG_LEVELS} active={level} toggle={x => toggle(x, level, setLevel)} />
-          <FilterGroup label="Modelo de trabalho" values={CATALOG_WORK_MODELS} active={workModel} toggle={x => toggle(x, workModel, setWorkModel)} />
+          <FilterGroup name="catalog-tech" label="Tecnologias" values={CATALOG_TECHNOLOGIES} active={tech} toggle={x => toggle(x, tech, setTech)} />
+          <FilterGroup name="catalog-level" label="Nível de experiência" values={CATALOG_LEVELS} active={level} toggle={x => toggle(x, level, setLevel)} />
+          <FilterGroup name="catalog-work-model" label="Modelo de trabalho" values={CATALOG_WORK_MODELS} active={workModel} toggle={x => toggle(x, workModel, setWorkModel)} />
         </div>
       </FilterSheet>
       <div className="job-content">
@@ -240,7 +241,23 @@ function SortMenu({ value, onChange }) {
   );
 }
 
-function FilterGroup({ label, values, active, toggle }) { return <div className="filter-group"><h3>{label}</h3>{values.map(value => <label key={value} className="checkline"><input type="checkbox" checked={active.includes(value)} onChange={() => toggle(value)} /><span className="check"><Check size={13}/></span>{value}</label>)}</div> }
+function FilterGroup({ name, label, values, active, toggle }) {
+  return (
+    <div className="filter-group">
+      <h3>{label}</h3>
+      {values.map((value) => {
+        const id = formOptionId(name, value);
+        return (
+          <label key={value} className="checkline">
+            <input type="checkbox" id={id} name={name} value={value} checked={active.includes(value)} onChange={() => toggle(value)} />
+            <span className="check"><Check size={13} /></span>
+            {value}
+          </label>
+        );
+      })}
+    </div>
+  );
+}
 
 function JobCard({ job }) {
   return (

@@ -65,6 +65,8 @@ function PurposeCard({ purpose, event, history, busy, onNotice, onChoice, onRevo
         <div className="privacy-card__actions">
           <label className="privacy-toggle">
             <input
+              id={`privacy-${purpose.purpose_code}`}
+              name={`privacy-${purpose.purpose_code}`}
               type="checkbox"
               checked={checked}
               disabled={busy}

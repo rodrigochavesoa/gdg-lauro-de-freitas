@@ -93,6 +93,23 @@ describe("Home", () => {
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveClass("white-button");
   });
 
+  it("coloca id e name na busca e nos checkboxes de filtro", () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    const search = screen.getByLabelText("Cargo, tecnologia ou empresa");
+    expect(search).toHaveAttribute("id", "catalog-query");
+    expect(search).toHaveAttribute("name", "q");
+    const python = screen.getByRole("checkbox", { name: "Python" });
+    expect(python).toHaveAttribute("id", "catalog-tech-python");
+    expect(python).toHaveAttribute("name", "catalog-tech");
+    const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamed).toEqual([]);
+  });
+
   it("não mostra a seção CTA quando o visitante já está logado", () => {
     render(
       <MemoryRouter>

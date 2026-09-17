@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formOptionId,
   filterJobs,
   mapLevelFiltersToDb,
   mapWorkModelFiltersToDb,
@@ -106,6 +107,14 @@ describe("toggleFilterValue", () => {
   it("adiciona e remove o valor selecionado", () => {
     expect(toggleFilterValue("React", [])).toEqual(["React"]);
     expect(toggleFilterValue("React", ["React", "Python"])).toEqual(["Python"]);
+  });
+});
+
+describe("formOptionId", () => {
+  it("gera id ASCII estável para grupos de filtro", () => {
+    expect(formOptionId("catalog-tech", "UX/UI")).toBe("catalog-tech-ux-ui");
+    expect(formOptionId("catalog-level", "Júnior")).toBe("catalog-level-junior");
+    expect(formOptionId("events-status", "upcoming")).toBe("events-status-upcoming");
   });
 });
 

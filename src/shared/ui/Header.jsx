@@ -209,6 +209,8 @@ export function Header({
               {onSaveAvatar ? (
                 <input
                   ref={photoInputRef}
+                  id="header-avatar-file"
+                  name="avatar"
                   className="sr-only"
                   type="file"
                   aria-label="Enviar foto de perfil"
