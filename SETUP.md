@@ -36,6 +36,27 @@ Redirect URLs permitidas neste recorte (sem domínio customizado — C-05):
 
 Configure as mesmas origens no provedor Google e em Authentication → URL Configuration **de cada** projeto Supabase (homologação e produção). Não aponte Production para o projeto de homologação.
 
+## MFA staff (homolog)
+
+**Alcance:** MFA obrigatório para acesso à interface `/admin`, não como proteção completa das operações staff. Sem claim `aal` nas policies RLS, uma sessão só com senha (AAL1) ainda pode chamar a Data API se as policies permitirem. Enforcement server-side/AAL2 é follow-up (`SEC-STAFF-MFA-02`) — obrigatório antes de dados reais em produção.
+
+O segundo fator (TOTP) na área `/admin` **só** vale para papéis `admin`, `curator` e `moderator`. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
+
+| `VITE_STAFF_MFA_REQUIRED` | Comportamento |
+|---|---|
+| `true` | Após senha, a UI exige AAL2 (`getAuthenticatorAssuranceLevel`). Sem fator: enroll TOTP. Com fator: código do autenticador. |
+| ausente, `false` ou qualquer outro valor | Fluxo atual (e-mail/senha). CI e clone local continuam sem MFA. |
+
+**Não** defina `true` em Production sem decisão do PO.
+
+Passos do mantenedor **só no projeto Supabase de homologação**:
+
+1. Authentication → Multi-Factor Authentication → habilitar **TOTP**. Não habilitar SMS neste recorte.
+2. Enroll TOTP nas contas staff de teste (`docs-local/*-test-user.md`, gitignored) **antes** de validar a flag `true` em Preview ou `pnpm dev`.
+3. Offboarding (revogar fator, desativar usuário, rotacionar senha): procedimento local em `docs-local/sec-staff-mfa-offboarding.md`.
+
+Com a flag desligada, `pnpm test:rls` permanece o harness atual (senha). Esta entrega **não** exige claim `aal` nas policies RLS.
+
 ## Rollback (Vercel Hobby)
 
 1. Dashboard Vercel → Deployments → abrir o deploy **Production anterior** → Promote to Production.

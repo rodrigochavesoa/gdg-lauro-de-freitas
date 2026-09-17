@@ -9,6 +9,14 @@ import {
   validateAdminJob,
 } from "./lib/admin-api.js";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
+import {
+  enrollStaffTotp,
+  getStaffMfaAssurance,
+  isStaffMfaRequired,
+  needsStaffMfaStep,
+  staffMfaQrSrc,
+  verifyStaffTotp,
+} from "./features/auth/staff-mfa.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
 import { CurationTimeline } from "./features/curation/CurationTimeline.jsx";
 
@@ -44,13 +52,23 @@ function AdminSurfaceCurve() {
   );
 }
 
+function StaffMfaQr({ qrCode }) {
+  const src = staffMfaQrSrc(qrCode);
+  if (!src) return null;
+  return <img className="admin-mfa-qr" alt="QR code do autenticador" src={src} />;
+}
+
 export function Admin({ setLogged, session, authReady = true, authProfile = null }) {
   const snapshotStaff = toCurationProfile(authProfile, session);
-  const [ready, setReady] = useState(() => Boolean(authReady));
-  const [profile, setProfile] = useState(() => (authReady ? snapshotStaff : null));
+  const mfaRequiredAtBoot = isStaffMfaRequired();
+  const [ready, setReady] = useState(() => Boolean(authReady) && !(mfaRequiredAtBoot && session));
+  const [profile, setProfile] = useState(() => (authReady && !mfaRequiredAtBoot ? snapshotStaff : null));
   const [section, setSection] = useState(() => (snapshotStaff?.role === "admin" ? "jobs" : "curation"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [mfaPending, setMfaPending] = useState(null);
+  const [mfaEnroll, setMfaEnroll] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState("");
   const [companies, setCompanies] = useState([]);
@@ -62,6 +80,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   const [adminDataLoading, setAdminDataLoading] = useState(false);
   const staffBootId = useRef(null);
   const [curationMounted, setCurationMounted] = useState(() => {
+    if (mfaRequiredAtBoot) return false;
     const role = snapshotStaff?.role;
     return role === "curator" || role === "moderator";
   });
@@ -113,6 +132,15 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       });
     };
 
+    const clearSensitiveAuth = () => {
+      setEmail("");
+      setPassword("");
+      setTotpCode("");
+      setMfaPending(null);
+      setMfaEnroll(null);
+      setError("");
+    };
+
     if (!session) {
       staffBootId.current = null;
       setProfile(null);
@@ -120,16 +148,40 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       setJobs([]);
       setForm(emptyForm);
       setSection("curation");
-      setEmail("");
-      setPassword("");
-      setError("");
+      clearSensitiveAuth();
       setReady(true);
       return undefined;
     }
 
+    const admitStaff = async (current) => {
+      if (!isStaffMfaRequired()) {
+        bootAdmin(current);
+        return;
+      }
+      try {
+        const assurance = await getStaffMfaAssurance();
+        if (cancelled) return;
+        if (needsStaffMfaStep(assurance)) {
+          setProfile(null);
+          setMfaPending({ profile: current, assurance });
+          setReady(true);
+          return;
+        }
+        setMfaPending(null);
+        setMfaEnroll(null);
+        bootAdmin(current);
+      } catch (err) {
+        if (cancelled) return;
+        setProfile(null);
+        setMfaPending(null);
+        setError(err.message);
+        setReady(true);
+      }
+    };
+
     const fromSnapshot = toCurationProfile(authProfile, session);
     if (fromSnapshot) {
-      bootAdmin(fromSnapshot);
+      void admitStaff(fromSnapshot);
       return () => {
         cancelled = true;
       };
@@ -139,7 +191,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     loadCurationProfile()
       .then((current) => {
         if (cancelled || !current) return;
-        bootAdmin(current);
+        return admitStaff(current);
       })
       .catch((err) => {
         if (!cancelled) setError(err.message);
@@ -161,6 +213,16 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     setError("");
     try {
       const current = await signInCuration(email, password);
+      if (isStaffMfaRequired()) {
+        const assurance = await getStaffMfaAssurance();
+        if (needsStaffMfaStep(assurance)) {
+          setProfile(null);
+          setMfaPending({ profile: current, assurance });
+          return;
+        }
+      }
+      setMfaPending(null);
+      setMfaEnroll(null);
       setProfile(current);
       setLogged?.(true);
       setSection(current.role === "admin" ? "jobs" : "curation");
@@ -212,6 +274,50 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     persist(false);
   };
 
+  const onEnrollMfa = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      const enrolled = await enrollStaffTotp();
+      setMfaEnroll(enrolled);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onVerifyMfa = async (event) => {
+    event.preventDefault();
+    const factorId = mfaEnroll?.factorId ?? mfaPending?.assurance?.verifiedTotp?.[0]?.id;
+    if (!factorId) {
+      setError("Cadastre um autenticador antes de confirmar o código.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      await verifyStaffTotp({ factorId, code: totpCode });
+      const current = mfaPending?.profile;
+      setTotpCode("");
+      setMfaEnroll(null);
+      setMfaPending(null);
+      if (!current) return;
+      staffBootId.current = current.id;
+      setProfile(current);
+      setLogged?.(true);
+      setSection(current.role === "admin" ? "jobs" : "curation");
+      if (current.role === "admin") {
+        setAdminDataLoading(true);
+        refreshAdmin().finally(() => setAdminDataLoading(false));
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const loadJob = (job) => {
     if (job.status !== "pending") {
       setMessage("Edite via nova rodada na Curadoria.");
@@ -245,6 +351,79 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   }
 
   if (!profile) {
+    if (mfaPending) {
+      const needsEnroll = !mfaEnroll && (mfaPending.assurance?.verifiedTotp?.length ?? 0) === 0;
+      return (
+        <main id="conteudo" tabIndex={-1} className="admin-page">
+          <div className="shell admin-auth-shell">
+            <section className="admin-content">
+              <div className="admin-title">
+                <div>
+                  <span className="eyebrow">Área da comunidade</span>
+                  <h1>Confirmar segundo fator</h1>
+                  <p role="status">Confirme o segundo fator para acessar a área da equipe.</p>
+                </div>
+              </div>
+              <form className="admin-auth-form" onSubmit={onVerifyMfa}>
+                <div className="form-section">
+                  <h2>Autenticador TOTP</h2>
+                  {needsEnroll ? (
+                    <div className="form-grid">
+                      <p className="wide">Cadastre um aplicativo autenticador nesta conta de equipe. Não usamos SMS.</p>
+                      <div className="form-actions">
+                        <button className="primary" type="button" disabled={busy} onClick={onEnrollMfa}>
+                          {busy ? "Gerando…" : "Gerar QR do autenticador"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="form-grid">
+                      {mfaEnroll ? (
+                        <>
+                          <StaffMfaQr qrCode={mfaEnroll.qrCode} />
+                          {mfaEnroll.secret ? (
+                            <p className="wide admin-mfa-secret">
+                              Chave manual (se não puder escanear o QR): <code>{mfaEnroll.secret}</code>
+                            </p>
+                          ) : null}
+                        </>
+                      ) : (
+                        <p className="wide">Digite o código de 6 dígitos do autenticador já cadastrado.</p>
+                      )}
+                      <label className="wide">
+                        Código do autenticador
+                        <input
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          required
+                          value={totpCode}
+                          onChange={(event) => setTotpCode(event.target.value)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </div>
+                {error && (
+                  <div className="form-alert" role="alert">
+                    {error}
+                  </div>
+                )}
+                {!needsEnroll ? (
+                  <div className="form-actions">
+                    <button className="primary" type="submit" disabled={busy}>
+                      {busy ? "Confirmando…" : "Confirmar código"}
+                    </button>
+                  </div>
+                ) : null}
+              </form>
+            </section>
+          </div>
+          <AdminSurfaceCurve />
+        </main>
+      );
+    }
     return (
       <main id="conteudo" tabIndex={-1} className="admin-page">
         <div className="shell admin-auth-shell">
