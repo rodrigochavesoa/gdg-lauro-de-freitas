@@ -26,12 +26,12 @@ const emptyForm = {
 };
 
 function toCurationProfile(authProfile, session) {
-  if (!STAFF_ROLES.has(authProfile?.role)) return null;
+  if (!session?.user || !STAFF_ROLES.has(authProfile?.role)) return null;
   return {
-    id: authProfile.id ?? session?.user?.id,
+    id: authProfile.id ?? session.user.id,
     full_name: authProfile.full_name,
     role: authProfile.role,
-    email: session?.user?.email ?? authProfile.email,
+    email: session.user.email ?? authProfile.email,
   };
 }
 
@@ -96,7 +96,6 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   useEffect(() => {
     if (!authReady) return undefined;
     let cancelled = false;
-    const fromSnapshot = toCurationProfile(authProfile, session);
 
     const bootAdmin = (current) => {
       const isNew = staffBootId.current !== current.id;
@@ -114,6 +113,21 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       });
     };
 
+    if (!session) {
+      staffBootId.current = null;
+      setProfile(null);
+      setLogged?.(false);
+      setJobs([]);
+      setForm(emptyForm);
+      setSection("curation");
+      setEmail("");
+      setPassword("");
+      setError("");
+      setReady(true);
+      return undefined;
+    }
+
+    const fromSnapshot = toCurationProfile(authProfile, session);
     if (fromSnapshot) {
       bootAdmin(fromSnapshot);
       return () => {
@@ -122,17 +136,6 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     }
 
     setReady(true);
-
-    if (!session) {
-      staffBootId.current = null;
-      setProfile(null);
-      setLogged?.(false);
-      setJobs([]);
-      setForm(emptyForm);
-      setSection("curation");
-      return undefined;
-    }
-
     loadCurationProfile()
       .then((current) => {
         if (cancelled || !current) return;
@@ -168,6 +171,8 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     } catch (err) {
       setError(err.message);
     } finally {
+      setEmail("");
+      setPassword("");
       setBusy(false);
     }
   };
