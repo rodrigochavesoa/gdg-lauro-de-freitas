@@ -475,6 +475,20 @@ body:has(.detail-page) .footer-inner{color:var(--color-text-subtle)}
 }
 .admin-auth-form .form-grid{grid-template-columns:1fr}
 .admin-auth-form .form-grid .wide{grid-column:auto}
+.admin-mfa-qr{
+  display:block;
+  width:min(180px,100%);
+  height:auto;
+  margin:0 auto;
+}
+.admin-mfa-secret{
+  font-size:var(--font-size-body-2);
+  color:var(--color-grey-700);
+  word-break:break-all;
+}
+.admin-mfa-secret code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
 @media(max-width:760px){
   .admin-auth-form{max-width:none;width:100%}
 }

@@ -7,6 +7,12 @@ const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 const signInCuration = vi.hoisted(() => vi.fn());
 const CurationQueueMock = vi.hoisted(() => vi.fn());
+const staffMfa = vi.hoisted(() => ({
+  required: false,
+  getStaffMfaAssurance: vi.fn(),
+  enrollStaffTotp: vi.fn(),
+  verifyStaffTotp: vi.fn(),
+}));
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
@@ -31,6 +37,14 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
   },
 }));
 
+vi.mock("./features/auth/staff-mfa.js", () => ({
+  isStaffMfaRequired: () => staffMfa.required,
+  needsStaffMfaStep: (assurance) => Boolean(assurance) && assurance.currentLevel !== "aal2",
+  getStaffMfaAssurance: (...args) => staffMfa.getStaffMfaAssurance(...args),
+  enrollStaffTotp: (...args) => staffMfa.enrollStaffTotp(...args),
+  verifyStaffTotp: (...args) => staffMfa.verifyStaffTotp(...args),
+}));
+
 import { Admin } from "./Admin.jsx";
 
 function renderAdmin(ui) {
@@ -45,6 +59,21 @@ describe("Admin", () => {
     loadAdminJobs.mockResolvedValue([]);
     signInCuration.mockReset();
     CurationQueueMock.mockClear();
+    staffMfa.required = false;
+    staffMfa.getStaffMfaAssurance.mockReset();
+    staffMfa.getStaffMfaAssurance.mockResolvedValue({
+      currentLevel: "aal2",
+      nextLevel: "aal2",
+      verifiedTotp: [{ id: "totp-1", status: "verified" }],
+    });
+    staffMfa.enrollStaffTotp.mockReset();
+    staffMfa.enrollStaffTotp.mockResolvedValue({
+      factorId: "factor-1",
+      qrCode: "data:image/svg+xml,<svg></svg>",
+      secret: "SECRETBASE32",
+    });
+    staffMfa.verifyStaffTotp.mockReset();
+    staffMfa.verifyStaffTotp.mockResolvedValue({});
   });
 
   it("usa admin-auth-form compacto, sem job-form do CRUD", async () => {
@@ -368,5 +397,96 @@ describe("Admin", () => {
     expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
+  it("com flag MFA e AAL2 libera a área admin", async () => {
+    staffMfa.required = true;
+    renderAdmin(
+      <Admin
+        authReady
+        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+      />,
+    );
+    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Confirmar segundo fator" })).not.toBeInTheDocument();
+  });
+
+  it("com flag MFA e AAL1 bloqueia a UI até o desafio", async () => {
+    staffMfa.required = true;
+    staffMfa.getStaffMfaAssurance.mockResolvedValue({
+      currentLevel: "aal1",
+      nextLevel: "aal2",
+      verifiedTotp: [{ id: "totp-1", status: "verified" }],
+    });
+    renderAdmin(
+      <Admin
+        authReady
+        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Confirme o segundo fator para acessar a área da equipe.");
+    expect(screen.getByLabelText("Código do autenticador")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+  });
+
+  it("staff sem fator inscrito vê enroll TOTP e só entra após verify", async () => {
+    staffMfa.required = true;
+    staffMfa.getStaffMfaAssurance.mockResolvedValue({
+      currentLevel: "aal1",
+      nextLevel: "aal1",
+      verifiedTotp: [],
+    });
+    signInCuration.mockResolvedValue({
+      id: "c1",
+      role: "curator",
+      full_name: "Cora Curadora",
+      email: "cora@example.invalid",
+    });
+    renderAdmin(<Admin session={null} authReady />);
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "cora@example.invalid" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gerar QR do autenticador" }));
+    expect(await screen.findByAltText("QR code do autenticador")).toBeInTheDocument();
+    expect(screen.getByText(/SECRETBASE32/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Código do autenticador"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar código" }));
+    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(staffMfa.verifyStaffTotp).toHaveBeenCalledWith({ factorId: "factor-1", code: "123456" });
+  });
+
+  it("limpa o passo MFA pendente quando a sessão vira null", async () => {
+    staffMfa.required = true;
+    staffMfa.getStaffMfaAssurance.mockResolvedValue({
+      currentLevel: "aal1",
+      nextLevel: "aal2",
+      verifiedTotp: [{ id: "totp-1", status: "verified" }],
+    });
+    const { rerender } = render(
+      <MemoryRouter>
+        <Admin
+          authReady
+          session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+          authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByLabelText("Código do autenticador")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Código do autenticador"), { target: { value: "123456" } });
+    rerender(
+      <MemoryRouter>
+        <Admin session={null} authReady />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.getByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+    expect(screen.queryByLabelText("Código do autenticador")).not.toBeInTheDocument();
   });
 });
