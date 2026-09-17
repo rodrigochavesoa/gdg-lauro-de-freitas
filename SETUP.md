@@ -38,9 +38,7 @@ Configure as mesmas origens no provedor Google e em Authentication → URL Confi
 
 ## MFA staff (homolog)
 
-**Alcance:** MFA obrigatório para acesso à interface `/admin`, não como proteção completa das operações staff. Sem claim `aal` nas policies RLS, uma sessão só com senha (AAL1) ainda pode chamar a Data API se as policies permitirem. Enforcement server-side/AAL2 é follow-up (`SEC-STAFF-MFA-02`) — obrigatório antes de dados reais em produção.
-
-O segundo fator (TOTP) na área `/admin` **só** vale para papéis `admin`, `curator` e `moderator`. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
+**Alcance:** a flag Vite controla só a UI `/admin`. Com a migration `staff_rls_aal2` aplicada em homologação, mutações e leituras privilegiadas staff na Data API exigem JWT `aal=aal2`. Sem a migration em produção (Camada B / PO), AAL1 ainda passa nas policies de prod. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
 
 | `VITE_STAFF_MFA_REQUIRED` | Comportamento |
 |---|---|
@@ -55,7 +53,16 @@ Passos do mantenedor **só no projeto Supabase de homologação**:
 2. Enroll TOTP nas contas staff de teste (`docs-local/*-test-user.md`, gitignored) **antes** de validar a flag `true` em Preview ou `pnpm dev`.
 3. Offboarding (revogar fator, desativar usuário, rotacionar senha): procedimento local em `docs-local/sec-staff-mfa-offboarding.md`.
 
-Com a flag desligada, `pnpm test:rls` permanece o harness atual (senha). Esta entrega **não** exige claim `aal` nas policies RLS.
+O toggle **Enhanced MFA Security** (AAL1 expira ~15 min) do Dashboard **não** substitui RLS AAL2.
+
+## Teste SEC-STAFF-MFA-02 (RLS AAL2)
+
+Após aplicar a migration `staff_rls_aal2` **só em homologação** (Camada B / PO para produção):
+
+1. Preencha `docs-local/staff-mfa-totp-secrets.md` (gitignored) ou `ADMIN_TEST_TOTP_SECRET` / `CURATOR_TEST_TOTP_SECRET` / `CURATOR2_TEST_TOTP_SECRET` / `CURATOR3_TEST_TOTP_SECRET` / `MODERATOR_TEST_TOTP_SECRET` no `.env.local` e no GitHub Environment `homolog-rls`.
+2. `pnpm test:rls` — logins staff usam TOTP (AAL2). Cenário 20: senha só (AAL1) **não** insere vaga nem chama `submit_curation_review`; AAL2 insere pending.
+3. Teste humano na API: `signInWithPassword` sem verify MFA → mutação staff bloqueada; fluxo com TOTP → a mesma mutação ok. Candidato sem regressão.
+4. Enhanced MFA Security do Dashboard é regra de **sessão Auth**, não de policy — não conta como este teste.
 
 ## Rollback (Vercel Hobby)
 
@@ -88,7 +95,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs 
 | Job | Comando | Quando corre | Efeito de falha |
 |---|---|---|---|
 | `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | PR e push em `main`. É o **único** required check para merge. Sem `service_role` e sem senhas staff. | **Bloqueia** merge na PR e marca o workflow como falho. |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–18, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–20, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
 
 Na **PR**, apenas `Lint, test and build` precisa ficar verde. `RLS homolog` skipped é o comportamento esperado.
 
@@ -109,7 +116,7 @@ Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via
 ### `pnpm test:rls` local
 
 ```powershell
-# Requer .env.local + contas em docs-local/*-test-user.md (gitignored)
+# Requer .env.local + contas em docs-local/*-test-user.md + secrets TOTP staff (docs-local/staff-mfa-totp-secrets.md ou *_TEST_TOTP_SECRET)
 # Probe F-019 (cenário 13), cleanup MVP-003 (cenário 16) e MVP-005 (cenário 17): SUPABASE_SERVICE_ROLE_KEY no .env.local (local) ou GitHub Environment homolog-rls (CI) — nunca no frontend nem versionado
 pnpm test:rls
 ```
@@ -118,8 +125,9 @@ No GitHub Actions o job `RLS homolog` recebe as mesmas variáveis por **secrets 
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY` (ou `VITE_SUPABASE_ANON_KEY`)
-- `ADMIN_TEST_EMAIL` / `ADMIN_TEST_PASSWORD`
-- `CURATOR_TEST_*`, `CURATOR2_TEST_*`, `CURATOR3_TEST_*`, `MODERATOR_TEST_*`, `CANDIDATE_TEST_*` (`EMAIL` e `PASSWORD`)
+- `ADMIN_TEST_EMAIL` / `ADMIN_TEST_PASSWORD` / `ADMIN_TEST_TOTP_SECRET`
+- `CURATOR_TEST_*`, `CURATOR2_TEST_*`, `CURATOR3_TEST_*`, `MODERATOR_TEST_*` (`EMAIL`, `PASSWORD`, `TOTP_SECRET`)
+- `CANDIDATE_TEST_*` (`EMAIL` e `PASSWORD` — candidato sem MFA staff)
 - `SUPABASE_SERVICE_ROLE_KEY` — probe F-019 (cenário 13), cleanup do histórico de teste do MVP-003 (cenário 16) e da trilha de auditoria do MVP-005 (cenário 17); se ausente esses cenários registram skip e o restante segue
 
 Sem `VITE_SUPABASE_URL` e chave publishable/anon no Environment, `test:rls` **falha** (não ignora). Jobs de PR **não** recebem `SUPABASE_SERVICE_ROLE_KEY` nem senhas staff. Colar os secrets no Environment (e **remover** os privilegiados dos secrets de repositório) é ação do mantenedor; nenhum valor entra neste arquivo nem no Git.

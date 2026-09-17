@@ -182,7 +182,7 @@ erDiagram
 | `/onboarding` | Candidato incompleto | Perfil mínimo antes de candidatar |
 | `/minhas-candidaturas` | Candidato | Histórico próprio e retirada permitida no V1 |
 | `/preferencias` | Candidato | Preferências e histórico de privacidade |
-| `/admin` | Staff | Login staff, cadastro administrativo e curadoria |
+| `/admin` | Staff | Login staff, administração e curadoria; não provisiona contas staff |
 
 ### Fluxo P0
 
@@ -233,13 +233,15 @@ O browser **não pode conter**:
 
 ### MFA staff
 
-`SEC-STAFF-MFA-01` implementa um gate de interface TOTP/AAL2 para `/admin`, ativado somente por `VITE_STAFF_MFA_REQUIRED="true"`. A PR não implementa AAL2 nas policies do banco.
+`SEC-STAFF-MFA-01` é o gate TOTP/AAL2 da interface `/admin`, ativado somente por `VITE_STAFF_MFA_REQUIRED="true"`. `SEC-STAFF-MFA-02` exige JWT `aal=aal2` nas policies e RPCs staff (`private.*_aal2()`). A migration é Camada B: homologação na cadeia; produção só com PO (`prod.manifest.json` não a inclui).
 
-Portanto, a frase correta é:
+Candidatos (Google OAuth) não usam MFA staff. O toggle Enhanced MFA Security do Dashboard não substitui o RLS AAL2.
 
-> MFA obrigatório para acesso à interface `/admin`, não proteção completa das operações staff.
-
-O enforcement server-side/AAL2 é o follow-up `SEC-STAFF-MFA-02`.
+O provisionamento de `admin`, `curator` e `moderator` permanece fora da UI
+pública. O fluxo futuro de convite controlado está registrado em
+[`docs-local/staff-provisioning-future.md`](docs-local/staff-provisioning-future.md)
+e só deve ser aberto após os gates de produção, MFA/AAL2, auditoria, retenção,
+continuidade e offboarding estarem maduros.
 
 ### Privacidade
 
@@ -380,7 +382,7 @@ Limites atuais:
 ### Parcial ou com ressalva
 
 - privacidade em produção: fallback fail-closed, mas migration definitiva depende da Camada B;
-- MFA: gate client-side em revisão, sem enforcement RLS/AAL2;
+- MFA: UI `/admin` gated por flag; RLS AAL2 em homologação (Camada B — produção só com PO);
 - avatar: fluxo endurecido em homologação, upload de produção desligado;
 - acessibilidade: meta interna, não certificação;
 - desempenho: paginação e medições pontuais, sem SLO comprometido;
@@ -394,7 +396,8 @@ Limites atuais:
 - `MVP-007`: backup, restore e incidentes reais;
 - `MVP-012`: matching determinístico explicável;
 - `MVP-014`: observabilidade e métricas;
-- `SEC-STAFF-MFA-02`: enforcement AAL2 no backend;
+- Apply em produção da migration AAL2 (`staff_rls_aal2`) — Camada B / PO;
+- `SEC-STAFF-PROVISIONING-01`: convite e provisionamento staff controlados;
 - `SEC-CI-02`: política para PRs de fork;
 - Resend/domínio/e-mail transacional;
 - portal completo de empresa/recrutador e currículo, revisão prevista na Sprint 28;
@@ -465,6 +468,7 @@ Não faça:
 | `docs-local/guideline-engineering-learnings.md` | aprendizados humanos de engenharia |
 | `docs-local/guideline-agents-project-bootstrap.md` | orientação operacional para agentes |
 | `docs-local/mvp-sprint-plan-and-handoffs.md` | sprints e ONE-LINERs |
+| `docs-local/staff-provisioning-future.md` | decisão e desenho futuro do provisionamento staff |
 | `supabase/migrations/prod.manifest.json` | migrations autorizadas para produção |
 
 ## 16. Estado de confiança

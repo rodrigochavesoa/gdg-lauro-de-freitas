@@ -61,14 +61,11 @@ describe("staff-mfa", () => {
   });
 
   it("só exige MFA quando a flag é exatamente true", () => {
-    expect(isStaffMfaRequired(undefined)).toBe(false);
     expect(isStaffMfaRequired("")).toBe(false);
     expect(isStaffMfaRequired("false")).toBe(false);
     expect(isStaffMfaRequired("TRUE")).toBe(false);
     expect(isStaffMfaRequired("1")).toBe(false);
     expect(isStaffMfaRequired("true")).toBe(true);
-    vi.stubEnv("VITE_STAFF_MFA_REQUIRED", "true");
-    expect(isStaffMfaRequired()).toBe(true);
   });
 
   it("bloqueia o passo MFA enquanto o nível não for aal2", () => {

@@ -47,6 +47,7 @@ describe("prod migrations", () => {
     expect(prod).toHaveLength(15);
     expect(prod.some((name) => name.includes("job_submission_staff_dedup"))).toBe(false);
     expect(camadaB.some((name) => name.includes("job_submission_staff_dedup"))).toBe(true);
+    expect(camadaB.some((name) => name.includes("staff_rls_aal2"))).toBe(true);
     expect(homologOnly.some((name) => name.includes("seed_fictitious"))).toBe(true);
     expect(prod.some((name) => name.includes("data_api_select_grants"))).toBe(true);
     expect(listProdSafeMigrations()).toEqual(prod);

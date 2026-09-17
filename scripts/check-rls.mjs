@@ -1,12 +1,13 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005 e MVP-022.
- * Lê .env.local e docs-local/*-test-user.md. Nunca imprime senhas.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022 e SEC-STAFF-MFA-02.
+ * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { findForbiddenLogFields } from "../src/lib/privacy-redaction.js";
+import { generateTotp } from "./totp.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -47,6 +48,31 @@ const testUsers = {
   curator3: loadTestUser("curator3-test-user.md", "CURATOR3_TEST"),
   moderator: loadTestUser("moderator-test-user.md", "MODERATOR_TEST"),
   candidate: loadTestUser("candidate-test-user.md", "CANDIDATE_TEST"),
+};
+
+function parseTotpSecretsFile() {
+  const file = resolve(process.cwd(), "docs-local/staff-mfa-totp-secrets.md");
+  const map = {};
+  if (!existsSync(file)) return map;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const match = line.match(
+      /^\|\s*(admin|curator2|curator3|curator|moderator)\s*\|[^|]*\|\s*([^|]+)\|/i,
+    );
+    if (!match) continue;
+    const secret = match[2].trim().replace(/`/g, "").replace(/\s+/g, "");
+    if (!secret || /colar|placeholder|^_+$/i.test(secret)) continue;
+    map[match[1].toLowerCase()] = secret;
+  }
+  return map;
+}
+
+const totpFile = parseTotpSecretsFile();
+const totpSecrets = {
+  admin: env.ADMIN_TEST_TOTP_SECRET || totpFile.admin,
+  curator: env.CURATOR_TEST_TOTP_SECRET || totpFile.curator,
+  curator2: env.CURATOR2_TEST_TOTP_SECRET || totpFile.curator2,
+  curator3: env.CURATOR3_TEST_TOTP_SECRET || totpFile.curator3,
+  moderator: env.MODERATOR_TEST_TOTP_SECRET || totpFile.moderator,
 };
 
 function hasCreds(user) {
@@ -182,6 +208,62 @@ async function signInWithRetry(credentials, { attempts = 4, pauseMs = 2000, labe
     await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
   }
   return last;
+}
+
+async function promoteSessionToAal2(client, totpSecret) {
+  const { data: aal, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (aalError) return aalError;
+  if (aal?.currentLevel === "aal2") return null;
+  if (!totpSecret) {
+    return { message: "TOTP secret ausente para promover AAL2" };
+  }
+  const { data: factors, error: factorError } = await client.auth.mfa.listFactors();
+  if (factorError) return factorError;
+  const totp = (factors?.totp ?? []).find((factor) => factor.status === "verified");
+  if (!totp) {
+    return { message: "conta staff sem fator TOTP verificado" };
+  }
+  let lastError = { message: "verify TOTP falhou" };
+  for (const skewMs of [0, -30_000, 30_000]) {
+    const { data: challenge, error: challengeError } = await client.auth.mfa.challenge({
+      factorId: totp.id,
+    });
+    if (challengeError) return challengeError;
+    const code = generateTotp(totpSecret, { now: Date.now() + skewMs });
+    const { error: verifyError } = await client.auth.mfa.verify({
+      factorId: totp.id,
+      challengeId: challenge.id,
+      code,
+    });
+    if (!verifyError) {
+      await client.auth.getSession();
+      return null;
+    }
+    lastError = verifyError;
+  }
+  return lastError;
+}
+
+async function signInStaffAal2({ email, password, totpSecret }, options = {}) {
+  const signed = await signInWithRetry({ email, password }, options);
+  if (signed.error || !signed.user) return signed;
+  const promoteError = await promoteSessionToAal2(signed.client, totpSecret);
+  if (promoteError) return { client: signed.client, error: promoteError };
+  return signed;
+}
+
+async function signInStaff(role, options = {}) {
+  const user = testUsers[role];
+  return signInStaffAal2(
+    { email: user?.email, password: user?.password, totpSecret: totpSecrets[role] },
+    { label: role, ...options },
+  );
+}
+
+function isStaffAal2Denied(error) {
+  return /aal2 required|row-level security|42501|violat(es|ed) row-level security/i.test(
+    errorText(error),
+  );
 }
 
 async function createPendingJob(client, marker) {
@@ -355,7 +437,7 @@ async function scenario3_curatorSingleReview() {
     skipRequired(3, "faltam admin e/ou curator em docs-local");
     return null;
   }
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   assert(!adminErr, `admin autentica (${adminErr?.message ?? "ok"}`);
   if (adminErr) return null;
 
@@ -364,7 +446,7 @@ async function scenario3_curatorSingleReview() {
   assert(!created.error && created.data?.id, "admin cria vaga pending para curadoria");
   const jobId = created.data?.id;
 
-  const { client: curator, error: curErr } = await signIn(testUsers.curator);
+  const { client: curator, error: curErr } = await signInStaff("curator");
   assert(!curErr, `curador autentica (${curErr?.message ?? "ok"}`);
   if (curErr || !jobId) {
     await deleteJob(admin, jobId);
@@ -389,7 +471,7 @@ async function scenario4_selfReviewAndDuplicate() {
     skipRequired(4, "faltam admin e/ou curator em docs-local");
     return;
   }
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   if (adminErr) {
     skipRequired(4, `admin não autenticou (${adminErr.message})`);
     return;
@@ -407,7 +489,7 @@ async function scenario4_selfReviewAndDuplicate() {
     assert(Boolean(self.error), "admin não autoavalia vaga própria");
   }
 
-  const { client: curator } = await signIn(testUsers.curator);
+  const { client: curator } = await signInStaff("curator");
   const ok = await rpcReview(curator, jobId, "approve");
   assert(!ok.error, "curador avalia vaga de outro autor");
   const dup = await rpcReview(curator, jobId, "reject");
@@ -426,13 +508,13 @@ async function scenario5_quorum() {
   }
   const curatorB = testUsers.curator2;
 
-  const { client: admin } = await signIn(testUsers.admin);
+  const { client: admin } = await signInStaff("admin");
   const approveMarker = `RLS quorum approve ${Date.now()}`;
   const rejectMarker = `RLS quorum reject ${Date.now()}`;
   const jobA = await createPendingJob(admin, approveMarker);
   const jobR = await createPendingJob(admin, rejectMarker);
 
-  const { client: c1 } = await signIn(testUsers.curator);
+  const { client: c1 } = await signInStaff("curator");
   const { client: c2 } = await signIn(curatorB);
 
   await rpcReview(c1, jobA.data.id, "approve");
@@ -462,12 +544,12 @@ async function scenario6_tie() {
     return;
   }
 
-  const { client: admin } = await signIn(testUsers.admin);
+  const { client: admin } = await signInStaff("admin");
   const marker = `RLS tie ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: c1 } = await signIn(testUsers.curator);
+  const { client: c1 } = await signInStaff("curator");
   const { client: c2 } = await signIn(reviewerB);
 
   await rpcReview(c1, jobId, "approve");
@@ -498,15 +580,15 @@ async function scenario7_moderation() {
     return;
   }
 
-  const { client: admin } = await signIn(testUsers.admin);
+  const { client: admin } = await signInStaff("admin");
   const marker = `RLS moderation ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: curator } = await signIn(testUsers.curator);
-  const { client: curator2 } = await signIn(testUsers.curator2);
-  const { client: curator3 } = await signIn(testUsers.curator3);
-  const { client: moderator } = await signIn(testUsers.moderator);
+  const { client: curator } = await signInStaff("curator");
+  const { client: curator2 } = await signInStaff("curator2");
+  const { client: curator3 } = await signInStaff("curator3");
+  const { client: moderator } = await signInStaff("moderator");
 
   await rpcReview(curator, jobId, "approve");
   await rpcReview(curator2, jobId, "reject");
@@ -539,12 +621,12 @@ async function scenario8_resubmit() {
     return;
   }
 
-  const { client: admin } = await signIn(testUsers.admin);
+  const { client: admin } = await signInStaff("admin");
   const marker = `RLS resubmit ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: c1 } = await signIn(testUsers.curator);
+  const { client: c1 } = await signInStaff("curator");
   const { client: c2 } = await signIn(reviewerB);
   await rpcReview(c1, jobId, "reject");
   await rpcReview(c2, jobId, "reject");
@@ -573,7 +655,7 @@ async function scenario9_priority() {
     skipRequired(9, "falta admin-test-user");
     return;
   }
-  const { client: admin } = await signIn(testUsers.admin);
+  const { client: admin } = await signInStaff("admin");
   const marker = `RLS priority ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
@@ -599,7 +681,7 @@ async function scenario9_priority() {
   assert(!ok.error, "admin define urgent com motivo");
 
   if (testUsers.curator.email && testUsers.curator.password) {
-    const { client: curator } = await signIn(testUsers.curator);
+    const { client: curator } = await signInStaff("curator");
     const denied = await curator.rpc("set_job_curation_priority", {
       p_job_id: jobId,
       p_priority: "urgent",
@@ -619,7 +701,7 @@ async function scenario10_applyHappy() {
     skipRequired(10, "faltam admin e/ou candidate em docs-local");
     return;
   }
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
   assert(!adminErr && !candErr && user?.id, `admin e candidato autenticam (${adminErr?.message || candErr?.message || "ok"})`);
   if (adminErr || candErr || !user?.id) return;
@@ -678,7 +760,7 @@ async function scenario11_applyBlocked() {
   const anonApply = await anon.rpc("apply_to_job", { p_job_id: SEED_APPROVED_A });
   assert(Boolean(anonApply.error), "anon não chama RPC de apply");
 
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
   if (adminErr || candErr || !user?.id) {
     skipRequired(11, "admin ou candidato não autenticou");
@@ -723,7 +805,7 @@ async function scenario12_withdraw() {
     skipRequired(12, "faltam admin e/ou candidate em docs-local");
     return;
   }
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
   if (adminErr || candErr || !user?.id) {
     skipRequired(12, "admin ou candidato não autenticou");
@@ -879,7 +961,7 @@ async function scenario14_applyRateLimit() {
     skipRequired(14, "faltam admin e/ou candidate em docs-local");
     return;
   }
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
   if (adminErr || candErr || !user?.id) {
     skipRequired(14, "admin ou candidato não autenticou");
@@ -977,7 +1059,7 @@ async function scenario15_rpcExecuteHardening() {
 
   await candidate.auth.signOut();
 
-  const { client: admin, error: adminErr } = await signIn(testUsers.admin);
+  const { client: admin, error: adminErr } = await signInStaff("admin");
   assert(!adminErr, `admin autentica (${adminErr?.message ?? "ok"})`);
   if (adminErr) return;
 
@@ -1025,7 +1107,7 @@ async function scenario16_privacyConsent() {
   assert(Boolean(anonChoice.error) && isExecuteDenied(anonChoice.error), "anon não registra escolha de privacidade");
 
   const { client: candidate, user, error: candidateError } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
-  const { client: admin, error: adminError } = await signInWithRetry(testUsers.admin, { label: "admin" });
+  const { client: admin, error: adminError } = await signInStaff("admin");
   if (candidateError || adminError || !user?.id) {
     skipRequired(
       16,
@@ -1177,7 +1259,7 @@ async function scenario17_privacyAudit() {
   }
 
   const { client: candidate, user, error: candidateError } = await signInWithRetry(testUsers.candidate, { label: "candidato" });
-  const { client: admin, error: adminError } = await signInWithRetry(testUsers.admin, { label: "admin" });
+  const { client: admin, error: adminError } = await signInStaff("admin");
   if (candidateError || adminError || !user?.id) {
     skipRequired(
       17,
@@ -1352,7 +1434,17 @@ async function scenario17_privacyAudit() {
   }
 }
 
-const RLS_HELPER_RPCS = ["is_admin", "is_curator", "is_moderator", "can_review_curation"];
+const RLS_HELPER_RPCS = [
+  "is_admin",
+  "is_curator",
+  "is_moderator",
+  "can_review_curation",
+  "jwt_aal2",
+  "is_admin_aal2",
+  "is_curator_aal2",
+  "is_moderator_aal2",
+  "can_review_curation_aal2",
+];
 
 /** Cenário 18 — MVP-022: helpers RLS fora da Data API. */
 async function scenario18_rlsHelperRpcSurface() {
@@ -1409,7 +1501,7 @@ async function scenarioAdminBaseline() {
     skip("admin baseline: docs-local/admin-test-user.md");
     return;
   }
-  const { client: admin, error } = await signIn(testUsers.admin);
+  const { client: admin, error } = await signInStaff("admin");
   assert(!error, `admin autentica (${error?.message ?? "ok"}`);
   if (error) return;
 
@@ -1562,6 +1654,64 @@ async function scenario19_avatarStorage() {
   await client.auth.signOut();
 }
 
+/** Cenário 20 — SEC-STAFF-MFA-02: senha só (AAL1) não muta staff; TOTP (AAL2) muta.
+ * Enhanced MFA Security (15 min AAL1) do Dashboard não substitui este teste. */
+async function scenario20_staffAal1Blocked() {
+  if (!hasCreds(testUsers.admin)) {
+    skipRequired(20, "falta admin em docs-local");
+    return;
+  }
+
+  const { client: aal1, error: aal1Error } = await signIn(testUsers.admin);
+  assert(!aal1Error, `admin autentica só com senha (${aal1Error?.message ?? "ok"})`);
+  if (aal1Error) return;
+
+  try {
+    const { data: aal } = await aal1.auth.mfa.getAuthenticatorAssuranceLevel();
+    assert(aal?.currentLevel !== "aal2", "sessão de controle do cenário 20 não é AAL2");
+
+    const marker = `RLS aal1 blocked ${Date.now()}`;
+    const created = await createPendingJob(aal1, marker);
+    if (!created.error && created.data?.id) {
+      await deleteJob(aal1, created.data.id);
+      assert(
+        false,
+        "AAL1 não insere vaga staff — aplique 20260917140000_staff_rls_aal2.sql só em homologação",
+      );
+      return;
+    }
+    assert(Boolean(created.error), "AAL1 não insere vaga staff");
+    assert(
+      isStaffAal2Denied(created.error),
+      `insert AAL1 recusado por RLS/AAL2 (${errorText(created.error) || "sem mensagem"})`,
+    );
+
+    const review = await rpcReview(aal1, SEED_PENDING, "approve");
+    assert(Boolean(review.error), "AAL1 não submete curadoria");
+    assert(
+      /aal2 required/i.test(errorText(review.error)),
+      `curadoria AAL1 recusada (${errorText(review.error) || "sem mensagem"})`,
+    );
+  } finally {
+    await aal1.auth.signOut();
+  }
+
+  if (!totpSecrets.admin) {
+    skipRequired(20, "falta ADMIN_TEST_TOTP_SECRET ou chave em staff-mfa-totp-secrets.md");
+    return;
+  }
+
+  const { client: aal2, error: aal2Error } = await signInStaff("admin");
+  assert(!aal2Error, `admin AAL2 autentica (${aal2Error?.message ?? "ok"})`);
+  if (aal2Error) return;
+
+  const okMarker = `RLS aal2 ok ${Date.now()}`;
+  const createdAal2 = await createPendingJob(aal2, okMarker);
+  assert(!createdAal2.error && createdAal2.data?.id, "AAL2 cadastra pending");
+  if (createdAal2.data?.id) await deleteJob(aal2, createdAal2.data.id);
+  await aal2.auth.signOut();
+}
+
 console.log("=== Cenário 1: anon ===");
 await scenario1_anon();
 
@@ -1622,6 +1772,9 @@ await scenario18_rlsHelperRpcSurface();
 console.log("\n=== Cenário 19: Storage avatars (UX-PROFILE-AVATAR-01) ===");
 await scenario19_avatarStorage();
 
+console.log("\n=== Cenário 20: SEC-STAFF-MFA-02 AAL1 bloqueado em mutação staff ===");
+await scenario20_staffAal1Blocked();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1633,6 +1786,7 @@ if (skippedRequired.size > 0) {
     if (n === 17) band = "MVP-005 exige execução real do cenário 17";
     if (n === 18) band = "MVP-022 exige execução real do cenário 18";
     if (n === 19) band = "UX-PROFILE-AVATAR-01 exige execução real do cenário 19";
+    if (n === 20) band = "SEC-STAFF-MFA-02 exige execução real do cenário 20";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -1643,5 +1797,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars: ok (${skipped.length} aviso(s) opcionais; cenários 3–19 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2: ok (${skipped.length} aviso(s) opcionais; cenários 3–20 executados).`,
 );
