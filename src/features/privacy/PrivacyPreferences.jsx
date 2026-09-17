@@ -109,10 +109,15 @@ function PurposeSkeletons() {
   );
 }
 
+function statusFromPayload(payload) {
+  if (payload?.available === false || payload?.source === "schema-unavailable") return "unavailable";
+  return "ready";
+}
+
 export function PrivacyPreferences({ userId }) {
   const cached = peekPrivacyPreferencesCache(userId);
   const [data, setData] = useState(() => cached ?? { purposes: [], events: [], source: "supabase" });
-  const [status, setStatus] = useState(() => (cached ? "ready" : "loading"));
+  const [status, setStatus] = useState(() => (cached ? statusFromPayload(cached) : "loading"));
   const [error, setError] = useState("");
   const [busyCode, setBusyCode] = useState(null);
 
@@ -129,7 +134,7 @@ export function PrivacyPreferences({ userId }) {
       .then((payload) => {
         if (cancelled) return;
         setData(payload);
-        setStatus("ready");
+        setStatus(statusFromPayload(payload));
       })
       .catch((loadError) => {
         if (cancelled) return;
@@ -147,13 +152,14 @@ export function PrivacyPreferences({ userId }) {
   }, {}), [data.events]);
 
   const run = async (purposeCode, action) => {
+    if (status === "unavailable" || data.available === false) return;
     setBusyCode(purposeCode);
     setError("");
     try {
       await action();
       const payload = await loadPrivacyPreferences({ userId, forceRefresh: true });
       setData(payload);
-      setStatus("ready");
+      setStatus(statusFromPayload(payload));
     } catch (actionError) {
       setError(actionError.message || "Não foi possível atualizar essa finalidade.");
     } finally {
@@ -175,6 +181,9 @@ export function PrivacyPreferences({ userId }) {
           <Link className="outline" to="/">Voltar ao início</Link>
         </div>
         {data.source === "fallback" ? <p className="privacy-page__note" role="status">As preferências serão salvas quando o ambiente Supabase estiver configurado.</p> : null}
+        {status === "unavailable" ? (
+          <p className="privacy-page__note" role="status">Preferências temporariamente indisponíveis</p>
+        ) : null}
         {error ? <p className="privacy-alert" role="alert">{error}</p> : null}
         {loading ? <PurposeSkeletons /> : null}
         {status === "ready" ? (
@@ -193,10 +202,12 @@ export function PrivacyPreferences({ userId }) {
             ))}
           </div>
         ) : null}
-        <div className="privacy-footer-note">
-          <CheckCircle2 size={18} aria-hidden="true" />
-          <p>As escolhas opcionais começam desativadas. Bases legais, textos e prazos marcados como <code>pending_dpo</code> ainda aguardam revisão e não liberam novos tratamentos.</p>
-        </div>
+        {status !== "unavailable" ? (
+          <div className="privacy-footer-note">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            <p>As escolhas opcionais começam desativadas. Bases legais, textos e prazos marcados como <code>pending_dpo</code> ainda aguardam revisão e não liberam novos tratamentos.</p>
+          </div>
+        ) : null}
       </div>
     </main>
   );

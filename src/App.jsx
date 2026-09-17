@@ -104,9 +104,11 @@ export function App() {
     const role = auth.profile?.role;
     if (!userId || !role || STAFF_ROLES.has(role)) return undefined;
     loadMyApplications({ userId }).catch(() => {});
-    loadPrivacyPreferences({ userId }).catch(() => {});
+    if (!auth.needsOnboarding) {
+      loadPrivacyPreferences({ userId }).catch(() => {});
+    }
     return undefined;
-  }, [auth.session?.user?.id, auth.profile?.role]);
+  }, [auth.session?.user?.id, auth.profile?.role, auth.needsOnboarding]);
 
   return (
     <>

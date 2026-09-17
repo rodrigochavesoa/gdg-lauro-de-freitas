@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const supabaseState = vi.hoisted(() => ({
   enabled: true,
@@ -45,6 +45,22 @@ function mockPrivacyFetch({ purposes = [samplePurpose], events = [], pending } =
     return {
       select: vi.fn(() => ({
         order: vi.fn(() => Promise.resolve({ data: events, error: null })),
+      })),
+    };
+  });
+}
+
+function mockPrivacyFetchError({ code, message }) {
+  const error = { code, message };
+  supabaseState.from.mockImplementation((table) => {
+    if (table === "privacy_purposes") {
+      const orderVersion = vi.fn(() => Promise.resolve({ data: null, error }));
+      const orderCode = vi.fn(() => ({ order: orderVersion }));
+      return { select: vi.fn(() => ({ order: orderCode })) };
+    }
+    return {
+      select: vi.fn(() => ({
+        order: vi.fn(() => Promise.resolve({ data: [], error: null })),
       })),
     };
   });
@@ -114,5 +130,65 @@ describe("privacy-api cache", () => {
     supabaseState.rpc.mockResolvedValue({ data: { id: "e1" }, error: null });
     await savePrivacyDecision({ purposeCode: "F-01", eventType: "notice" });
     expect(peekPrivacyPreferencesCache("u1")).toBeNull();
+  });
+});
+
+describe("privacy-api schema unavailable", () => {
+  afterEach(() => {
+    invalidatePrivacyPreferencesCache();
+    supabaseState.enabled = true;
+    supabaseState.from.mockReset();
+    supabaseState.rpc.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+
+  it("devolve schema-unavailable para PGRST205 sem catálogo local", async () => {
+    mockPrivacyFetchError({ code: "PGRST205", message: "Could not find the table 'privacy_purposes' in the schema cache" });
+    const payload = await loadPrivacyPreferences({ userId: "u1" });
+    expect(payload).toEqual({
+      available: false,
+      source: "schema-unavailable",
+      purposes: [],
+      events: [],
+    });
+    expect(peekPrivacyPreferencesCache("u1")).toBeNull();
+  });
+
+  it("devolve schema-unavailable para 42P01", async () => {
+    mockPrivacyFetchError({ code: "42P01", message: "relation privacy_purposes does not exist" });
+    const payload = await loadPrivacyPreferences({ userId: "u1" });
+    expect(payload.available).toBe(false);
+    expect(payload.source).toBe("schema-unavailable");
+    expect(payload.purposes).toEqual([]);
+  });
+
+  it("devolve source supabase quando o schema existe", async () => {
+    mockPrivacyFetch();
+    const payload = await loadPrivacyPreferences({ userId: "u1" });
+    expect(payload.available).toBe(true);
+    expect(payload.source).toBe("supabase");
+    expect(payload.purposes[0].purpose_code).toBe("F-01");
+  });
+
+  it("savePrivacyDecision não chama RPC quando o schema está indisponível", async () => {
+    mockPrivacyFetchError({ code: "PGRST205", message: "Could not find the table" });
+    await loadPrivacyPreferences({ userId: "u1" });
+    await expect(savePrivacyDecision({ purposeCode: "F-06", eventType: "accepted" })).rejects.toThrow(
+      /temporariamente indisponíveis/,
+    );
+    expect(supabaseState.rpc).not.toHaveBeenCalled();
+  });
+
+  it("emite telemetria sem PII uma vez por sessão", async () => {
+    mockPrivacyFetchError({ code: "PGRST205", message: "Could not find the table" });
+    await loadPrivacyPreferences({ userId: "user-secret-id" });
+    await loadPrivacyPreferences({ userId: "user-secret-id", forceRefresh: true });
+    const logged = console.info.mock.calls.filter((args) => args[0]?.event === "privacy_schema_unavailable");
+    expect(logged).toHaveLength(1);
+    expect(JSON.stringify(logged[0])).not.toMatch(/user-secret-id/);
   });
 });

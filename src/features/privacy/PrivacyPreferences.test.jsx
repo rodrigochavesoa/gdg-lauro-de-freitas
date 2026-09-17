@@ -129,4 +129,20 @@ describe("PrivacyPreferences", () => {
     expect(screen.queryByText("Carregando suas preferências…")).not.toBeInTheDocument();
     expect(loadPrivacyPreferences).toHaveBeenCalledWith({ userId: "u1", forceRefresh: true });
   });
+
+  it("mostra preferências indisponíveis sem ações quando o schema está ausente", async () => {
+    peekPrivacyPreferencesCache.mockReturnValue(null);
+    loadPrivacyPreferences.mockResolvedValue({
+      available: false,
+      source: "schema-unavailable",
+      purposes: [],
+      events: [],
+    });
+    render(<MemoryRouter><PrivacyPreferences userId="u1" /></MemoryRouter>);
+    expect(await screen.findByRole("status")).toHaveTextContent("Preferências temporariamente indisponíveis");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar que li" })).not.toBeInTheDocument();
+    expect(saveOptionalChoice).not.toHaveBeenCalled();
+    expect(screen.queryByText("As preferências serão salvas quando o ambiente Supabase estiver configurado.")).not.toBeInTheDocument();
+  });
 });

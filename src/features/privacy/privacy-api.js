@@ -13,8 +13,43 @@ function clientOrThrow() {
   return client;
 }
 
+const SCHEMA_UNAVAILABLE_CODES = new Set(["PGRST205", "PGRST202", "42P01", "42883", "404"]);
+const SCHEMA_UNAVAILABLE_MESSAGE = "Preferências temporariamente indisponíveis.";
+
+let privacySchemaUnavailable = false;
+let privacySchemaUnavailableReported = false;
+
+export function isPrivacySchemaUnavailableError(error) {
+  if (!error) return false;
+  const code = String(error.code ?? error.status ?? "");
+  if (SCHEMA_UNAVAILABLE_CODES.has(code)) return true;
+  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`.toLowerCase();
+  return (
+    text.includes("does not exist") ||
+    text.includes("schema cache") ||
+    text.includes("could not find the table") ||
+    text.includes("could not find the function")
+  );
+}
+
+function markPrivacySchemaUnavailable() {
+  privacySchemaUnavailable = true;
+  if (privacySchemaUnavailableReported) return;
+  privacySchemaUnavailableReported = true;
+  console.info({ event: "privacy_schema_unavailable" });
+}
+
+function schemaUnavailablePayload() {
+  markPrivacySchemaUnavailable();
+  return { available: false, source: "schema-unavailable", purposes: [], events: [] };
+}
+
 function throwIfError(error) {
   if (!error) return;
+  if (isPrivacySchemaUnavailableError(error)) {
+    markPrivacySchemaUnavailable();
+    throw new Error(SCHEMA_UNAVAILABLE_MESSAGE);
+  }
   const safe = redactForLog({
     message: error.message,
     code: error.code,
@@ -46,6 +81,8 @@ export function invalidatePrivacyPreferencesCache(userId) {
   }
   privacyPreferencesCache.clear();
   privacyPreferencesInflight.clear();
+  privacySchemaUnavailable = false;
+  privacySchemaUnavailableReported = false;
 }
 
 export function peekPrivacyPreferencesCache(userId) {
@@ -59,16 +96,24 @@ export function peekPrivacyPreferencesCache(userId) {
 async function fetchPrivacyPreferences() {
   const client = getSupabaseBrowserClient();
   if (!client) {
-    return { purposes: PRIVACY_PURPOSES, events: [], source: "fallback" };
+    return { available: true, purposes: PRIVACY_PURPOSES, events: [], source: "fallback" };
   }
 
   const [{ data: purposes, error: purposeError }, { data: events, error: eventError }] = await Promise.all([
     client.from("privacy_purposes").select("*").order("purpose_code").order("version", { ascending: false }),
     client.from("privacy_consent_events").select("id,purpose_code,purpose_version,event_type,source,proof,created_at").order("created_at", { ascending: false }),
   ]);
+  if (isPrivacySchemaUnavailableError(purposeError) || isPrivacySchemaUnavailableError(eventError)) {
+    return schemaUnavailablePayload();
+  }
   throwIfError(purposeError);
   throwIfError(eventError);
-  return { purposes: sortPurposes(purposes?.length ? purposes : PRIVACY_PURPOSES), events: events ?? [], source: "supabase" };
+  return {
+    available: true,
+    purposes: sortPurposes(purposes?.length ? purposes : PRIVACY_PURPOSES),
+    events: events ?? [],
+    source: "supabase",
+  };
 }
 
 export async function loadPrivacyPreferences(userIdOrOptions) {
@@ -83,7 +128,7 @@ export async function loadPrivacyPreferences(userIdOrOptions) {
   }
 
   const request = fetchPrivacyPreferences().then((data) => {
-    if (cacheKey) {
+    if (cacheKey && data.source !== "schema-unavailable") {
       privacyPreferencesCache.set(cacheKey, { data, fetchedAt: Date.now() });
     }
     return data;
@@ -100,6 +145,9 @@ export async function loadPrivacyPreferences(userIdOrOptions) {
 }
 
 export async function savePrivacyDecision({ purposeCode, eventType, source = "preferences" }) {
+  if (privacySchemaUnavailable) {
+    throw new Error(SCHEMA_UNAVAILABLE_MESSAGE);
+  }
   const client = clientOrThrow();
   const { data, error } = await client.rpc("record_privacy_event", {
     p_purpose_code: purposeCode,
