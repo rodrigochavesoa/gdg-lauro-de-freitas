@@ -130,6 +130,9 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       setJobs([]);
       setForm(emptyForm);
       setSection("curation");
+      setEmail("");
+      setPassword("");
+      setError("");
       return undefined;
     }
 
@@ -168,6 +171,8 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     } catch (err) {
       setError(err.message);
     } finally {
+      setEmail("");
+      setPassword("");
       setBusy(false);
     }
   };

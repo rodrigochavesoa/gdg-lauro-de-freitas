@@ -287,5 +287,69 @@ describe("Admin", () => {
     expect(alert).toHaveClass("form-alert");
     expect(alert).not.toHaveClass("success");
     expect(alert).toHaveTextContent("Credenciais inválidas");
+    expect(screen.getByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+  });
+
+  it("limpa e-mail e senha após login simulado", async () => {
+    signInCuration.mockResolvedValue({
+      id: "c1",
+      role: "curator",
+      full_name: "Cora Curadora",
+      email: "cora@example.invalid",
+    });
+    const { rerender } = render(
+      <MemoryRouter>
+        <Admin session={null} authReady />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "cora@example.invalid" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("staff-secret")).not.toBeInTheDocument();
+    rerender(
+      <MemoryRouter>
+        <Admin session={{ user: { id: "c1" } }} authReady />
+      </MemoryRouter>,
+    );
+    rerender(
+      <MemoryRouter>
+        <Admin session={null} authReady />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+  });
+
+  it("limpa e-mail, senha e erro quando session vira null", async () => {
+    signInCuration.mockRejectedValue(new Error("Credenciais inválidas"));
+    const { rerender } = render(
+      <MemoryRouter>
+        <Admin session={null} authReady />
+      </MemoryRouter>,
+    );
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ada@example.invalid" } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Credenciais inválidas");
+    rerender(
+      <MemoryRouter>
+        <Admin
+          authReady
+          session={{ user: { id: "a1", email: "ada@example.invalid" } }}
+          authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    rerender(
+      <MemoryRouter>
+        <Admin session={null} authReady />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
