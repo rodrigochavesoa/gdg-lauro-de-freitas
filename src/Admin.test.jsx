@@ -352,4 +352,21 @@ describe("Admin", () => {
     expect(screen.getByLabelText("Senha")).toHaveValue("");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("ignora authProfile staff stale quando session já é null", async () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    renderAdmin(
+      <Admin
+        authReady
+        session={null}
+        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.getByLabelText("E-mail")).toHaveValue("");
+    expect(screen.getByLabelText("Senha")).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
 });
