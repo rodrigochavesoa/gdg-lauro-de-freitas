@@ -1,0 +1,17 @@
+[
+  "202608150001_ai_matching.sql",
+  "202608160003_admin_write_grants.sql",
+  "202608160004_curation_enums.sql",
+  "202608160005_curation_schema.sql",
+  "20260816192301_remote_history_noop.sql",
+  "20260816192306_remote_history_noop.sql",
+  "20260907041723_application_snapshot_rpc.sql",
+  "20260908150000_profile_insert_role_candidate.sql",
+  "20260909003920_apply_rate_limit.sql",
+  "20260912010000_data_api_select_grants.sql",
+  "20260913013123_rpc_execute_hardening.sql",
+  "20260914001651_privacy_consent.sql",
+  "20260914024020_privacy_audit.sql",
+  "20260914034421_rls_helper_private_schema.sql",
+  "20260914041628_rls_helper_private_least_privilege.sql"
+]

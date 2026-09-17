@@ -25,7 +25,7 @@ Copy-Item .env.example .env.local
 
 Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (ou o fallback `VITE_SUPABASE_ANON_KEY`) pelo canal seguro da equipe. **Nunca** commite `.env` / `.env.local` nem `service_role` no frontend, no Git ou nas env vars públicas da Vercel.
 
-Migrations: pasta [`supabase/migrations/`](supabase/migrations/). Homologação aplica a cadeia completa (inclui seed). Produção aplica só o que `pnpm migrations:prod` listar — **sem** `seed_fictitious_catalog`.
+Migrations: pasta [`supabase/migrations/`](supabase/migrations/). Homologação aplica a cadeia completa (inclui seed). Produção aplica só o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json) (`pnpm migrations:prod`) — **sem** seed fictício; todo `.sql` precisa estar no manifesto, ser homolog-only, ou ter o marker «Produção: não aplicar»; senão o comando **falha** (não ignora).
 
 ## OAuth (Google via Supabase Auth)
 
