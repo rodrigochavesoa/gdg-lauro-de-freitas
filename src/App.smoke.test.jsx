@@ -227,6 +227,8 @@ beforeEach(() => {
   loadMyApplicationMock.mockResolvedValue(null);
   loadMyApplicationsMock.mockReset();
   loadMyApplicationsMock.mockResolvedValue([]);
+  loadPrivacyPreferencesMock.mockReset();
+  loadPrivacyPreferencesMock.mockResolvedValue({ purposes: [], events: [], source: "fallback" });
 });
 
 async function renderAt(path = "/") {
@@ -614,6 +616,29 @@ describe("ARQ-01 — caracterização do shell", () => {
     authState.needsOnboarding = true;
     await renderAt("/vagas");
     expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+  });
+
+  it("não aquece preferências de privacidade durante o onboarding", async () => {
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/onboarding");
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    await waitFor(() => expect(loadMyApplicationsMock).toHaveBeenCalled());
+    expect(loadPrivacyPreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it("aquece preferências de privacidade quando o perfil já está completo", async () => {
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = {
+      full_name: "Ada Lovelace",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/");
+    await waitFor(() => expect(loadPrivacyPreferencesMock).toHaveBeenCalledWith({ userId: "u1" }));
   });
 
   it("sincroniza o Header no login sem flash de CTA e hidrata links de candidato depois", async () => {
