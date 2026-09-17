@@ -57,7 +57,7 @@ O toggle **Enhanced MFA Security** (AAL1 expira ~15 min) do Dashboard **não** s
 
 ## Upload de avatar (homolog / Preview)
 
-**Alcance:** a flag Vite controla só o gate de upload no frontend (`isAvatarUploadEnabled`). Storage, RLS, crop e popover são outra história (UX-PROFILE-AVATAR-01). Produção permanece fail-closed até Camada B / PO.
+A flag Vite é só o gate de **UI/API de upload** (`isAvatarUploadEnabled`). Ela **não** substitui RLS do bucket `avatars`. Produção permanece fail-closed até Camada B / PO.
 
 | `VITE_AVATAR_UPLOAD_ENABLED` | Comportamento |
 |---|---|
@@ -65,6 +65,13 @@ O toggle **Enhanced MFA Security** (AAL1 expira ~15 min) do Dashboard **não** s
 | ausente, `false`, `1`, `0` ou qualquer outro valor | Fail-closed: upload indisponível. |
 
 Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar o fluxo. **Não** defina em Production.
+
+**Contrato em homologação (UX-PROFILE-AVATAR-01):**
+
+- Bucket Storage `avatars` **privado**; leitura via **signed URL** (1 h). Path único `{userId}/avatar.jpg`.
+- Policies: autenticado só lê/grava/apaga o próprio objeto. Anon e terceiros não acessam.
+- Frontend: JPEG/PNG/WebP até 2 MB; recorte circular no cliente; popover no header (foto 96 px, nome, e-mail, ações). Sem foto ou falha de load → iniciais.
+- Migrations `avatars_*` são **homolog-only**: `pnpm migrations:prod` as ignora. **Não** aplicar em `gdg-jobs-prod`.
 
 ## Teste SEC-STAFF-MFA-02 (RLS AAL2)
 
