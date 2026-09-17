@@ -1459,13 +1459,18 @@ async function scenarioAdminBaseline() {
   await admin.auth.signOut();
 }
 
-/** Cenário 19 — Storage avatars: só `{userId}/avatar.jpg`; cruzado entre dois usuários. */
+/** Cenário 19 — Storage avatars: só `{userId}/avatar.jpg`; cruzado entre dois usuários.
+ * Último login do harness: GoTrue pode responder `Request rate limit reached` se usar `signIn` cru. */
 async function scenario19_avatarStorage() {
   if (!hasCreds(testUsers.candidate)) {
     skipRequired(19, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
     return;
   }
-  const { client, user, error } = await signIn(testUsers.candidate);
+  const { client, user, error } = await signInWithRetry(testUsers.candidate, {
+    attempts: 5,
+    pauseMs: 4000,
+    label: "candidato (avatars)",
+  });
   assert(!error, `candidato autentica para avatars (${error?.message ?? "ok"})`);
   if (error || !user?.id) return;
 
@@ -1520,7 +1525,11 @@ async function scenario19_avatarStorage() {
   if (!hasCreds(secondCreds)) {
     skip("cenário 19 cruzado: faltam curator/admin");
   } else {
-    const { client: other, error: otherErr } = await signIn(secondCreds);
+    const { client: other, error: otherErr } = await signInWithRetry(secondCreds, {
+      attempts: 5,
+      pauseMs: 4000,
+      label: "segundo usuário (avatars)",
+    });
     assert(!otherErr, `segundo usuário autentica para avatars (${otherErr?.message ?? "ok"})`);
     if (!otherErr) {
       const crossSigned = await other.storage.from("avatars").createSignedUrl(ownPath, 60);
