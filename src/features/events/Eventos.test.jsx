@@ -51,6 +51,11 @@ describe("EventosIndex", () => {
     thumbs.forEach((thumb) => {
       expect(thumb).toHaveClass("event-index-card__thumb");
       expect(thumb).not.toHaveClass("event-index-card__thumb--contain");
+      const loading = thumb.getAttribute("loading");
+      expect(loading === "eager" || loading === null).toBe(true);
+      expect(thumb).toHaveAttribute("decoding", "async");
+      expect(thumb).toHaveAttribute("width");
+      expect(thumb).toHaveAttribute("height");
     });
 
     const viewLinks = screen.getAllByRole("link", { name: EVENTS_INDEX.viewEventLabel });
