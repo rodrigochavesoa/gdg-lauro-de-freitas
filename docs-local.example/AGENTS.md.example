@@ -20,3 +20,7 @@ Papéis (resumo):
 Evidências visuais: `docs-local/assets/<id>/`. DS-06/DS-07: `docs-local/design-system-communication.md` e `docs-local/design-system/section-curves.md` após a migração.
 
 Fluxo Git e Conventional Commits: [`CONTRIBUTING.md`](../CONTRIBUTING.md). Setup: [`SETUP.md`](../SETUP.md).
+
+## Secret hygiene e bootstrap (copiar guidelines completas para `docs-local/`)
+
+Modelos: [`security-project-bootstrap.example.md`](security-project-bootstrap.example.md), [`guideline-credentials-lifecycle.example.md`](guideline-credentials-lifecycle.example.md). Na cópia local, use `security-project-bootstrap.md`, `guideline-credentials-lifecycle.md` e `guideline-agents-secret-hygiene.md`. RLS verde **não** prova histórico Git limpo.
