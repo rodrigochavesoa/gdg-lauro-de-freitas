@@ -98,7 +98,7 @@ No Free/Hobby: backups do dashboard Supabase no projeto de **produção** (não 
 
 ```powershell
 pnpm install
-pnpm dev          # http://127.0.0.1:5173
+pnpm dev          # http://127.0.0.1:5173 (fixo em vite.config.js — não usar localhost)
 pnpm lint
 pnpm test         # inclui smoke P0 em src/App.smoke.test.jsx (sem Playwright)
 pnpm run build
