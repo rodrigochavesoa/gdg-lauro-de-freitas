@@ -233,6 +233,14 @@ nav a.active{color:var(--color-text);border-bottom-color:var(--color-action-prim
 .mobile-nav a{min-height:44px;padding:0 var(--space-3);background:transparent;border-radius:var(--radius-sm);color:var(--color-text);font-weight:600;text-align:left;display:flex;align-items:center;gap:var(--space-2);text-decoration:none}
 .mobile-nav a:hover,.mobile-nav a.active{background:var(--color-primary-50);color:var(--color-text-link)}
 .mobile-nav a.primary{justify-content:center;background:var(--color-action-primary);color:var(--color-text-inverse);text-align:center;margin-top:var(--space-2);text-decoration:none;border-bottom:none}
+.mobile-nav__account{display:grid;gap:var(--space-1);padding-bottom:var(--space-2);margin-bottom:var(--space-1);border-bottom:1px solid var(--color-border)}
+.mobile-nav__heading{margin:0;padding:var(--space-2) var(--space-3) var(--space-1);font-size:var(--font-size-caption);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--color-text-subtle)}
+.mobile-nav__identity{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-1) var(--space-3) var(--space-2);min-width:0}
+.mobile-nav__identity-text{min-width:0}
+.mobile-nav__name{margin:0;font-weight:700;color:var(--color-text)}
+.mobile-nav__name--pending{color:var(--color-text-muted);font-weight:600}
+.mobile-nav__email{margin:0;font-size:var(--font-size-caption);color:var(--color-text-muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.header-avatar-mobile{display:none}
 .brand,.footer-inner .brand{text-decoration:none;color:var(--color-brand-wordmark)}
 .brand{flex-shrink:0}
 .brand .brand-name{color:var(--color-brand-wordmark);white-space:nowrap}
@@ -274,6 +282,7 @@ a.ghost,a.primary,a.outline,a.white-button{text-decoration:none}
   header nav,.topbar .hide-mobile{display:none}
   .topbar .menu{display:grid;place-items:center;width:40px;height:40px;border-radius:var(--radius-md)}
   .topbar .menu:hover{background:var(--color-grey-100)}
+  .header-avatar-mobile{display:grid;place-items:center;width:40px;height:40px;border-radius:var(--radius-md);flex:0 0 auto}
   .mobile-nav.open{position:absolute;top:100%;left:0;right:0;display:grid;gap:var(--space-1);padding:var(--space-3) var(--space-4) var(--space-4);background:var(--color-surface);border-bottom:1px solid var(--color-border);box-shadow:var(--shadow-card)}
   .theme-toggle.hide-mobile{display:none}
 }
