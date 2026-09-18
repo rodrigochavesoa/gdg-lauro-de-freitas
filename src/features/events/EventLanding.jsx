@@ -98,7 +98,7 @@ export function EventLanding({ event }) {
               alt={event.organizer.logoAlt}
               width={48}
               height={48}
-              loading="lazy"
+              loading="eager"
               decoding="async"
             />
             <p>{event.organizer.name}</p>

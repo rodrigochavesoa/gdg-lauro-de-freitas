@@ -48,6 +48,14 @@ describe("EventLanding", () => {
     expect(screen.getByRole("heading", { name: /SCALE \(Escalar\)/ })).toBeInTheDocument();
     expect(screen.getByText(DEVFEST_2026.organizer.name)).toBeInTheDocument();
 
+    const logo = document.querySelector(".event-organizer__brand img");
+    expect(logo).toHaveAttribute("src", DEVFEST_2026.organizer.logoSrc);
+    expect(logo).toHaveAttribute("width", "48");
+    expect(logo).toHaveAttribute("height", "48");
+    expect(logo).toHaveAttribute("decoding", "async");
+    const logoLoading = logo.getAttribute("loading");
+    expect(logoLoading === "eager" || logoLoading === null).toBe(true);
+
     expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("back");
     expect(document.querySelector(".event-layout > .back")).toBeTruthy();
     expect(document.querySelector(".hero")).toBeTruthy();
@@ -77,6 +85,13 @@ describe("EventLanding", () => {
     expect(tickets).toHaveAttribute("rel", "noopener noreferrer");
 
     expect(screen.getByText(DEVOPSDAYS_SALVADOR_2026.organizer.name)).toBeInTheDocument();
+    const organizerLogo = document.querySelector(".event-organizer__brand img");
+    expect(organizerLogo).toHaveAttribute("src", DEVOPSDAYS_SALVADOR_2026.organizer.logoSrc);
+    const organizerLoading = organizerLogo.getAttribute("loading");
+    expect(organizerLoading === "eager" || organizerLoading === null).toBe(true);
+    expect(organizerLogo).toHaveAttribute("width", "48");
+    expect(organizerLogo).toHaveAttribute("height", "48");
+    expect(organizerLogo).toHaveAttribute("decoding", "async");
     expect(screen.getByRole("link", { name: "Entrar em contato" })).toHaveAttribute(
       "href",
       "mailto:salvador@devopsdays.org",
