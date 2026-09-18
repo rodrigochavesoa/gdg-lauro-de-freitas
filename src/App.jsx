@@ -27,6 +27,7 @@ import {
   signOutUser,
   subscribeAuth,
 } from "./features/auth/auth-api.js";
+import { isCandidateProfile, isD01Complete } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
@@ -42,6 +43,8 @@ export function App() {
   const [avatarStatus, setAvatarStatus] = useState("idle");
   const authGeneration = useRef(0);
   const lastUserId = useRef(null);
+  const sessionUserId = useRef(null);
+  sessionUserId.current = auth.session?.user?.id ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -201,7 +204,8 @@ export function App() {
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/preferencias" element={<PrivacyPreferencesRoute auth={auth} authReady={authReady} />} />
-        <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
+        <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
+        <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -243,14 +247,67 @@ function PrivacyPreferencesRoute({ auth, authReady }) {
   return <Navigate to="/login" replace />;
 }
 
-function OnboardingRoute({ auth, setAuth }) {
+function ProfileEditPending() {
+  return (
+    <main id="conteudo" tabIndex={-1} className="admin-page">
+      <div className="shell admin-shell">
+        <section className="admin-content" aria-busy="true">
+          <div className="admin-title">
+            <div>
+              <span className="eyebrow">Perfil</span>
+              <h1>Editar perfil</h1>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function ProfileEditRoute({ auth, authReady, setAuth }) {
+  const editingUserId = auth.session?.user?.id;
+  if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
+  if (auth.session) {
+    if (auth.profile?.role && STAFF_ROLES.has(auth.profile.role)) {
+      return <Navigate to="/" replace />;
+    }
+    if (!auth.profile) return <ProfileEditPending />;
+    return (
+      <Onboarding
+        mode="edit"
+        profile={auth.profile}
+        email={auth.session.user.email}
+        onSaved={(profile) => {
+          setAuth((current) => {
+            if (current.session?.user?.id !== editingUserId) return current;
+            return {
+              ...current,
+              profile,
+              needsOnboarding: isCandidateProfile(profile) && !isD01Complete(profile, current.session.user.email),
+            };
+          });
+        }}
+      />
+    );
+  }
+  if (!authReady) return <ProfileEditPending />;
+  return <Navigate to="/login" replace />;
+}
+
+function OnboardingRoute({ auth, setAuth, sessionUserId }) {
   const navigate = useNavigate();
+  const editingUserId = auth.session?.user?.id;
   return (
     <Onboarding
       profile={auth.profile}
       email={auth.session?.user?.email}
       onSaved={(profile) => {
-        setAuth((current) => ({ ...current, profile, needsOnboarding: false }));
+        if (!editingUserId || sessionUserId.current !== editingUserId) return;
+        setAuth((current) => {
+          if (current.session?.user?.id !== editingUserId) return current;
+          return { ...current, profile, needsOnboarding: false };
+        });
+        if (sessionUserId.current !== editingUserId) return;
         navigate("/", { replace: true });
       }}
     />

@@ -37,6 +37,7 @@ import {
   isAvatarUploadEnabled,
   mergeAuthSnapshot,
   resolveHeaderIdentity,
+  saveOnboardingProfile,
   saveProfileAvatar,
   subscribeAuth,
 } from "./auth-api.js";
@@ -285,6 +286,66 @@ describe("subscribeAuth", () => {
     const syncCall = onChange.mock.calls.findLast((call) => call[0].session?.access_token === "t2");
     expect(syncCall[0].profile).toEqual(profile);
     expect(syncCall[0].needsOnboarding).toBe(false);
+  });
+});
+
+describe("saveOnboardingProfile", () => {
+  beforeEach(() => {
+    supabaseState.enabled = true;
+    supabaseState.from.mockReset();
+    supabaseState.getUser.mockReset();
+  });
+
+  it("atualiza só campos do onboarding, sem role nem e-mail", async () => {
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const maybeSingle = vi.fn(async () => ({
+      data: { ...profile, preferences: { ...profile.preferences, extra: "keep" } },
+      error: null,
+    }));
+    const single = vi.fn(async () => ({ data: { ...profile, full_name: "Ana Atualizada" }, error: null }));
+    const eqUpdate = vi.fn(() => ({
+      select: vi.fn(() => ({ single })),
+    }));
+    const update = vi.fn(() => ({ eq: eqUpdate }));
+    supabaseState.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle })),
+      })),
+      update,
+    });
+
+    const saved = await saveOnboardingProfile({
+      fullName: "Ana Atualizada",
+      experienceLevel: "senior",
+      skillsText: "React, Go",
+      location: "Salvador",
+      workModel: "hybrid",
+      bio: "Bio",
+      linkedin: "https://linkedin.com/in/ana",
+      github: "",
+      cvUrl: "https://cv.example/ana.pdf",
+    });
+
+    expect(saved.full_name).toBe("Ana Atualizada");
+    expect(update).toHaveBeenCalledTimes(1);
+    const payload = update.mock.calls[0][0];
+    expect(payload).toEqual(expect.objectContaining({
+      full_name: "Ana Atualizada",
+      bio: "Bio",
+      skills: ["React", "Go"],
+    }));
+    expect(payload).not.toHaveProperty("role");
+    expect(payload).not.toHaveProperty("email");
+    expect(payload.preferences).toEqual(expect.objectContaining({
+      extra: "keep",
+      experience_level: "senior",
+      work_model: "hybrid",
+      location: "Salvador",
+      linkedin: "https://linkedin.com/in/ana",
+      github: null,
+      cv_url: "https://cv.example/ana.pdf",
+    }));
+    expect(eqUpdate).toHaveBeenCalledWith("id", "u1");
   });
 });
 
