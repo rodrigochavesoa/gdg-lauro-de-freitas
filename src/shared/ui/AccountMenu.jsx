@@ -26,7 +26,7 @@ function truncatedEmail(email) {
   return `${local.slice(0, keep)}…@${domain}`;
 }
 
-function AvatarFace({ displayName, avatarUrl, pending = false, sizeClass = "avatar" }) {
+export function AvatarFace({ displayName, avatarUrl, pending = false, sizeClass = "avatar" }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
@@ -56,6 +56,9 @@ export function AccountMenu({
   onSignOut,
   onChangePhoto,
   onGatedClick,
+  className = "",
+  suppressOpen = false,
+  onBeforeOpen,
 }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -70,6 +73,10 @@ export function AccountMenu({
     setOpen(false);
     triggerRef.current?.focus();
   };
+
+  useEffect(() => {
+    if (suppressOpen) setOpen(false);
+  }, [suppressOpen]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -98,7 +105,9 @@ export function AccountMenu({
   };
 
   const onEnter = () => {
+    if (suppressOpen) return;
     clearLeave();
+    onBeforeOpen?.();
     setOpen(true);
   };
 
@@ -109,7 +118,7 @@ export function AccountMenu({
 
   return (
     <div
-      className="account-menu"
+      className={["account-menu", className].filter(Boolean).join(" ")}
       ref={wrapRef}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -123,6 +132,8 @@ export function AccountMenu({
         aria-haspopup="dialog"
         aria-controls={open ? "account-popover" : undefined}
         onClick={() => {
+          if (suppressOpen) return;
+          onBeforeOpen?.();
           if (hoverOpens) {
             setOpen(true);
             return;

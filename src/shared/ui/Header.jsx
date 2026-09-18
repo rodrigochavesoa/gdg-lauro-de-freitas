@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { LogOut, Menu, X } from "lucide-react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { ThemeToggle } from "./ThemeToggle.jsx";
-import { AccountMenu } from "./AccountMenu.jsx";
+import { AccountMenu, AvatarFace } from "./AccountMenu.jsx";
 import { AvatarCropDialog } from "./AvatarCropDialog.jsx";
 import { assertAvatarFile, cropImageToCircle, loadImageFromFile, revokeLoadedImageUrl } from "../../features/auth/avatar-crop.js";
 
@@ -47,8 +47,20 @@ export function Header({
     closeMobileMenu();
   };
 
+  const closeCropDialog = (image = cropImage) => {
+    revokeLoadedImageUrl(image);
+    setCropImage(null);
+    setCropError("");
+  };
+
+  const toggleMobileMenu = () => {
+    if (cropImage) closeCropDialog();
+    setMobileMenuOpen((open) => !open);
+  };
+
   const openPhotoPicker = () => {
     setCropError("");
+    setMobileMenuOpen(false);
     photoInputRef.current?.click();
   };
 
@@ -58,18 +70,13 @@ export function Header({
     try {
       assertAvatarFile(file);
       const image = await loadImageFromFile(file);
+      setMobileMenuOpen(false);
       setCropImage(image);
       setCropError("");
     } catch (error) {
       setCropImage(null);
       setCropError(error.message || "Não foi possível usar esta imagem.");
     }
-  };
-
-  const closeCropDialog = (image = cropImage) => {
-    revokeLoadedImageUrl(image);
-    setCropImage(null);
-    setCropError("");
   };
 
   useEffect(() => {
@@ -134,6 +141,12 @@ export function Header({
     </>
   );
 
+  const staffAdminLink = (onNavigate) => (
+    staff || !logged ? (
+      <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
+    ) : null
+  );
+
   const candidateAndStaffLinks = (onNavigate) => (
     <>
       {candidate
@@ -149,9 +162,7 @@ export function Header({
           </NavLink>
         ))
         : null}
-      {staff || !logged ? (
-        <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
-      ) : null}
+      {staffAdminLink(onNavigate)}
     </>
   );
 
@@ -167,10 +178,55 @@ export function Header({
     </>
   );
 
+  const mobileAccountSection = (onNavigate) => (
+    logged ? (
+      <section className="mobile-nav__account" aria-labelledby="mobile-nav-account-heading">
+        <p id="mobile-nav-account-heading" className="mobile-nav__heading">Conta</p>
+        <div className="mobile-nav__identity">
+          <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} />
+          <div className="mobile-nav__identity-text">
+            {identityPending ? (
+              <p className="mobile-nav__name mobile-nav__name--pending">Conta</p>
+            ) : (
+              <p className="mobile-nav__name">{displayName}</p>
+            )}
+            {email ? <p className="mobile-nav__email" title={email}>{email}</p> : null}
+          </div>
+        </div>
+        {candidate ? (
+          <NavLink
+            to="/perfil"
+            aria-disabled={needsOnboarding || undefined}
+            onClick={(event) => onGatedClick(event, onNavigate)}
+          >
+            Editar perfil
+          </NavLink>
+        ) : null}
+        {onSaveAvatar ? (
+          <button type="button" onClick={openPhotoPicker}>Alterar foto</button>
+        ) : null}
+        {candidate
+          ? CANDIDATE_NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={candidateNavClassName(fadeCandidateLinks)}
+              aria-disabled={needsOnboarding || undefined}
+              onClick={(event) => onGatedClick(event, onNavigate)}
+            >
+              {item.label}
+            </NavLink>
+          ))
+          : null}
+      </section>
+    ) : null
+  );
+
   const mobileNavLinks = (onNavigate) => (
     <>
+      {mobileAccountSection(onNavigate)}
       {baseNavLinks(onNavigate)}
-      {candidateAndStaffLinks(onNavigate)}
+      {staffAdminLink(onNavigate)}
     </>
   );
 
@@ -195,6 +251,7 @@ export function Header({
           {logged ? (
             <>
               <AccountMenu
+                className="hide-mobile"
                 displayName={displayName}
                 email={email}
                 role={role}
@@ -204,7 +261,19 @@ export function Header({
                 onSignOut={signOut}
                 onChangePhoto={onSaveAvatar ? openPhotoPicker : undefined}
                 onGatedClick={(event) => onGatedClick(event)}
+                suppressOpen={mobileMenuOpen}
+                onBeforeOpen={() => setMobileMenuOpen(false)}
               />
+              <button
+                type="button"
+                className="icon-button header-avatar-mobile"
+                aria-label={identityPending ? "Menu da conta" : `Menu de ${displayName || "Conta"}`}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-navigation"
+                onClick={toggleMobileMenu}
+              >
+                <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} />
+              </button>
               <button className="ghost hide-mobile" type="button" onClick={signOut}>
                 <LogOut size={16} /> Sair
               </button>
@@ -233,7 +302,7 @@ export function Header({
             ref={menuButtonRef}
             type="button"
             className="menu"
-            onClick={() => setMobileMenuOpen((open) => !open)}
+            onClick={toggleMobileMenu}
             aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-navigation"

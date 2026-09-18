@@ -347,6 +347,127 @@ describe("Header", () => {
     expect(screen.queryByRole("button", { name: "Alterar foto" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Enviar foto de perfil")).not.toBeInTheDocument();
   });
+
+  it("esconde o AccountMenu no breakpoint mobile e deixa o avatar abrir o mesmo drawer", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    expect(document.querySelector(".account-menu")).toHaveClass("hide-mobile");
+    fireEvent.click(screen.getByRole("button", { name: "Menu de Ana Demo" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(mobile).toBeTruthy();
+    expect(within(mobile).getByText("Conta")).toBeInTheDocument();
+    expect(within(mobile).getByText("Ana Demo")).toBeInTheDocument();
+    expect(within(mobile).getByText("ana@example.invalid")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Ana Demo" })).not.toBeInTheDocument();
+  });
+
+  it("drawer do candidato tem Conta, destinos do site e um único Sair, sem popover", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      onSaveAvatar: () => {},
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
+      "Editar perfil",
+      "Minhas candidaturas",
+      "Privacidade",
+      "Vagas",
+      "Eventos",
+      "Newsletter",
+    ]);
+    expect(within(mobile).getByRole("button", { name: "Alterar foto" })).toBeInTheDocument();
+    expect(within(mobile).getAllByRole("button", { name: /Sair/i })).toHaveLength(1);
+    expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("visitante no drawer não vê seção Conta nem links de candidato", () => {
+    renderHeader({ logged: false });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(document.getElementById("mobile-nav-account-heading")).toBeNull();
+    expect(within(mobile).queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
+    expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
+      "Vagas",
+      "Eventos",
+      "Newsletter",
+      "Área admin",
+      "Entrar ou criar conta",
+    ]);
+  });
+
+  it("staff no drawer vê identidade e Área admin, sem links de candidato", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ada Admin",
+      role: "admin",
+      email: "ada@example.invalid",
+      onSaveAvatar: () => {},
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).getByText("Ada Admin")).toBeInTheDocument();
+    expect(within(mobile).getByText("ada@example.invalid")).toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    expect(within(mobile).getByRole("button", { name: "Alterar foto" })).toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(within(mobile).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
+  });
+
+  it("onboarding gated bloqueia Editar perfil também no drawer", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ada Demo",
+      role: "candidate",
+      needsOnboarding: true,
+      path: "/onboarding",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    const editProfile = within(mobile).getByRole("link", { name: "Editar perfil" });
+    expect(editProfile).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(editProfile);
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/onboarding");
+    expect(screen.getByRole("status")).toHaveTextContent("Complete o perfil");
+  });
+
+  it("abrir o drawer fecha o popover de conta (um overlay por vez)", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Ana Demo" }));
+    expect(screen.getByRole("dialog", { name: "Ana Demo" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    expect(screen.queryByRole("dialog", { name: "Ana Demo" })).not.toBeInTheDocument();
+    expect(document.getElementById("mobile-navigation")).toBeTruthy();
+  });
+
+  it("Alterar foto no drawer fecha o menu antes do recorte", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      onSaveAvatar: () => {},
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    fireEvent.click(within(document.getElementById("mobile-navigation")).getByRole("button", { name: "Alterar foto" }));
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+  });
 });
 
 const CROP_BLOB_URL = "blob:https://preview.test/avatar";
@@ -419,6 +540,23 @@ describe("Header crop dialog", () => {
     await pickAvatar();
     view.unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(CROP_BLOB_URL);
+  });
+
+  it("Escape no recorte fecha só o diálogo e não reabre o drawer", async () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      onSaveAvatar: () => {},
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    fireEvent.click(within(document.getElementById("mobile-navigation")).getByRole("button", { name: "Alterar foto" }));
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+    await pickAvatar();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument();
+    expect(document.getElementById("mobile-navigation")).toBeNull();
   });
 
   it("confirma o recorte e chama onSaveAvatar", async () => {
