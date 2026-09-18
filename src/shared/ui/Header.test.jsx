@@ -1,7 +1,8 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as avatarCrop from "../../features/auth/avatar-crop.js";
 import { Header } from "./Header.jsx";
 
 function LocationProbe() {
@@ -357,6 +358,7 @@ describe("Header crop dialog", () => {
     globalThis.Image = OriginalImage;
     URL.createObjectURL = originalCreateObjectURL;
     URL.revokeObjectURL = originalRevokeObjectURL;
+    vi.restoreAllMocks();
   });
 
   async function pickAvatar() {
@@ -393,5 +395,22 @@ describe("Header crop dialog", () => {
     await pickAvatar();
     view.unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith(CROP_BLOB_URL);
+  });
+
+  it("confirma o recorte e chama onSaveAvatar", async () => {
+    const blob = new Blob(["x"], { type: "image/jpeg" });
+    vi.spyOn(avatarCrop, "cropImageToCircle").mockResolvedValue(blob);
+    const onSaveAvatar = vi.fn(async () => {});
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      onSaveAvatar,
+    });
+    await pickAvatar();
+    fireEvent.click(screen.getByRole("button", { name: "Usar foto" }));
+    await waitFor(() => expect(onSaveAvatar).toHaveBeenCalledWith(blob));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument());
   });
 });
