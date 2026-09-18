@@ -255,6 +255,20 @@ async function renderHome() {
     expect(screen.getByText("4 oportunidades encontradas")).toBeInTheDocument();
   });
 }
+
+function fillOnboarding({
+  name = "Ada Lovelace",
+  level = "junior",
+  model = "remote",
+  skills = "React",
+  location = "Salvador",
+} = {}) {
+  fireEvent.change(screen.getByLabelText("Nome"), { target: { value: name } });
+  fireEvent.change(screen.getByLabelText("Nível"), { target: { value: level } });
+  fireEvent.change(screen.getByLabelText("Modalidade"), { target: { value: model } });
+  fireEvent.change(screen.getByLabelText("Tecnologias (separe por vírgula)"), { target: { value: skills } });
+  fireEvent.change(screen.getByLabelText("Localidade"), { target: { value: location } });
+}
 describe("ARQ-01 — caracterização do shell", () => {
   it("renderiza o portal como primeira tela e encaminha a busca para vagas", async () => {
     await renderAt("/");
@@ -849,6 +863,93 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
     await waitFor(() => expect(loadMyApplicationsMock).toHaveBeenCalled());
     expect(loadPrivacyPreferencesMock).not.toHaveBeenCalled();
+  });
+
+  it("onboarding válido salva e redireciona para a home", async () => {
+    const saved = {
+      full_name: "Ada Lovelace",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "junior", work_model: "remote", location: "Salvador" },
+    };
+    saveOnboardingProfileMock.mockResolvedValue(saved);
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/onboarding");
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    fillOnboarding();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+    expect(await screen.findByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ada Lovelace" })).toBeInTheDocument();
+  });
+
+  it("logout durante o onboarding não redireciona a resposta atrasada", async () => {
+    let resolveSave;
+    saveOnboardingProfileMock.mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/onboarding");
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    fillOnboarding();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Sair/i }));
+    expect(await screen.findByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+
+    resolveSave({
+      full_name: "Ada Stale",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "junior", work_model: "remote", location: "Salvador" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ada Stale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).not.toBeInTheDocument();
+  });
+
+  it("troca de usuário durante o onboarding descarta a resposta atrasada", async () => {
+    let resolveSave;
+    saveOnboardingProfileMock.mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "", role: "candidate" };
+    authState.needsOnboarding = true;
+    await renderAt("/onboarding");
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    fillOnboarding();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+
+    authListener({
+      session: { user: { id: "u2", email: "vc@example.invalid" } },
+      profile: { full_name: "", role: "candidate" },
+      needsOnboarding: true,
+    });
+    expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+
+    resolveSave({
+      full_name: "Ada Stale",
+      role: "admin",
+      skills: ["Hacked"],
+      preferences: { experience_level: "senior", work_model: "remote", location: "X" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.getByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ada Stale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
   });
 
   it("aquece preferências de privacidade quando o perfil já está completo", async () => {

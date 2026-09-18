@@ -43,6 +43,8 @@ export function App() {
   const [avatarStatus, setAvatarStatus] = useState("idle");
   const authGeneration = useRef(0);
   const lastUserId = useRef(null);
+  const sessionUserId = useRef(null);
+  sessionUserId.current = auth.session?.user?.id ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -203,7 +205,7 @@ export function App() {
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/preferencias" element={<PrivacyPreferencesRoute auth={auth} authReady={authReady} />} />
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
-        <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
+        <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
@@ -292,7 +294,7 @@ function ProfileEditRoute({ auth, authReady, setAuth }) {
   return <Navigate to="/login" replace />;
 }
 
-function OnboardingRoute({ auth, setAuth }) {
+function OnboardingRoute({ auth, setAuth, sessionUserId }) {
   const navigate = useNavigate();
   const editingUserId = auth.session?.user?.id;
   return (
@@ -300,13 +302,13 @@ function OnboardingRoute({ auth, setAuth }) {
       profile={auth.profile}
       email={auth.session?.user?.email}
       onSaved={(profile) => {
-        let applied = false;
+        if (!editingUserId || sessionUserId.current !== editingUserId) return;
         setAuth((current) => {
           if (current.session?.user?.id !== editingUserId) return current;
-          applied = true;
           return { ...current, profile, needsOnboarding: false };
         });
-        if (applied) navigate("/", { replace: true });
+        if (sessionUserId.current !== editingUserId) return;
+        navigate("/", { replace: true });
       }}
     />
   );
