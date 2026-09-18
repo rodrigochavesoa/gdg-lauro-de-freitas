@@ -128,6 +128,9 @@ export function App() {
             ? async (blob) => {
                 const profile = await saveProfileAvatar(blob);
                 setAuth((current) => (current.session ? { ...current, profile } : current));
+                // avatar_path é sempre {userId}/avatar.jpg (upsert) — sem novo signed URL a UI fica stale.
+                const url = await avatarPublicUrl(profile.avatar_path);
+                setAvatarUrl(url);
               }
             : undefined
         }
