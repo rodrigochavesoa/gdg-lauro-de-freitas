@@ -27,6 +27,7 @@ import {
   signOutUser,
   subscribeAuth,
 } from "./features/auth/auth-api.js";
+import { isCandidateProfile, isD01Complete } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
@@ -201,6 +202,7 @@ export function App() {
         <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/preferencias" element={<PrivacyPreferencesRoute auth={auth} authReady={authReady} />} />
+        <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
         <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
@@ -240,6 +242,50 @@ function PrivacyPreferencesRoute({ auth, authReady }) {
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   if (auth.session) return <PrivacyPreferences userId={auth.session.user.id} />;
   if (!authReady) return <PrivacyPreferences />;
+  return <Navigate to="/login" replace />;
+}
+
+function ProfileEditPending() {
+  return (
+    <main id="conteudo" tabIndex={-1} className="admin-page">
+      <div className="shell admin-shell">
+        <section className="admin-content" aria-busy="true">
+          <div className="admin-title">
+            <div>
+              <span className="eyebrow">Perfil</span>
+              <h1>Editar perfil</h1>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function ProfileEditRoute({ auth, authReady, setAuth }) {
+  if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
+  if (auth.session) {
+    if (auth.profile?.role && STAFF_ROLES.has(auth.profile.role)) {
+      return <Navigate to="/" replace />;
+    }
+    if (!auth.profile) return <ProfileEditPending />;
+    return (
+      <Onboarding
+        mode="edit"
+        profile={auth.profile}
+        email={auth.session.user.email}
+        onSaved={(profile) => {
+          const email = auth.session?.user?.email;
+          setAuth((current) => ({
+            ...current,
+            profile,
+            needsOnboarding: isCandidateProfile(profile) && !isD01Complete(profile, current.session?.user?.email ?? email),
+          }));
+        }}
+      />
+    );
+  }
+  if (!authReady) return <ProfileEditPending />;
   return <Navigate to="/login" replace />;
 }
 

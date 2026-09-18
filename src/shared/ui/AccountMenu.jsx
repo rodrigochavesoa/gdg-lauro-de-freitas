@@ -150,6 +150,16 @@ export function AccountMenu({
             {candidate ? (
               <>
                 <Link
+                  to="/perfil"
+                  aria-disabled={needsOnboarding || undefined}
+                  onClick={(event) => {
+                    onGatedClick?.(event);
+                    if (!needsOnboarding) setOpen(false);
+                  }}
+                >
+                  Editar perfil
+                </Link>
+                <Link
                   to="/minhas-candidaturas"
                   aria-disabled={needsOnboarding || undefined}
                   onClick={(event) => {

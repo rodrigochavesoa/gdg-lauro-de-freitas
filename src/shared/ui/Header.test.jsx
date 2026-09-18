@@ -77,6 +77,7 @@ describe("Header", () => {
       "Privacidade",
     ]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(desktopNav).queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
@@ -93,8 +94,12 @@ describe("Header", () => {
     renderHeader({ logged: true, displayName: "Ada Admin", role: "admin" });
     expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ada Admin" }));
+    expect(screen.queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
   });
 
   it("curador logado também usa Área admin sem nav de candidato", () => {
@@ -188,6 +193,11 @@ describe("Header", () => {
     expect(document.querySelector(".nav-actions .eyebrow")).toBeNull();
     expect(document.querySelector(".nav-actions .nav-gate-notice")).toBeNull();
     expect(document.querySelector(".nav-gate-notice")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Ada Demo" }));
+    const editProfile = screen.getByRole("link", { name: "Editar perfil" });
+    expect(editProfile).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(editProfile);
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/onboarding");
   });
 
   it("antes de authReady reserva o slot do CTA sem avatar nem Entrar", () => {
@@ -316,6 +326,7 @@ describe("Header", () => {
     const trigger = screen.getByRole("button", { name: "Ana Demo" });
     fireEvent.click(trigger);
     const dialog = screen.getByRole("dialog", { name: "Ana Demo" });
+    expect(within(dialog).getByRole("link", { name: "Editar perfil" })).toHaveAttribute("href", "/perfil");
     expect(within(dialog).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(within(dialog).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
     expect(within(dialog).getByRole("button", { name: "Alterar foto" })).toBeInTheDocument();
