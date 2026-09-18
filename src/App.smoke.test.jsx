@@ -11,6 +11,8 @@ const authState = {
 
 let authListener = null;
 const avatarPublicUrlMock = vi.hoisted(() => vi.fn(async () => null));
+const saveProfileAvatarMock = vi.hoisted(() => vi.fn());
+const avatarUploadEnabled = vi.hoisted(() => ({ value: false }));
 
 vi.mock("./features/auth/auth-api.js", async () => {
   const actual = await vi.importActual("./features/auth/auth-api.js");
@@ -25,6 +27,8 @@ vi.mock("./features/auth/auth-api.js", async () => {
       };
     },
     avatarPublicUrl: (...args) => avatarPublicUrlMock(...args),
+    saveProfileAvatar: (...args) => saveProfileAvatarMock(...args),
+    isAvatarUploadEnabled: () => avatarUploadEnabled.value,
     signOutUser: vi.fn(async () => {
       authState.session = null;
       authState.profile = null;
@@ -205,6 +209,7 @@ vi.mock("./features/catalog/jobs-api.js", () => {
 });
 
 import { App } from "./App.jsx";
+import * as avatarCrop from "./features/auth/avatar-crop.js";
 import { signOutUser } from "./features/auth/auth-api.js";
 import { THEME_STORAGE_KEY } from "./shared/ui/theme.js";
 
@@ -219,6 +224,8 @@ beforeEach(() => {
   authListener = null;
   avatarPublicUrlMock.mockReset();
   avatarPublicUrlMock.mockResolvedValue(null);
+  saveProfileAvatarMock.mockReset();
+  avatarUploadEnabled.value = false;
   signOutUser.mockReset();
   signOutUser.mockImplementation(async () => {
     authState.session = null;
@@ -741,6 +748,81 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(trigger.querySelector("img")).toBeNull();
     expect(trigger).toHaveTextContent("VC");
     expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+  });
+
+  it("rejeição da signed URL cai nas iniciais do perfil confirmado", async () => {
+    avatarPublicUrlMock.mockRejectedValue(new Error("network"));
+    authState.session = { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Rodrigo Chaves" } } };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+    expect(trigger.querySelector("img")).toBeNull();
+    expect(trigger).toHaveTextContent("VC");
+    expect(document.querySelector(".avatar--pending")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+  });
+
+  it("rejeição da signed URL ao salvar avatar sai do skeleton", async () => {
+    avatarUploadEnabled.value = true;
+    avatarPublicUrlMock.mockRejectedValue(new Error("network"));
+    saveProfileAvatarMock.mockResolvedValue({
+      full_name: "Vinicius Costa",
+      role: "candidate",
+      avatar_path: "u1/avatar.jpg",
+    });
+    const OriginalImage = globalThis.Image;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:https://preview.test/avatar");
+    URL.revokeObjectURL = vi.fn();
+    class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this._src = "";
+      }
+      set src(value) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+      get src() {
+        return this._src;
+      }
+    }
+    globalThis.Image = FakeImage;
+    const cropSpy = vi.spyOn(avatarCrop, "cropImageToCircle").mockResolvedValue(
+      new Blob(["x"], { type: "image/jpeg" }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate" };
+    authState.needsOnboarding = false;
+    try {
+      await renderHome();
+      const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+      expect(trigger).toHaveTextContent("VC");
+      expect(document.querySelector(".avatar--pending")).toBeNull();
+
+      fireEvent.change(screen.getByLabelText("Enviar foto de perfil"), {
+        target: { files: [new File(["x"], "foto.jpg", { type: "image/jpeg" })] },
+      });
+      await screen.findByRole("dialog", { name: "Recortar foto" });
+      fireEvent.click(screen.getByRole("button", { name: "Usar foto" }));
+
+      await waitFor(() => expect(saveProfileAvatarMock).toHaveBeenCalled());
+      await waitFor(() => {
+        expect(document.querySelector(".avatar--pending")).toBeNull();
+        expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument();
+      });
+      const afterSave = screen.getByRole("button", { name: "Vinicius Costa" });
+      expect(afterSave.querySelector("img")).toBeNull();
+      expect(afterSave).toHaveTextContent("VC");
+    } finally {
+      cropSpy.mockRestore();
+      globalThis.Image = OriginalImage;
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
   });
 
   it("não aplica signed URL obsoleta após logout", async () => {
