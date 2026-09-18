@@ -36,6 +36,7 @@ import {
   emptyAuthSnapshot,
   isAvatarUploadEnabled,
   mergeAuthSnapshot,
+  resolveHeaderIdentity,
   saveProfileAvatar,
   subscribeAuth,
 } from "./auth-api.js";
@@ -119,6 +120,76 @@ describe("displayNameFromUser e mergeAuthSnapshot", () => {
     const nextProfile = { ...profile, full_name: "Ana Atualizada" };
     const incoming = { session, profile: nextProfile, needsOnboarding: false };
     expect(mergeAuthSnapshot({ session, profile, needsOnboarding: true }, incoming)).toEqual(incoming);
+  });
+});
+
+describe("resolveHeaderIdentity", () => {
+  const session = { user: { id: "u1", user_metadata: { full_name: "Rodrigo Chaves" } } };
+
+  it("anônimo não mostra nome nem foto", () => {
+    expect(resolveHeaderIdentity({ session: null, profile: null, avatarUrl: null, avatarPath: null, avatarStatus: "idle" })).toEqual({
+      pending: false,
+      displayName: "",
+      avatarUrl: null,
+    });
+  });
+
+  it("sessão sem perfil fica pending — sem iniciais do Google", () => {
+    expect(resolveHeaderIdentity({
+      session,
+      profile: null,
+      avatarUrl: null,
+      avatarPath: null,
+      avatarStatus: "loading",
+    })).toEqual({ pending: true, displayName: "", avatarUrl: null });
+  });
+
+  it("perfil confirmado sem avatar usa full_name, não metadata", () => {
+    expect(resolveHeaderIdentity({
+      session,
+      profile: { full_name: "Vinicius Costa" },
+      avatarUrl: "https://lh3.googleusercontent.com/old",
+      avatarPath: "other/avatar.jpg",
+      avatarStatus: "ready",
+    })).toEqual({ pending: false, displayName: "Vinicius Costa", avatarUrl: null });
+  });
+
+  it("perfil com path espera signed URL bound ao mesmo path", () => {
+    const profile = { full_name: "Vinicius Costa", avatar_path: "u1/avatar.jpg" };
+    expect(resolveHeaderIdentity({
+      session,
+      profile,
+      avatarUrl: "https://signed.example/old",
+      avatarPath: "u0/avatar.jpg",
+      avatarStatus: "ready",
+    })).toEqual({ pending: true, displayName: "", avatarUrl: null });
+    expect(resolveHeaderIdentity({
+      session,
+      profile,
+      avatarUrl: "https://signed.example/u1",
+      avatarPath: "u1/avatar.jpg",
+      avatarStatus: "ready",
+    })).toEqual({ pending: false, displayName: "Vinicius Costa", avatarUrl: "https://signed.example/u1" });
+  });
+
+  it("erro de signed URL cai nas iniciais do perfil confirmado", () => {
+    expect(resolveHeaderIdentity({
+      session,
+      profile: { full_name: "Vinicius Costa", avatar_path: "u1/avatar.jpg" },
+      avatarUrl: null,
+      avatarPath: "u1/avatar.jpg",
+      avatarStatus: "ready",
+    })).toEqual({ pending: false, displayName: "Vinicius Costa", avatarUrl: null });
+  });
+
+  it("full_name vazio no perfil confirmado usa Candidato, não Google", () => {
+    expect(resolveHeaderIdentity({
+      session,
+      profile: { full_name: "  " },
+      avatarUrl: null,
+      avatarPath: null,
+      avatarStatus: "ready",
+    }).displayName).toBe("Candidato");
   });
 });
 

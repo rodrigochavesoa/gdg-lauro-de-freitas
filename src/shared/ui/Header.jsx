@@ -30,6 +30,7 @@ export function Header({
   authReady = true,
   email = "",
   avatarUrl = null,
+  identityPending = false,
   onSaveAvatar,
 }) {
   const { pathname } = useLocation();
@@ -198,6 +199,7 @@ export function Header({
                 email={email}
                 role={role}
                 avatarUrl={avatarUrl}
+                identityPending={identityPending}
                 needsOnboarding={needsOnboarding}
                 onSignOut={signOut}
                 onChangePhoto={onSaveAvatar ? openPhotoPicker : undefined}

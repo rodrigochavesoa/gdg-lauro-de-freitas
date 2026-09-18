@@ -19,10 +19,10 @@ import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import {
   avatarPublicUrl,
-  displayNameFromUser,
   isAvatarUploadEnabled,
   loadAuthSnapshot,
   mergeAuthSnapshot,
+  resolveHeaderIdentity,
   saveProfileAvatar,
   signOutUser,
   subscribeAuth,
@@ -38,25 +38,28 @@ export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [avatarPath, setAvatarPath] = useState(null);
+  const [avatarStatus, setAvatarStatus] = useState("idle");
   const authGeneration = useRef(0);
+  const lastUserId = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
-    const applySnapshot = (snapshot) => {
+    const bootEpoch = authGeneration.current;
+    const applySnapshot = (snapshot, requestEpoch = authGeneration.current) => {
       if (cancelled) return;
-      const generation = authGeneration.current;
       setAuth((current) => {
-        if (generation !== authGeneration.current) return current;
+        if (requestEpoch !== authGeneration.current) return current;
         return mergeAuthSnapshot(current, snapshot);
       });
-      setAuthReady(true);
+      if (requestEpoch === authGeneration.current) setAuthReady(true);
     };
     loadAuthSnapshot()
-      .then(applySnapshot)
+      .then((snapshot) => applySnapshot(snapshot, bootEpoch))
       .catch(() => {
-        applySnapshot(EMPTY_AUTH);
+        applySnapshot(EMPTY_AUTH, bootEpoch);
       });
-    const unsubscribe = subscribeAuth(applySnapshot);
+    const unsubscribe = subscribeAuth((snapshot) => applySnapshot(snapshot));
     return () => {
       cancelled = true;
       unsubscribe();
@@ -64,34 +67,75 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const userId = auth.session?.user?.id ?? null;
+    if (lastUserId.current !== userId) {
+      if (lastUserId.current != null || userId == null) {
+        authGeneration.current += 1;
+      }
+      lastUserId.current = userId;
+    }
+  }, [auth.session?.user?.id]);
+
+  useEffect(() => {
+    const epoch = authGeneration.current;
     const path = auth.profile?.avatar_path;
-    if (!auth.session || !path) {
+    if (!auth.session) {
       setAvatarUrl(null);
+      setAvatarPath(null);
+      setAvatarStatus("idle");
       return undefined;
     }
+    if (!auth.profile) {
+      setAvatarStatus("loading");
+      return undefined;
+    }
+    if (!path) {
+      setAvatarUrl(null);
+      setAvatarPath(null);
+      setAvatarStatus("ready");
+      return undefined;
+    }
+    setAvatarStatus("loading");
     let cancelled = false;
     avatarPublicUrl(path)
       .then((url) => {
-        if (!cancelled) setAvatarUrl(url);
+        if (cancelled || epoch !== authGeneration.current) return;
+        setAvatarUrl(url);
+        setAvatarPath(path);
+        setAvatarStatus("ready");
       })
       .catch(() => {
-        if (!cancelled) setAvatarUrl(null);
+        if (cancelled || epoch !== authGeneration.current) return;
+        setAvatarUrl(null);
+        setAvatarPath(path);
+        setAvatarStatus("ready");
       });
     return () => {
       cancelled = true;
     };
-  }, [auth.session, auth.profile?.avatar_path]);
+  }, [auth.session, auth.profile, auth.profile?.avatar_path]);
 
   const handleSignOut = async () => {
     authGeneration.current += 1;
+    lastUserId.current = null;
     setAuth(EMPTY_AUTH);
     setAvatarUrl(null);
+    setAvatarPath(null);
+    setAvatarStatus("idle");
     try {
       await signOutUser();
     } finally {
       setAuth(EMPTY_AUTH);
     }
   };
+
+  const identity = resolveHeaderIdentity({
+    session: auth.session,
+    profile: auth.profile,
+    avatarUrl,
+    avatarPath,
+    avatarStatus,
+  });
 
   // UX-PERF-05 — warm catalog on shell mount so /login → / avoids cold skeleton scroll jank
   useEffect(() => {
@@ -116,21 +160,27 @@ export function App() {
       <SkipLink />
       <Header
         logged={Boolean(auth.session)}
-        displayName={auth.profile?.full_name || displayNameFromUser(auth.session?.user)}
+        displayName={identity.displayName}
         email={auth.session?.user?.email || ""}
         role={auth.profile?.role}
-        avatarUrl={avatarUrl}
+        avatarUrl={identity.avatarUrl}
+        identityPending={identity.pending}
         needsOnboarding={auth.needsOnboarding}
         authReady={authReady}
         onSignOut={handleSignOut}
         onSaveAvatar={
           isAvatarUploadEnabled()
             ? async (blob) => {
+                const epoch = authGeneration.current;
                 const profile = await saveProfileAvatar(blob);
+                if (epoch !== authGeneration.current) return;
                 setAuth((current) => (current.session ? { ...current, profile } : current));
-                // avatar_path é sempre {userId}/avatar.jpg (upsert) — sem novo signed URL a UI fica stale.
+                setAvatarStatus("loading");
                 const url = await avatarPublicUrl(profile.avatar_path);
+                if (epoch !== authGeneration.current) return;
                 setAvatarUrl(url);
+                setAvatarPath(profile.avatar_path);
+                setAvatarStatus("ready");
               }
             : undefined
         }
