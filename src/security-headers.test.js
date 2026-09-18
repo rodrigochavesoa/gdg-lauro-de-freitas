@@ -28,8 +28,9 @@ function assertProtectionHeaders(headers) {
   expect(csp).toMatch(/default-src 'self'/);
   expect(csp).toMatch(/frame-ancestors 'none'/);
   expect(csp).toMatch(/object-src 'none'/);
-  expect(csp).toMatch(/https:\/\/\*\.supabase\.co/);
+  expect(csp).toMatch(/connect-src[^;]*https:\/\/\*\.supabase\.co/);
   expect(csp).toMatch(/wss:\/\/\*\.supabase\.co/);
+  expect(csp).toMatch(/img-src[^;]*https:\/\/\*\.supabase\.co/);
   expect(csp).toMatch(/accounts\.google\.com/);
   expect(csp).toMatch(/fonts\.googleapis\.com/);
   expect(csp).toMatch(/fonts\.gstatic\.com/);
