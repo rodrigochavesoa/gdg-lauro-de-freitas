@@ -120,10 +120,22 @@ async function signInCandidateSession() {
 }
 
 async function downloadAvatarBytes(client, path) {
-  if (!path) return null;
+  if (!path) return { bytes: null, error: null };
   const { data, error } = await client.storage.from("avatars").download(path);
-  if (error || !data) return null;
-  return Buffer.from(await data.arrayBuffer());
+  if (error || !data) {
+    return { bytes: null, error: error?.message ?? "download sem dados" };
+  }
+  return { bytes: Buffer.from(await data.arrayBuffer()), error: null };
+}
+
+function assertCanSafelySeed(snapshot) {
+  if (!snapshot.originalAvatarPath) return;
+  if (!snapshot.originalAvatarBytes) {
+    throw new Error(
+      `abort: avatar_path original (${snapshot.originalAvatarPath}) sem bytes preservados` +
+        (snapshot.downloadError ? ` (${snapshot.downloadError})` : ""),
+    );
+  }
 }
 
 async function seedCandidateAvatar(auth, avatarBytes, fixturePath) {
@@ -190,12 +202,16 @@ async function restoreCandidateAvatar(auth, snapshot) {
     await removePath(fixturePath);
     await restoreProfile(null);
   } else if (snapshot.originalAvatarPath === fixturePath) {
-    if (snapshot.originalAvatarBytes) {
+    if (!snapshot.originalAvatarBytes) {
+      errors.push("bytes originais indisponíveis para restaurar fixture no mesmo path");
+    } else {
       await uploadBytes(fixturePath, snapshot.originalAvatarBytes);
+      await restoreProfile(fixturePath);
     }
-    await restoreProfile(fixturePath);
   } else {
-    if (snapshot.originalAvatarBytes) {
+    if (!snapshot.originalAvatarBytes) {
+      errors.push("bytes originais indisponíveis para validar restauração do avatar");
+    } else {
       await uploadBytes(snapshot.originalAvatarPath, snapshot.originalAvatarBytes);
     }
     await restoreProfile(snapshot.originalAvatarPath);
@@ -204,8 +220,12 @@ async function restoreCandidateAvatar(auth, snapshot) {
     }
   }
 
+  const samePathWithoutBytes =
+    snapshot.originalAvatarPath === fixturePath && !snapshot.originalAvatarBytes;
+  const status = errors.length === 0 && !samePathWithoutBytes ? "completed" : "failed";
+
   return {
-    status: errors.length === 0 ? "completed" : "failed",
+    status,
     steps,
     errors,
     restoredAvatarPath: snapshot.originalAvatarPath,
@@ -274,6 +294,7 @@ function writeEvidence({
 | \`avatar_path\` original | ${snapshot.originalAvatarPath ?? "null"} |
 | Fixture temporário | \`${snapshot.fixturePath}\` |
 | Bytes originais salvos | ${snapshot.originalAvatarBytes ? snapshot.originalAvatarBytes.length : 0} |
+| Erro no download original | ${snapshot.downloadError ?? "nenhum"} |
 | Status cleanup | **${cleanup.status}** |
 | Passos | ${cleanup.steps.length ? cleanup.steps.join("; ") : "—"} |
 | Erros cleanup | ${cleanup.errors.length ? cleanup.errors.join("; ") : "nenhum"} |
@@ -348,6 +369,7 @@ ${allNetwork.map((row, index) => `| ${index + 1} | ${row.kind} | ${row.method} |
         originalAvatarPath: snapshot.originalAvatarPath,
         fixturePath: snapshot.fixturePath,
         originalBytesSaved: snapshot.originalAvatarBytes?.length ?? 0,
+        downloadError: snapshot.downloadError,
       },
       initialLoad: { ...initialLoadSummary, dom: baselineDom },
       stablePreSwitch: stableSummary,
@@ -359,9 +381,11 @@ ${allNetwork.map((row, index) => `| ${index + 1} | ${row.kind} | ${row.method} |
 
 const authBase = await signInCandidateSession();
 const fixturePath = `${authBase.userId}/avatar.jpg`;
+const downloaded = await downloadAvatarBytes(authBase.client, authBase.avatarPath);
 const snapshot = {
   originalAvatarPath: authBase.avatarPath,
-  originalAvatarBytes: await downloadAvatarBytes(authBase.client, authBase.avatarPath),
+  originalAvatarBytes: downloaded.bytes,
+  downloadError: downloaded.error,
   fixturePath,
 };
 
@@ -373,6 +397,7 @@ const log = (message) => {
 
 let browser = null;
 let pass = false;
+let seeded = false;
 let cleanup = { status: "skipped", steps: [], errors: ["medição não concluída"] };
 let evidence = null;
 
@@ -382,7 +407,13 @@ try {
   const seedPage = await context.newPage();
   const avatarBytes = await createSyntheticAvatar256(seedPage);
   await seedPage.close();
+  log(
+    `snapshot: avatar_path original=${snapshot.originalAvatarPath ?? "null"} bytes=${snapshot.originalAvatarBytes?.length ?? 0}` +
+      (snapshot.downloadError ? ` downloadError=${snapshot.downloadError}` : ""),
+  );
+  assertCanSafelySeed(snapshot);
   const auth = await seedCandidateAvatar(authBase, avatarBytes, fixturePath);
+  seeded = true;
 
   await context.addInitScript(
     ({ storageKey, session }) => {
@@ -430,7 +461,6 @@ try {
     network.filter((row) => row.at >= startedAt && (kind ? row.kind === kind : true)).length;
 
   log(`BASE_URL=${baseUrl} tabSwitches=${tabSwitches}`);
-  log(`snapshot: avatar_path original=${snapshot.originalAvatarPath ?? "null"} bytes=${snapshot.originalAvatarBytes?.length ?? 0}`);
   log(`seed: avatar sintético 256×256 JPEG (${auth.seedBytes} bytes, sem PII)`);
   log("(log redigido: sem query string, token ou e-mail)");
 
@@ -506,22 +536,29 @@ try {
     pendingFinal,
     allNetwork,
   };
+} catch (error) {
+  log(`\nERRO: ${error.message}`);
 } finally {
   if (browser) {
     await browser.close();
     browser = null;
   }
   log("\n=== Cleanup homolog (restore candidato de teste) ===");
-  try {
-    cleanup = await restoreCandidateAvatar(authBase, snapshot);
-    if (cleanup.status === "completed") {
-      log(`cleanup: completed — ${cleanup.steps.join("; ")}`);
-    } else {
-      log(`cleanup: FAILED — ${cleanup.errors.join("; ")}`);
+  if (!seeded) {
+    cleanup = { status: "skipped", steps: ["nenhuma mutação em homolog"], errors: [] };
+    log("cleanup: skipped — medição não alterou homolog");
+  } else {
+    try {
+      cleanup = await restoreCandidateAvatar(authBase, snapshot);
+      if (cleanup.status === "completed") {
+        log(`cleanup: completed — ${cleanup.steps.join("; ")}`);
+      } else {
+        log(`cleanup: FAILED — ${cleanup.errors.join("; ")}`);
+      }
+    } catch (error) {
+      cleanup = { status: "failed", steps: [], errors: [error.message] };
+      log(`cleanup: FAILED — ${error.message}`);
     }
-  } catch (error) {
-    cleanup = { status: "failed", steps: [], errors: [error.message] };
-    log(`cleanup: FAILED — ${error.message}`);
   }
 
   if (evidence) {
