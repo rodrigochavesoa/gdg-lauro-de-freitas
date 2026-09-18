@@ -1658,7 +1658,11 @@ async function scenario19_avatarStorage() {
 }
 
 async function assertPasswordOnlyNotAal2(role) {
-  const { client, error } = await signIn(testUsers[role]);
+  const { client, error } = await signInWithRetry(testUsers[role], {
+    attempts: 5,
+    pauseMs: 4000,
+    label: `${role} (aal1)`,
+  });
   assert(!error, `${role} autentica só com senha (${error?.message ?? "ok"})`);
   if (error) return null;
   const { data: aal, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
