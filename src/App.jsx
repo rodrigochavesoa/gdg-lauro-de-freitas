@@ -176,11 +176,18 @@ export function App() {
                 if (epoch !== authGeneration.current) return;
                 setAuth((current) => (current.session ? { ...current, profile } : current));
                 setAvatarStatus("loading");
-                const url = await avatarPublicUrl(profile.avatar_path);
-                if (epoch !== authGeneration.current) return;
-                setAvatarUrl(url);
-                setAvatarPath(profile.avatar_path);
-                setAvatarStatus("ready");
+                try {
+                  const url = await avatarPublicUrl(profile.avatar_path);
+                  if (epoch !== authGeneration.current) return;
+                  setAvatarUrl(url);
+                  setAvatarPath(profile.avatar_path);
+                  setAvatarStatus("ready");
+                } catch {
+                  if (epoch !== authGeneration.current) return;
+                  setAvatarUrl(null);
+                  setAvatarPath(profile.avatar_path);
+                  setAvatarStatus("ready");
+                }
               }
             : undefined
         }
