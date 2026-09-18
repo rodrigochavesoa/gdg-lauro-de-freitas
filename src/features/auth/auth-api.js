@@ -48,6 +48,32 @@ export function displayNameFromUser(user) {
   return email ? email.split("@")[0] : "Candidato";
 }
 
+/**
+ * Identidade do header: skeleton até perfil (e signed URL, se houver path) confirmados.
+ * Não usa metadata/Google como nome ou foto transitórios.
+ * `avatarPath` deve ser o path da URL atual — mismatch = pending, nunca foto de outro user.
+ */
+export function resolveHeaderIdentity({ session, profile, avatarUrl, avatarPath, avatarStatus }) {
+  if (!session?.user) {
+    return { pending: false, displayName: "", avatarUrl: null };
+  }
+  if (!profile) {
+    return { pending: true, displayName: "", avatarUrl: null };
+  }
+  const displayName = String(profile.full_name ?? "").trim() || "Candidato";
+  if (!profile.avatar_path) {
+    return { pending: false, displayName, avatarUrl: null };
+  }
+  const bound = avatarPath === profile.avatar_path && avatarStatus === "ready";
+  if (!bound) {
+    return { pending: true, displayName: "", avatarUrl: null };
+  }
+  if (avatarUrl) {
+    return { pending: false, displayName, avatarUrl };
+  }
+  return { pending: false, displayName, avatarUrl: null };
+}
+
 /** Mantém o perfil no TOKEN_REFRESHED / snapshot só-sessão do mesmo userId. */
 export function mergeAuthSnapshot(current, incoming) {
   if (!incoming?.session?.user) {

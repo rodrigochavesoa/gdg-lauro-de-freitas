@@ -276,6 +276,19 @@ describe("Header", () => {
     expect(placeholderLabels(desktopNav)).toEqual([]);
   });
 
+  it("identityPending mostra skeleton sem iniciais", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Rodrigo Chaves",
+      identityPending: true,
+      authReady: true,
+    });
+    const trigger = screen.getByRole("button", { name: "Conta" });
+    expect(trigger.querySelector(".avatar--pending")).toBeTruthy();
+    expect(trigger).not.toHaveTextContent("RC");
+    expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+  });
+
   it("mostra foto circular quando há avatarUrl e cai nas iniciais se a imagem falhar", () => {
     renderHeader({
       logged: true,

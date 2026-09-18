@@ -26,11 +26,14 @@ function truncatedEmail(email) {
   return `${local.slice(0, keep)}…@${domain}`;
 }
 
-function AvatarFace({ displayName, avatarUrl, sizeClass = "avatar" }) {
+function AvatarFace({ displayName, avatarUrl, pending = false, sizeClass = "avatar" }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     setFailed(false);
   }, [avatarUrl]);
+  if (pending) {
+    return <span className={`${sizeClass} avatar--pending`} aria-hidden="true" />;
+  }
   const showPhoto = Boolean(avatarUrl) && !failed;
   return (
     <span className={sizeClass}>
@@ -48,6 +51,7 @@ export function AccountMenu({
   email,
   role,
   avatarUrl,
+  identityPending = false,
   needsOnboarding = false,
   onSignOut,
   onChangePhoto,
@@ -114,7 +118,7 @@ export function AccountMenu({
         ref={triggerRef}
         className="icon-button"
         type="button"
-        aria-label={displayName || "Conta"}
+        aria-label={identityPending ? "Conta" : displayName || "Conta"}
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-controls={open ? "account-popover" : undefined}
@@ -126,7 +130,7 @@ export function AccountMenu({
           setOpen((value) => !value);
         }}
       >
-        <AvatarFace displayName={displayName} avatarUrl={avatarUrl} />
+        <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} />
       </button>
       {open ? (
         <div
@@ -135,8 +139,12 @@ export function AccountMenu({
           role="dialog"
           aria-labelledby={titleId}
         >
-          <AvatarFace displayName={displayName} avatarUrl={avatarUrl} sizeClass="avatar avatar--lg" />
-          <p id={titleId} className="account-popover__name">{displayName}</p>
+          <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} sizeClass="avatar avatar--lg" />
+          {identityPending ? (
+            <p id={titleId} className="account-popover__name account-popover__name--pending">Conta</p>
+          ) : (
+            <p id={titleId} className="account-popover__name">{displayName}</p>
+          )}
           {email ? <p className="account-popover__email" title={email}>{truncatedEmail(email)}</p> : null}
           <div className="account-popover__actions">
             {candidate ? (

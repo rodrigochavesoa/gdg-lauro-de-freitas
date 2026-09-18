@@ -10,6 +10,7 @@ const authState = {
 };
 
 let authListener = null;
+const avatarPublicUrlMock = vi.hoisted(() => vi.fn(async () => null));
 
 vi.mock("./features/auth/auth-api.js", async () => {
   const actual = await vi.importActual("./features/auth/auth-api.js");
@@ -23,6 +24,7 @@ vi.mock("./features/auth/auth-api.js", async () => {
         if (authListener === onChange) authListener = null;
       };
     },
+    avatarPublicUrl: (...args) => avatarPublicUrlMock(...args),
     signOutUser: vi.fn(async () => {
       authState.session = null;
       authState.profile = null;
@@ -215,6 +217,8 @@ beforeEach(() => {
   authState.profile = null;
   authState.needsOnboarding = false;
   authListener = null;
+  avatarPublicUrlMock.mockReset();
+  avatarPublicUrlMock.mockResolvedValue(null);
   signOutUser.mockReset();
   signOutUser.mockImplementation(async () => {
     authState.session = null;
@@ -653,7 +657,9 @@ describe("ARQ-01 — caracterização do shell", () => {
     });
 
     expect(await screen.findByRole("button", { name: /Sair/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Conta" })).toBeInTheDocument();
+    expect(document.querySelector(".avatar--pending")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
@@ -672,6 +678,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(document.querySelector(".avatar--pending")).toBeNull();
     const desktopNav = document.querySelector(".topbar nav");
     expect(placeholderLabels(desktopNav)).toEqual([]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
@@ -701,5 +709,83 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toBeInTheDocument();
     expect(placeholderLabels()).toEqual([]);
     expect(signOutUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("mostra foto só depois da signed URL e iniciais se a URL falhar", async () => {
+    let resolveUrl;
+    avatarPublicUrlMock.mockImplementation(
+      () => new Promise((resolve) => { resolveUrl = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Rodrigo Chaves" } } };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    expect(screen.getByRole("button", { name: "Conta" })).toBeInTheDocument();
+    expect(document.querySelector(".avatar--pending")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Vinicius Costa" })).not.toBeInTheDocument();
+
+    resolveUrl("https://signed.example/u1");
+    const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+    expect(trigger.querySelector("img")).toHaveAttribute("src", "https://signed.example/u1");
+    expect(document.querySelector(".avatar--pending")).toBeNull();
+  });
+
+  it("URL de avatar nula cai nas iniciais do perfil confirmado", async () => {
+    avatarPublicUrlMock.mockResolvedValue(null);
+    authState.session = { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Rodrigo Chaves" } } };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+    expect(trigger.querySelector("img")).toBeNull();
+    expect(trigger).toHaveTextContent("VC");
+    expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+  });
+
+  it("não aplica signed URL obsoleta após logout", async () => {
+    let resolveUrl;
+    avatarPublicUrlMock.mockImplementation(
+      () => new Promise((resolve) => { resolveUrl = resolve; }),
+    );
+    signOutUser.mockImplementation(() => new Promise(() => {}));
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Ana Demo", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    expect(screen.getByRole("button", { name: "Conta" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Sair/i }));
+    expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+
+    resolveUrl("https://signed.example/stale");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+  });
+
+  it("troca de usuário não mantém a foto anterior", async () => {
+    avatarPublicUrlMock.mockResolvedValue("https://signed.example/u1");
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Ana Demo", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    expect(await screen.findByRole("button", { name: "Ana Demo" })).toBeInTheDocument();
+    expect(document.querySelector(".nav-actions img")).toHaveAttribute("src", "https://signed.example/u1");
+
+    authListener({
+      session: { user: { id: "u2", email: "vc@example.invalid", user_metadata: { full_name: "Rodrigo Chaves" } } },
+      profile: { full_name: "Vinicius Costa", role: "candidate" },
+      needsOnboarding: false,
+    });
+
+    const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+    expect(trigger.querySelector("img")).toBeNull();
+    expect(trigger).toHaveTextContent("VC");
+    expect(screen.queryByRole("button", { name: "Rodrigo Chaves" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
   });
 });
