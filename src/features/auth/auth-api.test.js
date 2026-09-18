@@ -34,12 +34,15 @@ import {
   avatarStoragePath,
   displayNameFromUser,
   emptyAuthSnapshot,
+  invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
   mergeAuthSnapshot,
+  peekAvatarSignedUrl,
   resolveHeaderIdentity,
   saveOnboardingProfile,
   saveProfileAvatar,
   subscribeAuth,
+  AVATAR_SIGNED_CACHE_TTL_MS,
 } from "./auth-api.js";
 
 const user = {
@@ -355,10 +358,13 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     supabaseState.from.mockReset();
     supabaseState.storageFrom.mockReset();
     supabaseState.getUser.mockReset();
+    invalidateAvatarSignedUrl();
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.useRealTimers();
+    invalidateAvatarSignedUrl();
   });
 
   it("sem path ou sem cliente não monta URL", async () => {
@@ -373,6 +379,81 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     expect(await avatarPublicUrl("u1/avatar.jpg")).toBe("https://signed.example/u1");
     expect(supabaseState.storageFrom).toHaveBeenCalledWith("avatars");
     expect(createSignedUrl).toHaveBeenCalledWith("u1/avatar.jpg", 3600);
+  });
+
+  it("reusa signed URL em memória e deduplica promises concorrentes", async () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: "https://signed.example/u1" }, error: null }));
+    supabaseState.storageFrom.mockReturnValue({ createSignedUrl });
+    const first = avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
+    const second = avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
+    expect(await first).toBe("https://signed.example/u1");
+    expect(await second).toBe("https://signed.example/u1");
+    expect(createSignedUrl).toHaveBeenCalledTimes(1);
+    expect(await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" })).toBe("https://signed.example/u1");
+    expect(createSignedUrl).toHaveBeenCalledTimes(1);
+    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBe("https://signed.example/u1");
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  it("avatarPublicUrl não reutiliza signed URL após expirar o cache de 55 min (relógio controlado)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T00:00:00.000Z"));
+    let call = 0;
+    const createSignedUrl = vi.fn(async () => ({
+      data: { signedUrl: `https://signed.example/u1?v=${++call}` },
+      error: null,
+    }));
+    supabaseState.storageFrom.mockReturnValue({ createSignedUrl });
+    expect(await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" })).toBe("https://signed.example/u1?v=1");
+    expect(await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" })).toBe("https://signed.example/u1?v=1");
+    expect(createSignedUrl).toHaveBeenCalledTimes(1);
+    vi.setSystemTime(new Date("2026-09-18T00:00:00.000Z").getTime() + AVATAR_SIGNED_CACHE_TTL_MS + 1);
+    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBeNull();
+    expect(await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" })).toBe("https://signed.example/u1?v=2");
+    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("expira o cache antes do TTL da signed URL e invalida só a própria chave", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-18T00:00:00.000Z"));
+    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: "https://signed.example/u1" }, error: null }));
+    supabaseState.storageFrom.mockReturnValue({ createSignedUrl });
+    await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
+    await avatarPublicUrl("u2/avatar.jpg", { userId: "u2" });
+    expect(createSignedUrl).toHaveBeenCalledTimes(2);
+    invalidateAvatarSignedUrl("u1", "u1/avatar.jpg");
+    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBeNull();
+    expect(peekAvatarSignedUrl("u2", "u2/avatar.jpg")).toBe("https://signed.example/u1");
+    await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
+    expect(createSignedUrl).toHaveBeenCalledTimes(3);
+    vi.setSystemTime(new Date("2026-09-18T00:00:00.000Z").getTime() + AVATAR_SIGNED_CACHE_TTL_MS + 1);
+    expect(peekAvatarSignedUrl("u2", "u2/avatar.jpg")).toBeNull();
+    await avatarPublicUrl("u2/avatar.jpg", { userId: "u2" });
+    expect(createSignedUrl).toHaveBeenCalledTimes(4);
+    vi.useRealTimers();
+  });
+
+  it("saveProfileAvatar invalida a signed URL do próprio avatar", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: "https://signed.example/u1" }, error: null }));
+    const upload = vi.fn(async () => ({ error: null }));
+    supabaseState.storageFrom.mockReturnValue({ createSignedUrl, upload });
+    await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
+    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBe("https://signed.example/u1");
+    const single = vi.fn(async () => ({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null }));
+    supabaseState.from.mockReturnValue({
+      update: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          select: vi.fn(() => ({ single })),
+        })),
+      })),
+    });
+    await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
+    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBeNull();
   });
 
   it("faz upload em {userId}/avatar.jpg, sem cache, e persiste avatar_path", async () => {

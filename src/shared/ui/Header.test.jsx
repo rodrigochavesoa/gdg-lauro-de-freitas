@@ -325,6 +325,60 @@ describe("Header", () => {
     expect(trigger).toHaveTextContent("AD");
   });
 
+  it("só o avatar visível do breakpoint monta img", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      avatarUrl: "https://signed.example/u1",
+    });
+    expect(document.querySelector(".account-menu img")).toHaveAttribute("src", "https://signed.example/u1");
+    expect(document.querySelector(".header-avatar-mobile img")).toBeNull();
+    expect(document.querySelectorAll(".nav-actions img")).toHaveLength(1);
+  });
+
+  it("no header compacto só o avatar mobile monta img", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: String(query).includes("1024"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    try {
+      renderHeader({
+        logged: true,
+        displayName: "Ana Demo",
+        role: "candidate",
+        avatarUrl: "https://signed.example/u1",
+      });
+      expect(document.querySelector(".header-avatar-mobile img")).toHaveAttribute("src", "https://signed.example/u1");
+      expect(document.querySelector(".account-menu img")).toBeNull();
+      expect(document.querySelectorAll(".nav-actions img")).toHaveLength(1);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("popover só monta foto extra quando está aberto", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+      avatarUrl: "https://signed.example/u1",
+    });
+    expect(document.querySelectorAll(".nav-actions img")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Ana Demo" }));
+    expect(document.querySelector(".account-popover img")).toHaveAttribute("src", "https://signed.example/u1");
+    expect(document.querySelectorAll(".nav-actions img")).toHaveLength(2);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.querySelector(".account-popover")).toBeNull();
+    expect(document.querySelectorAll(".nav-actions img")).toHaveLength(1);
+  });
+
   it("abre o popover no clique, fecha com Escape e devolve o foco", () => {
     renderHeader({
       logged: true,

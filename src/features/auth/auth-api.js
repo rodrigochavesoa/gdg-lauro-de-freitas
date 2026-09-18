@@ -10,7 +10,47 @@ const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role,avatar
 export const AVATAR_BUCKET = "avatars";
 export const AVATAR_OBJECT = "avatar.jpg";
 const AVATAR_SIGNED_TTL_SEC = 60 * 60;
+/** Memory-only cache expires before the signed URL itself. */
+export const AVATAR_SIGNED_CACHE_TTL_MS = (AVATAR_SIGNED_TTL_SEC - 5 * 60) * 1000;
 const AVATAR_CACHE_CONTROL = "0";
+
+const avatarSignedUrlCache = new Map();
+const avatarSignedUrlInflight = new Map();
+
+function avatarSignedUrlKey(userId, path) {
+  if (!userId || !path) return null;
+  return `${userId}:${path}`;
+}
+
+export function invalidateAvatarSignedUrl(userId, path) {
+  const key = avatarSignedUrlKey(userId, path);
+  if (key) {
+    avatarSignedUrlCache.delete(key);
+    avatarSignedUrlInflight.delete(key);
+    return;
+  }
+  if (userId) {
+    const prefix = `${userId}:`;
+    for (const cachedKey of [...avatarSignedUrlCache.keys()]) {
+      if (cachedKey.startsWith(prefix)) avatarSignedUrlCache.delete(cachedKey);
+    }
+    for (const cachedKey of [...avatarSignedUrlInflight.keys()]) {
+      if (cachedKey.startsWith(prefix)) avatarSignedUrlInflight.delete(cachedKey);
+    }
+    return;
+  }
+  avatarSignedUrlCache.clear();
+  avatarSignedUrlInflight.clear();
+}
+
+export function peekAvatarSignedUrl(userId, path) {
+  const key = avatarSignedUrlKey(userId, path);
+  if (!key) return null;
+  const entry = avatarSignedUrlCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.fetchedAt > AVATAR_SIGNED_CACHE_TTL_MS) return null;
+  return entry.url;
+}
 
 export function avatarStoragePath(userId) {
   if (!userId) throw new Error("Sessão expirada. Entre novamente com Google.");
@@ -277,14 +317,40 @@ export async function saveOnboardingProfile({
   return data;
 }
 
-/** Signed URL — bucket `avatars` é privado para não expor foto de terceiros. */
-export async function avatarPublicUrl(path) {
+/** Signed URL — bucket `avatars` é privado para não expor foto de terceiros. Cache só em memória. */
+export async function avatarPublicUrl(path, { userId, forceRefresh } = {}) {
   if (!path) return null;
+  const key = avatarSignedUrlKey(userId, path);
+
+  if (key && !forceRefresh) {
+    const cached = peekAvatarSignedUrl(userId, path);
+    if (cached) return cached;
+    const inflight = avatarSignedUrlInflight.get(key);
+    if (inflight) return inflight;
+  }
+
   const client = getSupabaseBrowserClient();
   if (!client) return null;
-  const { data, error } = await client.storage.from(AVATAR_BUCKET).createSignedUrl(path, AVATAR_SIGNED_TTL_SEC);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+
+  const request = client.storage
+    .from(AVATAR_BUCKET)
+    .createSignedUrl(path, AVATAR_SIGNED_TTL_SEC)
+    .then(({ data, error }) => {
+      if (error || !data?.signedUrl) return null;
+      if (key) {
+        avatarSignedUrlCache.set(key, { url: data.signedUrl, fetchedAt: Date.now() });
+      }
+      return data.signedUrl;
+    });
+
+  if (key) avatarSignedUrlInflight.set(key, request);
+  try {
+    return await request;
+  } finally {
+    if (key && avatarSignedUrlInflight.get(key) === request) {
+      avatarSignedUrlInflight.delete(key);
+    }
+  }
 }
 
 export async function saveProfileAvatar(blob) {
@@ -305,6 +371,7 @@ export async function saveProfileAvatar(blob) {
     cacheControl: AVATAR_CACHE_CONTROL,
   });
   throwIfError(uploadError);
+  invalidateAvatarSignedUrl(user.id, path);
 
   const persistPath = async () =>
     client
