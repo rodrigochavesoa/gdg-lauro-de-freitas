@@ -468,6 +468,34 @@ describe("Header", () => {
     fireEvent.click(within(document.getElementById("mobile-navigation")).getByRole("button", { name: "Alterar foto" }));
     expect(document.getElementById("mobile-navigation")).toBeNull();
   });
+
+  it("Escape no drawer devolve o foco ao hambúrguer quando foi ele que abriu", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    const menuButton = screen.getByRole("button", { name: "Abrir menu" });
+    fireEvent.click(menuButton);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+    expect(menuButton).toHaveFocus();
+  });
+
+  it("Escape no drawer devolve o foco ao avatar quando foi ele que abriu", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ana Demo",
+      role: "candidate",
+      email: "ana@example.invalid",
+    });
+    const avatarButton = screen.getByRole("button", { name: "Menu de Ana Demo" });
+    fireEvent.click(avatarButton);
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+    expect(avatarButton).toHaveFocus();
+  });
 });
 
 const CROP_BLOB_URL = "blob:https://preview.test/avatar";

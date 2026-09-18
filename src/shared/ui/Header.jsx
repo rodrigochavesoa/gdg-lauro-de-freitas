@@ -40,8 +40,13 @@ export function Header({
   const [cropError, setCropError] = useState("");
   const [cropBusy, setCropBusy] = useState(false);
   const menuButtonRef = useRef(null);
+  const avatarButtonRef = useRef(null);
+  const mobileMenuTriggerRef = useRef(null);
   const photoInputRef = useRef(null);
-  const closeMobileMenu = () => { menuButtonRef.current?.focus(); setMobileMenuOpen(false); };
+  const closeMobileMenu = () => {
+    mobileMenuTriggerRef.current?.focus();
+    setMobileMenuOpen(false);
+  };
   const signOut = async () => {
     await onSignOut?.();
     closeMobileMenu();
@@ -53,9 +58,14 @@ export function Header({
     setCropError("");
   };
 
-  const toggleMobileMenu = () => {
+  const toggleMobileMenu = (triggerRef) => {
     if (cropImage) closeCropDialog();
-    setMobileMenuOpen((open) => !open);
+    if (mobileMenuOpen) {
+      closeMobileMenu();
+      return;
+    }
+    mobileMenuTriggerRef.current = triggerRef.current;
+    setMobileMenuOpen(true);
   };
 
   const openPhotoPicker = () => {
@@ -265,12 +275,13 @@ export function Header({
                 onBeforeOpen={() => setMobileMenuOpen(false)}
               />
               <button
+                ref={avatarButtonRef}
                 type="button"
                 className="icon-button header-avatar-mobile"
                 aria-label={identityPending ? "Menu da conta" : `Menu de ${displayName || "Conta"}`}
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-navigation"
-                onClick={toggleMobileMenu}
+                onClick={() => toggleMobileMenu(avatarButtonRef)}
               >
                 <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} />
               </button>
@@ -302,7 +313,7 @@ export function Header({
             ref={menuButtonRef}
             type="button"
             className="menu"
-            onClick={toggleMobileMenu}
+            onClick={() => toggleMobileMenu(menuButtonRef)}
             aria-label={mobileMenuOpen ? "Fechar menu" : "Abrir menu"}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-navigation"
