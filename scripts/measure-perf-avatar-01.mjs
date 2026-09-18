@@ -8,6 +8,8 @@
  *
  * Credenciais: docs-local/candidate-test-user.md ou CANDIDATE_TEST_EMAIL / CANDIDATE_TEST_PASSWORD
  * BASE_URL default: http://127.0.0.1:5173
+ *
+ * Cleanup: restaura avatar_path e arquivo originais do candidato de teste em homolog (try/finally).
  */
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -117,9 +119,15 @@ async function signInCandidateSession() {
   };
 }
 
-async function seedCandidateAvatar(auth, avatarBytes) {
-  const path = `${auth.userId}/avatar.jpg`;
-  const upload = await auth.client.storage.from("avatars").upload(path, avatarBytes, {
+async function downloadAvatarBytes(client, path) {
+  if (!path) return null;
+  const { data, error } = await client.storage.from("avatars").download(path);
+  if (error || !data) return null;
+  return Buffer.from(await data.arrayBuffer());
+}
+
+async function seedCandidateAvatar(auth, avatarBytes, fixturePath) {
+  const upload = await auth.client.storage.from("avatars").upload(fixturePath, avatarBytes, {
     upsert: true,
     contentType: "image/jpeg",
     cacheControl: "0",
@@ -129,17 +137,79 @@ async function seedCandidateAvatar(auth, avatarBytes) {
   }
   const { error } = await auth.client
     .from("profiles")
-    .update({ avatar_path: path, updated_at: new Date().toISOString() })
+    .update({ avatar_path: fixturePath, updated_at: new Date().toISOString() })
     .eq("id", auth.userId);
   if (error) {
     throw new Error(`persist avatar_path falhou: ${error.message}`);
   }
   return {
     ...auth,
-    avatarPath: path,
+    avatarPath: fixturePath,
     hasAvatar: true,
     seededAvatar: true,
     seedBytes: avatarBytes.length,
+  };
+}
+
+async function restoreCandidateAvatar(auth, snapshot) {
+  const errors = [];
+  const steps = [];
+  const { client, userId } = auth;
+  const fixturePath = snapshot.fixturePath;
+  const bucket = client.storage.from("avatars");
+
+  const restoreProfile = async (avatarPath) => {
+    const { error } = await client
+      .from("profiles")
+      .update({
+        avatar_path: avatarPath,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId);
+    if (error) errors.push(`profile.avatar_path: ${error.message}`);
+    else steps.push(`profile.avatar_path=${avatarPath ?? "null"}`);
+  };
+
+  const uploadBytes = async (path, bytes, contentType = "image/jpeg") => {
+    const { error } = await bucket.upload(path, bytes, {
+      upsert: true,
+      contentType,
+      cacheControl: "0",
+    });
+    if (error) errors.push(`upload ${path}: ${error.message}`);
+    else steps.push(`upload ${path} (${bytes.length} bytes)`);
+  };
+
+  const removePath = async (path) => {
+    const { error } = await bucket.remove([path]);
+    if (error) errors.push(`remove ${path}: ${error.message}`);
+    else steps.push(`remove ${path}`);
+  };
+
+  if (snapshot.originalAvatarPath == null) {
+    await removePath(fixturePath);
+    await restoreProfile(null);
+  } else if (snapshot.originalAvatarPath === fixturePath) {
+    if (snapshot.originalAvatarBytes) {
+      await uploadBytes(fixturePath, snapshot.originalAvatarBytes);
+    }
+    await restoreProfile(fixturePath);
+  } else {
+    if (snapshot.originalAvatarBytes) {
+      await uploadBytes(snapshot.originalAvatarPath, snapshot.originalAvatarBytes);
+    }
+    await restoreProfile(snapshot.originalAvatarPath);
+    if (fixturePath !== snapshot.originalAvatarPath) {
+      await removePath(fixturePath);
+    }
+  }
+
+  return {
+    status: errors.length === 0 ? "completed" : "failed",
+    steps,
+    errors,
+    restoredAvatarPath: snapshot.originalAvatarPath,
+    fixtureRemoved: snapshot.originalAvatarPath == null || snapshot.originalAvatarPath !== fixturePath,
   };
 }
 
@@ -175,141 +245,45 @@ function summarizeNetwork(rows) {
   return { byKind, transferBytes, encodedBytes };
 }
 
-const authBase = await signInCandidateSession();
-const browser = await chromium.launch({ headless: true });
-const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-const seedPage = await context.newPage();
-const avatarBytes = await createSyntheticAvatar256(seedPage);
-await seedPage.close();
-const auth = await seedCandidateAvatar(authBase, avatarBytes);
-
-await context.addInitScript(
-  ({ storageKey, session }) => {
-    localStorage.setItem(storageKey, JSON.stringify(session));
-  },
-  { storageKey: auth.storageKey, session: auth.session },
-);
-
-const page = await context.newPage();
-const helperPage = await context.newPage();
-const network = [];
-const allNetwork = [];
-const lines = [];
-const log = (message) => {
-  lines.push(message);
-  console.log(message);
-};
-
-page.on("response", async (response) => {
-  const kind = classifyAvatarRequest(response);
-  if (!kind) return;
-  const headers = response.headers();
-  const contentLength = headers["content-length"] ? Number(headers["content-length"]) : null;
-  let transferSize = null;
-  let encodedBodySize = contentLength;
-  try {
-    const sizes = await response.request().sizes();
-    transferSize = (sizes.responseBodySize ?? 0) + (sizes.responseHeadersSize ?? 0);
-    if (encodedBodySize == null && sizes.responseBodySize != null) {
-      encodedBodySize = sizes.responseBodySize;
-    }
-  } catch {
-    transferSize = null;
-  }
-  const row = {
-    at: Date.now(),
-    route: redactPath(response.url()),
-    status: response.status(),
-    method: response.request().method().toUpperCase(),
-    initiatorType: response.request().resourceType(),
-    transferSize,
-    encodedBodySize,
-    kind,
-  };
-  network.push(row);
-  allNetwork.push(row);
-});
-
-const countSince = (startedAt, kind = null) =>
-  network.filter((row) => row.at >= startedAt && (kind ? row.kind === kind : true)).length;
-
-log(`BASE_URL=${baseUrl} tabSwitches=${tabSwitches} hasAvatar=${auth.hasAvatar}`);
-log(`seed: avatar sintético 256×256 JPEG (${auth.seedBytes} bytes, sem PII)`);
-log("(log redigido: sem query string, token ou e-mail)");
-
-await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
-await page.getByRole("button", { name: /Conta|Menu de / }).first().waitFor({ state: "visible", timeout: 30_000 });
-await page.locator(".nav-actions .avatar img").first().waitFor({ state: "visible", timeout: 30_000 });
-await page.waitForTimeout(500);
-
-const initialLoadRows = [...network];
-const initialLoadSummary = summarizeNetwork(initialLoadRows);
-const baselineDom = await countAvatarDom(page);
-const imgSrc = await page.locator(".nav-actions .avatar img").first().getAttribute("src").catch(() => null);
-
-network.length = 0;
-
-log("\n=== Carga inicial (até avatar visível) ===");
-log(`signCreate (POST createSignedUrl): ${initialLoadSummary.byKind.signCreate}`);
-log(`imageDownload (GET <img>): ${initialLoadSummary.byKind.imageDownload}`);
-log(`transferSize total: ${initialLoadSummary.transferBytes} bytes`);
-log(`encodedBodySize total: ${initialLoadSummary.encodedBytes} bytes`);
-log(`avatar slots: ${baselineDom.avatarSlots} | img visíveis: ${baselineDom.imgsVisible} | img ocultos: ${baselineDom.imgsHidden} | pending: ${baselineDom.pending}`);
-if (imgSrc) log(`img route (redigida): ${redactPath(imgSrc)}`);
-
-log("\n=== Janela estável pré-switches (2s, rede zerada) ===");
-await page.waitForTimeout(2000);
-const stableRows = [...network];
-const stableSummary = summarizeNetwork(stableRows);
-log(`signCreate: ${stableSummary.byKind.signCreate} | imageDownload: ${stableSummary.byKind.imageDownload}`);
-
-log("\n=== Baseline para aceite (só trocas de aba) ===");
-log("rede zerada após carga; contagem abaixo é só durante switches");
-
-log("\n=== 10 trocas de aba/foco (sem upload) ===");
-
-const switchStart = Date.now();
-for (let i = 1; i <= tabSwitches; i += 1) {
-  const tick = Date.now();
-  await helperPage.bringToFront();
-  await page.waitForTimeout(400);
-  await page.bringToFront();
-  await page.waitForTimeout(1200);
-  const signDelta = countSince(tick, "signCreate");
-  const downloadDelta = countSince(tick, "imageDownload");
-  const pending = (await countAvatarDom(page)).pending;
-  log(`switch ${i}: +signCreate=${signDelta} +imageDownload=${downloadDelta} pending=${pending}`);
-}
-
-const switchRows = network.filter((row) => row.at >= switchStart);
-const switchSummary = summarizeNetwork(switchRows);
-const finalDom = await countAvatarDom(page);
-const pendingFinal = finalDom.pending;
-
-log("\n=== RESUMO PERF-AVATAR-01 ===");
-log(`Após ${tabSwitches} switches: novas signCreate=${switchSummary.byKind.signCreate} novos imageDownload=${switchSummary.byKind.imageDownload}`);
-log(`Estado final: img visíveis=${finalDom.imgsVisible} ocultos=${finalDom.imgsHidden} pending=${pendingFinal}`);
-log("Meta após switches: signCreate=0 imageDownload=0 pending=0");
-
-const pass = auth.hasAvatar
-  && switchSummary.byKind.signCreate === 0
-  && switchSummary.byKind.imageDownload === 0
-  && pendingFinal === 0
-  && finalDom.imgsVisible >= 1;
-
-const markdown = `# PERF-AVATAR-01 — network log (redigido)
+function writeEvidence({
+  pass,
+  cleanup,
+  auth,
+  snapshot,
+  initialLoadSummary,
+  baselineDom,
+  stableSummary,
+  switchSummary,
+  finalDom,
+  pendingFinal,
+  allNetwork,
+  lines,
+}) {
+  const markdown = `# PERF-AVATAR-01 — network log (redigido)
 
 **Medido em:** ${new Date().toISOString()}  
 **BASE_URL:** ${baseUrl}  
 **Avatar de teste:** sintético 256×256 JPEG (${auth.seedBytes} bytes, sem PII)  
-**Candidato com avatar_path:** sim (seed homolog antes da medição)  
+**Candidato com avatar_path:** sim (fixture temporário em homolog)  
 **Trocas de aba:** ${tabSwitches}
+
+## Cleanup homolog (obrigatório)
+
+| Campo | Valor |
+|---|---|
+| \`avatar_path\` original | ${snapshot.originalAvatarPath ?? "null"} |
+| Fixture temporário | \`${snapshot.fixturePath}\` |
+| Bytes originais salvos | ${snapshot.originalAvatarBytes ? snapshot.originalAvatarBytes.length : 0} |
+| Status cleanup | **${cleanup.status}** |
+| Passos | ${cleanup.steps.length ? cleanup.steps.join("; ") : "—"} |
+| Erros cleanup | ${cleanup.errors.length ? cleanup.errors.join("; ") : "nenhum"} |
 
 ## Histórico da evidência
 
-- **Medição 1 (incompleta):** candidato sem \`avatar_path\` — não validava signed URL nem download real.
-- **Medição 2 (lacuna fechada):** probe 1×1 px — comprovou zero novas requisições após 10 switches, mas não o peso de avatar real.
-- **Medição 3 (esta):** avatar sintético 256×256 — categorias separadas (signCreate vs imageDownload) e bytes transferidos.
+- **Medição 1 (incompleta):** candidato sem \`avatar_path\`.
+- **Medição 2:** probe 1×1 px — switches OK, peso irreal.
+- **Medição 3:** avatar 256×256 — categorias separadas; sem cleanup (ressalva Plan).
+- **Medição 4 (esta):** avatar 256×256 + restore do candidato em \`finally\`.
 
 ## Carga inicial (até avatar visível)
 
@@ -340,7 +314,8 @@ const markdown = `# PERF-AVATAR-01 — network log (redigido)
 | \`.avatar--pending\` | ${pendingFinal} | 0 |
 | \`<img>\` visíveis | ${finalDom.imgsVisible} | ≥1 |
 
-**Resultado switches:** ${pass ? "PASS" : "FAIL"}
+**Resultado switches:** ${pass ? "PASS" : "FAIL"}  
+**Resultado geral:** ${pass && cleanup.status === "completed" ? "PASS" : "FAIL"}
 
 ## Eventos de rede (rota redigida)
 
@@ -352,28 +327,208 @@ ${allNetwork.map((row, index) => `| ${index + 1} | ${row.kind} | ${row.method} |
 
 - Query strings e tokens omitidos de propósito.
 - \`signCreate\` = chamada de criação da signed URL; \`imageDownload\` = GET da imagem (inclui \`initiatorType: image\`).
-- \`cacheControl: "0"\` permanece — reload completo da página ainda pode baixar de novo (gate **PERF-AVATAR-02** / Camada B).
+- Fixture sintético é revertido ao estado anterior do candidato de teste ao final do script.
+- \`cacheControl: "0"\` permanece — reload completo ainda pode baixar de novo (gate **PERF-AVATAR-02** / Camada B).
 - Regressão automatizada: \`auth-api.test.js\` (cache 55 min + expiração) e \`App.smoke.test.jsx\` (\`TOKEN_REFRESHED\` ×10).
 `;
 
-writeFileSync(resolve(outDir, "network-log.md"), markdown);
-writeFileSync(resolve(outDir, "measure.log"), `${lines.join("\n")}\n`);
-writeFileSync(
-  resolve(outDir, "network-log.json"),
-  `${JSON.stringify({
-    measuredAt: new Date().toISOString(),
-    baseUrl,
-    tabSwitches,
-    seedBytes: auth.seedBytes,
-    hasAvatar: auth.hasAvatar,
-    pass,
-    initialLoad: { ...initialLoadSummary, dom: baselineDom },
-    stablePreSwitch: stableSummary,
-    afterSwitches: { ...switchSummary, dom: finalDom },
-    network: allNetwork,
-  }, null, 2)}\n`,
-);
-log(`\nwrote ${resolve(outDir, "network-log.md")}`);
+  writeFileSync(resolve(outDir, "network-log.md"), markdown);
+  writeFileSync(resolve(outDir, "measure.log"), `${lines.join("\n")}\n`);
+  writeFileSync(
+    resolve(outDir, "network-log.json"),
+    `${JSON.stringify({
+      measuredAt: new Date().toISOString(),
+      baseUrl,
+      tabSwitches,
+      seedBytes: auth.seedBytes,
+      hasAvatar: auth.hasAvatar,
+      pass,
+      cleanup,
+      snapshot: {
+        originalAvatarPath: snapshot.originalAvatarPath,
+        fixturePath: snapshot.fixturePath,
+        originalBytesSaved: snapshot.originalAvatarBytes?.length ?? 0,
+      },
+      initialLoad: { ...initialLoadSummary, dom: baselineDom },
+      stablePreSwitch: stableSummary,
+      afterSwitches: { ...switchSummary, dom: finalDom },
+      network: allNetwork,
+    }, null, 2)}\n`,
+  );
+}
 
-await browser.close();
-process.exit(pass ? 0 : 1);
+const authBase = await signInCandidateSession();
+const fixturePath = `${authBase.userId}/avatar.jpg`;
+const snapshot = {
+  originalAvatarPath: authBase.avatarPath,
+  originalAvatarBytes: await downloadAvatarBytes(authBase.client, authBase.avatarPath),
+  fixturePath,
+};
+
+const lines = [];
+const log = (message) => {
+  lines.push(message);
+  console.log(message);
+};
+
+let browser = null;
+let pass = false;
+let cleanup = { status: "skipped", steps: [], errors: ["medição não concluída"] };
+let evidence = null;
+
+try {
+  browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const seedPage = await context.newPage();
+  const avatarBytes = await createSyntheticAvatar256(seedPage);
+  await seedPage.close();
+  const auth = await seedCandidateAvatar(authBase, avatarBytes, fixturePath);
+
+  await context.addInitScript(
+    ({ storageKey, session }) => {
+      localStorage.setItem(storageKey, JSON.stringify(session));
+    },
+    { storageKey: auth.storageKey, session: auth.session },
+  );
+
+  const page = await context.newPage();
+  const helperPage = await context.newPage();
+  const network = [];
+  const allNetwork = [];
+
+  page.on("response", async (response) => {
+    const kind = classifyAvatarRequest(response);
+    if (!kind) return;
+    const headers = response.headers();
+    const contentLength = headers["content-length"] ? Number(headers["content-length"]) : null;
+    let transferSize = null;
+    let encodedBodySize = contentLength;
+    try {
+      const sizes = await response.request().sizes();
+      transferSize = (sizes.responseBodySize ?? 0) + (sizes.responseHeadersSize ?? 0);
+      if (encodedBodySize == null && sizes.responseBodySize != null) {
+        encodedBodySize = sizes.responseBodySize;
+      }
+    } catch {
+      transferSize = null;
+    }
+    const row = {
+      at: Date.now(),
+      route: redactPath(response.url()),
+      status: response.status(),
+      method: response.request().method().toUpperCase(),
+      initiatorType: response.request().resourceType(),
+      transferSize,
+      encodedBodySize,
+      kind,
+    };
+    network.push(row);
+    allNetwork.push(row);
+  });
+
+  const countSince = (startedAt, kind = null) =>
+    network.filter((row) => row.at >= startedAt && (kind ? row.kind === kind : true)).length;
+
+  log(`BASE_URL=${baseUrl} tabSwitches=${tabSwitches}`);
+  log(`snapshot: avatar_path original=${snapshot.originalAvatarPath ?? "null"} bytes=${snapshot.originalAvatarBytes?.length ?? 0}`);
+  log(`seed: avatar sintético 256×256 JPEG (${auth.seedBytes} bytes, sem PII)`);
+  log("(log redigido: sem query string, token ou e-mail)");
+
+  await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Conta|Menu de / }).first().waitFor({ state: "visible", timeout: 30_000 });
+  await page.locator(".nav-actions .avatar img").first().waitFor({ state: "visible", timeout: 30_000 });
+  await page.waitForTimeout(500);
+
+  const initialLoadRows = [...network];
+  const initialLoadSummary = summarizeNetwork(initialLoadRows);
+  const baselineDom = await countAvatarDom(page);
+  const imgSrc = await page.locator(".nav-actions .avatar img").first().getAttribute("src").catch(() => null);
+
+  network.length = 0;
+
+  log("\n=== Carga inicial (até avatar visível) ===");
+  log(`signCreate (POST createSignedUrl): ${initialLoadSummary.byKind.signCreate}`);
+  log(`imageDownload (GET <img>): ${initialLoadSummary.byKind.imageDownload}`);
+  log(`transferSize total: ${initialLoadSummary.transferBytes} bytes`);
+  log(`encodedBodySize total: ${initialLoadSummary.encodedBytes} bytes`);
+  log(`avatar slots: ${baselineDom.avatarSlots} | img visíveis: ${baselineDom.imgsVisible} | img ocultos: ${baselineDom.imgsHidden} | pending: ${baselineDom.pending}`);
+  if (imgSrc) log(`img route (redigida): ${redactPath(imgSrc)}`);
+
+  log("\n=== Janela estável pré-switches (2s, rede zerada) ===");
+  await page.waitForTimeout(2000);
+  const stableRows = [...network];
+  const stableSummary = summarizeNetwork(stableRows);
+  log(`signCreate: ${stableSummary.byKind.signCreate} | imageDownload: ${stableSummary.byKind.imageDownload}`);
+
+  log("\n=== Baseline para aceite (só trocas de aba) ===");
+  log("rede zerada após carga; contagem abaixo é só durante switches");
+
+  log(`\n=== ${tabSwitches} trocas de aba/foco (sem upload) ===`);
+
+  const switchStart = Date.now();
+  for (let i = 1; i <= tabSwitches; i += 1) {
+    const tick = Date.now();
+    await helperPage.bringToFront();
+    await page.waitForTimeout(400);
+    await page.bringToFront();
+    await page.waitForTimeout(1200);
+    const signDelta = countSince(tick, "signCreate");
+    const downloadDelta = countSince(tick, "imageDownload");
+    const pending = (await countAvatarDom(page)).pending;
+    log(`switch ${i}: +signCreate=${signDelta} +imageDownload=${downloadDelta} pending=${pending}`);
+  }
+
+  const switchRows = network.filter((row) => row.at >= switchStart);
+  const switchSummary = summarizeNetwork(switchRows);
+  const finalDom = await countAvatarDom(page);
+  const pendingFinal = finalDom.pending;
+
+  log("\n=== RESUMO PERF-AVATAR-01 ===");
+  log(`Após ${tabSwitches} switches: novas signCreate=${switchSummary.byKind.signCreate} novos imageDownload=${switchSummary.byKind.imageDownload}`);
+  log(`Estado final: img visíveis=${finalDom.imgsVisible} ocultos=${finalDom.imgsHidden} pending=${pendingFinal}`);
+  log("Meta após switches: signCreate=0 imageDownload=0 pending=0");
+
+  pass = auth.hasAvatar
+    && switchSummary.byKind.signCreate === 0
+    && switchSummary.byKind.imageDownload === 0
+    && pendingFinal === 0
+    && finalDom.imgsVisible >= 1;
+
+  evidence = {
+    pass,
+    auth,
+    snapshot,
+    initialLoadSummary,
+    baselineDom,
+    stableSummary,
+    switchSummary,
+    finalDom,
+    pendingFinal,
+    allNetwork,
+  };
+} finally {
+  if (browser) {
+    await browser.close();
+    browser = null;
+  }
+  log("\n=== Cleanup homolog (restore candidato de teste) ===");
+  try {
+    cleanup = await restoreCandidateAvatar(authBase, snapshot);
+    if (cleanup.status === "completed") {
+      log(`cleanup: completed — ${cleanup.steps.join("; ")}`);
+    } else {
+      log(`cleanup: FAILED — ${cleanup.errors.join("; ")}`);
+    }
+  } catch (error) {
+    cleanup = { status: "failed", steps: [], errors: [error.message] };
+    log(`cleanup: FAILED — ${error.message}`);
+  }
+
+  if (evidence) {
+    writeEvidence({ ...evidence, cleanup, lines });
+    log(`\nwrote ${resolve(outDir, "network-log.md")}`);
+  }
+}
+
+const overallPass = pass && cleanup.status === "completed";
+process.exit(overallPass ? 0 : 1);
