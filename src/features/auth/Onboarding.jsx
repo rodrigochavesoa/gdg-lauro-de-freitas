@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Check } from "lucide-react";
+import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
 import { saveOnboardingProfile } from "./auth-api.js";
 import { profilePreferences } from "./profile-completeness.js";
 
@@ -138,10 +139,19 @@ export function Onboarding({ profile, email, onSaved, mode = "onboarding" }) {
           <div className="form-section">
             <h2>Opcional</h2>
             <div className="form-grid">
-              <label className="wide">
-                Bio
-                <textarea id={fieldId("bio")} name="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows="3" />
-              </label>
+              <div className="wide field-with-counter">
+                <label htmlFor={fieldId("bio")}>Bio</label>
+                <AutoResizeTextarea
+                  id={fieldId("bio")}
+                  name="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  rows={3}
+                  maxLength={TEXTAREA_LIMITS.profileBio}
+                  maxHeightPx={200}
+                  placeholder="Breve resumo sobre você e sua trajetória"
+                />
+              </div>
               <label>
                 LinkedIn
                 <input id={fieldId("linkedin")} name="linkedin" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="https://" />
