@@ -88,7 +88,10 @@ describe("Onboarding modo edição", () => {
     expect(screen.getByLabelText("Modalidade")).toHaveValue("remote");
     expect(screen.getByLabelText("Tecnologias (separe por vírgula)")).toHaveValue("React, Node");
     expect(screen.getByLabelText("Localidade")).toHaveValue("Salvador");
-    expect(screen.getByLabelText("Bio")).toHaveValue("Dev na comunidade");
+    const bio = screen.getByLabelText("Bio");
+    expect(bio).toHaveValue("Dev na comunidade");
+    expect(bio).toHaveAttribute("maxlength", "500");
+    expect(screen.getByText("17/500")).toBeInTheDocument();
     expect(screen.getByLabelText("LinkedIn")).toHaveValue("https://linkedin.com/in/vc");
     expect(screen.queryByLabelText(/papel|função|cargo/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /papel|função|role/i })).not.toBeInTheDocument();
