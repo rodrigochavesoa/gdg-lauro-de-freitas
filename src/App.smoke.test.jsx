@@ -983,7 +983,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Criar perfil gratuito" })).not.toBeInTheDocument();
-    expect(placeholderLabels()).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(placeholderLabels()).toEqual(["Minhas candidaturas"]);
     expect(screen.getByRole("heading", { name: "Deixe seu perfil trabalhar por você." })).toBeInTheDocument();
 
     authListener({

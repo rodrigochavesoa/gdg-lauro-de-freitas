@@ -9,6 +9,9 @@ import { assertAvatarFile, cropImageToCircle, loadImageFromFile, revokeLoadedIma
 const STAFF_ROLES = ["admin", "curator", "moderator"];
 const CANDIDATE_NAV = [
   { to: "/minhas-candidaturas", label: "Minhas candidaturas" },
+];
+const CANDIDATE_ACCOUNT_NAV = [
+  ...CANDIDATE_NAV,
   { to: "/preferencias", label: "Privacidade" },
 ];
 
@@ -216,7 +219,7 @@ export function Header({
           <button type="button" onClick={openPhotoPicker}>Alterar foto</button>
         ) : null}
         {candidate
-          ? CANDIDATE_NAV.map((item) => (
+          ? CANDIDATE_ACCOUNT_NAV.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

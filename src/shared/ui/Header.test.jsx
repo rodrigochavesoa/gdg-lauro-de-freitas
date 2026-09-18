@@ -74,9 +74,9 @@ describe("Header", () => {
       "Eventos",
       "Newsletter",
       "Minhas candidaturas",
-      "Privacidade",
     ]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
+    expect(within(desktopNav).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
@@ -88,6 +88,17 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+  });
+
+  it("Privacidade fica no popover e no drawer, não na nav desktop", () => {
+    renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
+    const desktopNav = document.querySelector(".topbar nav");
+    expect(within(desktopNav).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ana Demo" }));
+    expect(within(screen.getByRole("dialog", { name: "Ana Demo" })).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    expect(within(document.getElementById("mobile-navigation")).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", () => {
@@ -223,7 +234,7 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(document.querySelector(".nav-actions__spacer")).toBeNull();
     const desktopNav = document.querySelector(".topbar nav");
-    expect(placeholderLabels(desktopNav)).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(placeholderLabels(desktopNav)).toEqual(["Minhas candidaturas"]);
     expect(desktopNav.querySelector(".nav-link-placeholder")).toHaveAttribute("aria-hidden", "true");
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
@@ -240,7 +251,7 @@ describe("Header", () => {
         <Header {...pending} />
       </MemoryRouter>,
     );
-    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas"]);
 
     rerender(
       <MemoryRouter>
@@ -251,9 +262,8 @@ describe("Header", () => {
     const desktopNav = document.querySelector(".topbar nav");
     expect(placeholderLabels(desktopNav)).toEqual([]);
     const candidaturas = within(desktopNav).getByRole("link", { name: "Minhas candidaturas" });
-    const privacidade = within(desktopNav).getByRole("link", { name: "Privacidade" });
     expect(candidaturas).toHaveClass("nav-link--hydrate");
-    expect(privacidade).toHaveClass("nav-link--hydrate");
+    expect(within(desktopNav).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
   });
 
@@ -264,7 +274,7 @@ describe("Header", () => {
         <Header {...pending} />
       </MemoryRouter>,
     );
-    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas", "Privacidade"]);
+    expect(placeholderLabels(document.querySelector(".topbar nav"))).toEqual(["Minhas candidaturas"]);
 
     rerender(
       <MemoryRouter>
@@ -583,7 +593,9 @@ describe("Header crop dialog", () => {
     expect(document.getElementById("mobile-navigation")).toBeNull();
     await pickAvatar();
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument();
+    });
     expect(document.getElementById("mobile-navigation")).toBeNull();
   });
 
