@@ -10,6 +10,7 @@ import {
 } from "./curation-api.js";
 import { RUBRIC_OPTIONS } from "./rubric.js";
 import { CurationTimeline } from "./CurationTimeline.jsx";
+import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -224,17 +225,19 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 Rejeitar
               </label>
             </fieldset>
-            <label className="wide">
-              Comentário interno (opcional)
-              <textarea
+            <div className="wide field-with-counter">
+              <label htmlFor="curation-comment">Comentário interno (opcional)</label>
+              <AutoResizeTextarea
                 id="curation-comment"
                 name="comment"
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                rows="3"
+                rows={3}
+                maxLength={TEXTAREA_LIMITS.curationComment}
+                maxHeightPx={200}
                 placeholder="Observação só para a equipe de curadoria"
               />
-            </label>
+            </div>
           </div>
           {isAdmin && (
             <div className="form-section">

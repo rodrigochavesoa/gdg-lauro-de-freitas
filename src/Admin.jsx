@@ -19,6 +19,7 @@ import {
 } from "./features/auth/staff-mfa.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
 import { CurationTimeline } from "./features/curation/CurationTimeline.jsx";
+import { AutoResizeTextarea, TEXTAREA_LIMITS } from "./shared/ui/AutoResizeTextarea.jsx";
 
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
@@ -530,10 +531,20 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                         <option>Estágio</option>
                       </select>
                     </label>
-                    <label className="wide">
-                      Descrição
-                      <textarea id="admin-job-description" name="description" required value={form.description} onChange={field("description")} placeholder="Descreva a oportunidade, responsabilidades e requisitos..." rows="6" />
-                    </label>
+                    <div className="wide field-with-counter">
+                      <label htmlFor="admin-job-description">Descrição</label>
+                      <AutoResizeTextarea
+                        id="admin-job-description"
+                        name="description"
+                        required
+                        value={form.description}
+                        onChange={field("description")}
+                        placeholder="Descreva a oportunidade, responsabilidades e requisitos..."
+                        rows={6}
+                        maxLength={TEXTAREA_LIMITS.jobDescription}
+                        maxHeightPx={360}
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="form-section">
