@@ -647,6 +647,129 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("heading", { name: "Editar perfil" })).not.toBeInTheDocument();
   });
 
+  it("logout durante o salvamento de /perfil descarta a resposta atrasada", async () => {
+    let resolveSave;
+    saveOnboardingProfileMock.mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/perfil");
+    expect(await screen.findByRole("heading", { name: "Editar perfil" })).toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: /Sair/i }));
+    expect(await screen.findByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
+
+    resolveSave({
+      full_name: "Ana Stale",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.queryByRole("button", { name: "Ana Stale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Editar perfil" })).not.toBeInTheDocument();
+  });
+
+  it("troca de usuário durante o salvamento de /perfil descarta a resposta atrasada", async () => {
+    let resolveSave;
+    saveOnboardingProfileMock.mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/perfil");
+    expect(await screen.findByRole("heading", { name: "Editar perfil" })).toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+
+    authListener({
+      session: { user: { id: "u2", email: "vc@example.invalid" } },
+      profile: {
+        full_name: "Vinicius Costa",
+        role: "candidate",
+        skills: ["Go"],
+        preferences: { experience_level: "junior", work_model: "hybrid", location: "Salvador" },
+      },
+      needsOnboarding: false,
+    });
+    expect(await screen.findByRole("button", { name: "Vinicius Costa" })).toBeInTheDocument();
+
+    resolveSave({
+      full_name: "Ana Stale",
+      role: "admin",
+      skills: ["Hacked"],
+      preferences: { experience_level: "senior", work_model: "remote", location: "X" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.getByRole("button", { name: "Vinicius Costa" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Stale" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
+  });
+
+  it("resposta atrasada do usuário anterior não substitui o perfil atual", async () => {
+    let resolveSave;
+    saveOnboardingProfileMock.mockImplementation(
+      () => new Promise((resolve) => { resolveSave = resolve; }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    await renderAt("/perfil");
+    expect(await screen.findByRole("heading", { name: "Editar perfil" })).toBeInTheDocument();
+    fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
+    await waitFor(() => expect(saveOnboardingProfileMock).toHaveBeenCalled());
+
+    authListener({
+      session: { user: { id: "u2", email: "vc@example.invalid" } },
+      profile: {
+        full_name: "Vinicius Costa",
+        role: "candidate",
+        skills: ["Go"],
+        preferences: { experience_level: "junior", work_model: "hybrid", location: "Salvador" },
+      },
+      needsOnboarding: false,
+    });
+    expect(await screen.findByRole("button", { name: "Vinicius Costa" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+
+    resolveSave({
+      full_name: "Ana Stale",
+      role: "admin",
+      skills: ["Hacked"],
+      preferences: { experience_level: "senior", work_model: "remote", location: "X" },
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.getByRole("button", { name: "Vinicius Costa" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ana Stale" })).not.toBeInTheDocument();
+  });
+
   it("volta de /jobs/:id para minhas candidaturas quando a origem é o dashboard", async () => {
     authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
     authState.profile = { full_name: "Ana Demo", role: "candidate" };

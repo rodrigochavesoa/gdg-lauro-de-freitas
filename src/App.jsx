@@ -263,6 +263,7 @@ function ProfileEditPending() {
 }
 
 function ProfileEditRoute({ auth, authReady, setAuth }) {
+  const editingUserId = auth.session?.user?.id;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
   if (auth.session) {
     if (auth.profile?.role && STAFF_ROLES.has(auth.profile.role)) {
@@ -275,12 +276,14 @@ function ProfileEditRoute({ auth, authReady, setAuth }) {
         profile={auth.profile}
         email={auth.session.user.email}
         onSaved={(profile) => {
-          const email = auth.session?.user?.email;
-          setAuth((current) => ({
-            ...current,
-            profile,
-            needsOnboarding: isCandidateProfile(profile) && !isD01Complete(profile, current.session?.user?.email ?? email),
-          }));
+          setAuth((current) => {
+            if (current.session?.user?.id !== editingUserId) return current;
+            return {
+              ...current,
+              profile,
+              needsOnboarding: isCandidateProfile(profile) && !isD01Complete(profile, current.session.user.email),
+            };
+          });
         }}
       />
     );
@@ -291,13 +294,19 @@ function ProfileEditRoute({ auth, authReady, setAuth }) {
 
 function OnboardingRoute({ auth, setAuth }) {
   const navigate = useNavigate();
+  const editingUserId = auth.session?.user?.id;
   return (
     <Onboarding
       profile={auth.profile}
       email={auth.session?.user?.email}
       onSaved={(profile) => {
-        setAuth((current) => ({ ...current, profile, needsOnboarding: false }));
-        navigate("/", { replace: true });
+        let applied = false;
+        setAuth((current) => {
+          if (current.session?.user?.id !== editingUserId) return current;
+          applied = true;
+          return { ...current, profile, needsOnboarding: false };
+        });
+        if (applied) navigate("/", { replace: true });
       }}
     />
   );
