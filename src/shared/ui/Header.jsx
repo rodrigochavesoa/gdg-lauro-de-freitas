@@ -7,6 +7,7 @@ import { AvatarCropDialog } from "./AvatarCropDialog.jsx";
 import { assertAvatarFile, cropImageToCircle, loadImageFromFile, revokeLoadedImageUrl } from "../../features/auth/avatar-crop.js";
 
 const STAFF_ROLES = ["admin", "curator", "moderator"];
+const HEADER_COMPACT_MQ = "(max-width: 1024px)";
 const CANDIDATE_NAV = [
   { to: "/minhas-candidaturas", label: "Minhas candidaturas" },
 ];
@@ -24,6 +25,23 @@ function isStaffRole(role) {
   return STAFF_ROLES.includes(role);
 }
 
+function useHeaderCompact() {
+  const [compact, setCompact] = useState(() => Boolean(window.matchMedia?.(HEADER_COMPACT_MQ)?.matches));
+  useEffect(() => {
+    const media = window.matchMedia?.(HEADER_COMPACT_MQ);
+    if (!media) return undefined;
+    const onChange = () => setCompact(media.matches);
+    onChange();
+    if (typeof media.addEventListener === "function") {
+      media.addEventListener("change", onChange);
+      return () => media.removeEventListener("change", onChange);
+    }
+    media.addListener?.(onChange);
+    return () => media.removeListener?.(onChange);
+  }, []);
+  return compact;
+}
+
 export function Header({
   logged,
   displayName,
@@ -37,6 +55,9 @@ export function Header({
   onSaveAvatar,
 }) {
   const { pathname } = useLocation();
+  const compactHeader = useHeaderCompact();
+  const desktopAvatarUrl = compactHeader ? null : avatarUrl;
+  const mobileAvatarUrl = compactHeader ? avatarUrl : null;
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [gateNotice, setGateNotice] = useState("");
   const [cropImage, setCropImage] = useState(null);
@@ -268,7 +289,7 @@ export function Header({
                 displayName={displayName}
                 email={email}
                 role={role}
-                avatarUrl={avatarUrl}
+                avatarUrl={desktopAvatarUrl}
                 identityPending={identityPending}
                 needsOnboarding={needsOnboarding}
                 onSignOut={signOut}
@@ -286,7 +307,7 @@ export function Header({
                 aria-controls="mobile-navigation"
                 onClick={() => toggleMobileMenu(avatarButtonRef)}
               >
-                <AvatarFace displayName={displayName} avatarUrl={avatarUrl} pending={identityPending} />
+                <AvatarFace displayName={displayName} avatarUrl={mobileAvatarUrl} pending={identityPending} />
               </button>
               <button className="ghost hide-mobile" type="button" onClick={signOut}>
                 <LogOut size={16} /> Sair

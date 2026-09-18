@@ -19,6 +19,7 @@ import { Login } from "./features/auth/Login.jsx";
 import { Onboarding } from "./features/auth/Onboarding.jsx";
 import {
   avatarPublicUrl,
+  invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
   loadAuthSnapshot,
   mergeAuthSnapshot,
@@ -44,7 +45,11 @@ export function App() {
   const authGeneration = useRef(0);
   const lastUserId = useRef(null);
   const sessionUserId = useRef(null);
+  const avatarRequestKey = useRef(null);
   sessionUserId.current = auth.session?.user?.id ?? null;
+  const userId = auth.session?.user?.id ?? null;
+  const profileReady = Boolean(auth.profile);
+  const storedAvatarPath = auth.profile?.avatar_path ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -70,57 +75,66 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    const userId = auth.session?.user?.id ?? null;
     if (lastUserId.current !== userId) {
       if (lastUserId.current != null || userId == null) {
         authGeneration.current += 1;
       }
       lastUserId.current = userId;
+      avatarRequestKey.current = null;
     }
-  }, [auth.session?.user?.id]);
+  }, [userId]);
 
   useEffect(() => {
     const epoch = authGeneration.current;
-    const path = auth.profile?.avatar_path;
-    if (!auth.session) {
+    if (!userId) {
+      avatarRequestKey.current = null;
       setAvatarUrl(null);
       setAvatarPath(null);
       setAvatarStatus("idle");
       return undefined;
     }
-    if (!auth.profile) {
+    if (!profileReady) {
       setAvatarStatus("loading");
       return undefined;
     }
-    if (!path) {
+    if (!storedAvatarPath) {
+      avatarRequestKey.current = `${userId}:`;
       setAvatarUrl(null);
       setAvatarPath(null);
       setAvatarStatus("ready");
       return undefined;
     }
+    const key = `${userId}:${storedAvatarPath}`;
+    if (avatarRequestKey.current === key) {
+      return undefined;
+    }
     setAvatarStatus("loading");
     let cancelled = false;
-    avatarPublicUrl(path)
+    avatarPublicUrl(storedAvatarPath, { userId })
       .then((url) => {
         if (cancelled || epoch !== authGeneration.current) return;
+        avatarRequestKey.current = key;
         setAvatarUrl(url);
-        setAvatarPath(path);
+        setAvatarPath(storedAvatarPath);
         setAvatarStatus("ready");
       })
       .catch(() => {
         if (cancelled || epoch !== authGeneration.current) return;
+        avatarRequestKey.current = key;
         setAvatarUrl(null);
-        setAvatarPath(path);
+        setAvatarPath(storedAvatarPath);
         setAvatarStatus("ready");
       });
     return () => {
       cancelled = true;
     };
-  }, [auth.session, auth.profile, auth.profile?.avatar_path]);
+  }, [userId, profileReady, storedAvatarPath]);
 
   const handleSignOut = async () => {
     authGeneration.current += 1;
     lastUserId.current = null;
+    avatarRequestKey.current = null;
+    invalidateAvatarSignedUrl();
     setAuth(EMPTY_AUTH);
     setAvatarUrl(null);
     setAvatarPath(null);
@@ -147,7 +161,6 @@ export function App() {
 
   // UX-PERF-06 / UX-PERF-07 — warm minhas candidaturas e privacidade (dedupe via inflight/TTL)
   useEffect(() => {
-    const userId = auth.session?.user?.id;
     const role = auth.profile?.role;
     if (!userId || !role || STAFF_ROLES.has(role)) return undefined;
     loadMyApplications({ userId }).catch(() => {});
@@ -155,7 +168,7 @@ export function App() {
       loadPrivacyPreferences({ userId }).catch(() => {});
     }
     return undefined;
-  }, [auth.session?.user?.id, auth.profile?.role, auth.needsOnboarding]);
+  }, [userId, auth.profile?.role, auth.needsOnboarding]);
 
   return (
     <>
@@ -175,12 +188,18 @@ export function App() {
           isAvatarUploadEnabled()
             ? async (blob) => {
                 const epoch = authGeneration.current;
+                const currentUserId = sessionUserId.current;
                 const profile = await saveProfileAvatar(blob);
                 if (epoch !== authGeneration.current) return;
+                invalidateAvatarSignedUrl(currentUserId, profile.avatar_path);
+                const key = currentUserId && profile.avatar_path
+                  ? `${currentUserId}:${profile.avatar_path}`
+                  : null;
+                if (key) avatarRequestKey.current = key;
+                setAvatarPath(profile.avatar_path);
                 setAuth((current) => (current.session ? { ...current, profile } : current));
-                setAvatarStatus("loading");
                 try {
-                  const url = await avatarPublicUrl(profile.avatar_path);
+                  const url = await avatarPublicUrl(profile.avatar_path, { userId: currentUserId });
                   if (epoch !== authGeneration.current) return;
                   setAvatarUrl(url);
                   setAvatarPath(profile.avatar_path);

@@ -1051,6 +1051,99 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(document.querySelector(".avatar--pending")).toBeNull();
   });
 
+  it("TOKEN_REFRESHED do mesmo usuário não refaz signed URL nem volta ao skeleton", async () => {
+    avatarPublicUrlMock.mockResolvedValue("https://signed.example/u1");
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" }, access_token: "t1" };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    await renderHome();
+    const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+    expect(trigger.querySelector("img")).toHaveAttribute("src", "https://signed.example/u1");
+    expect(avatarPublicUrlMock).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(".avatar--pending")).toBeNull();
+
+    for (let i = 0; i < 10; i += 1) {
+      authListener({
+        session: { user: { id: "u1", email: "ana@example.invalid" }, access_token: `t${i + 2}` },
+        profile: { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" },
+        needsOnboarding: false,
+      });
+    }
+
+    await waitFor(() => {
+      expect(avatarPublicUrlMock).toHaveBeenCalledTimes(1);
+    });
+    expect(document.querySelector(".avatar--pending")).toBeNull();
+    const afterRefresh = screen.getByRole("button", { name: "Vinicius Costa" });
+    expect(afterRefresh.querySelector("img")).toHaveAttribute("src", "https://signed.example/u1");
+    expect(document.querySelectorAll(".nav-actions img")).toHaveLength(1);
+  });
+
+  it("salvar nova foto resolve signed URL uma vez e mantém a foto visível", async () => {
+    avatarUploadEnabled.value = true;
+    avatarPublicUrlMock.mockResolvedValue("https://signed.example/u1");
+    saveProfileAvatarMock.mockResolvedValue({
+      full_name: "Vinicius Costa",
+      role: "candidate",
+      avatar_path: "u1/avatar.jpg",
+    });
+    const OriginalImage = globalThis.Image;
+    const originalCreateObjectURL = URL.createObjectURL;
+    const originalRevokeObjectURL = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(() => "blob:https://preview.test/avatar");
+    URL.revokeObjectURL = vi.fn();
+    class FakeImage {
+      constructor() {
+        this.onload = null;
+        this.onerror = null;
+        this._src = "";
+      }
+      set src(value) {
+        this._src = value;
+        queueMicrotask(() => this.onload?.());
+      }
+      get src() {
+        return this._src;
+      }
+    }
+    globalThis.Image = FakeImage;
+    const cropSpy = vi.spyOn(avatarCrop, "cropImageToCircle").mockResolvedValue(
+      new Blob(["x"], { type: "image/jpeg" }),
+    );
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Vinicius Costa", role: "candidate", avatar_path: "u1/avatar.jpg" };
+    authState.needsOnboarding = false;
+    try {
+      await renderHome();
+      const trigger = await screen.findByRole("button", { name: "Vinicius Costa" });
+      expect(trigger.querySelector("img")).toHaveAttribute("src", "https://signed.example/u1");
+      expect(avatarPublicUrlMock).toHaveBeenCalledTimes(1);
+      expect(document.querySelector(".avatar--pending")).toBeNull();
+
+      avatarPublicUrlMock.mockResolvedValue("https://signed.example/u1b");
+      fireEvent.change(screen.getByLabelText("Enviar foto de perfil"), {
+        target: { files: [new File(["x"], "foto.jpg", { type: "image/jpeg" })] },
+      });
+      await screen.findByRole("dialog", { name: "Recortar foto" });
+      fireEvent.click(screen.getByRole("button", { name: "Usar foto" }));
+
+      await waitFor(() => expect(saveProfileAvatarMock).toHaveBeenCalled());
+      await waitFor(() => {
+        expect(document.querySelector(".avatar--pending")).toBeNull();
+        expect(screen.getByRole("button", { name: "Vinicius Costa" }).querySelector("img")).toHaveAttribute(
+          "src",
+          "https://signed.example/u1b",
+        );
+      });
+      expect(avatarPublicUrlMock).toHaveBeenCalledTimes(2);
+    } finally {
+      cropSpy.mockRestore();
+      globalThis.Image = OriginalImage;
+      URL.createObjectURL = originalCreateObjectURL;
+      URL.revokeObjectURL = originalRevokeObjectURL;
+    }
+  });
+
   it("URL de avatar nula cai nas iniciais do perfil confirmado", async () => {
     avatarPublicUrlMock.mockResolvedValue(null);
     authState.session = { user: { id: "u1", email: "ana@example.invalid", user_metadata: { full_name: "Rodrigo Chaves" } } };
