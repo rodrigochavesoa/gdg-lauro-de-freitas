@@ -550,7 +550,7 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
   html[data-theme="system"] .admin-job-list-meta{color:var(--color-grey-700)}
 }
 
-/* UX-SHELL-EVENTOS-01 — landing /eventos no shell da Home (DS-07 sem avatar) */
+/* UX-SHELL-EVENTOS-01 — landing /eventos no shell da Home; UX-EVENTOS-AVATAR-01 avatar inclusivo no divisor */
 .event-layout{padding-bottom:64px}
 .event-banner-wrap{width:min(720px,100%);max-height:min(320px,38vh);aspect-ratio:16/9;margin-inline:auto;overflow:hidden;border:0;border-radius:var(--radius-lg);background:transparent}
 .event-banner-wrap--wide{aspect-ratio:1170/312}

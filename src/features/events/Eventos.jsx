@@ -99,6 +99,7 @@ export function EventosIndex({ logged = false }) {
         <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
           <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
         </svg>
+        <img className="home-divider__avatar" src="/avatar-eventos-lgbtqia.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
       </div>
       <section className="shell jobs-layout">
         <FilterSheet
