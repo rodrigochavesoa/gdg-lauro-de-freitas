@@ -24,12 +24,18 @@ describe("EventosIndex", () => {
     vi.restoreAllMocks();
   });
 
-  it("lista dois eventos estáticos no shell da Home sem avatar DS-07", () => {
+  it("lista dois eventos estáticos no shell da Home com avatar inclusivo eager", () => {
     renderIndex();
 
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
-    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    const avatar = document.querySelector(".home-divider__avatar");
+    expect(avatar).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
+    expect(avatar).toHaveAttribute("loading", "eager");
+    expect(avatar).toHaveAttribute("decoding", "async");
+    expect(avatar).toHaveAttribute("width", "1169");
+    expect(avatar).toHaveAttribute("height", "987");
+    expect(avatar).not.toHaveAttribute("loading", "lazy");
     expect(document.querySelector(".event-banner")).toBeNull();
     expect(document.querySelector(".marketing-page")).toBeNull();
     expect(document.querySelector(".job-card--skeleton")).toBeNull();

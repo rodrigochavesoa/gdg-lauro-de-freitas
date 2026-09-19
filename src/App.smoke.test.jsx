@@ -329,7 +329,10 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getAllByRole("link", { name: "Ver evento" })).toHaveLength(2);
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
-    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".home-divider__avatar")).toHaveAttribute(
+      "src",
+      "/avatar-eventos-lgbtqia.png",
+    );
     expect(document.querySelector(".event-banner")).toBeNull();
   });
 
@@ -353,7 +356,10 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("heading", { name: "Entre na sua conta" })).not.toBeInTheDocument();
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
-    expect(document.querySelector(".home-divider__avatar")).toBeNull();
+    expect(document.querySelector(".home-divider__avatar")).toHaveAttribute(
+      "src",
+      "/avatar-eventos-lgbtqia.png",
+    );
     expect(document.querySelector(".cta")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toHaveAttribute("href", "/login");
   });
