@@ -14,7 +14,7 @@ export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 export const PROD_MANIFEST_FILENAME = "prod.manifest.json";
 
 /** Arquivos que só existem para demo/RLS em homologação. */
-export const HOMOLOG_ONLY_PATTERN = /seed_fictitious|avatars_storage_homolog|avatars_single_object/i;
+export const HOMOLOG_ONLY_PATTERN = /seed_fictitious|avatars_/i;
 
 /** Comentários SQL que proíbem apply em produção (Camada B / PO). */
 export const PROD_DO_NOT_APPLY_MARKER =

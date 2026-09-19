@@ -1554,7 +1554,7 @@ async function scenarioAdminBaseline() {
   await admin.auth.signOut();
 }
 
-/** Cenário 19 — Storage avatars: só `{userId}/avatar.jpg`; cruzado entre dois usuários.
+/** Cenário 19 — Storage avatars: `{userId}/{version}.jpg` na própria pasta; cruzado entre dois usuários.
  * Último login do harness: GoTrue pode responder `Request rate limit reached` se usar `signIn` cru. */
 async function scenario19_avatarStorage() {
   if (!hasCreds(testUsers.candidate)) {
@@ -1573,26 +1573,38 @@ async function scenario19_avatarStorage() {
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
     "base64",
   );
-  const ownPath = `${user.id}/avatar.jpg`;
-  const extraPath = `${user.id}/extra.png`;
-  const foreignPath = "00000000-0000-4000-8000-000000000099/avatar.jpg";
+  const stamp = Date.now();
+  const ownFile = `rls19-${stamp}-a.jpg`;
+  const secondFile = `rls19-${stamp}-b.jpg`;
+  const ownPath = `${user.id}/${ownFile}`;
+  const secondPath = `${user.id}/${secondFile}`;
+  const nestedPath = `${user.id}/nested/rls19.jpg`;
+  const foreignPath = `00000000-0000-4000-8000-000000000099/rls19-${stamp}.jpg`;
+  const ownNamePattern = /^[A-Za-z0-9._-]+\.(jpg|jpeg|png|webp)$/i;
   const own = await client.storage.from("avatars").upload(ownPath, probe, {
-    upsert: true,
+    upsert: false,
     contentType: "image/png",
-    cacheControl: "0",
+    cacheControl: "3600",
   });
   if (own.error && /bucket|not found|404/i.test(errorText(own.error))) {
     skipRequired(19, "migration avatars_storage_homolog não aplicada no ambiente");
     await client.auth.signOut();
     return;
   }
-  assert(!own.error, `candidato envia o próprio avatar.jpg (${own.error?.message ?? "ok"})`);
+  assert(!own.error, `candidato envia o próprio objeto versionado (${own.error?.message ?? "ok"})`);
 
-  const extra = await client.storage.from("avatars").upload(extraPath, probe, {
-    upsert: true,
+  const second = await client.storage.from("avatars").upload(secondPath, probe, {
+    upsert: false,
+    contentType: "image/png",
+    cacheControl: "3600",
+  });
+  assert(!second.error, `candidato envia segundo objeto versionado (${second.error?.message ?? "ok"})`);
+
+  const nested = await client.storage.from("avatars").upload(nestedPath, probe, {
+    upsert: false,
     contentType: "image/png",
   });
-  assert(Boolean(extra.error), "candidato não envia segundo objeto na própria pasta");
+  assert(Boolean(nested.error), "candidato não envia objeto em subpasta");
 
   const signed = await client.storage.from("avatars").createSignedUrl(ownPath, 60);
   assert(Boolean(signed.data?.signedUrl), "candidato gera signed URL do próprio arquivo");
@@ -1600,12 +1612,16 @@ async function scenario19_avatarStorage() {
   const ownList = await client.storage.from("avatars").list(user.id);
   const listed = (ownList.data ?? []).map((row) => row.name);
   assert(
-    Boolean(ownList.error) || listed.every((name) => name === "avatar.jpg"),
-    "candidato só lista o próprio avatar.jpg",
+    Boolean(ownList.error) || listed.every((name) => ownNamePattern.test(name)),
+    "candidato só lista arquivos da própria pasta",
+  );
+  assert(
+    Boolean(ownList.error) || listed.includes(ownFile),
+    "candidato lista o objeto versionado recém-enviado",
   );
 
   const foreign = await client.storage.from("avatars").upload(foreignPath, probe, {
-    upsert: true,
+    upsert: false,
     contentType: "image/png",
   });
   assert(Boolean(foreign.error), "candidato não envia avatar na pasta de terceiro");
@@ -1652,8 +1668,8 @@ async function scenario19_avatarStorage() {
     }
   }
 
-  const removed = await client.storage.from("avatars").remove([ownPath]);
-  assert(!removed.error, `candidato remove o próprio probe (${removed.error?.message ?? "ok"})`);
+  const removed = await client.storage.from("avatars").remove([ownPath, secondPath]);
+  assert(!removed.error, `candidato remove os próprios probes (${removed.error?.message ?? "ok"})`);
   await client.auth.signOut();
 }
 
@@ -1817,7 +1833,7 @@ await scenario17_privacyAudit();
 console.log("\n=== Cenário 18: MVP-022 helpers RLS fora da Data API ===");
 await scenario18_rlsHelperRpcSurface();
 
-console.log("\n=== Cenário 19: Storage avatars (UX-PROFILE-AVATAR-01) ===");
+console.log("\n=== Cenário 19: Storage avatars (PERF-AVATAR-02) ===");
 await scenario19_avatarStorage();
 
 console.log("\n=== Cenário 20: SEC-STAFF-MFA-02 AAL1 bloqueado em mutação staff ===");
@@ -1833,7 +1849,7 @@ if (skippedRequired.size > 0) {
     if (n === 16) band = "MVP-003 exige execução real do cenário 16";
     if (n === 17) band = "MVP-005 exige execução real do cenário 17";
     if (n === 18) band = "MVP-022 exige execução real do cenário 18";
-    if (n === 19) band = "UX-PROFILE-AVATAR-01 exige execução real do cenário 19";
+    if (n === 19) band = "PERF-AVATAR-02 exige execução real do cenário 19";
     if (n === 20) band = "SEC-STAFF-MFA-02 exige execução real do cenário 20";
     failures.push(`cenário ${n} ignorado (${band})`);
   }

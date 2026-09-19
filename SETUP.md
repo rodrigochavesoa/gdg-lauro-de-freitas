@@ -66,12 +66,15 @@ A flag Vite é só o gate de **UI/API de upload** (`isAvatarUploadEnabled`). Ela
 
 Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar o fluxo. **Não** defina em Production.
 
-**Contrato em homologação (UX-PROFILE-AVATAR-01):**
+**Contrato em homologação (PERF-AVATAR-02):**
 
-- Bucket Storage `avatars` **privado**; leitura via **signed URL** (1 h). Path único `{userId}/avatar.jpg`.
-- Policies: autenticado só lê/grava/apaga o próprio objeto. Anon e terceiros não acessam.
+- Bucket Storage `avatars` **privado**; leitura via **signed URL** (1 h). Path versionado `{userId}/{avatarVersion}.jpg` por upload (sem overwrite de `avatar.jpg` como desenho definitivo).
+- `profiles.avatar_path` aponta para o objeto ativo; o objeto anterior é removido só depois do UPDATE bem-sucedido.
+- `cacheControl` 3600 s (TTL da signed URL / default Storage). Troca de foto = path novo, então o browser/CDN não reutiliza o arquivo antigo.
+- Policies: autenticado só lê/grava/apaga arquivos na própria pasta (`{uid}/{arquivo}` com extensão jpg/jpeg/png/webp, um nível). Anon e terceiros não acessam.
 - Frontend: JPEG/PNG/WebP até 2 MB; recorte circular no cliente; popover no header (foto 96 px, nome, e-mail, ações). Sem foto ou falha de load → iniciais.
 - Migrations `avatars_*` são **homolog-only**: `pnpm migrations:prod` as ignora. **Não** aplicar em `gdg-jobs-prod`.
+- Production permanece fail-closed (`VITE_AVATAR_UPLOAD_ENABLED` ausente/false) até o checklist da Camada B.
 
 ## Teste SEC-STAFF-MFA-02 (RLS AAL2)
 
