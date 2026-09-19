@@ -34,6 +34,7 @@ import {
   avatarStoragePath,
   displayNameFromUser,
   emptyAuthSnapshot,
+  ensureProfileRow,
   invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
   isOwnAvatarStoragePath,
@@ -74,6 +75,7 @@ function mockProfileFetch(row, pendingPromise) {
       eq: vi.fn().mockReturnValue({ maybeSingle }),
     }),
     insert: vi.fn(),
+    upsert: vi.fn(),
   });
 }
 
@@ -197,6 +199,109 @@ describe("resolveHeaderIdentity", () => {
       avatarPath: null,
       avatarStatus: "ready",
     }).displayName).toBe("Candidato");
+  });
+});
+
+describe("ensureProfileRow", () => {
+  beforeEach(() => {
+    supabaseState.enabled = true;
+    supabaseState.from.mockReset();
+  });
+
+  it("reusa perfil já existente sem upsert", async () => {
+    const upsert = vi.fn();
+    const maybeSingle = vi.fn(async () => ({ data: profile, error: null }));
+    supabaseState.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle })),
+      })),
+      upsert,
+      insert: vi.fn(),
+    });
+
+    await expect(ensureProfileRow(user)).resolves.toEqual(profile);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("deduplica duas inicializações simultâneas e não envia role nem e-mail", async () => {
+    const firstSelect = deferred();
+    let selectCalls = 0;
+    const maybeSingle = vi.fn(() => {
+      selectCalls += 1;
+      if (selectCalls === 1) {
+        return firstSelect.promise.then(() => ({ data: null, error: null }));
+      }
+      return Promise.resolve({ data: profile, error: null });
+    });
+    const upsert = vi.fn(async () => ({ data: null, error: null }));
+    const insert = vi.fn();
+    supabaseState.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle })),
+      })),
+      upsert,
+      insert,
+    });
+
+    const first = ensureProfileRow(user);
+    const second = ensureProfileRow(user);
+    firstSelect.resolve();
+    const [a, b] = await Promise.all([first, second]);
+
+    expect(a).toEqual(profile);
+    expect(b).toEqual(profile);
+    expect(upsert).toHaveBeenCalledTimes(1);
+    expect(insert).not.toHaveBeenCalled();
+    expect(upsert).toHaveBeenCalledWith(
+      { id: "u1", full_name: "Ana Demo" },
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    expect(upsert.mock.calls[0][0]).not.toHaveProperty("role");
+    expect(upsert.mock.calls[0][0]).not.toHaveProperty("email");
+  });
+
+  it("trata conflito 23505 em profiles_pkey como sucesso e relê o perfil", async () => {
+    const maybeSingle = vi
+      .fn()
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: profile, error: null });
+    const upsert = vi.fn(async () => ({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "profiles_pkey"',
+      },
+    }));
+    supabaseState.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle })),
+      })),
+      upsert,
+      insert: vi.fn(),
+    });
+
+    await expect(ensureProfileRow(user)).resolves.toEqual(profile);
+    expect(upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("não ignora 23505 de outra constraint única", async () => {
+    const maybeSingle = vi.fn(async () => ({ data: null, error: null }));
+    const upsert = vi.fn(async () => ({
+      data: null,
+      error: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "applications_job_id_candidate_id_key"',
+      },
+    }));
+    supabaseState.from.mockReturnValue({
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({ maybeSingle })),
+      })),
+      upsert,
+      insert: vi.fn(),
+    });
+
+    await expect(ensureProfileRow(user)).rejects.toThrow(/duplicate key/);
   });
 });
 

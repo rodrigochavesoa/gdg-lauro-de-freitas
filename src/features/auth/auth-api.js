@@ -20,6 +20,7 @@ const AVATAR_VERSION_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 const avatarSignedUrlCache = new Map();
 const avatarSignedUrlInflight = new Map();
+const profileInitInflight = new Map();
 
 function avatarSignedUrlKey(userId, path) {
   if (!userId || !path) return null;
@@ -176,17 +177,47 @@ async function fetchProfile(client, userId) {
   return data;
 }
 
-/** Cria a linha se faltar. Nunca envia `role` — default do banco é candidate. */
+/** Só ignora corrida na PK `profiles.id` (Postgres 23505 / profiles_pkey). */
+function isIgnorableProfileConflict(error) {
+  if (!error?.code || error.code !== "23505") return false;
+  const text = `${error.message ?? ""} ${error.details ?? ""} ${error.hint ?? ""}`;
+  return /profiles_pkey/i.test(text) || /\(id\)=/i.test(text);
+}
+
+/**
+ * Cria a linha se faltar. Idempotente sob corrida boot+subscribe.
+ * Nunca envia `role` nem e-mail — default do banco é candidate; onboarding não é sobrescrito.
+ */
 export async function ensureProfileRow(user) {
+  if (!user?.id) {
+    throw new Error("Sessão expirada. Entre novamente com Google.");
+  }
+  const inflight = profileInitInflight.get(user.id);
+  if (inflight) return inflight;
+
+  const request = provisionProfileRow(user).finally(() => {
+    if (profileInitInflight.get(user.id) === request) {
+      profileInitInflight.delete(user.id);
+    }
+  });
+  profileInitInflight.set(user.id, request);
+  return request;
+}
+
+async function provisionProfileRow(user) {
   const client = clientOrThrow();
   const existing = await fetchProfile(client, user.id);
   if (existing) return existing;
 
-  const { error } = await client.from("profiles").insert({
+  const payload = {
     id: user.id,
     full_name: displayNameFromUser(user),
+  };
+  const { error } = await client.from("profiles").upsert(payload, {
+    onConflict: "id",
+    ignoreDuplicates: true,
   });
-  if (error && !/duplicate|unique/i.test(error.message)) {
+  if (error && !isIgnorableProfileConflict(error)) {
     throwIfError(error);
   }
   return fetchProfile(client, user.id);
