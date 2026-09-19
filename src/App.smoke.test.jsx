@@ -1091,7 +1091,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     saveProfileAvatarMock.mockResolvedValue({
       full_name: "Vinicius Costa",
       role: "candidate",
-      avatar_path: "u1/avatar.jpg",
+      avatar_path: "u1/22222222-2222-4222-8222-222222222222.jpg",
     });
     const OriginalImage = globalThis.Image;
     const originalCreateObjectURL = URL.createObjectURL;

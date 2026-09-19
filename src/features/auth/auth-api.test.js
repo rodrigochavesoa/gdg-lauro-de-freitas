@@ -36,12 +36,15 @@ import {
   emptyAuthSnapshot,
   invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
+  isOwnAvatarStoragePath,
   mergeAuthSnapshot,
+  nextAvatarVersion,
   peekAvatarSignedUrl,
   resolveHeaderIdentity,
   saveOnboardingProfile,
   saveProfileAvatar,
   subscribeAuth,
+  AVATAR_CACHE_CONTROL,
   AVATAR_SIGNED_CACHE_TTL_MS,
 } from "./auth-api.js";
 
@@ -352,16 +355,55 @@ describe("saveOnboardingProfile", () => {
   });
 });
 
+const AVATAR_VERSION = "11111111-1111-4111-8111-111111111111";
+const NEW_AVATAR_PATH = `u1/${AVATAR_VERSION}.jpg`;
+const OLD_AVATAR_PATH = "u1/avatar.jpg";
+
+function mockAvatarSave({ previousPath = OLD_AVATAR_PATH, persist, upload, remove } = {}) {
+  const maybeSingle = vi.fn(async () => ({
+    data: { ...profile, avatar_path: previousPath },
+    error: null,
+  }));
+  const single =
+    persist ??
+    vi.fn(async () => ({ data: { ...profile, avatar_path: NEW_AVATAR_PATH }, error: null }));
+  supabaseState.from.mockReturnValue({
+    select: vi.fn(() => ({
+      eq: vi.fn(() => ({ maybeSingle })),
+    })),
+    update: vi.fn(() => ({
+      eq: vi.fn(() => ({
+        select: vi.fn(() => ({ single })),
+      })),
+    })),
+  });
+  const uploadFn = upload ?? vi.fn(async () => ({ error: null }));
+  const removeFn = remove ?? vi.fn(async () => ({ error: null }));
+  supabaseState.storageFrom.mockReturnValue({
+    upload: uploadFn,
+    remove: removeFn,
+    createSignedUrl: vi.fn(async () => ({
+      data: { signedUrl: "https://signed.example/u1" },
+      error: null,
+    })),
+  });
+  return { upload: uploadFn, remove: removeFn, single, maybeSingle };
+}
+
 describe("avatarPublicUrl e saveProfileAvatar", () => {
+  let randomUUIDSpy;
+
   beforeEach(() => {
     supabaseState.enabled = true;
     supabaseState.from.mockReset();
     supabaseState.storageFrom.mockReset();
     supabaseState.getUser.mockReset();
     invalidateAvatarSignedUrl();
+    randomUUIDSpy = vi.spyOn(globalThis.crypto, "randomUUID").mockReturnValue(AVATAR_VERSION);
   });
 
   afterEach(() => {
+    randomUUIDSpy?.mockRestore();
     vi.unstubAllEnvs();
     vi.useRealTimers();
     invalidateAvatarSignedUrl();
@@ -436,67 +478,77 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     vi.useRealTimers();
   });
 
-  it("saveProfileAvatar invalida a signed URL do próprio avatar", async () => {
+  it("saveProfileAvatar invalida a signed URL do path antigo e do novo", async () => {
     vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
-    const createSignedUrl = vi.fn(async () => ({ data: { signedUrl: "https://signed.example/u1" }, error: null }));
-    const upload = vi.fn(async () => ({ error: null }));
-    supabaseState.storageFrom.mockReturnValue({ createSignedUrl, upload });
-    await avatarPublicUrl("u1/avatar.jpg", { userId: "u1" });
-    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBe("https://signed.example/u1");
-    const single = vi.fn(async () => ({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null }));
-    supabaseState.from.mockReturnValue({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          select: vi.fn(() => ({ single })),
-        })),
-      })),
-    });
+    const { upload } = mockAvatarSave();
+    await avatarPublicUrl(OLD_AVATAR_PATH, { userId: "u1" });
+    expect(peekAvatarSignedUrl("u1", OLD_AVATAR_PATH)).toBe("https://signed.example/u1");
     await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
-    expect(peekAvatarSignedUrl("u1", "u1/avatar.jpg")).toBeNull();
+    expect(upload).toHaveBeenCalled();
+    expect(peekAvatarSignedUrl("u1", OLD_AVATAR_PATH)).toBeNull();
+    expect(peekAvatarSignedUrl("u1", NEW_AVATAR_PATH)).toBeNull();
   });
 
-  it("faz upload em {userId}/avatar.jpg, sem cache, e persiste avatar_path", async () => {
+  it("faz upload em {userId}/{version}.jpg, cache 3600 e persiste avatar_path", async () => {
     vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
-    const upload = vi.fn(async () => ({ error: null }));
-    supabaseState.storageFrom.mockReturnValue({ upload });
-    const single = vi.fn(async () => ({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null }));
-    supabaseState.from.mockReturnValue({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          select: vi.fn(() => ({ single })),
-        })),
-      })),
-    });
+    const { upload, remove } = mockAvatarSave();
     const blob = new Blob(["x"], { type: "image/jpeg" });
     const saved = await saveProfileAvatar(blob);
     expect(upload).toHaveBeenCalledWith(
-      "u1/avatar.jpg",
+      NEW_AVATAR_PATH,
       blob,
-      expect.objectContaining({ upsert: true, contentType: "image/jpeg", cacheControl: "0" }),
+      expect.objectContaining({
+        upsert: false,
+        contentType: "image/jpeg",
+        cacheControl: AVATAR_CACHE_CONTROL,
+      }),
     );
-    expect(saved.avatar_path).toBe("u1/avatar.jpg");
+    expect(AVATAR_CACHE_CONTROL).toBe("3600");
+    expect(saved.avatar_path).toBe(NEW_AVATAR_PATH);
+    expect(remove).toHaveBeenCalledWith([OLD_AVATAR_PATH]);
   });
 
-  it("repete o UPDATE se o perfil falhar depois do upload", async () => {
+  it("repete o UPDATE se o perfil falhar depois do upload e só então remove o objeto antigo", async () => {
     vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
-    supabaseState.storageFrom.mockReturnValue({ upload: vi.fn(async () => ({ error: null })) });
-    const single = vi
+    const persist = vi
       .fn()
       .mockResolvedValueOnce({ data: null, error: { message: "timeout" } })
-      .mockResolvedValueOnce({ data: { ...profile, avatar_path: "u1/avatar.jpg" }, error: null });
-    supabaseState.from.mockReturnValue({
-      update: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          select: vi.fn(() => ({ single })),
-        })),
-      })),
-    });
+      .mockResolvedValueOnce({ data: { ...profile, avatar_path: NEW_AVATAR_PATH }, error: null });
+    const { remove, single } = mockAvatarSave({ persist });
     const saved = await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
     expect(single).toHaveBeenCalledTimes(2);
-    expect(saved.avatar_path).toBe("u1/avatar.jpg");
+    expect(saved.avatar_path).toBe(NEW_AVATAR_PATH);
+    expect(remove).toHaveBeenCalledTimes(1);
+  });
+
+  it("não apaga o objeto anterior se o path não for da pasta do usuário", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const { remove } = mockAvatarSave({ previousPath: "u2/avatar.jpg" });
+    await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
+    expect(remove).not.toHaveBeenCalled();
+  });
+
+  it("conclui o save se a limpeza do objeto antigo falhar", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const remove = vi.fn(async () => ({ error: { message: "storage timeout" } }));
+    const { upload } = mockAvatarSave({ remove });
+    const saved = await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
+    expect(upload).toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledWith([OLD_AVATAR_PATH]);
+    expect(saved.avatar_path).toBe(NEW_AVATAR_PATH);
+  });
+
+  it("não chama remove quando não havia avatar_path anterior", async () => {
+    vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
+    supabaseState.getUser.mockResolvedValue({ data: { user }, error: null });
+    const { remove } = mockAvatarSave({ previousPath: null });
+    await saveProfileAvatar(new Blob(["x"], { type: "image/jpeg" }));
+    expect(remove).not.toHaveBeenCalled();
   });
 
   it("fail-closed por default e só liga com true", () => {
@@ -508,7 +560,14 @@ describe("avatarPublicUrl e saveProfileAvatar", () => {
     }
     vi.stubEnv("VITE_AVATAR_UPLOAD_ENABLED", "true");
     expect(isAvatarUploadEnabled()).toBe(true);
-    expect(avatarStoragePath("u1")).toBe("u1/avatar.jpg");
+    expect(avatarStoragePath("u1", AVATAR_VERSION)).toBe(NEW_AVATAR_PATH);
+    expect(avatarStoragePath("u1", "avatar")).toBe("u1/avatar.jpg");
+    expect(() => avatarStoragePath("u1", "../x")).toThrow(/inválida/);
+    expect(() => avatarStoragePath("u1", "a/b")).toThrow(/inválida/);
+    expect(isOwnAvatarStoragePath("u1", "u1/avatar.jpg")).toBe(true);
+    expect(isOwnAvatarStoragePath("u1", "u1/nested/x.jpg")).toBe(false);
+    expect(isOwnAvatarStoragePath("u1", "u2/avatar.jpg")).toBe(false);
+    expect(nextAvatarVersion()).toBe(AVATAR_VERSION);
   });
 
   it("bloqueia saveProfileAvatar quando a flag está off", async () => {

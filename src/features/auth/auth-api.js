@@ -8,11 +8,15 @@ import {
 
 const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role,avatar_path";
 export const AVATAR_BUCKET = "avatars";
-export const AVATAR_OBJECT = "avatar.jpg";
 const AVATAR_SIGNED_TTL_SEC = 60 * 60;
 /** Memory-only cache expires before the signed URL itself. */
 export const AVATAR_SIGNED_CACHE_TTL_MS = (AVATAR_SIGNED_TTL_SEC - 5 * 60) * 1000;
-const AVATAR_CACHE_CONTROL = "0";
+/**
+ * Seconds for browser/CDN Cache-Control on the immutable object.
+ * Matches signed URL TTL. Stale photos are avoided by a new path per upload, not by cacheControl 0.
+ */
+export const AVATAR_CACHE_CONTROL = "3600";
+const AVATAR_VERSION_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 const avatarSignedUrlCache = new Map();
 const avatarSignedUrlInflight = new Map();
@@ -52,9 +56,28 @@ export function peekAvatarSignedUrl(userId, path) {
   return entry.url;
 }
 
-export function avatarStoragePath(userId) {
+export function nextAvatarVersion() {
+  if (typeof globalThis.crypto?.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+  return `${Date.now()}`;
+}
+
+export function avatarStoragePath(userId, avatarVersion) {
   if (!userId) throw new Error("Sessão expirada. Entre novamente com Google.");
-  return `${userId}/${AVATAR_OBJECT}`;
+  const version = String(avatarVersion ?? "").trim();
+  if (!AVATAR_VERSION_PATTERN.test(version)) {
+    throw new Error("Versão de avatar inválida.");
+  }
+  return `${userId}/${version}.jpg`;
+}
+
+export function isOwnAvatarStoragePath(userId, path) {
+  if (!userId || typeof path !== "string") return false;
+  const prefix = `${userId}/`;
+  if (!path.startsWith(prefix)) return false;
+  const rest = path.slice(prefix.length);
+  return rest.length > 0 && !rest.includes("/") && !rest.includes("..");
 }
 
 /** Homologação/Preview: VITE_AVATAR_UPLOAD_ENABLED=true. Production: ausente até Camada B. */
@@ -364,14 +387,14 @@ export async function saveProfileAvatar(blob) {
   const user = userData.user;
   if (!user) throw new Error("Sessão expirada. Entre novamente com Google.");
 
-  const path = avatarStoragePath(user.id);
+  const previousPath = (await fetchProfile(client, user.id))?.avatar_path ?? null;
+  const path = avatarStoragePath(user.id, nextAvatarVersion());
   const { error: uploadError } = await client.storage.from(AVATAR_BUCKET).upload(path, blob, {
-    upsert: true,
+    upsert: false,
     contentType: blob.type || "image/jpeg",
     cacheControl: AVATAR_CACHE_CONTROL,
   });
   throwIfError(uploadError);
-  invalidateAvatarSignedUrl(user.id, path);
 
   const persistPath = async () =>
     client
@@ -385,8 +408,18 @@ export async function saveProfileAvatar(blob) {
       .single();
 
   const first = await persistPath();
-  if (!first.error) return first.data;
-  const retry = await persistPath();
-  throwIfError(retry.error);
-  return retry.data;
+  const persisted = first.error ? await persistPath() : first;
+  throwIfError(persisted.error);
+
+  invalidateAvatarSignedUrl(user.id);
+
+  if (previousPath && previousPath !== path && isOwnAvatarStoragePath(user.id, previousPath)) {
+    try {
+      await client.storage.from(AVATAR_BUCKET).remove([previousPath]);
+    } catch {
+      /* perfil já aponta para o path novo; órfão antigo é aceitável */
+    }
+  }
+
+  return persisted.data;
 }

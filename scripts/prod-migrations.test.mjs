@@ -30,6 +30,8 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260916122300_avatars_storage_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260916153100_avatars_single_object.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260919120000_avatars_versioned_path_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260919120001_avatars_versioned_path.sql")).toBe(true);
     expect(isHomologOnlyMigration("202608150001_ai_matching.sql")).toBe(false);
     expect(isHomologOnlyMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
   });
@@ -39,6 +41,8 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260916122300_avatars_storage_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916153100_avatars_single_object.sql")).toBe(false);
+    expect(isProdSafeMigration("20260919120000_avatars_versioned_path_homolog.sql")).toBe(false);
+    expect(isProdSafeMigration("20260919120001_avatars_versioned_path.sql")).toBe(false);
     expect(isProdSafeMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);

@@ -191,7 +191,7 @@ export function App() {
                 const currentUserId = sessionUserId.current;
                 const profile = await saveProfileAvatar(blob);
                 if (epoch !== authGeneration.current) return;
-                invalidateAvatarSignedUrl(currentUserId, profile.avatar_path);
+                invalidateAvatarSignedUrl(currentUserId);
                 const key = currentUserId && profile.avatar_path
                   ? `${currentUserId}:${profile.avatar_path}`
                   : null;
