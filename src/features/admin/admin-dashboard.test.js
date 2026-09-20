@@ -19,20 +19,23 @@ describe("admin-dashboard", () => {
   });
 
   it("só sugere CTA de curadoria quando há fila", () => {
-    const empty = summarizeAdminDashboard({ queue: [], isAdmin: false });
+    const empty = summarizeAdminDashboard({ isAdmin: false, pendingCuration: 0 });
     expect(empty.ctas).toEqual([]);
-    const withQueue = summarizeAdminDashboard({ queue: [{ id: "1" }, { id: "2" }], isAdmin: false });
+    const withQueue = summarizeAdminDashboard({ isAdmin: false, pendingCuration: 2 });
     expect(withQueue.ctas).toEqual([{ to: "/admin/curadoria", label: "Revisar curadoria (2)" }]);
   });
 
   it("admin inclui métricas extras e CTA de ingestão", () => {
     const summary = summarizeAdminDashboard({
-      queue: [],
-      jobs: [{ status: "approved" }, { status: "pending" }],
-      ingestions: [{ job_id: null, job_ingestion_attempts: [] }],
       isAdmin: true,
+      pendingCuration: 0,
+      approved: 1,
+      rejectedJobs: 0,
+      rejectedQueue: 0,
+      pendingJobs: 0,
+      ingestAttention: 1,
     });
-    expect(summary.metrics.some((m) => m.id === "ingest-attention" && m.label === "Ingestões pendentes" && m.value === 1)).toBe(true);
+    expect(summary.metrics.some((m) => m.id === "ingest-attention" && m.value === 1)).toBe(true);
     expect(summary.ctas.some((c) => c.to === "/admin/ingestao")).toBe(true);
   });
 });

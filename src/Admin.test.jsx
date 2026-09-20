@@ -5,8 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
-const loadCurationQueue = vi.hoisted(() => vi.fn(async () => ({ queue: [], rejected: [] })));
-const loadJobIngestions = vi.hoisted(() => vi.fn(async () => []));
+const loadAdminDashboardSummary = vi.hoisted(() =>
+  vi.fn(async ({ isAdmin }) => ({
+    pendingCuration: 0,
+    approved: 0,
+    rejectedJobs: 0,
+    rejectedQueue: 0,
+    pendingJobs: 0,
+    ingestAttention: 0,
+  })),
+);
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 const loadAdminJob = vi.hoisted(() => vi.fn(async () => null));
 const signInCuration = vi.hoisted(() => vi.fn());
@@ -20,17 +28,12 @@ const staffMfa = vi.hoisted(() => ({
 
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
-  loadCurationQueue: (...args) => loadCurationQueue(...args),
   signInCuration: (...args) => signInCuration(...args),
 }));
 
-vi.mock("./features/ingest/ingest-api.js", async () => {
-  const actual = await vi.importActual("./features/ingest/ingest-api.js");
-  return {
-    ...actual,
-    loadJobIngestions: (...args) => loadJobIngestions(...args),
-  };
-});
+vi.mock("./features/admin/admin-dashboard-api.js", () => ({
+  loadAdminDashboardSummary: (...args) => loadAdminDashboardSummary(...args),
+}));
 
 vi.mock("./lib/admin-api.js", async () => {
   const actual = await vi.importActual("./lib/admin-api.js");
@@ -93,10 +96,15 @@ describe("Admin", () => {
     loadAdminJob.mockReset();
     loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
-    loadCurationQueue.mockReset();
-    loadCurationQueue.mockResolvedValue({ queue: [], rejected: [] });
-    loadJobIngestions.mockReset();
-    loadJobIngestions.mockResolvedValue([]);
+    loadAdminDashboardSummary.mockReset();
+    loadAdminDashboardSummary.mockImplementation(async ({ isAdmin }) => ({
+      pendingCuration: 0,
+      approved: 0,
+      rejectedJobs: 0,
+      rejectedQueue: 0,
+      pendingJobs: 0,
+      ingestAttention: 0,
+    }));
     loadAdminJobs.mockReset();
     loadAdminJobs.mockResolvedValue([]);
     CurationQueueMock.mockClear();

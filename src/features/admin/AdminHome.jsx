@@ -1,10 +1,26 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
-import { loadCurationQueue } from "../curation/curation-api.js";
-import { loadJobIngestions } from "../ingest/ingest-api.js";
-import { loadAdminJobs } from "../../lib/admin-api.js";
-import { summarizeAdminDashboard } from "./admin-dashboard.js";
+import { loadAdminDashboardSummary } from "./admin-dashboard-api.js";
+import { ADMIN_DASHBOARD_SKELETON_METRICS, summarizeAdminDashboard } from "./admin-dashboard.js";
 import { canManageAdminJobs } from "./staff-access.js";
+
+function DashboardSkeleton({ isAdmin }) {
+  const items = useMemo(
+    () => (isAdmin ? ADMIN_DASHBOARD_SKELETON_METRICS : ADMIN_DASHBOARD_SKELETON_METRICS.slice(0, 1)),
+    [isAdmin],
+  );
+  return (
+    <dl className="admin-dashboard-stats" aria-busy="true" aria-label="Carregando indicadores do painel">
+      {items.map((item) => (
+        <div key={item.id} className="admin-dashboard-stat admin-dashboard-stat--skeleton">
+          <dt>{item.label}</dt>
+          <dd><span className="admin-dashboard-skeleton-value" aria-hidden="true" /></dd>
+        </div>
+      ))}
+      <p className="admin-dashboard-quiet" role="status">Carregando indicadores…</p>
+    </dl>
+  );
+}
 
 export function AdminHome() {
   const { profile } = useOutletContext();
@@ -19,19 +35,9 @@ export function AdminHome() {
     setError("");
     (async () => {
       try {
-        const queueData = await loadCurationQueue({ includeRejected: isAdmin });
-        const jobs = isAdmin ? await loadAdminJobs() : [];
-        const ingestions = isAdmin ? await loadJobIngestions() : [];
+        const counts = await loadAdminDashboardSummary({ isAdmin });
         if (cancelled) return;
-        setSummary(
-          summarizeAdminDashboard({
-            queue: queueData.queue ?? [],
-            rejected: queueData.rejected ?? [],
-            jobs,
-            ingestions,
-            isAdmin,
-          }),
-        );
+        setSummary(summarizeAdminDashboard({ isAdmin, ...counts }));
       } catch (err) {
         if (!cancelled) setError(err.message || "Não foi possível carregar o resumo do painel.");
       } finally {
@@ -52,12 +58,12 @@ export function AdminHome() {
           <p>Resumo operacional. Use a navegação superior para abrir curadoria, vagas ou ingestão.</p>
         </div>
       </div>
-      {loading ? <p role="status">Carregando indicadores…</p> : null}
       {error ? (
         <div className="form-alert" role="alert">
           {error}
         </div>
       ) : null}
+      {loading && !error ? <DashboardSkeleton isAdmin={isAdmin} /> : null}
       {!loading && !error ? (
         <>
           <dl className="admin-dashboard-stats">

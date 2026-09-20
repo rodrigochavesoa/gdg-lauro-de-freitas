@@ -194,6 +194,8 @@ html[data-theme="dark"] {
 .admin-dashboard-cta{display:flex;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-6)}
 .admin-dashboard-cta a.primary.small{padding:10px 18px;display:inline-flex;align-items:center;justify-content:center}
 .admin-dashboard-quiet{margin:0 0 var(--space-6);color:var(--color-text-muted);font-size:var(--font-size-body-2)}
+.admin-dashboard-stat--skeleton .admin-dashboard-skeleton-value{display:block;width:2.5rem;height:1.35rem;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--color-grey-100) 25%,var(--color-grey-50) 50%,var(--color-grey-100) 75%);background-size:200% 100%;animation:admin-dashboard-shimmer 1.2s ease-in-out infinite}
+@keyframes admin-dashboard-shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
 .admin-tabs,
 .admin-home-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6)}
 .admin-tabs a,

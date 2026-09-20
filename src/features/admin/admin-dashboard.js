@@ -6,8 +6,23 @@ export function ingestNeedsAttention(ingestion) {
   return attempt.outcome === "failed" || attempt.outcome === "expired";
 }
 
-export function summarizeAdminDashboard({ queue = [], rejected = [], jobs = [], ingestions = [], isAdmin }) {
-  const pendingCuration = queue.length;
+export const ADMIN_DASHBOARD_SKELETON_METRICS = [
+  { id: "pending-curation", label: "Aguardando revisão" },
+  { id: "approved", label: "Publicadas" },
+  { id: "rejected-jobs", label: "Rejeitadas" },
+  { id: "rejected-queue", label: "Na fila" },
+  { id: "ingest-attention", label: "Ingestões pendentes" },
+];
+
+export function summarizeAdminDashboard({
+  isAdmin,
+  pendingCuration = 0,
+  approved = 0,
+  rejectedJobs = 0,
+  rejectedQueue = 0,
+  pendingJobs = 0,
+  ingestAttention = 0,
+}) {
   const metrics = [
     {
       id: "pending-curation",
@@ -18,9 +33,6 @@ export function summarizeAdminDashboard({ queue = [], rejected = [], jobs = [], 
   ];
 
   if (isAdmin) {
-    const approved = jobs.filter((job) => job.status === "approved").length;
-    const rejectedJobs = jobs.filter((job) => job.status === "rejected").length;
-    const ingestAttention = ingestions.filter(ingestNeedsAttention).length;
     metrics.push(
       { id: "approved", label: "Publicadas", hint: "Vagas aprovadas e visíveis no catálogo público.", value: approved },
       {
@@ -33,7 +45,7 @@ export function summarizeAdminDashboard({ queue = [], rejected = [], jobs = [], 
         id: "rejected-queue",
         label: "Na fila",
         hint: "Rejeitadas ainda listadas na curadoria para reenvio ou revisão.",
-        value: rejected.length,
+        value: rejectedQueue,
       },
       {
         id: "ingest-attention",
@@ -52,14 +64,12 @@ export function summarizeAdminDashboard({ queue = [], rejected = [], jobs = [], 
     });
   }
   if (isAdmin) {
-    const ingestAttention = ingestions.filter(ingestNeedsAttention).length;
     if (ingestAttention > 0) {
       ctas.push({
         to: "/admin/ingestao",
         label: `Ver ingestões (${ingestAttention})`,
       });
     }
-    const pendingJobs = jobs.filter((job) => job.status === "pending").length;
     if (pendingJobs > 0 && pendingCuration === 0) {
       ctas.push({
         to: "/admin/vagas",
