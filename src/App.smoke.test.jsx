@@ -49,6 +49,22 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
   CurationQueue: () => <div data-testid="curation-queue" />,
 }));
 
+vi.mock("./features/auth/staff-mfa.js", async () => {
+  const actual = await vi.importActual("./features/auth/staff-mfa.js");
+  return {
+    ...actual,
+    isStaffMfaRequired: () => false,
+  };
+});
+
+vi.mock("./features/admin/admin-jobs-api.js", async () => {
+  const actual = await vi.importActual("./features/admin/admin-jobs-api.js");
+  return {
+    ...actual,
+    loadAdminJobPage: vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false })),
+  };
+});
+
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
 const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));

@@ -357,7 +357,7 @@ describe("Admin", () => {
       "href",
       "/admin/vagas/j2",
     );
-    expect(within(pendingSection).getByText("Pendente")).toHaveClass("featured");
+    expect(within(pendingSection).getByText("Pendente")).toHaveClass("admin-job-status");
     expect(within(pendingSection).queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument();
   });
 
@@ -391,7 +391,9 @@ describe("Admin", () => {
       "/admin/vagas/j1",
     );
     expect(screen.getByRole("heading", { name: "Vagas publicadas" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Publicadas" })).toHaveAttribute("aria-pressed", "true");
+    screen.getAllByRole("button", { name: "Publicadas" }).forEach((button) => {
+      expect(button).toHaveAttribute("aria-pressed", "true");
+    });
     expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "approved", page: 1 }));
     expect(document.querySelector("details")).toBeNull();
   });
@@ -445,7 +447,7 @@ describe("Admin", () => {
     );
     expect(await screen.findByText("Pessoa Dev rejeitada")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Vagas rejeitadas" })).toBeInTheDocument();
-    expect(screen.getByText("Rejeitada")).toHaveClass("featured");
+    expect(screen.getByText("Rejeitada")).toHaveClass("admin-job-status");
     expect(screen.queryByText(/R3-sem-discriminacao|Sem exigências discriminatórias/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Ainda sem parecer/)).not.toBeInTheDocument();
     expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "rejected" }));
@@ -543,6 +545,48 @@ describe("Admin", () => {
     await waitFor(() => {
       expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ query: "Nuvem", page: 1, status: "pending" }));
     });
+  });
+
+  it("abre o FilterSheet com status e ordenação e mantém o total visível", async () => {
+    loadAdminJobPage.mockResolvedValue({
+      items: [
+        {
+          id: "j1",
+          title: "Pessoa Dev lista",
+          status: "pending",
+          companies: { name: "Nuvem Lauro Demo" },
+        },
+      ],
+      total: 25,
+      page: 1,
+      pageSize: 24,
+      hasNext: true,
+    });
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas" },
+    );
+    expect(await screen.findByText("Mostrando 1 de 25 vagas")).toBeInTheDocument();
+    expect(screen.queryByText("Destaque")).not.toBeInTheDocument();
+    expect(document.querySelector(".admin-job-card")).toBeTruthy();
+    expect(document.querySelector("details")).toBeNull();
+    expect(screen.queryByText(/Ainda sem parecer/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+    const sheet = screen.getByRole("dialog", { name: "Filtros" });
+    expect(sheet).toHaveAttribute("aria-modal", "true");
+    expect(within(sheet).getByRole("button", { name: "Pendentes" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(sheet).getByRole("button", { name: "Mais recentes" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(within(sheet).getByRole("button", { name: "Publicadas" }));
+    await waitFor(() => {
+      expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "approved", page: 1 }));
+    });
+    fireEvent.click(within(sheet).getByRole("button", { name: "Mais antigas" }));
+    await waitFor(() => {
+      expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ sort: "oldest", page: 1 }));
+    });
+    expect(loadAdminJobs).not.toHaveBeenCalled();
   });
 
   it("anuncia falha de login com alerta, não com token de sucesso", async () => {

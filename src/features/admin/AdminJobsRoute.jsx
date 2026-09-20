@@ -1,21 +1,21 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Filter, Search } from "lucide-react";
+import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import {
   ADMIN_JOB_PAGE_SIZE,
   ADMIN_JOB_SORT_OLDEST,
   ADMIN_JOB_SORT_RECENT,
+  ADMIN_JOB_STATUS_FILTERS,
+  adminJobEmptyCopy,
+  adminJobListHeading,
   adminJobListSearchParams,
+  countAdminJobActiveFilters,
+  formatAdminJobTotalLabel,
   loadAdminJobPage,
   parseAdminJobListSearch,
 } from "./admin-jobs-api.js";
 import { adminJobStatusLabel } from "./job-form-state.js";
-
-const STATUS_FILTERS = [
-  { id: "pending", label: "Pendentes" },
-  { id: "approved", label: "Publicadas" },
-  { id: "rejected", label: "Rejeitadas" },
-];
 
 function mergeJobsById(current, incoming) {
   const seen = new Set(current.map((job) => String(job.id)));
@@ -23,29 +23,62 @@ function mergeJobsById(current, incoming) {
   return [...current, ...extra];
 }
 
-function listHeading(status) {
-  if (status === "approved") return "Vagas publicadas";
-  if (status === "rejected") return "Vagas rejeitadas";
-  return "Aguardando curadoria";
+function StatusFilterGroup({ status, onSelect }) {
+  return (
+    <div className="admin-jobs-status" role="group" aria-label="Status da vaga">
+      {ADMIN_JOB_STATUS_FILTERS.map((item) => (
+        <button
+          key={item.id}
+          type="button"
+          className="ghost small"
+          aria-pressed={status === item.id}
+          onClick={() => onSelect(item.id)}
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
-function emptyCopy(status) {
-  if (status === "approved") return "Nenhuma vaga publicada.";
-  if (status === "rejected") return "Nenhuma vaga rejeitada.";
-  return "Nenhuma vaga aguardando curadoria.";
+function SortFilterGroup({ sort, onSelect }) {
+  return (
+    <div className="admin-jobs-sort-options" role="group" aria-label="Ordenar vagas">
+      <button
+        type="button"
+        className="ghost small"
+        aria-pressed={sort === ADMIN_JOB_SORT_RECENT}
+        onClick={() => onSelect(ADMIN_JOB_SORT_RECENT)}
+      >
+        Mais recentes
+      </button>
+      <button
+        type="button"
+        className="ghost small"
+        aria-pressed={sort === ADMIN_JOB_SORT_OLDEST}
+        onClick={() => onSelect(ADMIN_JOB_SORT_OLDEST)}
+      >
+        Mais antigas
+      </button>
+    </div>
+  );
 }
 
 function JobListRow({ job }) {
   const label = adminJobStatusLabel(job.status);
+  const company = job.companies?.name;
   return (
-    <p>
-      <Link className="ghost admin-job-list-item" to={`/admin/vagas/${job.id}`}>
-        <span className="featured">{label}</span>
-        {job.featured ? <span className="featured">Destaque</span> : null}
-        <span className="admin-job-list-title">{job.title}</span>
-        {job.companies?.name ? <span className="admin-job-list-meta"> · {job.companies.name}</span> : null}
+    <article className="admin-job-card">
+      <Link className="admin-job-card__link" to={`/admin/vagas/${job.id}`}>
+        <div className="admin-job-card__body">
+          <h3 className="admin-job-list-title">{job.title}</h3>
+          {company ? <p className="admin-job-list-meta">{company}</p> : null}
+        </div>
+        <div className="admin-job-card__badges">
+          <span className="admin-job-status">{label}</span>
+        </div>
       </Link>
-    </p>
+    </article>
   );
 }
 
@@ -60,6 +93,8 @@ export function AdminJobsRoute() {
   const [error, setError] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const closeFilters = useCallback(() => setFilterOpen(false), []);
 
   useEffect(() => {
     setQueryInput((current) => (current === filters.query ? current : filters.query));
@@ -133,13 +168,29 @@ export function AdminJobsRoute() {
     setReloadToken((token) => token + 1);
   };
 
-  const heading = listHeading(filters.status);
-  const shownCount = total ?? items.length;
+  const resetSheetFilters = () => {
+    commitFilters({ status: "pending", sort: ADMIN_JOB_SORT_RECENT, page: 1 });
+  };
+
+  const heading = adminJobListHeading(filters.status);
+  const countLabel =
+    listStatus === "ready"
+      ? formatAdminJobTotalLabel(total, items.length)
+      : listStatus === "loading" && items.length === 0
+        ? "Carregando…"
+        : "\u00a0";
+  const activeFilterCount = countAdminJobActiveFilters(filters);
+  const sheetCount = total ?? items.length;
+  const busy = (listStatus === "loading" && items.length === 0) || loadingMore;
   const loadingAnnouncement =
-    listStatus === "loading" && items.length === 0 ? "Carregando vagas da área administrativa…" : "";
+    listStatus === "loading" && items.length === 0
+      ? "Carregando vagas da área administrativa…"
+      : loadingMore
+        ? "Carregando mais vagas…"
+        : "";
 
   return (
-    <>
+    <div className="admin-jobs-layout">
       <div className="admin-title">
         <div>
           <span className="eyebrow">Área administrativa</span>
@@ -148,8 +199,34 @@ export function AdminJobsRoute() {
         </div>
       </div>
 
-      <form className="admin-jobs-search" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
-        <Search size={18} aria-hidden="true" />
+      <FilterSheet
+        open={filterOpen}
+        onClose={closeFilters}
+        resultCount={sheetCount}
+        titleId="admin-jobs-filters-title"
+      >
+        <div className="filter-head">
+          <h2 id="admin-jobs-filters-title">
+            <Filter size={18} /> Filtros
+          </h2>
+          <button type="button" onClick={resetSheetFilters}>
+            Limpar
+          </button>
+        </div>
+        <div className="filters__body">
+          <div className="filter-group">
+            <h3>Status</h3>
+            <StatusFilterGroup status={filters.status} onSelect={(status) => commitFilters({ status, page: 1 })} />
+          </div>
+          <div className="filter-group">
+            <h3>Ordenar</h3>
+            <SortFilterGroup sort={filters.sort} onSelect={(sort) => commitFilters({ sort, page: 1 })} />
+          </div>
+        </div>
+      </FilterSheet>
+
+      <form className="searchbox admin-jobs-searchbox" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
+        <Search size={21} aria-hidden="true" />
         <input
           id="admin-jobs-query"
           name="q"
@@ -158,38 +235,10 @@ export function AdminJobsRoute() {
           placeholder="Título ou empresa"
           aria-label="Título ou empresa"
         />
-        <button className="primary small" type="submit">
+        <button className="primary" type="submit">
           Buscar
         </button>
       </form>
-
-      <div className="admin-jobs-toolbar-row">
-        <div className="admin-jobs-status" role="group" aria-label="Status da vaga">
-          {STATUS_FILTERS.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="ghost small"
-              aria-pressed={filters.status === item.id}
-              onClick={() => commitFilters({ status: item.id, page: 1 })}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <label className="admin-jobs-sort" htmlFor="admin-jobs-sort">
-          Ordenar
-          <select
-            id="admin-jobs-sort"
-            name="sort"
-            value={filters.sort}
-            onChange={(event) => commitFilters({ sort: event.target.value, page: 1 })}
-          >
-            <option value={ADMIN_JOB_SORT_RECENT}>Mais recentes</option>
-            <option value={ADMIN_JOB_SORT_OLDEST}>Mais antigas</option>
-          </select>
-        </label>
-      </div>
 
       {error ? (
         <div className="form-alert" role="alert">
@@ -200,14 +249,37 @@ export function AdminJobsRoute() {
         </div>
       ) : null}
 
-      <div className="form-section admin-job-list">
-        <div className="admin-jobs-toolbar-row">
-          <h2>{heading}</h2>
-          {shownCount != null && listStatus === "ready" ? (
+      <div className="admin-job-list" aria-busy={busy ? "true" : undefined}>
+        <div className="result-head admin-jobs-result-head">
+          <div>
+            <h2>{heading}</h2>
             <p className="admin-jobs-count" aria-live="polite">
-              {shownCount === 1 ? "1 vaga" : `${shownCount} vagas`}
+              {countLabel}
             </p>
-          ) : null}
+          </div>
+          <button
+            className="filter-mobile"
+            type="button"
+            aria-expanded={filterOpen}
+            onClick={() => setFilterOpen(true)}
+          >
+            <Filter size={16} /> Filtros {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
+          </button>
+        </div>
+        <div className="admin-jobs-toolbar-row admin-jobs-toolbar--desktop">
+          <StatusFilterGroup status={filters.status} onSelect={(status) => commitFilters({ status, page: 1 })} />
+          <label className="admin-jobs-sort" htmlFor="admin-jobs-sort">
+            Ordenar
+            <select
+              id="admin-jobs-sort"
+              name="sort"
+              value={filters.sort}
+              onChange={(event) => commitFilters({ sort: event.target.value, page: 1 })}
+            >
+              <option value={ADMIN_JOB_SORT_RECENT}>Mais recentes</option>
+              <option value={ADMIN_JOB_SORT_OLDEST}>Mais antigas</option>
+            </select>
+          </label>
         </div>
         {loadingAnnouncement ? (
           <p className="sr-only" role="status">
@@ -218,17 +290,15 @@ export function AdminJobsRoute() {
           ? [1, 2, 3, 4].map((slot) => (
               <div
                 key={slot}
-                className="admin-job-list-block job-card--skeleton job-card--skeleton-static admin-jobs-skeleton"
+                className="admin-job-card admin-jobs-skeleton job-card--skeleton job-card--skeleton-static"
                 aria-hidden="true"
               />
             ))
           : null}
         {items.map((job) => (
-          <div key={job.id} className="admin-job-list-block">
-            <JobListRow job={job} />
-          </div>
+          <JobListRow key={job.id} job={job} />
         ))}
-        {listStatus === "ready" && items.length === 0 && !error ? <p role="status">{emptyCopy(filters.status)}</p> : null}
+        {listStatus === "ready" && items.length === 0 && !error ? <p role="status">{adminJobEmptyCopy(filters.status)}</p> : null}
       </div>
 
       {hasNext && listStatus === "ready" ? (
@@ -241,6 +311,6 @@ export function AdminJobsRoute() {
       <p className="sr-only">
         Página {filters.page}, {ADMIN_JOB_PAGE_SIZE} por página. Status {filters.status}.
       </p>
-    </>
+    </div>
   );
 }

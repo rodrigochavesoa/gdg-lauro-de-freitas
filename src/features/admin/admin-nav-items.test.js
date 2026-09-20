@@ -25,6 +25,13 @@ describe("admin-nav-items", () => {
     expect(isAdminNavItemActive("/admin/vagas/nova", jobs)).toBe(false);
   });
 
+  it("Publicar ativa só em /admin/vagas/nova", () => {
+    const publish = ADMIN_NAV_ITEMS.find((i) => i.id === "publish");
+    expect(isAdminNavItemActive("/admin/vagas/nova", publish)).toBe(true);
+    expect(isAdminNavItemActive("/admin/vagas", publish)).toBe(false);
+    expect(isAdminNavItemActive("/admin/vagas/j1", publish)).toBe(false);
+  });
+
   it("Painel só na raiz /admin", () => {
     const panel = ADMIN_NAV_ITEMS.find((i) => i.id === "panel");
     expect(isAdminNavItemActive("/admin", panel)).toBe(true);

@@ -12,7 +12,11 @@ import {
   ADMIN_JOB_PAGE_SIZE,
   ADMIN_JOB_SORT_OLDEST,
   ADMIN_JOB_SORT_RECENT,
+  adminJobEmptyCopy,
+  adminJobListHeading,
   adminJobListSearchParams,
+  countAdminJobActiveFilters,
+  formatAdminJobTotalLabel,
   loadAdminJobPage,
   parseAdminJobListSearch,
 } from "./admin-jobs-api.js";
@@ -98,6 +102,21 @@ describe("adminJobListSearchParams", () => {
   });
 });
 
+describe("apresentação da lista administrativa", () => {
+  it("rotula heading, vazio e filtros ativos sem mudar a URL", () => {
+    expect(adminJobListHeading("approved")).toBe("Vagas publicadas");
+    expect(adminJobEmptyCopy("rejected")).toBe("Nenhuma vaga rejeitada.");
+    expect(countAdminJobActiveFilters({ status: "pending", sort: ADMIN_JOB_SORT_RECENT })).toBe(0);
+    expect(countAdminJobActiveFilters({ status: "approved", sort: ADMIN_JOB_SORT_OLDEST })).toBe(2);
+  });
+
+  it("mostra o total e a página carregada", () => {
+    expect(formatAdminJobTotalLabel(1, 1)).toBe("1 vaga");
+    expect(formatAdminJobTotalLabel(50, 24)).toBe("Mostrando 24 de 50 vagas");
+    expect(formatAdminJobTotalLabel(null)).toBe("");
+  });
+});
+
 describe("loadAdminJobPage", () => {
   beforeEach(() => {
     fromMock.mockReset();
@@ -128,7 +147,6 @@ describe("loadAdminJobPage", () => {
       created_at: "2026-09-18T12:00:00.000Z",
       level: "intern",
       work_model: "remote",
-      featured: false,
       companies: { name: "Nuvem Lauro Demo" },
     });
   });

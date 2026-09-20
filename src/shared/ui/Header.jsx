@@ -210,19 +210,22 @@ export function Header({
     showMobileAdminNav ? (
       <section className="mobile-nav__admin" aria-labelledby="mobile-nav-admin-heading">
         <p id="mobile-nav-admin-heading" className="mobile-nav__heading">Administração</p>
-        {adminNavItemsForRole(role).map((item) => (
-          <NavLink
-            key={item.id}
-            to={item.to}
-            end={item.end ?? false}
-            className={isAdminNavItemActive(pathname, item) ? "active" : undefined}
-            aria-disabled={needsOnboarding || undefined}
-            aria-current={isAdminNavItemActive(pathname, item) ? "page" : undefined}
-            onClick={(event) => onGatedClick(event, onNavigate)}
-          >
-            {item.label}
-          </NavLink>
-        ))}
+        {adminNavItemsForRole(role).map((item) => {
+          const active = isAdminNavItemActive(pathname, item);
+          return (
+            <NavLink
+              key={item.id}
+              to={item.to}
+              end={item.end ?? false}
+              className={() => (active ? "active" : "")}
+              aria-disabled={needsOnboarding || undefined}
+              aria-current={active ? "page" : undefined}
+              onClick={(event) => onGatedClick(event, onNavigate)}
+            >
+              {item.label}
+            </NavLink>
+          );
+        })}
       </section>
     ) : null
   );
