@@ -11,6 +11,8 @@ import {
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import {
   enrollStaffTotp,
+  formatStaffMfaUserMessage,
+  formatStaffPrivilegedApiError,
   getStaffMfaAssurance,
   isStaffMfaRequired,
   needsStaffMfaStep,
@@ -110,7 +112,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     } catch (err) {
       setCompanies([]);
       setJobs([]);
-      setError(err.message || "Não foi possível carregar as vagas da área administrativa.");
+      setError(formatStaffPrivilegedApiError(err.message) || "Não foi possível carregar as vagas da área administrativa.");
     }
   };
 
@@ -176,7 +178,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
         if (cancelled) return;
         setProfile(null);
         setMfaPending(null);
-        setError(err.message);
+        setError(formatStaffMfaUserMessage(err.message));
         setReady(true);
       }
     };
@@ -233,7 +235,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
         refreshAdmin().finally(() => setAdminDataLoading(false));
       }
     } catch (err) {
-      setError(err.message);
+      setError(formatStaffMfaUserMessage(err.message));
     } finally {
       setEmail("");
       setPassword("");
@@ -283,7 +285,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       const enrolled = await enrollStaffTotp();
       setMfaEnroll(enrolled);
     } catch (err) {
-      setError(err.message);
+      setError(formatStaffMfaUserMessage(err.message));
     } finally {
       setBusy(false);
     }
@@ -314,7 +316,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
         refreshAdmin().finally(() => setAdminDataLoading(false));
       }
     } catch (err) {
-      setError(err.message);
+      setError(formatStaffMfaUserMessage(err.message));
     } finally {
       setBusy(false);
     }
@@ -361,9 +363,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
             <section className="admin-content">
               <div className="admin-title">
                 <div>
-                  <span className="eyebrow">Área da comunidade</span>
+                  <span className="eyebrow">Área administrativa</span>
                   <h1>Confirmar segundo fator</h1>
-                  <p role="status">Confirme o segundo fator para acessar a área da equipe.</p>
+                  <p role="status">
+                    Você já entrou com e-mail e senha. Digite o código de 6 dígitos do autenticador para abrir curadoria, vagas e ingestão.
+                  </p>
                 </div>
               </div>
               <form className="admin-auth-form" onSubmit={onVerifyMfa}>
@@ -434,7 +438,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
           <section className="admin-content">
             <div className="admin-title">
               <div>
-                <span className="eyebrow">Área da comunidade</span>
+                <span className="eyebrow">Área administrativa</span>
                 <h1>Entrar para curadoria ou admin</h1>
                 <p>Use o e-mail e a senha da sua conta de equipe GDG Jobs. Candidatos: acesse pelo <Link to="/login">Login</Link>.</p>
               </div>

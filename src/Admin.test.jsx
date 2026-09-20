@@ -447,7 +447,7 @@ describe("Admin", () => {
       />,
     );
     expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Confirme o segundo fator para acessar a área da equipe.");
+    expect(screen.getByRole("status")).toHaveTextContent(/código de 6 dígitos do autenticador/);
     expect(screen.getByLabelText("Código do autenticador")).toBeInTheDocument();
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("id", "admin-totp");
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("name", "totp");
