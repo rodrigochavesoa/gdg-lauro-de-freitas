@@ -38,7 +38,7 @@
         "Veredito Plan": "—",
         "Prioridade": "P1"
       },
-      "description": "Descrição e aceite da task.",
+      "description": "Corpo markdown conforme docs-local.example/clickup/task-description-template.md (Problema, DoD, Entrega).",
       "comment": "Comentário inicial na task."
     }
   ]

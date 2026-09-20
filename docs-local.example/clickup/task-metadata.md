@@ -92,7 +92,13 @@ Mapeie entregas do squad **somente** em `docs-local/clickup/*.config.json`.
 
 ---
 
-## 4. Schema JSON (por task)
+## 4. Descrição da task (contrato fixo)
+
+Toda task de entrega usa o markdown de [`task-description-template.md`](task-description-template.md). **Problema**, **DoD/aceite** e, ao **Done**, **O que foi resolvido** / **O que foi alterado** ficam na descrição — não só em comentários. Custom fields espelham PR, datas e Veredito Plan.
+
+---
+
+## 5. Schema JSON (por task)
 
 ```json
 {
@@ -120,7 +126,7 @@ Env `CLICKUP_ASSIGNEE_*` completa o que faltar nos defaults.
 
 ---
 
-## 5. Idempotência (2ª execução esperada)
+## 6. Idempotência (2ª execução esperada)
 
 Exemplo saudável após handoff já aplicado:
 
@@ -135,7 +141,7 @@ Exemplo saudável após handoff já aplicado:
 
 ---
 
-## 6. Checklist do agente
+## 7. Checklist do agente
 
 - [ ] Nova task em `docs-local/clickup/` → `tags` + datas + assignee (via defaults).
 - [ ] `*.example.json` / fixtures só placeholders genéricos.
@@ -145,7 +151,7 @@ Exemplo saudável após handoff já aplicado:
 
 ---
 
-## 7. Inserção mid-sprint (trabalho não programado)
+## 8. Inserção mid-sprint (trabalho não programado)
 
 **Obrigatório** quando surgir tarefa fora do plano — ver também `CONTRIBUTING.md` § *Trabalho não programado*.
 
@@ -158,7 +164,8 @@ Exemplo saudável após handoff já aplicado:
 Checklist mínimo da task no JSON:
 
 - [ ] `História ID` único (ex.: `UX-MOBILE-OVERFLOW-01`, `GOV-PREVIEW-01`)
-- [ ] `description`: o quê, por quê, aceite, paths `docs-local/`
+- [ ] `description`: corpo completo [`task-description-template.md`](task-description-template.md) (Problema, DoD, Referências; Entrega ao Done)
+- [ ] `fields`: História ID, PR, Prioridade, Veredito Plan (e datas via `openedAt`/`closedAt`)
 - [ ] `tags` + `openedAt` (+ assignee via defaults)
 - [ ] Sync idempotente validado
 

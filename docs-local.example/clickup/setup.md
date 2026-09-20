@@ -116,6 +116,14 @@ Em **Space settings → Custom Fields**, crie:
 
 - [ ] Quatro campos (+ datas Aberta/Fechada) visíveis nas Lists de Sprints e Backlog
 
+### Contrato fixo (não alterar sem decisão Plan)
+
+1. **Custom fields** (tabela acima) são a fonte de verdade para **História ID**, **PR**, **Prioridade**, **Veredito Plan** e datas **Aberta em** / **Fechada em**.
+2. **Descrição** segue o modelo único em [`task-description-template.md`](task-description-template.md): Problema → Objetivo → Escopo → Fora → **DoD** → Dependências → Referências → **Entrega** (resolvido + alterado ao fechar).
+3. **Task ID** (`86a…` na URL) vai no PR (`ClickUp: …`), não substitui o campo **História ID**.
+
+Agentes: **não** criar tasks só com texto livre na descrição; usar sync + template. Ao concluir (**Done**), preencher campos **e** seção **Entrega** — não apagar o histórico de aceite.
+
 ---
 
 ## 3. Integração GitHub
@@ -133,12 +141,13 @@ Checklist:
 
 ### Identificação: ID ClickUp vs código de história
 
-**Resumo:** o **número/ID da task no ClickUp** (ex.: `86abcdefgh` na URL `https://app.clickup.com/t/86abcdefgh`) é o identificador **oficial na ferramenta** — API, sync, integração GitHub. Times maduros **também** usam um **código de história** (ex.: `SEC-EXAMPLE-01`) e a **sprint** na fala, ONE-LINER e documentação; amarram os dois na **descrição da task** e no **corpo do PR**.
+**Resumo:** o **código de história** vive no custom field **História ID** e no título; o **ID da URL** (`86abcdefgh`) amarra GitHub/API. Sprint e tags organizam o board; **problema, DoD e entrega** ficam na **descrição** (template fixo).
 
 | Camada | Exemplo | Uso |
 |---|---|---|
-| ID ClickUp | `86abcdefgh` | PR (`ClickUp:`), links, MCP/API, “qual task abrir” |
-| Código de história | `UX-EXAMPLE-01`, `MVP-013` | Título da task, ONE-LINER, commits/PR title, docs |
+| **História ID** (campo) | `SEC-EXAMPLE-01` | Filtros, board, conversa, ONE-LINER |
+| ID ClickUp | `86abcdefgh` | PR (`ClickUp:`), links, MCP/API |
+| Código no título | `SEC-EXAMPLE-01 — …` | Leitura rápida (espelha o campo) |
 | Sprint / list | Sprint NN | Agrupamento temporal; Sprint Note com fluxo numerado |
 | Tags | `frontend`, `security` | Tipo de trabalho (1–3 por task) — **não** substituem o ID |
 

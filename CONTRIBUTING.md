@@ -16,7 +16,7 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 
-**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md) (§ **Identificação: ID ClickUp vs código de história**); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). O **ID da task** na URL é o vínculo oficial no PR (`ClickUp: 86a…`); o **código de história** (`UX-*`, `SEC-*`, `MVP-*`) fica no título da task, ONE-LINER e contexto do PR. Configs em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Cada PR inclui o ID no corpo (template [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub **manual** (OAuth). Execução: ONE-LINER + Cursor + GitHub.
+**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **contrato fixo** de registro (custom fields + descrição com Problema, DoD, Entrega ao concluir) em [`docs-local.example/clickup/task-description-template.md`](docs-local.example/clickup/task-description-template.md) — **não alterar o formato** sem decisão Plan. Metadados (assignee, tags, datas, `fields.História ID`) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Campo **História ID** + título para o código (`SEC-*`, `UX-*`); **ID da URL** no PR (`ClickUp: 86a…`). Sync: `pnpm clickup:sync` · configs em `docs-local/clickup/`. Execução: ONE-LINER + Cursor + GitHub.
 
 ## Trabalho não programado (mid-sprint)
 
@@ -25,8 +25,8 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 | Passo | O que fazer |
 |---|---|
 | 1. Sprint | Colocar na **sprint atual** (default) ou na list mais adequada (ex.: bloqueio humano permanece em Sprint 10). |
-| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (task + metadados: assignee, 1–3 tags, `openedAt`) e rodar **`pnpm clickup:sync`**. |
-| 3. Documentação | Descrever **o que é** e **por que entrou**: corpo da task no JSON; se for decisão ou escopo não trivial, arquivo em **`docs-local/`** (ex.: `decision-*.md`, linha no backlog, nota na Sprint Note). Vale também para ajuste **só de documentação**. |
+| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (task + `fields` + `description` no **[template fixo](docs-local.example/clickup/task-description-template.md)**) e rodar **`pnpm clickup:sync`**. |
+| 3. Documentação | Problema/DoD na **descrição** da task; decisões grandes em **`docs-local/`** (ex.: `decision-*.md`). Ao **Done**, preencher custom fields **PR**, **Fechada em**, **Veredito Plan** e seção **Entrega** (resolvido + alterado). |
 | 4. Ordem | Se alterar a sequência da sprint, atualizar a **Sprint Note** (fluxo numerado) antes do Executor. |
 | 5. Execução | Só depois: ONE-LINER ao agente correto; PR com `ClickUp: CU-xxx`. |
 
