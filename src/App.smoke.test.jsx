@@ -45,6 +45,10 @@ vi.mock("./features/curation/curation-api.js", () => ({
   signInCuration: vi.fn(),
 }));
 
+vi.mock("./features/curation/CurationQueue.jsx", () => ({
+  CurationQueue: () => <div data-testid="curation-queue" />,
+}));
+
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
 const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));
@@ -547,7 +551,7 @@ describe("ARQ-01 — caracterização do shell", () => {
   });
 
   it("expõe skip link e landmark main nas rotas do MVP-019", async () => {
-    const routes = ["/", "/vagas", "/jobs/1", "/login", "/admin", "/perfil"];
+    const routes = ["/", "/vagas", "/jobs/1", "/login", "/admin", "/admin/curadoria", "/perfil"];
     for (const path of routes) {
       const { unmount } = render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
       expect(screen.getByRole("link", { name: "Ir para o conteúdo" })).toHaveAttribute("href", "#conteudo");
@@ -577,17 +581,36 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(document.querySelector(".cta")).toBeNull();
   });
 
-  it("staff em /admin vê a aba Ingestão e o catálogo público permanece só approved", async () => {
+  it("staff em /admin vê o painel, ingestão e o catálogo público permanece só approved", async () => {
     authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
     authState.profile = { full_name: "Ada Admin", role: "admin" };
     authState.needsOnboarding = false;
     await renderAt("/admin");
-    expect(await screen.findByRole("button", { name: "Ingestão" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Painel" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Gestão de vagas" })).toHaveAttribute("href", "/admin/vagas");
+    expect(screen.getByRole("button", { name: "Ingestão" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
     expect(await screen.findByRole("heading", { name: "Entrada manual / fixture" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ingerir fixture (pendente)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
+  });
+
+  it("staff abre /admin/curadoria por deep link e candidato permanece fora", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "Ada Admin", role: "admin" };
+    authState.needsOnboarding = false;
+    await renderAt("/admin/curadoria");
+    expect(await screen.findByTestId("curation-queue")).toBeInTheDocument();
+
+    cleanup();
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = { full_name: "Ana Demo", role: "candidate" };
+    authState.needsOnboarding = false;
+    await renderAt("/admin/vagas/nova");
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", async () => {

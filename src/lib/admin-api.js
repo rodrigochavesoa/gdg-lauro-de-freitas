@@ -115,17 +115,26 @@ export async function loadCompanies() {
   return data ?? [];
 }
 
+const ADMIN_JOB_SELECT =
+  "id,title,status,company_id,level,work_model,location,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
+
 export async function loadAdminJobs() {
   const client = clientOrThrow();
   const { data, error } = await client
     .from("jobs")
-    .select(
-      "id,title,status,company_id,level,work_model,location,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)",
-    )
+    .select(ADMIN_JOB_SELECT)
     .in("status", ["pending", "approved", "rejected"])
     .order("created_at", { ascending: false });
   throwIfError(error);
   return data ?? [];
+}
+
+export async function loadAdminJob(id) {
+  if (!id) return null;
+  const client = clientOrThrow();
+  const { data, error } = await client.from("jobs").select(ADMIN_JOB_SELECT).eq("id", id).maybeSingle();
+  throwIfError(error);
+  return data ?? null;
 }
 
 async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
