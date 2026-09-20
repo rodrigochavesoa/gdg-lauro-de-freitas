@@ -118,6 +118,7 @@ export async function loadCompanies() {
 const ADMIN_JOB_SELECT =
   "id,title,status,company_id,level,work_model,location,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
 
+/** Lista completa (description + reviews). Não usar em /admin/vagas — ver loadAdminJobPage. */
 export async function loadAdminJobs() {
   const client = clientOrThrow();
   const { data, error } = await client

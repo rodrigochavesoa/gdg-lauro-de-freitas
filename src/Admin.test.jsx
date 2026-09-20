@@ -16,6 +16,9 @@ const loadAdminDashboardSummary = vi.hoisted(() =>
   })),
 );
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
+const loadAdminJobPage = vi.hoisted(() =>
+  vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false })),
+);
 const loadAdminJob = vi.hoisted(() => vi.fn(async () => null));
 const signInCuration = vi.hoisted(() => vi.fn());
 const CurationQueueMock = vi.hoisted(() => vi.fn());
@@ -44,6 +47,14 @@ vi.mock("./lib/admin-api.js", async () => {
     loadAdminJob: (...args) => loadAdminJob(...args),
     loadCompanies: vi.fn(async () => []),
     updatePendingJob: vi.fn(),
+  };
+});
+
+vi.mock("./features/admin/admin-jobs-api.js", async () => {
+  const actual = await vi.importActual("./features/admin/admin-jobs-api.js");
+  return {
+    ...actual,
+    loadAdminJobPage: (...args) => loadAdminJobPage(...args),
   };
 });
 
@@ -93,6 +104,8 @@ describe("Admin", () => {
     loadCurationProfile.mockResolvedValue(null);
     loadAdminJobs.mockReset();
     loadAdminJobs.mockResolvedValue([]);
+    loadAdminJobPage.mockReset();
+    loadAdminJobPage.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false });
     loadAdminJob.mockReset();
     loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
@@ -105,8 +118,6 @@ describe("Admin", () => {
       pendingJobs: 0,
       ingestAttention: 0,
     }));
-    loadAdminJobs.mockReset();
-    loadAdminJobs.mockResolvedValue([]);
     CurationQueueMock.mockClear();
     staffMfa.required = false;
     staffMfa.getStaffMfaAssurance.mockReset();
@@ -218,6 +229,7 @@ describe("Admin", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(/restrita ao papel admin/i);
     expect(screen.queryByRole("heading", { name: "Aguardando curadoria" })).not.toBeInTheDocument();
     expect(loadAdminJobs).not.toHaveBeenCalled();
+    expect(loadAdminJobPage).not.toHaveBeenCalled();
   });
 
   it("moderator não amplia acesso em /admin/vagas/nova", async () => {
@@ -235,7 +247,7 @@ describe("Admin", () => {
 
   it("mostra o painel do admin sem esperar o CRUD de vagas", async () => {
     let resolveJobs;
-    loadAdminJobs.mockImplementation(
+    loadAdminJobPage.mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveJobs = resolve;
@@ -256,14 +268,21 @@ describe("Admin", () => {
     fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
     expect(screen.getByText("Carregando vagas da área administrativa…")).toBeInTheDocument();
-    resolveJobs([
-      {
-        id: "j2",
-        title: "Pessoa Estagiária (rascunho)",
-        status: "pending",
-        companies: { name: "Nuvem Lauro Demo" },
-      },
-    ]);
+    resolveJobs({
+      items: [
+        {
+          id: "j2",
+          title: "Pessoa Estagiária (rascunho)",
+          status: "pending",
+          companies: { name: "Nuvem Lauro Demo" },
+          featured: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 24,
+      hasNext: false,
+    });
     expect(await screen.findByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
       "href",
       "/admin/vagas/j2",
@@ -296,36 +315,42 @@ describe("Admin", () => {
     expect(document.querySelector(".job-form .form-actions")).toBeTruthy();
   });
 
-  it("lista pendentes e publicadas em seções separadas na rota de vagas", async () => {
+  it("lista pendentes na rota de vagas sem accordion nem timeline", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
       full_name: "Ada Admin",
       email: "ada@example.invalid",
     });
-    loadAdminJobs.mockResolvedValue([
-      {
-        id: "j1",
-        title: "Pessoa Desenvolvedora Front-end",
-        status: "approved",
-        companies: { name: "Nuvem Lauro Demo" },
-      },
-      {
-        id: "j2",
-        title: "Pessoa Estagiária (rascunho)",
-        status: "pending",
-        companies: { name: "Nuvem Lauro Demo" },
-      },
-    ]);
+    loadAdminJobPage.mockResolvedValue({
+      items: [
+        {
+          id: "j2",
+          title: "Pessoa Estagiária (rascunho)",
+          status: "pending",
+          companies: { name: "Nuvem Lauro Demo" },
+          featured: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 24,
+      hasNext: false,
+    });
     renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas" });
     expect(await screen.findByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
       "href",
       "/admin/vagas/j2",
     );
+    expect(loadAdminJobs).not.toHaveBeenCalled();
+    expect(loadAdminJobPage).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "pending", query: "", sort: "recent", page: 1, pageSize: 24 }),
+    );
     expect(screen.queryByRole("heading", { name: "Vagas pending e approved" })).not.toBeInTheDocument();
     expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^approved$/i)).not.toBeInTheDocument();
     expect(document.querySelector("form.job-form")).toBeNull();
+    expect(document.querySelector("details.admin-job-list")).toBeNull();
+    expect(screen.queryByText(/Ainda sem parecer/)).not.toBeInTheDocument();
 
     const pendingSection = screen.getByRole("heading", { name: "Aguardando curadoria" }).closest(".admin-job-list");
     expect(within(pendingSection).getByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
@@ -334,18 +359,41 @@ describe("Admin", () => {
     );
     expect(within(pendingSection).getByText("Pendente")).toHaveClass("featured");
     expect(within(pendingSection).queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument();
+  });
 
-    const publishedSection = document.querySelector("details.admin-job-list");
-    expect(publishedSection).toBeTruthy();
-    expect(publishedSection.open).toBe(false);
-    expect(within(publishedSection).getByText("Vagas publicadas")).toBeInTheDocument();
-    expect(within(publishedSection).getByText("Publicada")).toHaveClass("featured");
-    expect(within(publishedSection).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
-    expect(within(publishedSection).getByRole("link", { name: /Pessoa Desenvolvedora Front-end/ })).toHaveAttribute(
+  it("reproduz status da URL e troca o filtro sem carregar a lista completa", async () => {
+    loadAdminJobPage.mockImplementation(async (options = {}) => {
+      if (options.status === "approved") {
+        return {
+          items: [
+            {
+              id: "j1",
+              title: "Pessoa Desenvolvedora Front-end",
+              status: "approved",
+              companies: { name: "Nuvem Lauro Demo" },
+              featured: false,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 24,
+          hasNext: false,
+        };
+      }
+      return { items: [], total: 0, page: 1, pageSize: 24, hasNext: false };
+    });
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas?status=approved" },
+    );
+    expect(await screen.findByRole("link", { name: /Pessoa Desenvolvedora Front-end/ })).toHaveAttribute(
       "href",
       "/admin/vagas/j1",
     );
-    expect(within(publishedSection).getByText("Edite via nova rodada na Curadoria.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vagas publicadas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publicadas" })).toHaveAttribute("aria-pressed", "true");
+    expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "approved", page: 1 }));
+    expect(document.querySelector("details")).toBeNull();
   });
 
   it("abre o detalhe de uma vaga por deep link", async () => {
@@ -369,37 +417,38 @@ describe("Admin", () => {
     );
   });
 
-  it("lista vagas rejeitadas com histórico de parecer", async () => {
+  it("lista vagas rejeitadas sem montar timeline na gestão", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
       full_name: "Ada Admin",
       email: "ada@example.invalid",
     });
-    loadAdminJobs.mockResolvedValue([
-      {
-        id: "j3",
-        title: "Pessoa Dev rejeitada",
-        status: "rejected",
-        companies: { name: "Nuvem Lauro Demo" },
-        job_curation_reviews: [
-          {
-            decision: "reject",
-            rubric_code: "R3-sem-discriminacao",
-            internal_comment: "Texto discriminatório no anúncio fictício.",
-            curation_round: 1,
-            created_at: "2026-09-15T12:00:00Z",
-          },
-        ],
-      },
-    ]);
-    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas" });
+    loadAdminJobPage.mockResolvedValue({
+      items: [
+        {
+          id: "j3",
+          title: "Pessoa Dev rejeitada",
+          status: "rejected",
+          companies: { name: "Nuvem Lauro Demo" },
+          featured: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 24,
+      hasNext: false,
+    });
+    renderAdmin(
+      <Admin session={{ user: { id: "a1" } }} authReady />,
+      { path: "/admin/vagas?status=rejected" },
+    );
     expect(await screen.findByText("Pessoa Dev rejeitada")).toBeInTheDocument();
-    expect(screen.getByText("Vagas rejeitadas")).toBeInTheDocument();
-    const rejectedSection = screen.getByText("Vagas rejeitadas").closest("details");
-    expect(within(rejectedSection).getByText("Rejeitada")).toHaveClass("featured");
-    expect(within(rejectedSection).getByText("Pessoa Dev rejeitada")).toBeInTheDocument();
-    expect(within(rejectedSection).getByText(/R3-sem-discriminacao|Sem exigências discriminatórias/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vagas rejeitadas" })).toBeInTheDocument();
+    expect(screen.getByText("Rejeitada")).toHaveClass("featured");
+    expect(screen.queryByText(/R3-sem-discriminacao|Sem exigências discriminatórias/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ainda sem parecer/)).not.toBeInTheDocument();
+    expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "rejected" }));
   });
 
   it("mostra erros de validação visíveis ao cadastrar sem campos obrigatórios", async () => {
@@ -422,7 +471,7 @@ describe("Admin", () => {
   });
 
   it("anuncia erro acessível quando o carregamento das vagas falha", async () => {
-    loadAdminJobs.mockRejectedValue(new Error("Falha ao listar vagas"));
+    loadAdminJobPage.mockRejectedValue(new Error("Falha ao listar vagas"));
     renderAdmin(
       <Admin authReady session={adminSession} authProfile={adminProfile} />,
       { path: "/admin/vagas" },
@@ -431,8 +480,68 @@ describe("Admin", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveClass("form-alert");
     expect(alert).toHaveTextContent("Falha ao listar vagas");
+    expect(screen.getByRole("button", { name: "Tentar novamente" })).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.queryByText("Nenhuma vaga aguardando curadoria.")).not.toBeInTheDocument();
+    });
+  });
+
+  it("acumula a página seguinte com Carregar mais e persiste page na URL", async () => {
+    loadAdminJobPage.mockImplementation(async (options = {}) => {
+      if (options.page === 2) {
+        return {
+          items: [
+            {
+              id: "j2",
+              title: "Pessoa Dev página 2",
+              status: "pending",
+              companies: { name: "Nuvem Lauro Demo" },
+              featured: false,
+            },
+          ],
+          total: 25,
+          page: 2,
+          pageSize: 24,
+          hasNext: false,
+        };
+      }
+      return {
+        items: [
+          {
+            id: "j1",
+            title: "Pessoa Dev página 1",
+            status: "pending",
+            companies: { name: "Nuvem Lauro Demo" },
+            featured: false,
+          },
+        ],
+        total: 25,
+        page: 1,
+        pageSize: 24,
+        hasNext: true,
+      };
+    });
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas" },
+    );
+    expect(await screen.findByRole("link", { name: /Pessoa Dev página 1/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("link", { name: /Pessoa Dev página 2/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Pessoa Dev página 1/ })).toBeInTheDocument();
+    expect(loadAdminJobPage).toHaveBeenLastCalledWith(expect.objectContaining({ page: 2, status: "pending" }));
+  });
+
+  it("grava busca na URL e pede query no adapter", async () => {
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas" },
+    );
+    expect(await screen.findByRole("heading", { name: "Aguardando curadoria" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Título ou empresa"), { target: { value: "Nuvem" } });
+    fireEvent.submit(screen.getByRole("search"));
+    await waitFor(() => {
+      expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ query: "Nuvem", page: 1, status: "pending" }));
     });
   });
 
