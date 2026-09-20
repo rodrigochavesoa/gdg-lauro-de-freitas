@@ -19,6 +19,7 @@ import {
 } from "./features/auth/staff-mfa.js";
 import { CurationQueue } from "./features/curation/CurationQueue.jsx";
 import { CurationTimeline } from "./features/curation/CurationTimeline.jsx";
+import { IngestPanel } from "./features/ingest/IngestPanel.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "./shared/ui/AutoResizeTextarea.jsx";
 
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
@@ -483,6 +484,11 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
                 Publicar vaga
               </button>
             )}
+            {isAdmin && (
+              <button type="button" className={section === "ingest" ? "primary small" : "ghost"} onClick={() => setSection("ingest")}>
+                Ingestão
+              </button>
+            )}
           </div>
           {curationMounted ? (
             <div hidden={section !== "curation"}>
@@ -660,6 +666,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
               </details>
             </div>
           )}
+          {isAdmin && section === "ingest" ? <IngestPanel /> : null}
         </section>
       </div>
       <AdminSurfaceCurve />

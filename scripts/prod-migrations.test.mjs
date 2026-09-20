@@ -35,6 +35,7 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260920010148_job_ingestions_source_contract_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920020100_job_ingestions_register_rpc_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920030000_staff_cannot_apply_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260920040000_job_ingestions_process_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20261001000000_job_ingestions_source_contract_prod.sql")).toBe(false);
     expect(isHomologOnlyMigration("20261001000001_job_ingestions_phase_b.sql")).toBe(false);
     expect(isHomologOnlyMigration("202608150001_ai_matching.sql")).toBe(false);
@@ -51,6 +52,7 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260920010148_job_ingestions_source_contract_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260920020100_job_ingestions_register_rpc_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260920030000_staff_cannot_apply_homolog.sql")).toBe(false);
+    expect(isProdSafeMigration("20260920040000_job_ingestions_process_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);
@@ -62,6 +64,7 @@ describe("prod migrations", () => {
     expect(camadaB.some((name) => name.includes("staff_rls_aal2"))).toBe(true);
     expect(homologOnly.some((name) => name.includes("seed_fictitious"))).toBe(true);
     expect(homologOnly.some((name) => name.includes("job_ingestions_source_contract_homolog"))).toBe(true);
+    expect(homologOnly.some((name) => name.includes("job_ingestions_process_homolog"))).toBe(true);
     expect(prod.some((name) => name.includes("data_api_select_grants"))).toBe(true);
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);

@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 e SEC-STAFF-APPLY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B) e SEC-STAFF-APPLY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -13,6 +13,7 @@ import {
   buildIngestionFingerprint,
   registerJobIngestion,
 } from "../src/features/ingest/source-contract.js";
+import { processJobIngestion } from "../src/features/ingest/ingest-api.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -2085,6 +2086,152 @@ async function scenario21_jobIngestions() {
   }
 }
 
+/** Cenário 22 — MVP-013 Fase B: processa fixture, retry idempotente, expiração fora do catálogo, falha redigida. */
+async function scenario22_processJobIngestion() {
+  if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
+    skipRequired(22, "falta admin AAL2 em docs-local");
+    return;
+  }
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(22, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
+    return;
+  }
+  if (!hasCreds(testUsers.curator) || !totpSecrets.curator) {
+    skipRequired(22, "falta curator AAL2 em docs-local");
+    return;
+  }
+
+  const { client: admin, error: adminErr } = await signInStaff("admin");
+  assert(!adminErr, `admin AAL2 autentica para processar ingestão (${adminErr?.message ?? "ok"})`);
+  if (adminErr || !admin) return;
+
+  const probe = await queryWithRetry(() => admin.from("job_ingestion_attempts").select("id").limit(1));
+  if (isRelationMissing(probe.error)) {
+    skipRequired(22, "migration job_ingestion_attempts não aplicada no ambiente");
+    await admin.auth.signOut();
+    return;
+  }
+
+  const stamp = Date.now();
+  const locator = `fixture:rls-s22-${stamp}`;
+  const payload = ingestionFixturePayload(`RLS 013 process ${stamp}`);
+  const createdIds = [];
+  const createdJobIds = [];
+  const svc = createServiceClient();
+
+  try {
+    const first = await processJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator,
+      payload,
+    });
+    assert(first.outcome === "materialized", `processa fixture (${first.outcome})`);
+    assert(first.job?.status === "pending", "materializa só pending");
+    assert(first.job?.id, "devolve job_id pending");
+    if (first.ingestion?.id) createdIds.push(first.ingestion.id);
+    if (first.job?.id) createdJobIds.push(first.job.id);
+
+    const publicJob = await anon.from("jobs").select("id,status").eq("id", first.job.id);
+    assert((publicJob.data ?? []).length === 0, "pending da ingestão não entra no catálogo público");
+
+    const repeat = await processJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator,
+      payload,
+    });
+    assert(repeat.outcome === "idempotent", "reprocessamento idempotente");
+    assert(repeat.job?.id === first.job.id, "retry não duplica a vaga");
+
+    const failed = await processJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator: `${locator}-fail`,
+      payload: { title: `RLS 013 fail ${stamp}`, company_name: "Empresa Fictícia Lab" },
+    });
+    assert(failed.outcome === "failed", "falha parcial fica registrada");
+    assert(failed.failure_code === "payload_invalid", "código estável de payload");
+    assert(!/@|token|secret/i.test(failed.failure_detail ?? ""), "falha redigida sem PII");
+    assert(failed.job == null, "falha não publica vaga");
+    if (failed.ingestion?.id) createdIds.push(failed.ingestion.id);
+
+    const attempts = await admin
+      .from("job_ingestion_attempts")
+      .select("id,outcome,failure_detail")
+      .eq("ingestion_id", failed.ingestion.id);
+    assert((attempts.data ?? []).some((row) => row.outcome === "failed"), "admin lê tentativa falha");
+
+    const { client: curator } = await signInStaff("curator");
+    try {
+      const curatorRead = await curator
+        .from("job_ingestion_attempts")
+        .select("id")
+        .eq("ingestion_id", failed.ingestion.id);
+      assert((curatorRead.data ?? []).length > 0, "curator AAL2 lê tentativas");
+      const curatorProcess = await curator.rpc("process_job_ingestion", {
+        p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+        p_locator: `${locator}-curator`,
+        p_payload: payload,
+      });
+      assert(Boolean(curatorProcess.error), "curator não processa ingestão");
+    } finally {
+      await curator.auth.signOut();
+    }
+
+    const { client: candidate } = await signInWithRetry(testUsers.candidate, { label: "candidato (process)" });
+    try {
+      const candidateAttempts = await candidate.from("job_ingestion_attempts").select("id").eq("ingestion_id", failed.ingestion.id);
+      assert(
+        Boolean(candidateAttempts.error) || (candidateAttempts.data ?? []).length === 0,
+        "candidato não lê tentativas",
+      );
+    } finally {
+      await candidate?.auth.signOut();
+    }
+
+    if (svc) {
+      const expiredInsert = await svc.from("job_ingestions").insert({
+        source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+        normalized_locator: `fixture:rls-s22-expired-${stamp}`,
+        payload_hash: "c".repeat(64),
+        expires_at: "2020-01-01T00:00:00.000Z",
+        job_id: SEED_APPROVED_A,
+      }).select("id").single();
+      if (expiredInsert.data?.id) createdIds.push(expiredInsert.data.id);
+      assert(!expiredInsert.error, `service insere ingestão expirada de prova (${expiredInsert.error?.message ?? "ok"})`);
+      const hidden = await anon.from("jobs").select("id").eq("id", SEED_APPROVED_A);
+      assert((hidden.data ?? []).length === 0, "vaga com ingestão expirada some do catálogo público");
+      if (expiredInsert.data?.id) {
+        await deleteIngestions([expiredInsert.data.id]);
+        const idx = createdIds.indexOf(expiredInsert.data.id);
+        if (idx >= 0) createdIds.splice(idx, 1);
+      }
+      const restored = await anon.from("jobs").select("id").eq("id", SEED_APPROVED_A);
+      assert((restored.data ?? []).length === 1, "remover ingestão expirada devolve a vaga ao catálogo");
+    }
+
+    const expiredProcess = await processJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator: `${locator}-expired`,
+      payload,
+      expiresAt: "2020-01-01T00:00:00.000Z",
+    });
+    assert(expiredProcess.outcome === "expired", "processo expirado não materializa");
+    assert(expiredProcess.job == null, "expirado não cria vaga");
+    if (expiredProcess.ingestion?.id) createdIds.push(expiredProcess.ingestion.id);
+  } catch (error) {
+    if (/could not find the function|PGRST202/i.test(error.message || "")) {
+      skipRequired(22, "RPC process_job_ingestion não aplicada no ambiente");
+    } else {
+      assert(false, `fluxo 013 Fase B: ${error.message || error}`);
+    }
+  } finally {
+    await deleteIngestions(createdIds);
+    for (const jobId of createdJobIds) {
+      await deleteJob(admin, jobId);
+    }
+    await admin.auth.signOut();
+  }
+}
+
 console.log("=== Cenário 1: anon ===");
 await scenario1_anon();
 
@@ -2151,6 +2298,9 @@ await scenario20_staffAal1Blocked();
 console.log("\n=== Cenário 21: MVP-013 contrato de origem e fingerprint ===");
 await scenario21_jobIngestions();
 
+console.log("\n=== Cenário 22: MVP-013 Fase B processar ingestão ===");
+await scenario22_processJobIngestion();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -2164,6 +2314,7 @@ if (skippedRequired.size > 0) {
     if (n === 19) band = "PERF-AVATAR-02 exige execução real do cenário 19";
     if (n === 20) band = "SEC-STAFF-MFA-02 exige execução real do cenário 20";
     if (n === 21) band = "MVP-013 exige execução real do cenário 21";
+    if (n === 22) band = "MVP-013 Fase B exige execução real do cenário 22";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -2174,5 +2325,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–21 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–22 executados).`,
 );

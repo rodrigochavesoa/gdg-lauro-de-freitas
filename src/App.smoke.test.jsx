@@ -68,6 +68,15 @@ vi.mock("./features/privacy/privacy-api.js", async () => {
   };
 });
 
+vi.mock("./features/ingest/ingest-api.js", async () => {
+  const actual = await vi.importActual("./features/ingest/ingest-api.js");
+  return {
+    ...actual,
+    loadJobIngestions: vi.fn(async () => []),
+    processJobIngestion: vi.fn(),
+  };
+});
+
 vi.mock("./features/catalog/jobs-api.js", () => {
   const catalogJobs = [
     {
@@ -566,6 +575,19 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
     expect(document.querySelector(".cta")).toBeNull();
+  });
+
+  it("staff em /admin vê a aba Ingestão e o catálogo público permanece só approved", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "Ada Admin", role: "admin" };
+    authState.needsOnboarding = false;
+    await renderAt("/admin");
+    expect(await screen.findByRole("button", { name: "Ingestão" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
+    expect(await screen.findByRole("heading", { name: "Entrada manual / fixture" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ingerir fixture (pendente)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
+    expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
   });
 
   it("staff logado vê Área admin e não vê Minhas candidaturas", async () => {
