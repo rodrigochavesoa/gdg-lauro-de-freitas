@@ -16,7 +16,7 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 
-**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Scripts ClickUp em `scripts/` são ferramentas genéricas versionadas (sem dados do squad). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
+**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **contrato fixo** de registro (custom fields + descrição com Problema, DoD, Entrega ao concluir) em [`docs-local.example/clickup/task-description-template.md`](docs-local.example/clickup/task-description-template.md) — **não alterar o formato** sem decisão Plan. Metadados (assignee, tags, datas, `fields.História ID`) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Campo **História ID** + título para o código (`SEC-*`, `UX-*`); **ID da URL** no PR (`ClickUp: 86a…`). Sync: `pnpm clickup:sync` · configs em `docs-local/clickup/`. Execução: ONE-LINER + Cursor + GitHub.
 
 ## Trabalho não programado (mid-sprint)
 
@@ -25,8 +25,8 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 | Passo | O que fazer |
 |---|---|
 | 1. Sprint | Colocar na **sprint atual** (default) ou na list mais adequada (ex.: bloqueio humano permanece em Sprint 10). |
-| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (task + metadados: assignee, 1–3 tags, `openedAt`) e rodar **`pnpm clickup:sync`**. |
-| 3. Documentação | Descrever **o que é** e **por que entrou**: corpo da task no JSON; se for decisão ou escopo não trivial, arquivo em **`docs-local/`** (ex.: `decision-*.md`, linha no backlog, nota na Sprint Note). Vale também para ajuste **só de documentação**. |
+| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (`fields`, `sections`, `clickupId` se já existir) e rodar **`pnpm clickup:sync`** — campos e descrição **automáticos** ([template](docs-local.example/clickup/task-description-template.md)). |
+| 3. Documentação | Problema/DoD em `sections` no JSON; decisões grandes em **`docs-local/`**. Ao **Done**, atualizar JSON (`fields.PR`, `delivery`, `closedAt`) e **sync** — não preencher ClickUp na mão. |
 | 4. Ordem | Se alterar a sequência da sprint, atualizar a **Sprint Note** (fluxo numerado) antes do Executor. |
 | 5. Execução | Só depois: ONE-LINER ao agente correto; PR com `ClickUp: CU-xxx`. |
 
@@ -292,6 +292,8 @@ git push origin --delete nome-da-branch
 ## Proteção de `main` (GitHub) — habilitada em 2026-08-16; required checks atualizados em 2026-09-16 (SEC-CI-SECRETS-01)
 
 Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. O job **RLS homolog** (`pnpm test:rls`) corre só após o merge (`push` ou `workflow_dispatch` em `main`), com secrets no GitHub Environment `homolog-rls` — **não** é required check da PR e **não** injeta `service_role` nem senhas staff no checkout de PR. Falha de `RLS homolog` em `main` **não** bloqueia o deploy automático da Vercel neste recorte; torna o release **não confiável** e exige rollback (`docs-local/sec-ci-secrets-01-rollback.md`). Squash merge é o único método permitido no repositório. Zero aprovações humanas obrigatórias (único mantenedor).
+
+**RLS homolog — atenção operacional:** falhas com `Request rate limit reached` no Auth de homolog **não** são, por si só, TOTP errado; evite `test:rls` local e re-runs de CI em rajada. Secrets TOTP: `.env.local` / `homolog-rls` (CI não lê `staff-mfa-totp-secrets.md`). Ver `SETUP.md` (§ rate limit vs TOTP), `pnpm verify:staff-mfa` e runbook local `docs-local/rls-homolog-auth-troubleshooting.md` (modelo em `docs-local.example/`).
 
 Evidência (mantenedor): [`docs-local/s1-04-branch-protection.md`](docs-local/s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
 

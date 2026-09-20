@@ -25,7 +25,7 @@
     { "name": "Product Backlog", "lists": [] },
     {
       "name": "Sprints",
-      "lists": [{ "name": "Sprint 01" }]
+      "lists": [{ "name": "Sprint 01" }, { "name": "Sprint 02" }]
     },
     { "name": "Ops / Bloqueios", "lists": [] }
   ],

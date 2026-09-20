@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createClickUpClient,
+  ensureCustomFieldsOnList,
   findByName,
   hasCredentials,
   loadClickUpEnvFromFiles,
@@ -20,6 +21,8 @@ import {
   pickClickUpEnv,
   resolveDropdownValue,
   resolveTaskStatus,
+  SPRINTS_FOLDER_NAME,
+  tryReadBootstrapConfig,
 } from "./bootstrap-clickup.mjs";
 import {
   applyTaskMetadata,
@@ -30,6 +33,7 @@ import {
   parseTaskMetadata,
   tallyMetadata,
 } from "./clickup-task-metadata.mjs";
+import { enrichHandoffTask } from "./clickup-task-description.mjs";
 
 export const DEFAULT_HANDOFF_CONFIG_PATH = "docs-local/clickup/sprint-handoff.config.json";
 export const DEFAULT_HANDOFF_CONFIG_EXAMPLE_PATH =
@@ -54,16 +58,25 @@ export function parseHandoffConfig(raw) {
     if (label !== "sprintNotes" && !list) {
       throw new Error(`sprint-handoff.config.json inválido: ${label}[${index}].list é obrigatório.`);
     }
-    return {
+    const base = {
       name,
       list: list ?? "",
       taskName: task?.taskName?.trim() || name,
       status: task.status ? String(task.status).trim() : "Backlog",
+      clickupId: task.clickupId ? String(task.clickupId).trim() : null,
+      storyId: task.storyId ? String(task.storyId).trim() : null,
+      priority: task.priority ? String(task.priority).trim() : null,
+      pr: task.pr != null ? String(task.pr) : undefined,
+      vereditoPlan: task.vereditoPlan != null ? String(task.vereditoPlan) : undefined,
+      deliveryStatus: task.deliveryStatus ? String(task.deliveryStatus) : undefined,
+      sections: task.sections && typeof task.sections === "object" ? task.sections : null,
+      delivery: task.delivery && typeof task.delivery === "object" ? task.delivery : null,
       fields: task.fields && typeof task.fields === "object" ? { ...task.fields } : {},
       description: task.description ? String(task.description) : "",
       comment: task.comment ? String(task.comment) : "",
       ...parseTaskMetadata(task),
     };
+    return enrichHandoffTask(base);
   };
 
   const sprintNotes = Array.isArray(raw.sprintNotes)
@@ -121,6 +134,7 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   }
 
   const listIds = {};
+  const folderByList = {};
   const statusesByList = {};
   const tasksByList = {};
   const fieldByList = {};
@@ -129,10 +143,12 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   const folders = foldersPayload?.folders ?? [];
 
   for (const folder of folders) {
+    const folderName = String(folder.name ?? "").trim();
     const listsPayload = await client.get(`/folder/${folder.id}/list?archived=false`);
     for (const list of listsPayload?.lists ?? []) {
       const listName = String(list.name ?? "").trim();
       listIds[listName] = String(list.id);
+      folderByList[listName] = folderName;
       const detail = await client.get(`/list/${list.id}`);
       statusesByList[listName] = Array.isArray(detail?.statuses) ? detail.statuses : [];
       tasksByList[listName] = await getAllTasks(client, list.id);
@@ -145,6 +161,7 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   return {
     spaceId: String(space.id),
     listIds,
+    folderByList,
     statusesByList,
     tasksByList,
     fieldByList,
@@ -171,6 +188,20 @@ async function applyCustomFields(client, taskId, listFields, fields, log, taskNa
   }
 }
 
+export function findTaskInWorkspace(tasksByList, { name, clickupId }) {
+  if (clickupId) {
+    for (const [listKey, tasks] of Object.entries(tasksByList ?? {})) {
+      const hit = (tasks ?? []).find((item) => String(item.id) === String(clickupId));
+      if (hit) return { task: hit, listName: listKey };
+    }
+  }
+  for (const [listKey, tasks] of Object.entries(tasksByList ?? {})) {
+    const hit = findByName(tasks ?? [], name);
+    if (hit) return { task: hit, listName: listKey };
+  }
+  return { task: null, listName: null };
+}
+
 async function upsertTask({
   client,
   taskCfg,
@@ -179,6 +210,7 @@ async function upsertTask({
   listFields,
   listStatuses,
   existingTasks,
+  tasksByList,
   log,
   counters,
   skipped,
@@ -188,10 +220,30 @@ async function upsertTask({
   spaceTagMap,
   defaults,
   env,
+  statusesByList,
+  fieldByList,
+  listIds = {},
 }) {
   const name = taskCfg.taskName || taskCfg.name;
   let task = findByName(existingTasks, name);
-  const resolvedStatus = resolveTaskStatus(taskCfg.status, listStatuses);
+  let resolvedListName = listName;
+  let resolvedListFields = listFields;
+  let resolvedListStatuses = listStatuses;
+  let resolvedListId = listId;
+
+  if ((!task || taskCfg.clickupId) && taskCfg.clickupId && tasksByList) {
+    const located = findTaskInWorkspace(tasksByList, { name, clickupId: taskCfg.clickupId });
+    if (located.task) {
+      task = located.task;
+      resolvedListName = located.listName ?? listName;
+      resolvedListId = listIds[resolvedListName] ?? listId;
+      if (fieldByList?.[resolvedListName]) resolvedListFields = fieldByList[resolvedListName];
+      if (statusesByList?.[resolvedListName]) resolvedListStatuses = statusesByList[resolvedListName];
+      log(`resolved task by clickupId ${taskCfg.clickupId}: ${name}`);
+    }
+  }
+
+  const resolvedStatus = resolveTaskStatus(taskCfg.status, resolvedListStatuses);
   const isNew = !task;
 
   if (task) {
@@ -217,7 +269,7 @@ async function upsertTask({
       description: taskCfg.description || undefined,
     };
     if (resolvedStatus) body.status = resolvedStatus;
-    task = await client.post(`/list/${listId}/task`, body);
+    task = await client.post(`/list/${resolvedListId}/task`, body);
     existingTasks.push(task);
     counters.tasks += 1;
     log(`created task: ${name}`);
@@ -227,7 +279,7 @@ async function upsertTask({
   }
 
   taskIds[name] = String(task.id);
-  await applyCustomFields(client, task.id, listFields, taskCfg.fields, log, name);
+  await applyCustomFields(client, task.id, resolvedListFields, taskCfg.fields, log, name);
   const meta = await applyTaskMetadata({
     client,
     spaceId,
@@ -237,21 +289,49 @@ async function upsertTask({
     env,
     members,
     spaceTagMap,
-    listFields,
-    listStatuses,
+    listFields: resolvedListFields,
+    listStatuses: resolvedListStatuses,
     isNew,
     log,
   });
   tallyMetadata(counters, skipped, meta);
 }
 
-export async function sprintHandoffClickUp({ client, teamId, handoff, env = {}, log = () => {} }) {
+export async function sprintHandoffClickUp({
+  client,
+  teamId,
+  handoff,
+  env = {},
+  log = () => {},
+  /** `undefined` = carrega docs-local; `null` = não garante fields (testes). */
+  bootstrapConfig = undefined,
+}) {
   const created = emptyHandoffCounters();
   const skipped = emptyHandoffCounters();
   const taskIds = {};
 
   const workspace = await resolveSpaceLists(client, teamId, handoff.spaceName, log);
-  const { listIds, statusesByList, tasksByList, fieldByList } = workspace;
+  let { listIds, folderByList, statusesByList, tasksByList, fieldByList } = workspace;
+
+  const resolvedBootstrap =
+    bootstrapConfig === undefined ? tryReadBootstrapConfig() : bootstrapConfig;
+  if (resolvedBootstrap?.customFields?.length) {
+    const fieldCounters = { created: { fields: 0 }, skipped: { fields: 0 } };
+    for (const [listName, listId] of Object.entries(listIds)) {
+      if (folderByList[listName] !== SPRINTS_FOLDER_NAME) continue;
+      fieldByList[listName] = await ensureCustomFieldsOnList(
+        client,
+        listId,
+        listName,
+        resolvedBootstrap.customFields,
+        log,
+        fieldCounters,
+      );
+    }
+    log(
+      `sprint custom fields: created=${fieldCounters.created.fields} skipped=${fieldCounters.skipped.fields}`,
+    );
+  }
 
   let members = [];
   try {
@@ -294,6 +374,10 @@ export async function sprintHandoffClickUp({ client, teamId, handoff, env = {}, 
       listFields: fieldByList[note.list] ?? [],
       listStatuses: statusesByList[note.list] ?? [],
       existingTasks: tasksByList[note.list] ?? [],
+      tasksByList,
+      statusesByList,
+      fieldByList,
+      listIds,
       log,
       counters: created,
       taskIds,
@@ -360,6 +444,10 @@ export async function sprintHandoffClickUp({ client, teamId, handoff, env = {}, 
       listFields: fieldByList[taskCfg.list] ?? [],
       listStatuses: statusesByList[taskCfg.list] ?? [],
       existingTasks: tasksByList[taskCfg.list] ?? [],
+      tasksByList,
+      statusesByList,
+      fieldByList,
+      listIds,
       log,
       counters: created,
       taskIds,

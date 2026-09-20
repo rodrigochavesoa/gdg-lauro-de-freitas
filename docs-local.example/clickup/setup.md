@@ -10,6 +10,8 @@ Repositório GitHub: `rodrigochavesoa/gdg-lauro-de-freitas`
 
 Provisiona (ou completa) Space, Folders, Lists, custom fields e tasks via **ClickUp API**. O script é **idempotente**: a 2ª execução não duplica Space nem tasks (log `skipped`).
 
+**Custom fields padrão** (`História ID`, `PR`, `Veredito Plan`, `Prioridade`, `Aberta em`, `Fechada em`) são garantidos em **todas as Lists da folder `Sprints`** — inclusive lists criadas só na UI ou ainda não listadas em `bootstrap.config.json`. O `pnpm clickup:sprint-handoff` / `pnpm clickup:sync` repete essa garantia antes de aplicar o handoff.
+
 **Configs operacionais** (`bootstrap.config.json`, `sprint-handoff.config.json`) ficam em **`docs-local/clickup/`** (gitignored). Quem clona o repo copia os modelos `.example.json` desta pasta e preenche com o squad.
 
 ### Primeira vez
@@ -116,6 +118,14 @@ Em **Space settings → Custom Fields**, crie:
 
 - [ ] Quatro campos (+ datas Aberta/Fechada) visíveis nas Lists de Sprints e Backlog
 
+### Contrato fixo (não alterar sem decisão Plan)
+
+1. **Custom fields** → preenchidos por **`pnpm clickup:sync`** a partir de `docs-local/clickup/sprint-handoff.config.json` (`fields`, `openedAt`, `closedAt`). **Não** editar Fields na UI no fluxo normal.
+2. **Descrição** → gerada de `sections` no JSON ([`task-description-template.md`](task-description-template.md)); **sem tabelas** na descrição.
+3. **`clickupId`** no JSON amarra task existente; **História ID** no campo custom; **ID da URL** no PR (`ClickUp: …`).
+
+Agentes: nova task = entrada no handoff JSON + sync. Done = atualizar `fields`, `delivery` e `closedAt` no JSON + sync.
+
 ---
 
 ## 3. Integração GitHub
@@ -131,15 +141,31 @@ Checklist:
 - [ ] Repo `gdg-lauro-de-freitas` linkado
 - [ ] Teste: abrir PR com linha `ClickUp: CU-xxxxx` no corpo → atividade aparece na task
 
+### Identificação: ID ClickUp vs código de história
+
+**Resumo:** o **código de história** vive no custom field **História ID** e no título; o **ID da URL** (`86abcdefgh`) amarra GitHub/API. Sprint e tags organizam o board; **problema, DoD e entrega** ficam na **descrição** (template fixo).
+
+| Camada | Exemplo | Uso |
+|---|---|---|
+| **História ID** (campo) | `SEC-EXAMPLE-01` | Filtros, board, conversa, ONE-LINER |
+| ID ClickUp | `86abcdefgh` | PR (`ClickUp:`), links, MCP/API |
+| Código no título | `SEC-EXAMPLE-01 — …` | Leitura rápida (espelha o campo) |
+| Sprint / list | Sprint NN | Agrupamento temporal; Sprint Note com fluxo numerado |
+| Tags | `frontend`, `security` | Tipo de trabalho (1–3 por task) — **não** substituem o ID |
+
+**Conversação:** “estou na UX-EXAMPLE-01” ou “na Sprint NN”. **Rastreio Git:** linha `ClickUp: 86abcdefgh` (ID da URL; `CU-` em docs antigos é hábito Jira — o valor real é o id ClickUp). Opcional: **Custom Task ID** no workspace (ex. `GDG-42`) se o plano ClickUp permitir; senão, código no **título** + ID no PR.
+
+Ao criar task no handoff JSON, inclua o código no `name` e guarde o id retornado pelo sync para PRs futuros.
+
 ### Vincular PR à task
 
 No corpo do PR (template do repo):
 
 ```md
-ClickUp: CU-xxxxx
+ClickUp: 86abcdefgh
 ```
 
-Substitua `CU-xxxxx` pelo ID real da task (copie da URL da task no ClickUp).
+Substitua pelo **ID da task** (copie da URL no ClickUp). O **código de história** vai no título do PR e na seção Contexto do template.
 
 Opcional — automação ClickUp (Automations):
 
