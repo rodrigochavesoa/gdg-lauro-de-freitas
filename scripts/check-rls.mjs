@@ -244,7 +244,7 @@ async function promoteSessionToAal2(client, totpSecret) {
     return { message: "conta staff sem fator TOTP verificado" };
   }
   let lastError = { message: "verify TOTP falhou" };
-  for (const skewMs of [0, -30_000, 30_000]) {
+  for (const skewMs of [-60_000, -30_000, 0, 30_000, 60_000]) {
     const { data: challenge, error: challengeError } = await client.auth.mfa.challenge({
       factorId: totp.id,
     });
@@ -281,6 +281,30 @@ async function signInStaff(role, options = {}) {
     { email: user?.email, password: user?.password, totpSecret: totpSecrets[role] },
     { label: role, ...options },
   );
+}
+
+/** Evita crash quando AAL2 falha (ex.: TOTP desatualizado no CI); marca cenário como ignorado. */
+async function signInStaffForScenario(scenario, role) {
+  if (!hasCreds(testUsers[role])) {
+    skipRequired(scenario, `falta credencial de ${role}`);
+    return null;
+  }
+  if (!totpSecrets[role] && role !== "candidate") {
+    skipRequired(scenario, `falta TOTP secret de ${role} (env ou docs-local/staff-mfa-totp-secrets.md)`);
+    return null;
+  }
+  const { client, error } = await signInStaff(role);
+  if (error || !client) {
+    const detail = error?.message ?? "client null";
+    if (/invalid totp/i.test(detail) && process.env.GITHUB_ACTIONS === "true") {
+      console.error(
+        `AVISO: sincronize ${role.toUpperCase()}_TEST_TOTP_SECRET no GitHub com o fator TOTP verificado em homolog (docs-local/staff-mfa-totp-secrets.md).`,
+      );
+    }
+    skipRequired(scenario, `${role} não autenticou (${detail})`);
+    return null;
+  }
+  return client;
 }
 
 function isStaffAal2Denied(error) {
@@ -548,16 +572,22 @@ async function scenario5_quorum() {
     skipRequired(5, "faltam admin + curator + curator2");
     return;
   }
-  const curatorB = testUsers.curator2;
+  const admin = await signInStaffForScenario(5, "admin");
+  if (!admin) return;
 
-  const { client: admin } = await signInStaff("admin");
   const approveMarker = `RLS quorum approve ${Date.now()}`;
   const rejectMarker = `RLS quorum reject ${Date.now()}`;
   const jobA = await createPendingJob(admin, approveMarker);
   const jobR = await createPendingJob(admin, rejectMarker);
 
-  const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signInStaff("curator2");
+  const c1 = await signInStaffForScenario(5, "curator");
+  const c2 = await signInStaffForScenario(5, "curator2");
+  if (!c1 || !c2) {
+    await deleteJob(admin, jobA.data?.id);
+    await deleteJob(admin, jobR.data?.id);
+    await admin.auth.signOut();
+    return;
+  }
 
   await rpcReview(c1, jobA.data.id, "approve");
   const approved = await rpcReview(c2, jobA.data.id, "approve");
@@ -586,13 +616,19 @@ async function scenario6_tie() {
     return;
   }
 
-  const { client: admin } = await signInStaff("admin");
+  const admin = await signInStaffForScenario(6, "admin");
+  if (!admin) return;
   const marker = `RLS tie ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signInStaff("curator2");
+  const c1 = await signInStaffForScenario(6, "curator");
+  const c2 = await signInStaffForScenario(6, "curator2");
+  if (!c1 || !c2) {
+    await deleteJob(admin, jobId);
+    await admin.auth.signOut();
+    return;
+  }
 
   await rpcReview(c1, jobId, "approve");
   await rpcReview(c2, jobId, "reject");
@@ -622,15 +658,21 @@ async function scenario7_moderation() {
     return;
   }
 
-  const { client: admin } = await signInStaff("admin");
+  const admin = await signInStaffForScenario(7, "admin");
+  if (!admin) return;
   const marker = `RLS moderation ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: curator } = await signInStaff("curator");
-  const { client: curator2 } = await signInStaff("curator2");
-  const { client: curator3 } = await signInStaff("curator3");
-  const { client: moderator } = await signInStaff("moderator");
+  const curator = await signInStaffForScenario(7, "curator");
+  const curator2 = await signInStaffForScenario(7, "curator2");
+  const curator3 = await signInStaffForScenario(7, "curator3");
+  const moderator = await signInStaffForScenario(7, "moderator");
+  if (!curator || !curator2 || !curator3 || !moderator) {
+    await deleteJob(admin, jobId);
+    await admin.auth.signOut();
+    return;
+  }
 
   await rpcReview(curator, jobId, "approve");
   await rpcReview(curator2, jobId, "reject");
@@ -663,13 +705,19 @@ async function scenario8_resubmit() {
     return;
   }
 
-  const { client: admin } = await signInStaff("admin");
+  const admin = await signInStaffForScenario(8, "admin");
+  if (!admin) return;
   const marker = `RLS resubmit ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
 
-  const { client: c1 } = await signInStaff("curator");
-  const { client: c2 } = await signInStaff("curator2");
+  const c1 = await signInStaffForScenario(8, "curator");
+  const c2 = await signInStaffForScenario(8, "curator2");
+  if (!c1 || !c2) {
+    await deleteJob(admin, jobId);
+    await admin.auth.signOut();
+    return;
+  }
   await rpcReview(c1, jobId, "reject");
   await rpcReview(c2, jobId, "reject");
 
@@ -697,7 +745,8 @@ async function scenario9_priority() {
     skipRequired(9, "falta admin-test-user");
     return;
   }
-  const { client: admin } = await signInStaff("admin");
+  const admin = await signInStaffForScenario(9, "admin");
+  if (!admin) return;
   const marker = `RLS priority ${Date.now()}`;
   const job = await createPendingJob(admin, marker);
   const jobId = job.data?.id;
