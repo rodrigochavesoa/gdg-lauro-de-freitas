@@ -10,7 +10,7 @@ vi.mock("../../lib/supabase-client.js", () => ({
     from(table) {
       if (table === "jobs") {
         return {
-          select(_cols, opts) {
+          select() {
             const chain = {
               eq(_col, status) {
                 return Promise.resolve({

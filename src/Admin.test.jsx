@@ -6,7 +6,7 @@ import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 const loadAdminDashboardSummary = vi.hoisted(() =>
-  vi.fn(async ({ isAdmin }) => ({
+  vi.fn(async () => ({
     pendingCuration: 0,
     approved: 0,
     rejectedJobs: 0,
@@ -97,7 +97,7 @@ describe("Admin", () => {
     loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
     loadAdminDashboardSummary.mockReset();
-    loadAdminDashboardSummary.mockImplementation(async ({ isAdmin }) => ({
+    loadAdminDashboardSummary.mockImplementation(async () => ({
       pendingCuration: 0,
       approved: 0,
       rejectedJobs: 0,
