@@ -23,6 +23,8 @@ export const NEXT_STEP_MANUAL =
   "próximo passo manual: GitHub integration (OAuth na UI ClickUp — setup.md §3)";
 export const DEFAULT_CONFIG_PATH = "docs-local/clickup/bootstrap.config.json";
 export const DEFAULT_CONFIG_EXAMPLE_PATH = "docs-local.example/clickup/bootstrap.config.example.json";
+/** Lists nesta pasta recebem customFields padrão (bootstrap + sprint-handoff). */
+export const SPRINTS_FOLDER_NAME = "Sprints";
 export const DEFAULT_ENV_PATH = "docs-local/clickup.env";
 export const FALLBACK_ENV_PATH = ".env.local";
 
@@ -221,6 +223,20 @@ export function parseBootstrapConfig(raw) {
   };
 }
 
+export function tryReadBootstrapConfig({
+  cwd = process.cwd(),
+  exists = existsSync,
+  readFile = readFileSync,
+} = {}) {
+  const configPath = resolve(cwd, DEFAULT_CONFIG_PATH);
+  if (!exists(configPath)) return null;
+  try {
+    return parseBootstrapConfig(JSON.parse(readFile(configPath, "utf8")));
+  } catch {
+    return null;
+  }
+}
+
 export function resolveTaskStatus(desired, listStatuses) {
   const wanted = String(desired ?? "").trim();
   const statuses = Array.isArray(listStatuses) ? listStatuses : [];
@@ -379,6 +395,35 @@ async function createCustomField(client, listId, fieldCfg, log) {
   }
 }
 
+/** Idempotente: garante customFields padrão numa List (ex.: todas em Sprints). */
+export async function ensureCustomFieldsOnList(
+  client,
+  listId,
+  listName,
+  customFields,
+  log,
+  counters = null,
+) {
+  const created = counters?.created ?? { fields: 0 };
+  const skipped = counters?.skipped ?? { fields: 0 };
+  const fieldsPayload = await client.get(`/list/${listId}/field`);
+  const fields = Array.isArray(fieldsPayload?.fields) ? fieldsPayload.fields : [];
+  for (const fieldCfg of customFields) {
+    let field = findByName(fields, fieldCfg.name);
+    if (field) {
+      skipped.fields += 1;
+      log(`skipped field: ${fieldCfg.name} @ ${listName}`);
+    } else {
+      field = await createCustomField(client, listId, fieldCfg, log);
+      if (field?.id) fields.push(field);
+      created.fields += 1;
+      log(`created field: ${fieldCfg.name} @ ${listName}`);
+    }
+  }
+  const refreshed = await client.get(`/list/${listId}/field`);
+  return Array.isArray(refreshed?.fields) ? refreshed.fields : fields;
+}
+
 async function getAllTasks(client, listId) {
   const tasks = [];
   for (let page = 0; page < 50; page += 1) {
@@ -459,27 +504,33 @@ export async function bootstrapClickUp({ client, teamId, config, env = {}, log =
       }
       listIds[listCfg.name] = String(list.id);
     }
+    if (folderCfg.name === SPRINTS_FOLDER_NAME) {
+      for (const list of lists) {
+        const listName = String(list.name ?? "").trim();
+        if (!listName) continue;
+        listIds[listName] = String(list.id);
+      }
+    }
   }
 
   const fieldByList = {};
-  for (const listName of Object.keys(listIds)) {
-    const listId = listIds[listName];
-    const fieldsPayload = await client.get(`/list/${listId}/field`);
-    const fields = Array.isArray(fieldsPayload?.fields) ? fieldsPayload.fields : [];
-    for (const fieldCfg of config.customFields) {
-      let field = findByName(fields, fieldCfg.name);
-      if (field) {
-        skipped.fields += 1;
-        log(`skipped field: ${fieldCfg.name} @ ${listName}`);
-      } else {
-        field = await createCustomField(client, listId, fieldCfg, log);
-        if (field?.id) fields.push(field);
-        created.fields += 1;
-        log(`created field: ${fieldCfg.name} @ ${listName}`);
-      }
+  const sprintsFolder = findByName(folders, SPRINTS_FOLDER_NAME);
+  if (sprintsFolder) {
+    const listsPayload = await client.get(`/folder/${sprintsFolder.id}/list?archived=false`);
+    for (const list of listsPayload?.lists ?? []) {
+      const listName = String(list.name ?? "").trim();
+      if (!listName) continue;
+      const listId = String(list.id);
+      listIds[listName] = listId;
+      fieldByList[listName] = await ensureCustomFieldsOnList(
+        client,
+        listId,
+        listName,
+        config.customFields,
+        log,
+        { created, skipped },
+      );
     }
-    const refreshed = await client.get(`/list/${listId}/field`);
-    fieldByList[listName] = Array.isArray(refreshed?.fields) ? refreshed.fields : fields;
   }
 
   const tasksByList = {};

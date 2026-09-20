@@ -10,6 +10,8 @@ Repositório GitHub: `rodrigochavesoa/gdg-lauro-de-freitas`
 
 Provisiona (ou completa) Space, Folders, Lists, custom fields e tasks via **ClickUp API**. O script é **idempotente**: a 2ª execução não duplica Space nem tasks (log `skipped`).
 
+**Custom fields padrão** (`História ID`, `PR`, `Veredito Plan`, `Prioridade`, `Aberta em`, `Fechada em`) são garantidos em **todas as Lists da folder `Sprints`** — inclusive lists criadas só na UI ou ainda não listadas em `bootstrap.config.json`. O `pnpm clickup:sprint-handoff` / `pnpm clickup:sync` repete essa garantia antes de aplicar o handoff.
+
 **Configs operacionais** (`bootstrap.config.json`, `sprint-handoff.config.json`) ficam em **`docs-local/clickup/`** (gitignored). Quem clona o repo copia os modelos `.example.json` desta pasta e preenche com o squad.
 
 ### Primeira vez

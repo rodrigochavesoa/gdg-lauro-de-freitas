@@ -10,6 +10,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   createClickUpClient,
+  ensureCustomFieldsOnList,
   findByName,
   hasCredentials,
   loadClickUpEnvFromFiles,
@@ -20,6 +21,8 @@ import {
   pickClickUpEnv,
   resolveDropdownValue,
   resolveTaskStatus,
+  SPRINTS_FOLDER_NAME,
+  tryReadBootstrapConfig,
 } from "./bootstrap-clickup.mjs";
 import {
   applyTaskMetadata,
@@ -131,6 +134,7 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   }
 
   const listIds = {};
+  const folderByList = {};
   const statusesByList = {};
   const tasksByList = {};
   const fieldByList = {};
@@ -139,10 +143,12 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   const folders = foldersPayload?.folders ?? [];
 
   for (const folder of folders) {
+    const folderName = String(folder.name ?? "").trim();
     const listsPayload = await client.get(`/folder/${folder.id}/list?archived=false`);
     for (const list of listsPayload?.lists ?? []) {
       const listName = String(list.name ?? "").trim();
       listIds[listName] = String(list.id);
+      folderByList[listName] = folderName;
       const detail = await client.get(`/list/${list.id}`);
       statusesByList[listName] = Array.isArray(detail?.statuses) ? detail.statuses : [];
       tasksByList[listName] = await getAllTasks(client, list.id);
@@ -155,6 +161,7 @@ export async function resolveSpaceLists(client, teamId, spaceName, log = () => {
   return {
     spaceId: String(space.id),
     listIds,
+    folderByList,
     statusesByList,
     tasksByList,
     fieldByList,
@@ -290,13 +297,41 @@ async function upsertTask({
   tallyMetadata(counters, skipped, meta);
 }
 
-export async function sprintHandoffClickUp({ client, teamId, handoff, env = {}, log = () => {} }) {
+export async function sprintHandoffClickUp({
+  client,
+  teamId,
+  handoff,
+  env = {},
+  log = () => {},
+  /** `undefined` = carrega docs-local; `null` = não garante fields (testes). */
+  bootstrapConfig = undefined,
+}) {
   const created = emptyHandoffCounters();
   const skipped = emptyHandoffCounters();
   const taskIds = {};
 
   const workspace = await resolveSpaceLists(client, teamId, handoff.spaceName, log);
-  const { listIds, statusesByList, tasksByList, fieldByList } = workspace;
+  let { listIds, folderByList, statusesByList, tasksByList, fieldByList } = workspace;
+
+  const resolvedBootstrap =
+    bootstrapConfig === undefined ? tryReadBootstrapConfig() : bootstrapConfig;
+  if (resolvedBootstrap?.customFields?.length) {
+    const fieldCounters = { created: { fields: 0 }, skipped: { fields: 0 } };
+    for (const [listName, listId] of Object.entries(listIds)) {
+      if (folderByList[listName] !== SPRINTS_FOLDER_NAME) continue;
+      fieldByList[listName] = await ensureCustomFieldsOnList(
+        client,
+        listId,
+        listName,
+        resolvedBootstrap.customFields,
+        log,
+        fieldCounters,
+      );
+    }
+    log(
+      `sprint custom fields: created=${fieldCounters.created.fields} skipped=${fieldCounters.skipped.fields}`,
+    );
+  }
 
   let members = [];
   try {

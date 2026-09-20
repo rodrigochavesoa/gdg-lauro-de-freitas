@@ -6,7 +6,7 @@ import {
   parseHandoffConfig,
   sprintHandoffClickUp,
 } from "./sprint-handoff-clickup.mjs";
-import { createClickUpClient } from "./bootstrap-clickup.mjs";
+import { createClickUpClient, parseBootstrapConfig } from "./bootstrap-clickup.mjs";
 
 function jsonResponse(body, status = 200) {
   return {
@@ -102,6 +102,12 @@ function createHandoffMemory() {
       const listId = path.split("/")[2];
       return jsonResponse({ fields: store.fieldsByList[listId] ?? [] });
     }
+    if (path.match(/^\/list\/[^/]+\/field$/) && method === "POST") {
+      const listId = path.split("/")[2];
+      const field = { id: `field-${Date.now()}-${Math.random()}`, name: body.name, type: body.type };
+      (store.fieldsByList[listId] ??= []).push(field);
+      return jsonResponse(field);
+    }
     if (path.match(/^\/list\/[^/]+\/task$/) && method === "GET") {
       const listId = path.split("/")[2];
       return jsonResponse({ tasks: store.tasksByList[listId] ?? [], last_page: true });
@@ -191,7 +197,13 @@ describe("sprintHandoffClickUp", () => {
       ),
     );
 
-    const first = await sprintHandoffClickUp({ client, teamId: "1", handoff, log: () => {} });
+    const first = await sprintHandoffClickUp({
+      client,
+      teamId: "1",
+      handoff,
+      log: () => {},
+      bootstrapConfig: null,
+    });
     expect(first.created.notes).toBeGreaterThan(0);
     expect(first.created.moved).toBe(1);
     expect(store.tasksByList["list-01"].some((task) => task.name.includes("Sprint Note"))).toBe(true);
@@ -202,17 +214,56 @@ describe("sprintHandoffClickUp", () => {
       false,
     );
 
-    const second = await sprintHandoffClickUp({ client, teamId: "1", handoff, log: () => {} });
+    const second = await sprintHandoffClickUp({
+      client,
+      teamId: "1",
+      handoff,
+      log: () => {},
+      bootstrapConfig: null,
+    });
     expect(second.created.moved).toBe(0);
     expect(second.skipped.moved).toBe(1);
     expect(second.skipped.assignees).toBeGreaterThan(0);
     expect(store.taskTags.length).toBeGreaterThan(0);
     const tagCount = store.taskTags.length;
-    await sprintHandoffClickUp({ client, teamId: "1", handoff, log: () => {} });
+    await sprintHandoffClickUp({
+      client,
+      teamId: "1",
+      handoff,
+      log: () => {},
+      bootstrapConfig: null,
+    });
     expect(store.taskTags.length).toBe(tagCount);
     expect(store.tasksByList["list-02"].filter((task) => task.name.includes("próxima entrega")).length).toBe(
       1,
     );
+  });
+
+  it("garante custom fields nas lists Sprints antes do handoff", async () => {
+    const { fetchImpl, store } = createHandoffMemory();
+    store.fieldsByList["list-01"] = [];
+    store.fieldsByList["list-02"] = [];
+    const client = createClickUpClient({ token: "t", fetchImpl });
+    const handoff = parseHandoffConfig(
+      JSON.parse(
+        readFileSync(resolve("scripts/fixtures/clickup/sprint-handoff.config.json"), "utf8"),
+      ),
+    );
+    const bootstrapConfig = parseBootstrapConfig({
+      space: { name: "Meu Produto MVP" },
+      folders: [{ name: "Sprints", lists: [] }],
+      customFields: [{ name: "História ID", type: "short_text" }],
+      tasks: [],
+    });
+    await sprintHandoffClickUp({
+      client,
+      teamId: "1",
+      handoff,
+      log: () => {},
+      bootstrapConfig,
+    });
+    expect(store.fieldsByList["list-01"].some((f) => f.name === "História ID")).toBe(true);
+    expect(store.fieldsByList["list-02"].some((f) => f.name === "História ID")).toBe(true);
   });
 });
 

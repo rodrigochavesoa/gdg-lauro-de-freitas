@@ -4,6 +4,7 @@ import {
   buildSummary,
   createClickUpClient,
   customFieldPayload,
+  ensureCustomFieldsOnList,
   findByName,
   hasCredentials,
   loadClickUpEnvFromFiles,
@@ -15,6 +16,8 @@ import {
   pickClickUpEnv,
   resolveDropdownValue,
   resolveTaskStatus,
+  SPRINTS_FOLDER_NAME,
+  tryReadBootstrapConfig,
 } from "./bootstrap-clickup.mjs";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -351,6 +354,10 @@ VITE_OTHER=nope
     expect(cfg.tasks[0].name).toContain("Exemplo");
   });
 
+  it("tryReadBootstrapConfig retorna null se arquivo ausente", () => {
+    expect(tryReadBootstrapConfig({ cwd: "/empty", exists: () => false, readFile: () => "" })).toBeNull();
+  });
+
   it("fixture bootstrap.config.json é válido", () => {
     const raw = JSON.parse(
       readFileSync(resolve("scripts/fixtures/clickup/bootstrap.config.json"), "utf8"),
@@ -396,6 +403,31 @@ describe("lógica idempotente", () => {
       options: ["P0", "P1"],
     });
     expect(payload.type_config.options.map((option) => option.name)).toEqual(["P0", "P1"]);
+  });
+
+  it("garante custom fields em qualquer List da folder Sprints (incl. fora do config)", async () => {
+    const { fetchImpl, store } = createMemoryClickUp();
+    const client = clientFrom(fetchImpl);
+    const config = sampleConfig();
+    await bootstrapClickUp({ client, teamId: "team-1", config });
+
+    const sprintsFolder = store.foldersBySpace[store.spaces[0].id].find((f) => f.name === SPRINTS_FOLDER_NAME);
+    const extraList = { id: "extra-sprint-list", name: "Sprint 99 — só na UI" };
+    store.listsByFolder[sprintsFolder.id].push(extraList);
+    store.fieldsByList[extraList.id] = [];
+    store.tasksByList[extraList.id] = [];
+
+    const counters = { created: { fields: 0 }, skipped: { fields: 0 } };
+    const fields = await ensureCustomFieldsOnList(
+      client,
+      extraList.id,
+      extraList.name,
+      config.customFields,
+      () => {},
+      counters,
+    );
+    expect(counters.created.fields).toBe(2);
+    expect(fields.map((f) => f.name).sort()).toEqual(["História ID", "Veredito Plan"]);
   });
 
   it("primeira execução cria; segunda não duplica (skipped)", async () => {
