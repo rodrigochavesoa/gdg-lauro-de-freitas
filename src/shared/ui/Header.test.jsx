@@ -495,6 +495,56 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
   });
 
+  it("staff em /admin no drawer lista seções da administração em vez de Área admin", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Ada Admin",
+      role: "admin",
+      email: "ada@example.invalid",
+      path: "/admin",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    expect(within(mobile).getByText("Administração")).toBeInTheDocument();
+    expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
+      "Painel",
+      "Curadoria",
+      "Vagas",
+      "Publicar",
+      "Ingestão",
+      "Vagas",
+      "Eventos",
+      "Newsletter",
+    ]);
+    expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
+    fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+  });
+
+  it("curator em /admin/curadoria no drawer vê só Painel e Curadoria na administração", () => {
+    renderHeader({
+      logged: true,
+      displayName: "Cora Curadora",
+      role: "curator",
+      path: "/admin/curadoria",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    const mobile = document.getElementById("mobile-navigation");
+    const adminSection = mobile.querySelector(".mobile-nav__admin");
+    const adminLinks = within(adminSection).getAllByRole("link");
+    expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
+    expect(within(adminSection).queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
+  });
+
+  it("fechar drawer ao tocar fora do menu", () => {
+    renderHeader({ logged: false, path: "/" });
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    expect(document.getElementById("mobile-navigation")).toBeTruthy();
+    fireEvent.pointerDown(document.body);
+    expect(document.getElementById("mobile-navigation")).toBeNull();
+  });
+
   it("onboarding gated bloqueia Editar perfil também no drawer", () => {
     renderHeader({
       logged: true,
