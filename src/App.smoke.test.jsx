@@ -448,6 +448,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
@@ -467,11 +468,19 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
 
+  it("visitante em /jobs/:id vê CTA e não chama loadMyApplication", async () => {
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
+  });
+
   it("renderiza o detalhe diretamente em /jobs/:id", async () => {
     await renderAt("/jobs/1");
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();

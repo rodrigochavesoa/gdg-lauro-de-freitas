@@ -20,6 +20,11 @@ export function canUseCandidateApply({ authReady, logged, profile } = {}) {
   return isCandidateApplySurfaceReady({ authReady, logged, profile }) && isCandidateProfile(profile);
 }
 
+/** Consulta a candidatura própria só com sessão candidate (CTA anônimo não dispara fetch). */
+export function shouldLoadMyApplication({ authReady, logged, profile } = {}) {
+  return Boolean(logged) && canUseCandidateApply({ authReady, logged, profile });
+}
+
 /** Completude D-01. E-mail vem do Auth, não do json de perfil. */
 export function isD01Complete(profile, email) {
   if (!profile) return false;

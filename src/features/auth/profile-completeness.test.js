@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isD01Complete, validateOnboarding, canUseCandidateApply, isCandidateApplySurfaceReady } from "./profile-completeness.js";
+import { isD01Complete, validateOnboarding, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./profile-completeness.js";
 
 describe("isD01Complete", () => {
   const complete = {
@@ -51,5 +51,12 @@ describe("canUseCandidateApply", () => {
     expect(canUseCandidateApply({ authReady: true, logged: true, profile: { role: "admin" } })).toBe(false);
     expect(canUseCandidateApply({ authReady: true, logged: true, profile: { role: "curator" } })).toBe(false);
     expect(canUseCandidateApply({ authReady: true, logged: true, profile: { role: "moderator" } })).toBe(false);
+  });
+
+  it("não consulta candidatura para visitante; só candidate autenticado", () => {
+    expect(shouldLoadMyApplication({ authReady: true, logged: false, profile: null })).toBe(false);
+    expect(shouldLoadMyApplication({ authReady: true, logged: true, profile: { role: "candidate" } })).toBe(true);
+    expect(shouldLoadMyApplication({ authReady: true, logged: true, profile: { role: "admin" } })).toBe(false);
+    expect(shouldLoadMyApplication({ authReady: true, logged: true, profile: null })).toBe(false);
   });
 });

@@ -28,7 +28,7 @@ import {
   signOutUser,
   subscribeAuth,
 } from "./features/auth/auth-api.js";
-import { isCandidateProfile, isD01Complete, canUseCandidateApply } from "./features/auth/profile-completeness.js";
+import { isCandidateProfile, isD01Complete, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
@@ -347,8 +347,9 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
   const [applicationCheckFailed, setApplicationCheckFailed] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyError, setApplyError] = useState("");
-  const applySurfaceReady = Boolean(authReady) && (!logged || profile != null);
+  const applySurfaceReady = isCandidateApplySurfaceReady({ authReady, logged, profile });
   const candidateApply = canUseCandidateApply({ authReady, logged, profile });
+  const loadOwnApplication = shouldLoadMyApplication({ authReady, logged, profile });
 
   useEffect(() => {
     let cancelled = false;
@@ -361,12 +362,12 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
       setStatus("loading");
     }
     setApplicationStatus(null);
-    setApplicationLoading(candidateApply);
+    setApplicationLoading(loadOwnApplication);
     setApplicationCheckFailed(false);
     setApplyError("");
 
     const jobPromise = loadApprovedJob(id);
-    const applicationPromise = candidateApply
+    const applicationPromise = loadOwnApplication
       ? loadMyApplication(id, userId)
       : Promise.resolve(null);
 
@@ -395,10 +396,10 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
       });
 
     return () => { cancelled = true; };
-  }, [id, logged, userId, candidateApply]);
+  }, [id, logged, userId, loadOwnApplication]);
 
   const runApplyAction = async (action) => {
-    if (!candidateApply) return;
+    if (!logged || !candidateApply) return;
     setApplyBusy(true);
     setApplyError("");
     try {

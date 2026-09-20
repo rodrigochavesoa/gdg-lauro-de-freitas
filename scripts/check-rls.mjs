@@ -334,6 +334,21 @@ async function rpcWithdraw(client, jobId) {
   return client.rpc("withdraw_application", { p_job_id: jobId });
 }
 
+async function assertStaffCannotApplyOrWithdraw(client, role) {
+  const apply = await rpcApply(client, SEED_APPROVED_A);
+  assert(Boolean(apply.error), `${role} AAL2 não aplica via RPC`);
+  assert(
+    /staff cannot apply/i.test(errorText(apply.error)),
+    `apply ${role} recusado (${errorText(apply.error) || "sem mensagem"})`,
+  );
+  const withdraw = await rpcWithdraw(client, SEED_APPROVED_A);
+  assert(Boolean(withdraw.error), `${role} AAL2 não retira via RPC`);
+  assert(
+    /staff cannot withdraw/i.test(errorText(withdraw.error)),
+    `withdraw ${role} recusado (${errorText(withdraw.error) || "sem mensagem"})`,
+  );
+}
+
 async function deleteApplication(admin, jobId, candidateId) {
   if (!jobId || !candidateId) return;
   await admin.from("applications").delete().eq("job_id", jobId).eq("candidate_id", candidateId);
@@ -776,7 +791,7 @@ async function scenario10_applyHappy() {
   await admin.auth.signOut();
 }
 
-/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto, staff. */
+/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto, staff (admin/curator/moderator). */
 async function scenario11_applyBlocked() {
   if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
     skipRequired(11, "faltam admin e/ou candidate em docs-local");
@@ -819,18 +834,21 @@ async function scenario11_applyBlocked() {
   }).select("id");
   assert(Boolean(direct.error) || (direct.data ?? []).length === 0, "candidato não faz INSERT direto");
 
-  const staffApply = await rpcApply(admin, SEED_APPROVED_A);
-  assert(Boolean(staffApply.error), "admin AAL2 não aplica via RPC");
-  assert(
-    /staff cannot apply/i.test(errorText(staffApply.error)),
-    `apply staff recusado (${errorText(staffApply.error) || "sem mensagem"})`,
-  );
-  const staffWithdraw = await rpcWithdraw(admin, SEED_APPROVED_A);
-  assert(Boolean(staffWithdraw.error), "admin AAL2 não retira via RPC");
-  assert(
-    /staff cannot withdraw/i.test(errorText(staffWithdraw.error)),
-    `withdraw staff recusado (${errorText(staffWithdraw.error) || "sem mensagem"})`,
-  );
+  await assertStaffCannotApplyOrWithdraw(admin, "admin");
+  for (const role of ["curator", "moderator"]) {
+    if (!hasCreds(testUsers[role]) || !totpSecrets[role]) {
+      skipRequired(11, `falta ${role} AAL2 em docs-local`);
+      continue;
+    }
+    const { client: staff, error: staffErr } = await signInStaff(role);
+    assert(!staffErr, `${role} AAL2 autentica para apply (${staffErr?.message ?? "ok"})`);
+    if (staffErr || !staff) continue;
+    try {
+      await assertStaffCannotApplyOrWithdraw(staff, role);
+    } finally {
+      await staff.auth.signOut();
+    }
+  }
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);
