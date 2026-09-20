@@ -164,7 +164,24 @@ function isIngestionReadDenied(error) {
 }
 
 function isTransientAuthError(error) {
-  return /rate limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(errorText(error));
+  return /rate limit|over_request_rate_limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(
+    errorText(error),
+  );
+}
+
+function authRetryOptions(overrides = {}) {
+  const base =
+    process.env.GITHUB_ACTIONS === "true"
+      ? { attempts: 8, pauseMs: 5000 }
+      : { attempts: 4, pauseMs: 2000 };
+  return { ...base, ...overrides };
+}
+
+async function delayBeforeIngestionScenarios() {
+  if (process.env.GITHUB_ACTIONS !== "true") return;
+  const ms = 15_000;
+  console.log(`AVISO: pausa ${ms / 1000}s antes dos cenários 21–22 (Auth rate limit)…`);
+  await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function queryWithRetry(queryFn, { attempts = 3, pauseMs = 2500 } = {}) {
@@ -230,7 +247,7 @@ async function signInWithRetry(credentials, { attempts = 4, pauseMs = 2000, labe
   return last;
 }
 
-async function promoteSessionToAal2(client, totpSecret) {
+async function promoteSessionToAal2Once(client, totpSecret) {
   const { data: aal, error: aalError } = await client.auth.mfa.getAuthenticatorAssuranceLevel();
   if (aalError) return aalError;
   if (aal?.currentLevel === "aal2") return null;
@@ -259,7 +276,21 @@ async function promoteSessionToAal2(client, totpSecret) {
       await client.auth.getSession();
       return null;
     }
+    if (isTransientAuthError(verifyError)) return verifyError;
     lastError = verifyError;
+  }
+  return lastError;
+}
+
+async function promoteSessionToAal2(client, totpSecret, options = {}) {
+  const { attempts = process.env.GITHUB_ACTIONS === "true" ? 6 : 3, pauseMs = 4000 } = options;
+  let lastError = { message: "promote AAL2 falhou" };
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    lastError = await promoteSessionToAal2Once(client, totpSecret);
+    if (!lastError) return null;
+    if (!isTransientAuthError(lastError) || attempt === attempts) return lastError;
+    console.log(`AVISO: AAL2 (${errorText(lastError)}); tentativa ${attempt}/${attempts}…`);
+    await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
   }
   return lastError;
 }
@@ -267,7 +298,7 @@ async function promoteSessionToAal2(client, totpSecret) {
 async function signInStaffAal2({ email, password, totpSecret }, options = {}) {
   const signed = await signInWithRetry({ email, password }, options);
   if (signed.error || !signed.user) return signed;
-  const promoteError = await promoteSessionToAal2(signed.client, totpSecret);
+  const promoteError = await promoteSessionToAal2(signed.client, totpSecret, options);
   if (promoteError) {
     await signed.client.auth.signOut();
     return { client: null, error: promoteError };
@@ -277,9 +308,10 @@ async function signInStaffAal2({ email, password, totpSecret }, options = {}) {
 
 async function signInStaff(role, options = {}) {
   const user = testUsers[role];
+  const retry = authRetryOptions(options);
   return signInStaffAal2(
     { email: user?.email, password: user?.password, totpSecret: totpSecrets[role] },
-    { label: role, ...options },
+    { label: role, ...retry },
   );
 }
 
@@ -1943,7 +1975,7 @@ async function scenario21_jobIngestions() {
     return;
   }
 
-  const { client: admin, error: adminErr } = await signInStaff("admin");
+  const { client: admin, error: adminErr } = await signInStaff("admin", authRetryOptions({ attempts: 10, pauseMs: 6000 }));
   assert(!adminErr, `admin AAL2 autentica para ingestão (${adminErr?.message ?? "ok"})`);
   if (adminErr || !admin) return;
 
@@ -2150,7 +2182,7 @@ async function scenario22_processJobIngestion() {
     return;
   }
 
-  const { client: admin, error: adminErr } = await signInStaff("admin");
+  const { client: admin, error: adminErr } = await signInStaff("admin", authRetryOptions({ attempts: 10, pauseMs: 6000 }));
   assert(!adminErr, `admin AAL2 autentica para processar ingestão (${adminErr?.message ?? "ok"})`);
   if (adminErr || !admin) return;
 
@@ -2343,6 +2375,8 @@ await scenario19_avatarStorage();
 
 console.log("\n=== Cenário 20: SEC-STAFF-MFA-02 AAL1 bloqueado em mutação staff ===");
 await scenario20_staffAal1Blocked();
+
+await delayBeforeIngestionScenarios();
 
 console.log("\n=== Cenário 21: MVP-013 contrato de origem e fingerprint ===");
 await scenario21_jobIngestions();
