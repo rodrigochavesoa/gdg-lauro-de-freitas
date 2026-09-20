@@ -74,6 +74,7 @@ Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar 
 - Policies: autenticado só lê/grava/apaga arquivos na própria pasta (`{uid}/{arquivo}` com extensão jpg/jpeg/png/webp, um nível). Anon e terceiros não acessam.
 - Frontend: JPEG/PNG/WebP até 2 MB; recorte circular no cliente; popover no header (foto 96 px, nome, e-mail, ações). Sem foto ou falha de load → iniciais.
 - Migrations `avatars_*` são **homolog-only**: `pnpm migrations:prod` as ignora. **Não** aplicar em `gdg-jobs-prod`.
+- Migration `job_ingestions_*` (MVP-013 Fase A) é **homolog-only**. **Não** aplicar em `gdg-jobs-prod`.
 - Production permanece fail-closed (`VITE_AVATAR_UPLOAD_ENABLED` ausente/false) até o checklist da Camada B.
 
 ## Teste SEC-STAFF-MFA-02 (RLS AAL2)
