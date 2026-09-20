@@ -548,6 +548,33 @@ describe("Header", () => {
     expect(areaAdmin).toHaveAttribute("aria-current", "page");
   });
 
+  it("em /admin/vagas/nova no drawer marca só Publicar, não Vagas", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: String(query).includes("1024"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    try {
+      renderHeader({
+        logged: true,
+        displayName: "Ada Admin",
+        role: "admin",
+        path: "/admin/vagas/nova",
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+      const mobile = document.getElementById("mobile-navigation");
+      const adminSection = mobile.querySelector(".mobile-nav__admin");
+      expect(within(adminSection).getByRole("link", { name: "Publicar" })).toHaveClass("active");
+      expect(within(adminSection).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it("curator em /admin/curadoria no drawer vê só Painel e Curadoria na administração", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({

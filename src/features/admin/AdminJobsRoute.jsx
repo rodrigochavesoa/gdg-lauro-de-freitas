@@ -173,7 +173,12 @@ export function AdminJobsRoute() {
   };
 
   const heading = adminJobListHeading(filters.status);
-  const countLabel = listStatus === "ready" ? formatAdminJobTotalLabel(total, items.length) : "";
+  const countLabel =
+    listStatus === "ready"
+      ? formatAdminJobTotalLabel(total, items.length)
+      : listStatus === "loading" && items.length === 0
+        ? "Carregando…"
+        : "\u00a0";
   const activeFilterCount = countAdminJobActiveFilters(filters);
   const sheetCount = total ?? items.length;
   const busy = (listStatus === "loading" && items.length === 0) || loadingMore;
@@ -220,8 +225,8 @@ export function AdminJobsRoute() {
         </div>
       </FilterSheet>
 
-      <form className="admin-jobs-search" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
-        <Search size={18} aria-hidden="true" />
+      <form className="searchbox admin-jobs-searchbox" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
+        <Search size={21} aria-hidden="true" />
         <input
           id="admin-jobs-query"
           name="q"
@@ -230,7 +235,7 @@ export function AdminJobsRoute() {
           placeholder="Título ou empresa"
           aria-label="Título ou empresa"
         />
-        <button className="primary small" type="submit">
+        <button className="primary" type="submit">
           Buscar
         </button>
       </form>
@@ -248,11 +253,9 @@ export function AdminJobsRoute() {
         <div className="result-head admin-jobs-result-head">
           <div>
             <h2>{heading}</h2>
-            {countLabel ? (
-              <p className="admin-jobs-count" aria-live="polite">
-                {countLabel}
-              </p>
-            ) : null}
+            <p className="admin-jobs-count" aria-live="polite">
+              {countLabel}
+            </p>
           </div>
           <button
             className="filter-mobile"
@@ -262,21 +265,21 @@ export function AdminJobsRoute() {
           >
             <Filter size={16} /> Filtros {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
           </button>
-          <div className="admin-jobs-toolbar--inline">
-            <StatusFilterGroup status={filters.status} onSelect={(status) => commitFilters({ status, page: 1 })} />
-            <label className="admin-jobs-sort" htmlFor="admin-jobs-sort">
-              Ordenar
-              <select
-                id="admin-jobs-sort"
-                name="sort"
-                value={filters.sort}
-                onChange={(event) => commitFilters({ sort: event.target.value, page: 1 })}
-              >
-                <option value={ADMIN_JOB_SORT_RECENT}>Mais recentes</option>
-                <option value={ADMIN_JOB_SORT_OLDEST}>Mais antigas</option>
-              </select>
-            </label>
-          </div>
+        </div>
+        <div className="admin-jobs-toolbar-row admin-jobs-toolbar--desktop">
+          <StatusFilterGroup status={filters.status} onSelect={(status) => commitFilters({ status, page: 1 })} />
+          <label className="admin-jobs-sort" htmlFor="admin-jobs-sort">
+            Ordenar
+            <select
+              id="admin-jobs-sort"
+              name="sort"
+              value={filters.sort}
+              onChange={(event) => commitFilters({ sort: event.target.value, page: 1 })}
+            >
+              <option value={ADMIN_JOB_SORT_RECENT}>Mais recentes</option>
+              <option value={ADMIN_JOB_SORT_OLDEST}>Mais antigas</option>
+            </select>
+          </label>
         </div>
         {loadingAnnouncement ? (
           <p className="sr-only" role="status">
