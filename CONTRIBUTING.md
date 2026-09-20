@@ -16,7 +16,7 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 
-**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Configs operacionais em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Scripts ClickUp em `scripts/` são ferramentas genéricas versionadas (sem dados do squad). Cada PR inclui `ClickUp: CU-xxx` no corpo (ver [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub continua **manual** (OAuth). Execução técnica permanece ONE-LINER + Cursor + GitHub.
+**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md) (§ **Identificação: ID ClickUp vs código de história**); **metadados obrigatórios** (assignee, tags, datas) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). O **ID da task** na URL é o vínculo oficial no PR (`ClickUp: 86a…`); o **código de história** (`UX-*`, `SEC-*`, `MVP-*`) fica no título da task, ONE-LINER e contexto do PR. Configs em `docs-local/clickup/` (gitignored); sync: `pnpm clickup:sync`. Cada PR inclui o ID no corpo (template [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)). Integração GitHub **manual** (OAuth). Execução: ONE-LINER + Cursor + GitHub.
 
 ## Trabalho não programado (mid-sprint)
 
@@ -292,6 +292,8 @@ git push origin --delete nome-da-branch
 ## Proteção de `main` (GitHub) — habilitada em 2026-08-16; required checks atualizados em 2026-09-16 (SEC-CI-SECRETS-01)
 
 Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. O job **RLS homolog** (`pnpm test:rls`) corre só após o merge (`push` ou `workflow_dispatch` em `main`), com secrets no GitHub Environment `homolog-rls` — **não** é required check da PR e **não** injeta `service_role` nem senhas staff no checkout de PR. Falha de `RLS homolog` em `main` **não** bloqueia o deploy automático da Vercel neste recorte; torna o release **não confiável** e exige rollback (`docs-local/sec-ci-secrets-01-rollback.md`). Squash merge é o único método permitido no repositório. Zero aprovações humanas obrigatórias (único mantenedor).
+
+**RLS homolog — atenção operacional:** falhas com `Request rate limit reached` no Auth de homolog **não** são, por si só, TOTP errado; evite `test:rls` local e re-runs de CI em rajada. Secrets TOTP: `.env.local` / `homolog-rls` (CI não lê `staff-mfa-totp-secrets.md`). Ver `SETUP.md` (§ rate limit vs TOTP), `pnpm verify:staff-mfa` e runbook local `docs-local/rls-homolog-auth-troubleshooting.md` (modelo em `docs-local.example/`).
 
 Evidência (mantenedor): [`docs-local/s1-04-branch-protection.md`](docs-local/s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
 

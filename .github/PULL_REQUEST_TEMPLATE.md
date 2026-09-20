@@ -1,8 +1,8 @@
 ## Contexto
-<!-- História ou item do backlog (ex.: UX-EVENTOS-SCROLL-01). -->
+<!-- Código de história (ex.: UX-EVENTOS-SCROLL-01) e sprint, se aplicável. -->
 
-ClickUp: CU-xxxxx
-<!-- ID da task (integração GitHub). Setup: docs-local.example/clickup/setup.md -->
+ClickUp: xxxxxxxxx
+<!-- ID da task na URL do ClickUp (não é o código de história). Ver docs-local.example/clickup/setup.md § Identificação -->
 
 ## Alterações
 -

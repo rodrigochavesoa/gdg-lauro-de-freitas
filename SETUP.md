@@ -87,6 +87,19 @@ Após aplicar a migration `staff_rls_aal2` **só em homologação** (Camada B / 
 3. Teste humano na API: `signInWithPassword` sem verify MFA → mutação staff bloqueada; fluxo com TOTP → a mesma mutação ok. Candidato sem regressão.
 4. Enhanced MFA Security do Dashboard é regra de **sessão Auth**, não de policy — não conta como este teste.
 
+### Atenção: rate limit do Auth vs TOTP errado
+
+O harness `pnpm test:rls` dispara muitos logins staff (senha + MFA) no **mesmo projeto Supabase de homologação**. O Auth pode responder `Request rate limit reached` ou `over_request_rate_limit` — inclusive no `signInWithPassword`, **antes** do TOTP. Isso **não** significa secret TOTP incorreto.
+
+| Log / erro | Interpretação |
+|---|---|
+| `rate limit` / `over_request_rate_limit` no login ou no `mfa.challenge` | Throttling — pare `test:rls` local, evite vários `workflow_dispatch` seguidos na `main`, aguarde 30–60 min. O script `scripts/check-rls.mjs` aplica backoff extra no GitHub Actions. |
+| `Invalid TOTP` (ou falha só no `mfa.verify`, com senha OK) | Secret base32 desatualizado — re-enroll ou alinhe `*_TEST_TOTP_SECRET` no `.env.local` e no Environment **`homolog-rls`**. |
+
+**Onde o secret vive:** no enroll, copie a chave base32 **uma vez** (o Dashboard não a reexibe). Localmente: `*_TEST_TOTP_SECRET` no `.env.local` **sobrescreve** `docs-local/staff-mfa-totp-secrets.md`. No CI **só** entram os secrets de `homolog-rls` — não há `.env.local` no runner.
+
+Diagnóstico sem imprimir o secret: `pnpm verify:staff-mfa` (fingerprints SHA-256 truncados + probe admin AAL2). Modelo de runbook: [`docs-local.example/rls-homolog-auth-troubleshooting.example.md`](docs-local.example/rls-homolog-auth-troubleshooting.example.md) → cópia em `docs-local/`.
+
 ## Rollback (Vercel Hobby)
 
 1. Dashboard Vercel → Deployments → abrir o deploy **Production anterior** → Promote to Production.
@@ -118,7 +131,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs 
 | Job | Comando | Quando corre | Efeito de falha |
 |---|---|---|---|
 | `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | PR e push em `main`. É o **único** required check para merge. Sem `service_role` e sem senhas staff. | **Bloqueia** merge na PR e marca o workflow como falho. |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–20, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–22, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
 
 Na **PR**, apenas `Lint, test and build` precisa ficar verde. `RLS homolog` skipped é o comportamento esperado.
 
@@ -130,7 +143,7 @@ Se `RLS homolog` falhar após o merge:
 
 1. tratar o deploy associado como **não confiável** (não promover nem assumir homologação íntegra);
 2. seguir o rollback em [`docs-local/sec-ci-secrets-01-rollback.md`](docs-local/sec-ci-secrets-01-rollback.md) (gitignored; cópia local do mantenedor);
-3. reexecutar `workflow_dispatch` em `main` ou `pnpm test:rls` local após corrigir.
+3. reexecutar `workflow_dispatch` em `main` ou `pnpm test:rls` local após corrigir (se o log for **rate limit**, espere cooldown antes de repetir — ver § Atenção: rate limit do Auth vs TOTP errado).
 
 Um workflow de deploy condicionado ao RLS permanece **fora de escopo** desta história (follow-up DevOps).
 
@@ -142,6 +155,7 @@ Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via
 # Requer .env.local + contas em docs-local/*-test-user.md + secrets TOTP staff (docs-local/staff-mfa-totp-secrets.md ou *_TEST_TOTP_SECRET)
 # Probe F-019 (cenário 13), cleanup MVP-003 (cenário 16) e MVP-005 (cenário 17): SUPABASE_SERVICE_ROLE_KEY no .env.local (local) ou GitHub Environment homolog-rls (CI) — nunca no frontend nem versionado
 pnpm test:rls
+pnpm verify:staff-mfa   # diagnóstico TOTP / rate limit (não substitui o harness completo)
 ```
 
 No GitHub Actions o job `RLS homolog` recebe as mesmas variáveis por **secrets do Environment `homolog-rls`** (homologação, nunca produção; só `push`/`workflow_dispatch` em `main`). Nomes:

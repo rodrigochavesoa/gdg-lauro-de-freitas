@@ -131,15 +131,30 @@ Checklist:
 - [ ] Repo `gdg-lauro-de-freitas` linkado
 - [ ] Teste: abrir PR com linha `ClickUp: CU-xxxxx` no corpo → atividade aparece na task
 
+### Identificação: ID ClickUp vs código de história
+
+**Resumo:** o **número/ID da task no ClickUp** (ex.: `86abcdefgh` na URL `https://app.clickup.com/t/86abcdefgh`) é o identificador **oficial na ferramenta** — API, sync, integração GitHub. Times maduros **também** usam um **código de história** (ex.: `SEC-EXAMPLE-01`) e a **sprint** na fala, ONE-LINER e documentação; amarram os dois na **descrição da task** e no **corpo do PR**.
+
+| Camada | Exemplo | Uso |
+|---|---|---|
+| ID ClickUp | `86abcdefgh` | PR (`ClickUp:`), links, MCP/API, “qual task abrir” |
+| Código de história | `UX-EXAMPLE-01`, `MVP-013` | Título da task, ONE-LINER, commits/PR title, docs |
+| Sprint / list | Sprint NN | Agrupamento temporal; Sprint Note com fluxo numerado |
+| Tags | `frontend`, `security` | Tipo de trabalho (1–3 por task) — **não** substituem o ID |
+
+**Conversação:** “estou na UX-EXAMPLE-01” ou “na Sprint NN”. **Rastreio Git:** linha `ClickUp: 86abcdefgh` (ID da URL; `CU-` em docs antigos é hábito Jira — o valor real é o id ClickUp). Opcional: **Custom Task ID** no workspace (ex. `GDG-42`) se o plano ClickUp permitir; senão, código no **título** + ID no PR.
+
+Ao criar task no handoff JSON, inclua o código no `name` e guarde o id retornado pelo sync para PRs futuros.
+
 ### Vincular PR à task
 
 No corpo do PR (template do repo):
 
 ```md
-ClickUp: CU-xxxxx
+ClickUp: 86abcdefgh
 ```
 
-Substitua `CU-xxxxx` pelo ID real da task (copie da URL da task no ClickUp).
+Substitua pelo **ID da task** (copie da URL no ClickUp). O **código de história** vai no título do PR e na seção Contexto do template.
 
 Opcional — automação ClickUp (Automations):
 

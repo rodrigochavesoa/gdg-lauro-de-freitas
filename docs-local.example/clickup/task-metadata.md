@@ -153,7 +153,7 @@ Exemplo saudável após handoff já aplicado:
 |---|---|
 | **Plan / PO** | Task na sprint atual (ou list adequada) + doc do assunto em `docs-local/` + Sprint Note se mudar ordem |
 | **Plan** | `pnpm clickup:sync` **antes** do ONE-LINER ao Executor |
-| **Executor** | **Não** iniciar sem task ClickUp; PR com `ClickUp: CU-xxx` |
+| **Executor** | **Não** iniciar sem task ClickUp; PR com `ClickUp: <id da URL>` + código de história no título/contexto (ver `setup.md` § Identificação) |
 
 Checklist mínimo da task no JSON:
 
