@@ -24,6 +24,8 @@ const STABLE_CODES = [
   "rate limit exceeded",
   "cannot withdraw application",
   "application not found",
+  "staff cannot apply",
+  "staff cannot withdraw",
 ];
 
 const UX_BY_CODE = {
@@ -35,6 +37,8 @@ const UX_BY_CODE = {
   "rate limit exceeded": "Muitas tentativas. Aguarde um minuto para se candidatar de novo.",
   "cannot withdraw application": "Não é possível retirar esta candidatura.",
   "application not found": "Candidatura não encontrada.",
+  "staff cannot apply": "Contas staff não se candidatam a vagas.",
+  "staff cannot withdraw": "Contas staff não retiram candidaturas.",
 };
 
 async function resolveCandidateId(client, userId) {

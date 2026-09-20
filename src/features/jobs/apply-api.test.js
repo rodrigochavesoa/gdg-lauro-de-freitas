@@ -62,6 +62,9 @@ describe("mapeamento de erros RPC", () => {
     expect(createApplyError({ message: "rate limit exceeded" }).code).toBe("rate limit exceeded");
     expect(createApplyError({ message: "rate limit exceeded" }).status).toBe(429);
     expect(createApplyError({ message: "job is not approved" }).message).toMatch(/não está disponível/);
+    expect(createApplyError({ message: "staff cannot apply" }).code).toBe("staff cannot apply");
+    expect(createApplyError({ message: "staff cannot apply" }).message).toMatch(/staff não se candidatam/);
+    expect(createApplyError({ message: "staff cannot withdraw" }).code).toBe("staff cannot withdraw");
   });
 });
 

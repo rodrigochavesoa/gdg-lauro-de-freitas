@@ -10,6 +10,21 @@ export function isCandidateProfile(profile) {
   return !profile?.role || profile.role === "candidate";
 }
 
+/** Auth hidratada o bastante para decidir o card de candidatura (sem flash). */
+export function isCandidateApplySurfaceReady({ authReady, logged, profile } = {}) {
+  return Boolean(authReady) && (!logged || profile != null);
+}
+
+/** Apply/withdraw só para candidate; role ausente conta como candidate depois da hidratação. */
+export function canUseCandidateApply({ authReady, logged, profile } = {}) {
+  return isCandidateApplySurfaceReady({ authReady, logged, profile }) && isCandidateProfile(profile);
+}
+
+/** Consulta a candidatura própria só com sessão candidate (CTA anônimo não dispara fetch). */
+export function shouldLoadMyApplication({ authReady, logged, profile } = {}) {
+  return Boolean(logged) && canUseCandidateApply({ authReady, logged, profile });
+}
+
 /** Completude D-01. E-mail vem do Auth, não do json de perfil. */
 export function isD01Complete(profile, email) {
   if (!profile) return false;

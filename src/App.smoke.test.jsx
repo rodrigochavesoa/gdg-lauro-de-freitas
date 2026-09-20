@@ -448,6 +448,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
@@ -467,11 +468,19 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
 
+  it("visitante em /jobs/:id vê CTA e não chama loadMyApplication", async () => {
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
+  });
+
   it("renderiza o detalhe diretamente em /jobs/:id", async () => {
     await renderAt("/jobs/1");
     expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Voltar para vagas/i })).toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
@@ -568,6 +577,31 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
+  });
+
+  it("staff em /jobs/:id não vê CTA nem dispara loadMyApplication", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "Ada Admin", role: "admin" };
+    authState.needsOnboarding = false;
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByText(/Contas staff não se candidatam/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retirar candidatura/i })).not.toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
+  });
+
+  it("sessão logada sem role hidratada não flasha CTA de candidato", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = null;
+    authState.needsOnboarding = false;
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contas staff não se candidatam/i)).not.toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
   });
 
   it("renderiza o dashboard em /minhas-candidaturas com sessão", async () => {

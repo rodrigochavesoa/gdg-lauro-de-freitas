@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02 e MVP-013.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 e SEC-STAFF-APPLY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -332,6 +332,21 @@ async function rpcApply(client, jobId) {
 
 async function rpcWithdraw(client, jobId) {
   return client.rpc("withdraw_application", { p_job_id: jobId });
+}
+
+async function assertStaffCannotApplyOrWithdraw(client, role) {
+  const apply = await rpcApply(client, SEED_APPROVED_A);
+  assert(Boolean(apply.error), `${role} AAL2 não aplica via RPC`);
+  assert(
+    /staff cannot apply/i.test(errorText(apply.error)),
+    `apply ${role} recusado (${errorText(apply.error) || "sem mensagem"})`,
+  );
+  const withdraw = await rpcWithdraw(client, SEED_APPROVED_A);
+  assert(Boolean(withdraw.error), `${role} AAL2 não retira via RPC`);
+  assert(
+    /staff cannot withdraw/i.test(errorText(withdraw.error)),
+    `withdraw ${role} recusado (${errorText(withdraw.error) || "sem mensagem"})`,
+  );
 }
 
 async function deleteApplication(admin, jobId, candidateId) {
@@ -776,7 +791,7 @@ async function scenario10_applyHappy() {
   await admin.auth.signOut();
 }
 
-/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto. */
+/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto, staff (admin/curator/moderator). */
 async function scenario11_applyBlocked() {
   if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
     skipRequired(11, "faltam admin e/ou candidate em docs-local");
@@ -818,6 +833,22 @@ async function scenario11_applyBlocked() {
     snapshot: { forged: true },
   }).select("id");
   assert(Boolean(direct.error) || (direct.data ?? []).length === 0, "candidato não faz INSERT direto");
+
+  await assertStaffCannotApplyOrWithdraw(admin, "admin");
+  for (const role of ["curator", "moderator"]) {
+    if (!hasCreds(testUsers[role]) || !totpSecrets[role]) {
+      skipRequired(11, `falta ${role} AAL2 em docs-local`);
+      continue;
+    }
+    const { client: staff, error: staffErr } = await signInStaff(role);
+    assert(!staffErr, `${role} AAL2 autentica para apply (${staffErr?.message ?? "ok"})`);
+    if (staffErr || !staff) continue;
+    try {
+      await assertStaffCannotApplyOrWithdraw(staff, role);
+    } finally {
+      await staff.auth.signOut();
+    }
+  }
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);

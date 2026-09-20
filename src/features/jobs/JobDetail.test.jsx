@@ -20,6 +20,8 @@ const job = {
   responsibilities: ["Construir interfaces"],
 };
 
+const CANDIDATE_APPLY = { canUseCandidateApply: true, applySurfaceReady: true };
+
 describe("JobDetail apply", () => {
   it("clique no apply chama o adaptador quando há sessão", () => {
     const onApply = vi.fn();
@@ -28,6 +30,7 @@ describe("JobDetail apply", () => {
         job={job}
         goBack={() => {}}
         logged
+        {...CANDIDATE_APPLY}
         onApply={onApply}
         applicationStatus={null}
       />,
@@ -42,6 +45,7 @@ describe("JobDetail apply", () => {
         job={job}
         goBack={() => {}}
         logged
+        {...CANDIDATE_APPLY}
         applicationStatus={null}
         applicationLoading
       />,
@@ -58,6 +62,7 @@ describe("JobDetail apply", () => {
         job={job}
         goBack={() => {}}
         logged
+        {...CANDIDATE_APPLY}
         applicationStatus={null}
         applicationCheckFailed
       />,
@@ -79,6 +84,8 @@ describe("JobDetail apply", () => {
         isPartial
         goBack={() => {}}
         logged={false}
+        canUseCandidateApply
+        applySurfaceReady
         applicationStatus={null}
       />,
     );
@@ -96,12 +103,56 @@ describe("JobDetail apply", () => {
         isPartial
         goBack={() => {}}
         logged
+        {...CANDIDATE_APPLY}
         applicationStatus={null}
         applicationLoading
       />,
     );
     expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeDisabled();
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("staff não vê CTA, verifying nem withdraw", () => {
+    const onApply = vi.fn();
+    render(
+      <JobDetail
+        job={job}
+        goBack={() => {}}
+        logged
+        canUseCandidateApply={false}
+        applySurfaceReady
+        applicationStatus="submitted"
+        onApply={onApply}
+      />,
+    );
+    expect(screen.getByText(/Contas staff não se candidatam/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retirar candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Ao se candidatar, seu perfil será compartilhado/i)).not.toBeInTheDocument();
+  });
+
+  it("card neutro enquanto a role não hidrata: sem CTA e sem verifying", () => {
+    render(
+      <JobDetail
+        job={job}
+        goBack={() => {}}
+        logged
+        canUseCandidateApply={false}
+        applySurfaceReady={false}
+        applicationLoading
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contas staff não se candidatam/i)).not.toBeInTheDocument();
+  });
+
+  it("sem props de apply o card permanece neutro", () => {
+    render(<JobDetail job={job} goBack={() => {}} logged />);
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contas staff não se candidatam/i)).not.toBeInTheDocument();
   });
 
   it("usa o rótulo contextual no botão voltar", () => {

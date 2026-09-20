@@ -68,6 +68,8 @@ export function JobDetail({
   onNeedLogin,
   onNeedOnboarding,
   needsOnboarding,
+  canUseCandidateApply = false,
+  applySurfaceReady = false,
   applicationStatus,
   applicationLoading = false,
   applicationCheckFailed = false,
@@ -77,6 +79,7 @@ export function JobDetail({
   applyError,
 }) {
   const apply = () => {
+    if (!canUseCandidateApply) return;
     if (!logged) {
       onNeedLogin?.();
       return;
@@ -89,10 +92,11 @@ export function JobDetail({
   };
 
   const copy = APPLICATION_STATUS_COPY[applicationStatus];
-  const showChecking = Boolean(logged && applicationLoading);
-  const showApplied = Boolean(copy) && !showChecking;
-  const showApply = !showChecking && !showApplied && !applicationCheckFailed;
-  const showWithdraw = !showChecking && !applicationCheckFailed && canWithdrawStatus(applicationStatus);
+  const showChecking = Boolean(canUseCandidateApply && logged && applicationLoading);
+  const showApplied = Boolean(canUseCandidateApply && copy) && !showChecking;
+  const showApply = Boolean(canUseCandidateApply) && !showChecking && !showApplied && !applicationCheckFailed;
+  const showWithdraw = Boolean(canUseCandidateApply) && !showChecking && !applicationCheckFailed && canWithdrawStatus(applicationStatus);
+  const showStaffNote = Boolean(logged && applySurfaceReady && !canUseCandidateApply);
 
   return (
     <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy={isPartial || undefined}>
@@ -167,11 +171,16 @@ export function JobDetail({
                 {applyBusy ? "Retirando…" : "Retirar candidatura"}
               </button>
             ) : null}
+            {showStaffNote ? (
+              <p className="tiny">Contas staff não se candidatam. Use a Área admin para curadoria.</p>
+            ) : null}
             {applicationCheckFailed ? (
               <p className="tiny" role="alert">Não foi possível verificar candidatura.</p>
             ) : null}
             {applyError ? <p className="tiny" role="alert">{applyError}</p> : null}
-            <p className="tiny">Ao se candidatar, seu perfil será compartilhado com a empresa.</p>
+            {canUseCandidateApply ? (
+              <p className="tiny">Ao se candidatar, seu perfil será compartilhado com a empresa.</p>
+            ) : null}
           </aside>
         </div>
       </div>

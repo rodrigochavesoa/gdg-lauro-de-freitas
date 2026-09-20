@@ -28,7 +28,7 @@ import {
   signOutUser,
   subscribeAuth,
 } from "./features/auth/auth-api.js";
-import { isCandidateProfile, isD01Complete } from "./features/auth/profile-completeness.js";
+import { isCandidateProfile, isD01Complete, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
@@ -220,7 +220,7 @@ export function App() {
         <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={Boolean(auth.session)} /></CatalogGate>} />
         <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
         <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={Boolean(auth.session)} /></CatalogGate>} />
-        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} /></CatalogGate>} />
+        <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={Boolean(auth.session)} userId={auth.session?.user?.id} needsOnboarding={auth.needsOnboarding} authReady={authReady} profile={auth.profile} /></CatalogGate>} />
         <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />
         <Route path="/preferencias" element={<PrivacyPreferencesRoute auth={auth} authReady={authReady} />} />
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
@@ -333,7 +333,7 @@ function OnboardingRoute({ auth, setAuth, sessionUserId }) {
   );
 }
 
-function JobDetailRoute({ logged, userId, needsOnboarding }) {
+function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { state } = useLocation();
@@ -347,6 +347,9 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
   const [applicationCheckFailed, setApplicationCheckFailed] = useState(false);
   const [applyBusy, setApplyBusy] = useState(false);
   const [applyError, setApplyError] = useState("");
+  const applySurfaceReady = isCandidateApplySurfaceReady({ authReady, logged, profile });
+  const candidateApply = canUseCandidateApply({ authReady, logged, profile });
+  const loadOwnApplication = shouldLoadMyApplication({ authReady, logged, profile });
 
   useEffect(() => {
     let cancelled = false;
@@ -359,12 +362,12 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
       setStatus("loading");
     }
     setApplicationStatus(null);
-    setApplicationLoading(Boolean(logged));
+    setApplicationLoading(loadOwnApplication);
     setApplicationCheckFailed(false);
     setApplyError("");
 
     const jobPromise = loadApprovedJob(id);
-    const applicationPromise = logged
+    const applicationPromise = loadOwnApplication
       ? loadMyApplication(id, userId)
       : Promise.resolve(null);
 
@@ -393,9 +396,10 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
       });
 
     return () => { cancelled = true; };
-  }, [id, logged, userId]);
+  }, [id, logged, userId, loadOwnApplication]);
 
   const runApplyAction = async (action) => {
+    if (!logged || !candidateApply) return;
     setApplyBusy(true);
     setApplyError("");
     try {
@@ -437,6 +441,8 @@ function JobDetailRoute({ logged, userId, needsOnboarding }) {
         backLabel={backLabel}
         logged={logged}
         needsOnboarding={needsOnboarding}
+        canUseCandidateApply={candidateApply}
+        applySurfaceReady={applySurfaceReady}
         onNeedLogin={() => navigate("/login")}
         onNeedOnboarding={() => navigate("/onboarding")}
         applicationStatus={applicationStatus}
