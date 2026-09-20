@@ -80,6 +80,43 @@ export function adminJobListSearchParams({ status, query, sort, page } = {}) {
   return next;
 }
 
+export const ADMIN_JOB_STATUS_FILTERS = [
+  { id: "pending", label: "Pendentes" },
+  { id: "approved", label: "Publicadas" },
+  { id: "rejected", label: "Rejeitadas" },
+];
+
+export function adminJobListHeading(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "approved") return "Vagas publicadas";
+  if (normalized === "rejected") return "Vagas rejeitadas";
+  return "Aguardando curadoria";
+}
+
+export function adminJobEmptyCopy(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "approved") return "Nenhuma vaga publicada.";
+  if (normalized === "rejected") return "Nenhuma vaga rejeitada.";
+  return "Nenhuma vaga aguardando curadoria.";
+}
+
+export function countAdminJobActiveFilters({ status, sort } = {}) {
+  const params = normalizeAdminJobPageParams({ status, sort });
+  let count = 0;
+  if (params.status !== "pending") count += 1;
+  if (params.sort !== ADMIN_JOB_SORT_RECENT) count += 1;
+  return count;
+}
+
+export function formatAdminJobTotalLabel(total, loaded) {
+  if (total == null) return "";
+  const noun = total === 1 ? "vaga" : "vagas";
+  if (loaded != null && loaded < total) {
+    return `Mostrando ${loaded} de ${total} ${noun}`;
+  }
+  return total === 1 ? "1 vaga" : `${total} vagas`;
+}
+
 function buildAdminJobSearchOr(query) {
   const pattern = buildCatalogSearchPattern(query);
   if (!pattern) return null;
@@ -95,7 +132,6 @@ function mapAdminJobListItem(row) {
     created_at: row.created_at,
     level: row.level,
     work_model: row.work_model,
-    featured: false,
     companies: row.companies ?? null,
   };
 }

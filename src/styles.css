@@ -228,7 +228,7 @@ html[data-theme="dark"] {
 .admin-job-list-item{justify-content:flex-start;text-align:left;width:100%;color:var(--color-text)}
 a.admin-job-list-item{display:flex;align-items:center;flex-wrap:wrap}
 .admin-job-list-title{color:var(--color-text);font-weight:600}
-.admin-job-list-meta{color:var(--color-grey-700);font-weight:500}
+.admin-job-list-meta{margin:var(--space-1) 0 0;color:var(--color-grey-700);font-weight:500}
 .admin-job-list summary{cursor:pointer;color:var(--color-text)}
 .admin-job-list-block{margin:0 0 var(--space-4)}
 .admin-jobs-search{display:flex;align-items:center;gap:var(--space-3);width:100%;margin:0 0 var(--space-4);padding:0 var(--space-4);min-height:44px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);color:var(--color-text-muted)}
@@ -236,22 +236,43 @@ a.admin-job-list-item{display:flex;align-items:center;flex-wrap:wrap}
 .admin-jobs-search input:-webkit-autofill,.admin-jobs-search input:-webkit-autofill:hover,.admin-jobs-search input:-webkit-autofill:focus{-webkit-text-fill-color:var(--color-text);box-shadow:0 0 0 1000px var(--color-surface) inset;caret-color:var(--color-text)}
 .admin-jobs-search .primary{flex-shrink:0}
 .admin-jobs-toolbar-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-3);margin:0 0 var(--space-4)}
-.admin-jobs-status{display:flex;flex-wrap:nowrap;gap:var(--space-2);overflow-x:auto;max-width:100%}
-.admin-jobs-status .ghost{flex:0 0 auto;min-height:44px}
-.admin-jobs-count{margin:0;color:var(--color-text-muted);font-size:var(--font-size-body-2)}
+.admin-jobs-status,.admin-jobs-sort-options{display:flex;flex-wrap:wrap;gap:var(--space-2);max-width:100%}
+.admin-jobs-status .ghost,.admin-jobs-sort-options .ghost{flex:0 0 auto;min-height:44px}
+.admin-jobs-count{margin:4px 0 0;color:var(--color-text-muted);font-size:var(--font-size-body-2)}
 .admin-jobs-sort{display:flex;align-items:center;gap:var(--space-2);color:var(--color-text-muted);font-size:var(--font-size-body-2)}
 .admin-jobs-sort select{min-height:44px;border:1px solid var(--color-border);border-radius:var(--radius-md);padding:0 var(--space-3);background:var(--color-surface);color:var(--color-text)}
 .admin-jobs-more{margin:var(--space-4) 0 0}
 .admin-jobs-more .outline{min-height:44px}
-.admin-jobs-skeleton{min-height:56px}
+.admin-jobs-result-head{align-items:flex-start;flex-wrap:wrap;gap:var(--space-3);margin-bottom:var(--space-4)}
+.admin-jobs-toolbar--inline{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);min-width:0}
+.admin-job-card{margin:0 0 var(--space-3)}
+.admin-job-card__link{display:flex;align-items:flex-start;justify-content:space-between;gap:var(--space-3);width:100%;min-height:44px;padding:var(--space-3);border-radius:var(--radius-md);text-decoration:none;color:inherit;text-align:left}
+.admin-job-card__link:hover{background:var(--color-grey-50)}
+.admin-job-card__body{min-width:0;flex:1}
+.admin-job-card__body h3{margin:0;font-size:1rem;line-height:1.35}
+.admin-job-card__badges{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);flex-shrink:0}
+.admin-job-status{display:inline-flex;align-items:center;border-radius:var(--radius-pill);padding:3px 8px;background:var(--color-grey-100);color:var(--color-grey-700);font-size:.6875rem;font-weight:600}
+.admin-jobs-skeleton{min-height:56px;border-radius:var(--radius-md)}
+.admin-jobs-layout .filters .admin-jobs-status,
+.admin-jobs-layout .filters .admin-jobs-sort-options{flex-direction:column;align-items:stretch;overflow:visible}
+.admin-jobs-layout .filters .ghost{justify-content:flex-start;width:100%}
 .form-alert .outline{margin-top:var(--space-3)}
+@media(min-width:761px){
+  .admin-jobs-layout>.filters-slot{display:none}
+}
 @media(max-width:760px){
   .admin-jobs-search{flex-wrap:wrap;padding:var(--space-2) var(--space-3)}
   .admin-jobs-search input{width:100%;flex-basis:100%}
   .admin-jobs-search .primary{width:100%}
+  .admin-jobs-toolbar--inline{display:none}
   .admin-jobs-sort{width:100%}
   .admin-jobs-sort select{flex:1}
   .admin-jobs-more .outline{width:100%}
+  .admin-job-card{border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);margin:0 0 12px}
+  .admin-job-card:hover{border-color:var(--color-primary-100);box-shadow:var(--shadow-card)}
+  .admin-job-card__link{flex-direction:column;padding:16px;gap:11px}
+  .admin-job-card__link:hover{background:transparent}
+  .admin-jobs-skeleton{min-height:92px;border-radius:var(--radius-lg)}
 }
 .curation-timeline{margin:8px 0 0;padding-left:1.2em;color:var(--color-text-muted);font-size:var(--font-size-body-2);line-height:1.45}
 .form-alert{margin:0 28px 16px;padding:12px 14px;border:1px solid var(--color-danger-700);border-radius:var(--radius-sm);background:var(--color-danger-50);color:var(--color-danger-700);font-size:var(--font-size-body-2)}
@@ -597,8 +618,10 @@ html[data-theme="dark"] .admin-home-actions button.primary{background:var(--colo
 html[data-theme="dark"] .admin-content .ghost[aria-pressed="true"]{background:var(--color-grey-100);color:var(--color-text)}
 html[data-theme="dark"] .admin-job-list-item,
 html[data-theme="dark"] .admin-job-list-title,
+html[data-theme="dark"] .admin-job-card__link,
 html[data-theme="dark"] .job-form .form-actions .ghost{color:var(--color-text)}
 html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
+html[data-theme="dark"] .admin-job-card__link:hover{background:var(--color-grey-100)}
 @media (prefers-color-scheme: dark) {
   html[data-theme="system"] .admin-tabs a,
   html[data-theme="system"] .admin-tabs button,
@@ -617,8 +640,10 @@ html[data-theme="dark"] .admin-job-list-meta{color:var(--color-grey-700)}
   html[data-theme="system"] .admin-content .ghost[aria-pressed="true"]{background:var(--color-grey-100);color:var(--color-text)}
   html[data-theme="system"] .admin-job-list-item,
   html[data-theme="system"] .admin-job-list-title,
+  html[data-theme="system"] .admin-job-card__link,
   html[data-theme="system"] .job-form .form-actions .ghost{color:var(--color-text)}
   html[data-theme="system"] .admin-job-list-meta{color:var(--color-grey-700)}
+  html[data-theme="system"] .admin-job-card__link:hover{background:var(--color-grey-100)}
 }
 
 /* UX-SHELL-EVENTOS-01 — landing /eventos no shell da Home; UX-EVENTOS-AVATAR-01 avatar inclusivo no divisor */
