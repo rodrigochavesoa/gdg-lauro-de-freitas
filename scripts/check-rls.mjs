@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022 e SEC-STAFF-MFA-02.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02 e MVP-013.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -8,6 +8,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { findForbiddenLogFields } from "../src/lib/privacy-redaction.js";
 import { generateTotp } from "./totp.mjs";
+import {
+  SOURCE_KINDS,
+  buildIngestionFingerprint,
+  registerJobIngestion,
+} from "../src/features/ingest/source-contract.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -143,6 +148,20 @@ function isTransientSupabaseError(error) {
   return /gateway timeout|502|503|504|522|524|ECONNRESET|fetch failed|Failed to fetch|NetworkError/i.test(errorText(error));
 }
 
+function isIngestionProbeTransient(error) {
+  return (
+    isTransientSupabaseError(error) ||
+    /timeout|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|unavailable|Failed to fetch|network/i.test(errorText(error))
+  );
+}
+
+/** RLS/GRANT/JWT recusou a leitura; não inclui rede, timeout nem 5xx. */
+function isIngestionReadDenied(error) {
+  return /row-level security|42501|permission denied|PGRST301|JWT expired|not authenticated|PGRST103/i.test(
+    errorText(error),
+  );
+}
+
 function isTransientAuthError(error) {
   return /rate limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(errorText(error));
 }
@@ -267,6 +286,10 @@ function isStaffAal2Denied(error) {
   return /aal2 required|row-level security|42501|violat(es|ed) row-level security/i.test(
     errorText(error),
   );
+}
+
+function isRelationMissing(error) {
+  return /could not find the table|schema cache|PGRST205|does not exist|42P01/i.test(errorText(error));
 }
 
 async function createPendingJob(client, marker) {
@@ -1776,6 +1799,261 @@ async function scenario20_staffAal1Blocked() {
   await aal2.auth.signOut();
 }
 
+function ingestionFixturePayload(title) {
+  return {
+    title,
+    company_name: "Empresa Fictícia Lab",
+    description: "Vaga fictícia para teste RLS de ingestão.",
+    level: "junior",
+    work_model: "remote",
+    location: "Brasil · Remoto",
+    stack: ["JavaScript"],
+  };
+}
+
+async function deleteIngestions(ids) {
+  const svc = createServiceClient();
+  if (!svc || ids.length === 0) return;
+  const { error } = await svc.from("job_ingestions").delete().in("id", ids);
+  if (error) console.log(`AVISO: cleanup job_ingestions: ${error.message}`);
+}
+
+async function assertCannotSeeIngestion(client, id, label) {
+  const byId = await queryWithRetry(() => client.from("job_ingestions").select("id").eq("id", id));
+  if (isIngestionProbeTransient(byId.error)) {
+    assert(
+      false,
+      `${label} falhou por rede/timeout/indisponibilidade, não por RLS (${errorText(byId.error)})`,
+    );
+    return;
+  }
+  if (byId.error && !isIngestionReadDenied(byId.error)) {
+    assert(false, `${label} erro inesperado ao ler ingestão (${errorText(byId.error)})`);
+    return;
+  }
+  assert(
+    Boolean(byId.error) || !(byId.data ?? []).some((row) => row.id === id),
+    `${label} não lê a ingestão existente`,
+  );
+}
+
+async function assertCanSeeIngestion(client, id, label) {
+  const byId = await client.from("job_ingestions").select("id").eq("id", id);
+  assert(!byId.error, `${label} lê ingestão sem erro (${byId.error?.message ?? "ok"})`);
+  assert((byId.data ?? []).some((row) => row.id === id), `${label} AAL2 lê a ingestão existente`);
+}
+
+/** Cenário 21 — MVP-013: job_ingestions fora do catálogo; duplicata idempotente; RLS. */
+async function scenario21_jobIngestions() {
+  if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
+    skipRequired(21, "falta admin AAL2 em docs-local");
+    return;
+  }
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(21, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
+    return;
+  }
+  if (!hasCreds(testUsers.curator) || !totpSecrets.curator) {
+    skipRequired(21, "falta curator AAL2 em docs-local");
+    return;
+  }
+  if (!hasCreds(testUsers.moderator) || !totpSecrets.moderator) {
+    skipRequired(21, "falta moderator AAL2 em docs-local");
+    return;
+  }
+
+  const { client: admin, error: adminErr } = await signInStaff("admin");
+  assert(!adminErr, `admin AAL2 autentica para ingestão (${adminErr?.message ?? "ok"})`);
+  if (adminErr || !admin) return;
+
+  const probe = await queryWithRetry(() => admin.from("job_ingestions").select("id").limit(1));
+  if (isRelationMissing(probe.error)) {
+    skipRequired(21, "migration job_ingestions não aplicada no ambiente");
+    await admin.auth.signOut();
+    return;
+  }
+
+  const stamp = Date.now();
+  const locator = `fixture:rls-s21-${stamp}`;
+  const payload = ingestionFixturePayload(`RLS 013 ingest ${stamp}`);
+  const createdIds = [];
+
+  try {
+    const first = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator: `  ${locator.toUpperCase()}  `,
+      payload,
+      expiresAt: "2020-01-01T00:00:00.000Z",
+    });
+    assert(Boolean(first?.id) && first.idempotent === false, "admin AAL2 registra ingestão");
+    if (first?.id) createdIds.push(first.id);
+    assert(first.job_id == null, "ingestão Fase A não exige job_id");
+    assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
+
+    await assertCannotSeeIngestion(anon, first.id, "anon");
+    const anonRpc = await anon.rpc("register_job_ingestion", {
+      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      p_locator: locator,
+      p_payload: payload,
+    });
+    assert(
+      Boolean(anonRpc.error) &&
+        (isExecuteDenied(anonRpc.error) || /aal2 required|42501|not authenticated/i.test(errorText(anonRpc.error))),
+      `anon não registra ingestão (${errorText(anonRpc.error) || "sem mensagem"})`,
+    );
+    const pendingJobs = await queryWithRetry(() => anon.from("jobs").select("id,status"));
+    assert(
+      (pendingJobs.data ?? []).every((row) => row.status === "approved"),
+      "catálogo público permanece só approved após contrato 013",
+    );
+    const publicJobs = await anon.from("jobs").select("id").eq("title", payload.title);
+    assert((publicJobs.data ?? []).length === 0, "ingestão não publica vaga no catálogo");
+
+    const { client: candidate, error: candidateErr } = await signInWithRetry(testUsers.candidate, {
+      label: "candidato (ingest)",
+    });
+    assert(!candidateErr, `candidato autentica para ingestão (${candidateErr?.message ?? "ok"})`);
+    if (!candidateErr && candidate) {
+      try {
+        await assertCannotSeeIngestion(candidate, first.id, "candidato");
+        const candidateInsert = await candidate.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: `fixture:rls-s21-candidate-${stamp}`,
+          payload_hash: "a".repeat(64),
+        });
+        assert(Boolean(candidateInsert.error), "candidato não insere ingestão via tabela");
+        const candidateRpc = await candidate.rpc("register_job_ingestion", {
+          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_locator: `fixture:rls-s21-candidate-rpc-${stamp}`,
+          p_payload: payload,
+        });
+        assert(Boolean(candidateRpc.error), "candidato não registra ingestão via RPC");
+        assert(
+          /aal2 required|42501|permission denied/i.test(errorText(candidateRpc.error)),
+          `RPC ingestão candidato recusada (${errorText(candidateRpc.error) || "sem mensagem"})`,
+        );
+      } finally {
+        await candidate.auth.signOut();
+      }
+    }
+
+    const { client: curator, error: curatorErr } = await signInStaff("curator");
+    assert(!curatorErr, `curator AAL2 autentica para ingestão (${curatorErr?.message ?? "ok"})`);
+    if (!curatorErr && curator) {
+      try {
+        await assertCanSeeIngestion(curator, first.id, "curator");
+      } finally {
+        await curator.auth.signOut();
+      }
+    }
+
+    const { client: moderator, error: moderatorErr } = await signInStaff("moderator");
+    assert(!moderatorErr, `moderator AAL2 autentica para ingestão (${moderatorErr?.message ?? "ok"})`);
+    if (!moderatorErr && moderator) {
+      try {
+        await assertCanSeeIngestion(moderator, first.id, "moderator");
+      } finally {
+        await moderator.auth.signOut();
+      }
+    }
+
+    const aal1Admin = await assertPasswordOnlyNotAal2("admin");
+    if (aal1Admin) {
+      try {
+        await assertCannotSeeIngestion(aal1Admin, first.id, "admin AAL1");
+        const aal1Insert = await aal1Admin.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: `fixture:rls-s21-aal1-${stamp}`,
+          payload_hash: "b".repeat(64),
+        });
+        assert(Boolean(aal1Insert.error), "AAL1 não insere ingestão via tabela");
+        assert(
+          isStaffAal2Denied(aal1Insert.error) || /permission denied|42501/i.test(errorText(aal1Insert.error)),
+          `insert ingestão AAL1 recusado (${errorText(aal1Insert.error) || "sem mensagem"})`,
+        );
+        const aal1Rpc = await aal1Admin.rpc("register_job_ingestion", {
+          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_locator: `fixture:rls-s21-aal1-rpc-${stamp}`,
+          p_payload: payload,
+        });
+        assert(Boolean(aal1Rpc.error), "AAL1 não registra ingestão via RPC");
+        assert(
+          isStaffAal2Denied(aal1Rpc.error),
+          `RPC ingestão AAL1 recusada (${errorText(aal1Rpc.error) || "sem mensagem"})`,
+        );
+      } finally {
+        await aal1Admin.auth.signOut();
+      }
+    }
+
+    const repeat = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator,
+      payload: { ...payload, stack: ["JavaScript"] },
+    });
+    assert(repeat.idempotent === true, "mesma fonte + mesmo payload é idempotente");
+    assert(repeat.id === first.id, "duplicata 013 devolve a mesma linha");
+    assert(repeat.expires_at != null, "reprocessamento não apaga o registro anterior");
+
+    const distinctLocator = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator: `${locator}-other`,
+      payload,
+    });
+    assert(distinctLocator.idempotent === false && distinctLocator.id !== first.id, "locator distinto cria linha nova");
+    if (distinctLocator?.id) createdIds.push(distinctLocator.id);
+
+    const distinctPayload = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator,
+      payload: { ...payload, title: `${payload.title} plenor` },
+    });
+    assert(distinctPayload.idempotent === false && distinctPayload.id !== first.id, "payload distinto cria linha nova");
+    if (distinctPayload?.id) createdIds.push(distinctPayload.id);
+
+    const fingerprint = await buildIngestionFingerprint({
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator,
+      payload,
+    });
+    assert(
+      fingerprint.payload_hash === first.payload_hash,
+      "hash do banco coincide com o canônico de preview (cliente não persiste o digest)",
+    );
+
+    const staffRead = await admin.from("job_ingestions").select("id").in("id", createdIds);
+    assert((staffRead.data ?? []).length === createdIds.length, "admin AAL2 lê as ingestões criadas");
+
+    const approvedHijack = await admin
+      .from("jobs")
+      .insert({
+        company_id: SEED_COMPANY,
+        title: `RLS 013 no approved ${stamp}`,
+        description: "Tentativa de publicação via cliente.",
+        level: "junior",
+        work_model: "remote",
+        status: "approved",
+        requirements: { mandatory: [], desirable: [] },
+      })
+      .select("id,status")
+      .single();
+    assert(
+      !approvedHijack.error && approvedHijack.data?.status === "pending",
+      "contrato 013 não altera o gatilho: cliente não persiste approved",
+    );
+    if (approvedHijack.data?.id) await deleteJob(admin, approvedHijack.data.id);
+  } catch (error) {
+    if (/could not find the function|PGRST202/i.test(error.message || "")) {
+      skipRequired(21, "RPC register_job_ingestion não aplicada no ambiente");
+    } else {
+      assert(false, `fluxo 013 admin: ${error.message || error}`);
+    }
+  } finally {
+    await deleteIngestions(createdIds);
+    await admin.auth.signOut();
+  }
+}
+
 console.log("=== Cenário 1: anon ===");
 await scenario1_anon();
 
@@ -1839,6 +2117,9 @@ await scenario19_avatarStorage();
 console.log("\n=== Cenário 20: SEC-STAFF-MFA-02 AAL1 bloqueado em mutação staff ===");
 await scenario20_staffAal1Blocked();
 
+console.log("\n=== Cenário 21: MVP-013 contrato de origem e fingerprint ===");
+await scenario21_jobIngestions();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -1851,6 +2132,7 @@ if (skippedRequired.size > 0) {
     if (n === 18) band = "MVP-022 exige execução real do cenário 18";
     if (n === 19) band = "PERF-AVATAR-02 exige execução real do cenário 19";
     if (n === 20) band = "SEC-STAFF-MFA-02 exige execução real do cenário 20";
+    if (n === 21) band = "MVP-013 exige execução real do cenário 21";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -1861,5 +2143,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2: ok (${skipped.length} aviso(s) opcionais; cenários 3–20 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–21 executados).`,
 );
