@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02 e MVP-013.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 e SEC-STAFF-APPLY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -776,7 +776,7 @@ async function scenario10_applyHappy() {
   await admin.auth.signOut();
 }
 
-/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto. */
+/** Cenário 11 — apply recusado: anon, D-01 incompleto, vaga pending, INSERT direto, staff. */
 async function scenario11_applyBlocked() {
   if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
     skipRequired(11, "faltam admin e/ou candidate em docs-local");
@@ -818,6 +818,19 @@ async function scenario11_applyBlocked() {
     snapshot: { forged: true },
   }).select("id");
   assert(Boolean(direct.error) || (direct.data ?? []).length === 0, "candidato não faz INSERT direto");
+
+  const staffApply = await rpcApply(admin, SEED_APPROVED_A);
+  assert(Boolean(staffApply.error), "admin AAL2 não aplica via RPC");
+  assert(
+    /staff cannot apply/i.test(errorText(staffApply.error)),
+    `apply staff recusado (${errorText(staffApply.error) || "sem mensagem"})`,
+  );
+  const staffWithdraw = await rpcWithdraw(admin, SEED_APPROVED_A);
+  assert(Boolean(staffWithdraw.error), "admin AAL2 não retira via RPC");
+  assert(
+    /staff cannot withdraw/i.test(errorText(staffWithdraw.error)),
+    `withdraw staff recusado (${errorText(staffWithdraw.error) || "sem mensagem"})`,
+  );
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
   await deleteApplication(admin, SEED_PENDING, user.id);

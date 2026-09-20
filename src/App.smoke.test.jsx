@@ -570,6 +570,31 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("button", { name: /Sair/i })).toBeInTheDocument();
   });
 
+  it("staff em /jobs/:id não vê CTA nem dispara loadMyApplication", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = { full_name: "Ada Admin", role: "admin" };
+    authState.needsOnboarding = false;
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByText(/Contas staff não se candidatam/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Retirar candidatura/i })).not.toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
+  });
+
+  it("sessão logada sem role hidratada não flasha CTA de candidato", async () => {
+    authState.session = { user: { id: "a1", email: "ada@example.invalid" } };
+    authState.profile = null;
+    authState.needsOnboarding = false;
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Verificando candidatura/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contas staff não se candidatam/i)).not.toBeInTheDocument();
+    expect(loadMyApplicationMock).not.toHaveBeenCalled();
+  });
+
   it("renderiza o dashboard em /minhas-candidaturas com sessão", async () => {
     authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
     authState.profile = { full_name: "Ana Demo", role: "candidate" };

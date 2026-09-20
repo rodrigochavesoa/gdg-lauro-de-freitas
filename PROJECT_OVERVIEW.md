@@ -295,6 +295,8 @@ A migration `20260915154949_job_submission_staff_dedup.sql` permanece fora do ma
 
 As migrations `20260920010148_job_ingestions_source_contract_homolog.sql` e `20260920020100_job_ingestions_register_rpc_homolog.sql` são **homolog-only** (sufixo `_homolog.sql` em `pnpm migrations:prod`). Tabela `job_ingestions`: fingerprint `(source_kind, normalized_locator, payload_hash)` independente da deduplicação MVP-010 em `jobs`. `payload_hash` é recalculado em `register_job_ingestion`; o cliente não escolhe o digest. Sem apply em produção. Uma futura `job_ingestions_*_prod.sql` não entra no pattern `_homolog.sql`.
 
+A migration `20260920030000_staff_cannot_apply_homolog.sql` (SEC-STAFF-APPLY-01) é **homolog-only**. `apply_to_job` e `withdraw_application` recusam papéis staff. Sem apply em produção.
+
 O prefixo legado `avatars_` em `HOMOLOG_ONLY_PATTERN` continua amplo (`avatars_versioned_path.sql` / `avatars_single_object.sql` sem `_homolog`). Não é regressão do MVP-013; o follow-up **GOV-AVATAR-MIG-CLASS-01** reclassifica esses arquivos antes da Camada B de avatar.
 
 Antes de qualquer migration produtiva, confirmar:
