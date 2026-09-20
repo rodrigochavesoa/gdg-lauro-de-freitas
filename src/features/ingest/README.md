@@ -67,6 +67,10 @@ RPC `process_job_ingestion` (admin AAL2): registra a origem, materializa `jobs` 
 | `failed` | falha redigida (`payload_invalid`, `materialize_failed`); histórico permanece |
 | `expired` | `expires_at` passou; não materializa; catálogo público esconde vaga ligada |
 
+**Aceite de falha (Fase B):** só tentativas **depois** do registro da origem. Recusa de contrato (`source_kind` inválido, localizador vazio, payload proibido) falha em `register_job_ingestion` **antes** de existir linha — a UI mostra o erro; **não** há `job_ingestion_attempts` (follow-up `INGEST-ATTEMPT-CONTRACT-01`).
+
+`loadJobIngestions` lista o conjunto completo (homolog/fixture). Paginação fica para `INGEST-LIST-PAGE-01` antes de uso operacional maior.
+
 UI staff: aba **Ingestão** em `/admin` (loading / vazio / erro / reprocessar). Fixture fictícia: `fixture:homolog-acme-frontend`.
 
 Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql`, `20260920020100_job_ingestions_register_rpc_homolog.sql` e `20260920040000_job_ingestions_process_homolog.sql`.

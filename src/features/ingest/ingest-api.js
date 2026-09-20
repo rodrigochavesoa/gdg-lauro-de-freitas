@@ -99,6 +99,7 @@ export async function processJobIngestion(client, { sourceKind, locator, payload
   return row;
 }
 
+/** Lista completa para homolog/fixture. Sem limite — follow-up INGEST-LIST-PAGE-01 antes de uso operacional maior. */
 export async function loadJobIngestions(client) {
   const resolved = clientOrThrow(client);
   const { data, error } = await resolved
