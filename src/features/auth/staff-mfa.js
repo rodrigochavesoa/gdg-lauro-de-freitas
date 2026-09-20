@@ -10,7 +10,7 @@ function clientOrThrow() {
 
 function throwIfError(error) {
   if (error) {
-    throw new Error(error.message || "Falha na API do Supabase.");
+    throw new Error(formatStaffMfaUserMessage(error.message || "Falha na API do Supabase."));
   }
 }
 
@@ -33,6 +33,32 @@ export function staffMfaQrSrc(qrCode) {
 
 export function needsStaffMfaStep(assurance) {
   return Boolean(assurance) && assurance.currentLevel !== "aal2";
+}
+
+/** Mensagens em PT para erros comuns de enroll/verify TOTP (Preview/homolog). */
+export function formatStaffMfaUserMessage(message) {
+  const text = String(message ?? "").trim();
+  if (!text) return "Não foi possível confirmar o segundo fator. Tente novamente.";
+  if (/invalid.*(otp|totp|code)|mfa.*invalid|verification.*failed/i.test(text)) {
+    return "Código inválido ou expirado. Abra o autenticador e digite o código atual de 6 dígitos.";
+  }
+  if (/factor.*not found|no such factor/i.test(text)) {
+    return "Autenticador não encontrado nesta conta. Gere um novo QR ou peça ajuda à equipe.";
+  }
+  return text;
+}
+
+/** Erros de API staff quando o JWT ainda está em AAL1 (sessão sem TOTP confirmado). */
+export function formatStaffPrivilegedApiError(message) {
+  const text = String(message ?? "").trim();
+  if (!text) return text;
+  if (/aal2|authenticator assurance|mfa challenge|insufficient.*aal/i.test(text)) {
+    return "Confirme o segundo fator na tela anterior (código do autenticador) e tente de novo.";
+  }
+  if (/jwt expired|refresh token/i.test(text)) {
+    return "Sessão expirada. Saia, entre de novo com e-mail e senha e confirme o autenticador.";
+  }
+  return text;
 }
 
 export async function getStaffMfaAssurance() {

@@ -10,6 +10,7 @@ import {
   normalizeLocator,
   isIngestionExpired,
 } from "./source-contract.js";
+import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const PROCESS_JOB_INGESTION_RPC = "process_job_ingestion";
@@ -77,7 +78,8 @@ function clientOrThrow(client) {
 
 function throwIfError(error) {
   if (error) {
-    throw new Error(error.message || "Falha na API de ingestão.");
+    const mapped = formatStaffPrivilegedApiError(error.message);
+    throw new Error(mapped || error.message || "Falha na API de ingestão.");
   }
 }
 
