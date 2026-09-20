@@ -293,7 +293,7 @@ As migrations ficam em `supabase/migrations/`. O arquivo `supabase/migrations/pr
 
 A migration `20260915154949_job_submission_staff_dedup.sql` permanece fora do manifesto até aceite da Camada B.
 
-A migration `20260920010148_job_ingestions_source_contract_homolog.sql` é **homolog-only** (`job_ingestion` no pattern de `pnpm migrations:prod`). Tabela `job_ingestions`: fingerprint `(source_kind, normalized_locator, payload_hash)` independente da deduplicação MVP-010 em `jobs`. Sem apply em produção.
+A migration `20260920010148_job_ingestions_source_contract_homolog.sql` é **homolog-only** (sufixo `_homolog.sql` em `pnpm migrations:prod`). Tabela `job_ingestions`: fingerprint `(source_kind, normalized_locator, payload_hash)` independente da deduplicação MVP-010 em `jobs`. Sem apply em produção. Uma futura `job_ingestions_*_prod.sql` não entra nesse pattern.
 
 Antes de qualquer migration produtiva, confirmar:
 

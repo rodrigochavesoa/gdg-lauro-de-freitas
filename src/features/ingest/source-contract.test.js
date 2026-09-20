@@ -5,6 +5,7 @@ import {
   canonicalizeIngestionPayload,
   hashIngestionPayload,
   isIngestionExpired,
+  isIngestionUniqueViolation,
   isSameIngestionFingerprint,
   normalizeLocator,
   normalizeUrlLocator,
@@ -180,7 +181,10 @@ describe("registerJobIngestion é idempotente na camada 013", () => {
       expires_at: null,
     };
     const client = createIngestionClient({
-      insertError: { code: "23505", message: "duplicate key value violates unique constraint" },
+      insertError: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "job_ingestions_source_fingerprint_key"',
+      },
       existingData: existing,
     });
     const result = await registerJobIngestion(client, {
@@ -207,5 +211,33 @@ describe("registerJobIngestion é idempotente na camada 013", () => {
     });
     expect(result.idempotent).toBe(false);
     expect(result.id).toBe(created.id);
+  });
+
+  it("não trata 23505 de outra constraint como duplicata 013", async () => {
+    const client = createIngestionClient({
+      insertError: {
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "jobs_company_normalized_title_uidx"',
+      },
+    });
+    await expect(
+      registerJobIngestion(client, {
+        sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+        locator: "fixture:acme-front",
+        payload: BASE_PAYLOAD,
+      }),
+    ).rejects.toThrow(/jobs_company_normalized_title_uidx/);
+    expect(
+      isIngestionUniqueViolation({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "jobs_company_normalized_title_uidx"',
+      }),
+    ).toBe(false);
+    expect(
+      isIngestionUniqueViolation({
+        code: "23505",
+        message: 'duplicate key value violates unique constraint "job_ingestions_source_fingerprint_key"',
+      }),
+    ).toBe(true);
   });
 });

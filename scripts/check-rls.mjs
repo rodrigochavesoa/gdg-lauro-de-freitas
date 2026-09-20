@@ -1804,74 +1804,49 @@ async function deleteIngestions(ids) {
   if (error) console.log(`AVISO: cleanup job_ingestions: ${error.message}`);
 }
 
+async function assertCannotSeeIngestion(client, id, label) {
+  const byId = await client.from("job_ingestions").select("id").eq("id", id);
+  assert(
+    Boolean(byId.error) || !(byId.data ?? []).some((row) => row.id === id),
+    `${label} não lê a ingestão existente`,
+  );
+}
+
+async function assertCanSeeIngestion(client, id, label) {
+  const byId = await client.from("job_ingestions").select("id").eq("id", id);
+  assert(!byId.error, `${label} lê ingestão sem erro (${byId.error?.message ?? "ok"})`);
+  assert((byId.data ?? []).some((row) => row.id === id), `${label} AAL2 lê a ingestão existente`);
+}
+
 /** Cenário 21 — MVP-013: job_ingestions fora do catálogo; duplicata idempotente; RLS. */
 async function scenario21_jobIngestions() {
-  const probe = await queryWithRetry(() => anon.from("job_ingestions").select("id"));
-  if (isRelationMissing(probe.error)) {
-    skipRequired(21, "migration job_ingestions não aplicada no ambiente");
+  if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
+    skipRequired(21, "falta admin AAL2 em docs-local");
     return;
   }
-  assert((probe.data ?? []).length === 0, "anon não lê ingestões");
-
-  const pendingJobs = await queryWithRetry(() => anon.from("jobs").select("id,status"));
-  assert(
-    (pendingJobs.data ?? []).every((row) => row.status === "approved"),
-    "catálogo público permanece só approved após contrato 013",
-  );
-
   if (!hasCreds(testUsers.candidate)) {
     skipRequired(21, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
     return;
   }
-  const { client: candidate, error: candidateErr } = await signInWithRetry(testUsers.candidate, {
-    label: "candidato (ingest)",
-  });
-  assert(!candidateErr, `candidato autentica para ingestão (${candidateErr?.message ?? "ok"})`);
-  if (candidateErr) return;
-  try {
-    const candidateRead = await candidate.from("job_ingestions").select("id");
-    assert((candidateRead.data ?? []).length === 0, "candidato não lê ingestões");
-    const candidateInsert = await candidate.from("job_ingestions").insert({
-      source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-      normalized_locator: `fixture:rls-s21-candidate-${Date.now()}`,
-      payload_hash: "a".repeat(64),
-    });
-    assert(Boolean(candidateInsert.error), "candidato não insere ingestão");
-  } finally {
-    await candidate.auth.signOut();
-  }
-
-  if (!hasCreds(testUsers.admin)) {
-    skipRequired(21, "falta admin em docs-local");
+  if (!hasCreds(testUsers.curator) || !totpSecrets.curator) {
+    skipRequired(21, "falta curator AAL2 em docs-local");
     return;
   }
-
-  const aal1Admin = await assertPasswordOnlyNotAal2("admin");
-  if (aal1Admin) {
-    try {
-      const aal1Insert = await aal1Admin.from("job_ingestions").insert({
-        source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-        normalized_locator: `fixture:rls-s21-aal1-${Date.now()}`,
-        payload_hash: "b".repeat(64),
-      });
-      assert(Boolean(aal1Insert.error), "AAL1 não insere ingestão");
-      assert(
-        isStaffAal2Denied(aal1Insert.error),
-        `insert ingestão AAL1 recusado (${errorText(aal1Insert.error) || "sem mensagem"})`,
-      );
-    } finally {
-      await aal1Admin.auth.signOut();
-    }
-  }
-
-  if (!totpSecrets.admin) {
-    skipRequired(21, "falta ADMIN_TEST_TOTP_SECRET ou chave em staff-mfa-totp-secrets.md");
+  if (!hasCreds(testUsers.moderator) || !totpSecrets.moderator) {
+    skipRequired(21, "falta moderator AAL2 em docs-local");
     return;
   }
 
   const { client: admin, error: adminErr } = await signInStaff("admin");
   assert(!adminErr, `admin AAL2 autentica para ingestão (${adminErr?.message ?? "ok"})`);
   if (adminErr || !admin) return;
+
+  const probe = await queryWithRetry(() => admin.from("job_ingestions").select("id").limit(1));
+  if (isRelationMissing(probe.error)) {
+    skipRequired(21, "migration job_ingestions não aplicada no ambiente");
+    await admin.auth.signOut();
+    return;
+  }
 
   const stamp = Date.now();
   const locator = `fixture:rls-s21-${stamp}`;
@@ -1890,8 +1865,71 @@ async function scenario21_jobIngestions() {
     assert(first.job_id == null, "ingestão Fase A não exige job_id");
     assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
 
+    await assertCannotSeeIngestion(anon, first.id, "anon");
+    const pendingJobs = await queryWithRetry(() => anon.from("jobs").select("id,status"));
+    assert(
+      (pendingJobs.data ?? []).every((row) => row.status === "approved"),
+      "catálogo público permanece só approved após contrato 013",
+    );
     const publicJobs = await anon.from("jobs").select("id").eq("title", payload.title);
     assert((publicJobs.data ?? []).length === 0, "ingestão não publica vaga no catálogo");
+
+    const { client: candidate, error: candidateErr } = await signInWithRetry(testUsers.candidate, {
+      label: "candidato (ingest)",
+    });
+    assert(!candidateErr, `candidato autentica para ingestão (${candidateErr?.message ?? "ok"})`);
+    if (!candidateErr && candidate) {
+      try {
+        await assertCannotSeeIngestion(candidate, first.id, "candidato");
+        const candidateInsert = await candidate.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: `fixture:rls-s21-candidate-${stamp}`,
+          payload_hash: "a".repeat(64),
+        });
+        assert(Boolean(candidateInsert.error), "candidato não insere ingestão");
+      } finally {
+        await candidate.auth.signOut();
+      }
+    }
+
+    const { client: curator, error: curatorErr } = await signInStaff("curator");
+    assert(!curatorErr, `curator AAL2 autentica para ingestão (${curatorErr?.message ?? "ok"})`);
+    if (!curatorErr && curator) {
+      try {
+        await assertCanSeeIngestion(curator, first.id, "curator");
+      } finally {
+        await curator.auth.signOut();
+      }
+    }
+
+    const { client: moderator, error: moderatorErr } = await signInStaff("moderator");
+    assert(!moderatorErr, `moderator AAL2 autentica para ingestão (${moderatorErr?.message ?? "ok"})`);
+    if (!moderatorErr && moderator) {
+      try {
+        await assertCanSeeIngestion(moderator, first.id, "moderator");
+      } finally {
+        await moderator.auth.signOut();
+      }
+    }
+
+    const aal1Admin = await assertPasswordOnlyNotAal2("admin");
+    if (aal1Admin) {
+      try {
+        await assertCannotSeeIngestion(aal1Admin, first.id, "admin AAL1");
+        const aal1Insert = await aal1Admin.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: `fixture:rls-s21-aal1-${stamp}`,
+          payload_hash: "b".repeat(64),
+        });
+        assert(Boolean(aal1Insert.error), "AAL1 não insere ingestão");
+        assert(
+          isStaffAal2Denied(aal1Insert.error),
+          `insert ingestão AAL1 recusado (${errorText(aal1Insert.error) || "sem mensagem"})`,
+        );
+      } finally {
+        await aal1Admin.auth.signOut();
+      }
+    }
 
     const repeat = await registerJobIngestion(admin, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
@@ -1925,11 +1963,8 @@ async function scenario21_jobIngestions() {
     });
     assert(fingerprint.payload_hash === first.payload_hash, "fingerprint estável entre cliente e linha persistida");
 
-    const staffRead = await admin
-      .from("job_ingestions")
-      .select("id")
-      .in("id", createdIds);
-    assert((staffRead.data ?? []).length === createdIds.length, "staff AAL2 lê as ingestões criadas");
+    const staffRead = await admin.from("job_ingestions").select("id").in("id", createdIds);
+    assert((staffRead.data ?? []).length === createdIds.length, "admin AAL2 lê as ingestões criadas");
 
     const approvedHijack = await admin
       .from("jobs")

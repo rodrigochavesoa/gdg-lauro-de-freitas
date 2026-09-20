@@ -33,6 +33,8 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260919120000_avatars_versioned_path_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260919120001_avatars_versioned_path.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920010148_job_ingestions_source_contract_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20261001000000_job_ingestions_source_contract_prod.sql")).toBe(false);
+    expect(isHomologOnlyMigration("20261001000001_job_ingestions_phase_b.sql")).toBe(false);
     expect(isHomologOnlyMigration("202608150001_ai_matching.sql")).toBe(false);
     expect(isHomologOnlyMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
   });
@@ -60,6 +62,20 @@ describe("prod migrations", () => {
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);
     expect(classifyNonManifestSql().unclassified).toEqual([]);
+  });
+
+  it("não classifica job_ingestions_*_prod.sql como homolog-only", () => {
+    const prodName = "20261001000000_job_ingestions_source_contract_prod.sql";
+    expect(isHomologOnlyMigration(prodName)).toBe(false);
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: {
+        "ok.sql": "select 1;\n",
+        [prodName]: "select 1;\n",
+      },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/job_ingestions_source_contract_prod/);
   });
 
   it("rejeita UUID de seed em arquivo que deveria ir para produção", () => {

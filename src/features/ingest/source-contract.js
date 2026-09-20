@@ -172,6 +172,11 @@ function bytesToHex(buffer) {
   return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * SHA-256 hex do payload canônico.
+ * Fase A: calculado no cliente; o banco só valida `^[a-f0-9]{64}$`.
+ * Antes de conectores externos ou da Fase B, recalcular em Edge Function ou pipeline backend.
+ */
 export async function hashIngestionPayload(payload) {
   const canonical = canonicalizeIngestionPayload(payload);
   const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(canonical));
@@ -200,11 +205,12 @@ export function isIngestionExpired(expiresAt, now = new Date()) {
   return when.getTime() <= now.getTime();
 }
 
+export const INGESTION_FINGERPRINT_CONSTRAINT = "job_ingestions_source_fingerprint_key";
+
 export function isIngestionUniqueViolation(error) {
-  return (
-    error?.code === "23505" ||
-    /job_ingestions_source_fingerprint|duplicate key/i.test(error?.message ?? "")
-  );
+  if (error?.code !== "23505") return false;
+  const text = [error?.message, error?.details, error?.hint].filter(Boolean).join(" ");
+  return new RegExp(INGESTION_FINGERPRINT_CONSTRAINT, "i").test(text);
 }
 
 /**

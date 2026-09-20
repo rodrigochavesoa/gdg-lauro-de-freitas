@@ -22,11 +22,10 @@ as $$
 $$;
 
 revoke all on function private.normalize_job_ingestion_locator(text) from public;
-grant execute on function private.normalize_job_ingestion_locator(text) to anon, authenticated;
-revoke execute on function private.normalize_job_ingestion_locator(text) from service_role;
+revoke all on function private.normalize_job_ingestion_locator(text) from anon, authenticated, service_role;
 
 comment on function private.normalize_job_ingestion_locator(text) is
-  'MVP-013: trim + colapsa whitespace + lower. Espelha normalizeSlugLocator no cliente. Não expor via PostgREST.';
+  'MVP-013: trim + colapsa whitespace + lower. Só o trigger SECURITY DEFINER executa. Sem GRANT Data API.';
 
 create table public.job_ingestions (
   id uuid primary key default extensions.gen_random_uuid(),

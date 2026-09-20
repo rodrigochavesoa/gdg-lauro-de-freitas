@@ -49,6 +49,10 @@ Entram no hash, nesta ordem estável via `JSON.stringify` das chaves já ordenad
 
 Mesmo payload + mesma origem → mesmo fingerprint. Payload diferente na mesma origem → nova linha (ciclo novo), sem apagar a anterior.
 
+## Limitação Fase A — `payload_hash`
+
+O SHA-256 é calculado no cliente (`hashIngestionPayload`). O banco só exige 64 hex (`^[a-f0-9]{64}$`) e **não** recalcula o digest. Em homologação interna isso é aceitável. Antes de conectores externos ou da Fase B, o hash deve nascer em camada confiável (Edge Function ou pipeline backend).
+
 ## RLS (homologação)
 
 - Anon: sem GRANT
