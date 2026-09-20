@@ -191,13 +191,18 @@ export function Header({
     </>
   );
 
-  const showMobileAdminNav = staff && inAdminArea;
+  const showMobileAdminNav = staff && inAdminArea && compactHeader;
 
   const staffAdminLink = (onNavigate) => (
     staff || !logged ? (
-      showMobileAdminNav ? null : (
-        <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
-      )
+      <NavLink
+        to="/admin"
+        aria-disabled={needsOnboarding || undefined}
+        aria-current={staff && inAdminArea ? "page" : undefined}
+        onClick={(event) => onGatedClick(event, onNavigate)}
+      >
+        Área admin
+      </NavLink>
     ) : null
   );
 

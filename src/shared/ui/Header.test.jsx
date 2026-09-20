@@ -495,46 +495,85 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
   });
 
-  it("staff em /admin no drawer lista seções da administração em vez de Área admin", () => {
+  it("staff em /admin no drawer compacto lista seções da administração e mantém Área admin", () => {
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: String(query).includes("1024"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    try {
+      renderHeader({
+        logged: true,
+        displayName: "Ada Admin",
+        role: "admin",
+        email: "ada@example.invalid",
+        path: "/admin",
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+      const mobile = document.getElementById("mobile-navigation");
+      expect(within(mobile).getByText("Administração")).toBeInTheDocument();
+      expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
+        "Painel",
+        "Curadoria",
+        "Vagas",
+        "Publicar",
+        "Ingestão",
+        "Vagas",
+        "Eventos",
+        "Newsletter",
+        "Área admin",
+      ]);
+      fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
+      expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
+      expect(document.getElementById("mobile-navigation")).toBeNull();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
+  it("staff em /admin no desktop mantém Área admin na nav principal", () => {
     renderHeader({
       logged: true,
       displayName: "Ada Admin",
       role: "admin",
-      email: "ada@example.invalid",
-      path: "/admin",
+      path: "/admin/curadoria",
     });
-    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
-    const mobile = document.getElementById("mobile-navigation");
-    expect(within(mobile).getByText("Administração")).toBeInTheDocument();
-    expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
-      "Painel",
-      "Curadoria",
-      "Vagas",
-      "Publicar",
-      "Ingestão",
-      "Vagas",
-      "Eventos",
-      "Newsletter",
-    ]);
-    expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
-    fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
-    expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
-    expect(document.getElementById("mobile-navigation")).toBeNull();
+    const desktopNav = document.querySelector(".topbar nav");
+    const areaAdmin = within(desktopNav).getByRole("link", { name: "Área admin" });
+    expect(areaAdmin).toHaveAttribute("href", "/admin");
+    expect(areaAdmin).toHaveAttribute("aria-current", "page");
   });
 
   it("curator em /admin/curadoria no drawer vê só Painel e Curadoria na administração", () => {
-    renderHeader({
-      logged: true,
-      displayName: "Cora Curadora",
-      role: "curator",
-      path: "/admin/curadoria",
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
-    const mobile = document.getElementById("mobile-navigation");
-    const adminSection = mobile.querySelector(".mobile-nav__admin");
-    const adminLinks = within(adminSection).getAllByRole("link");
-    expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
-    expect(within(adminSection).queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = vi.fn((query) => ({
+      matches: String(query).includes("1024"),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    }));
+    try {
+      renderHeader({
+        logged: true,
+        displayName: "Cora Curadora",
+        role: "curator",
+        path: "/admin/curadoria",
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+      const mobile = document.getElementById("mobile-navigation");
+      const adminSection = mobile.querySelector(".mobile-nav__admin");
+      const adminLinks = within(adminSection).getAllByRole("link");
+      expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
+      expect(within(adminSection).queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
   });
 
   it("fechar drawer ao tocar fora do menu", () => {
