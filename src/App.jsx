@@ -30,6 +30,7 @@ import {
 } from "./features/auth/auth-api.js";
 import { isCandidateProfile, isD01Complete, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
+import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
 
@@ -226,7 +227,9 @@ export function App() {
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />} />
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />}>
+          {adminChildRoutes}
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Footer />

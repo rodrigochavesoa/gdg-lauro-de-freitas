@@ -93,7 +93,7 @@ await page.getByRole("link", { name: "Área admin" }).click();
 await page.getByLabel("E-mail").fill(email);
 await page.getByLabel("Senha").fill(password);
 await page.getByRole("button", { name: "Entrar" }).click();
-await page.getByRole("button", { name: "Publicar vaga" }).waitFor({ state: "visible", timeout: 30_000 });
+await page.getByRole("link", { name: "Publicar vaga" }).waitFor({ state: "visible", timeout: 30_000 });
 
 const t1 = [];
 const t2 = [];
@@ -112,10 +112,10 @@ for (let run = 1; run <= 5; run += 1) {
   await page.locator(".admin-tabs").waitFor({ state: "visible" });
   t1.push(Date.now() - started);
 
-  await page.getByRole("button", { name: "Publicar vaga" }).waitFor({ state: "visible" });
+  await page.getByRole("link", { name: "Publicar vaga" }).waitFor({ state: "visible" });
   t2.push(Date.now() - started);
 
-  await page.getByRole("heading", { name: "Publicar nova vaga" }).waitFor({ state: "visible" });
+  await page.getByRole("heading", { name: "Painel" }).waitFor({ state: "visible" });
   t3.push(Date.now() - started);
 
   const spinner = await page.getByText("Carregando área administrativa…").count();
@@ -126,12 +126,12 @@ for (let run = 1; run <= 5; run += 1) {
 }
 
 console.log(summarize("T1 .admin-tabs", t1));
-console.log(summarize("T2 Publicar vaga (tab)", t2));
-console.log(summarize("T3 h1 Publicar nova vaga", t3));
+console.log(summarize("T2 Publicar vaga (nav)", t2));
+console.log(summarize("T3 h1 Painel", t3));
 console.log(`spinner "Carregando área administrativa…": ${spinnerHits}/5`);
 
 // PERF-ADM-05 — remount Curadoria: /admin → Curadoria → / → /admin → Curadoria
-await page.getByRole("button", { name: "Curadoria", exact: true }).click();
+await page.getByRole("link", { name: "Curadoria", exact: true }).click();
 await page.getByRole("heading", { name: "Fila de revisão" }).waitFor({ state: "visible", timeout: 30_000 });
 await page.getByText("Carregando fila de curadoria…").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
 await page.getByRole("heading", { name: "Vagas pending" }).waitFor({ state: "visible", timeout: 30_000 });
@@ -148,7 +148,7 @@ for (let run = 1; run <= 5; run += 1) {
   const started = Date.now();
   await page.getByRole("link", { name: "Área admin" }).click();
   await page.locator(".admin-tabs").waitFor({ state: "visible" });
-  await page.getByRole("button", { name: "Curadoria", exact: true }).click();
+  await page.getByRole("link", { name: "Curadoria", exact: true }).click();
   await page.getByRole("heading", { name: "Fila de revisão" }).waitFor({ state: "visible" });
 
   const loadingVisible = await page

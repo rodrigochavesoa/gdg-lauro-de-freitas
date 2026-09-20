@@ -1,10 +1,12 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
+const loadAdminJob = vi.hoisted(() => vi.fn(async () => null));
 const signInCuration = vi.hoisted(() => vi.fn());
 const CurationQueueMock = vi.hoisted(() => vi.fn());
 const staffMfa = vi.hoisted(() => ({
@@ -25,6 +27,7 @@ vi.mock("./lib/admin-api.js", async () => {
     ...actual,
     createPendingJob: vi.fn(),
     loadAdminJobs: (...args) => loadAdminJobs(...args),
+    loadAdminJob: (...args) => loadAdminJob(...args),
     loadCompanies: vi.fn(async () => []),
     updatePendingJob: vi.fn(),
   };
@@ -55,9 +58,20 @@ vi.mock("./features/auth/staff-mfa.js", async () => {
 
 import { Admin } from "./Admin.jsx";
 
-function renderAdmin(ui) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
+function renderAdmin(ui, { path = "/admin" } = {}) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/admin" element={ui}>
+          {adminChildRoutes}
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
 }
+
+const adminSession = { user: { id: "a1", email: "ada@example.invalid" } };
+const adminProfile = { id: "a1", role: "admin", full_name: "Ada Admin" };
 
 describe("Admin", () => {
   beforeEach(() => {
@@ -65,6 +79,8 @@ describe("Admin", () => {
     loadCurationProfile.mockResolvedValue(null);
     loadAdminJobs.mockReset();
     loadAdminJobs.mockResolvedValue([]);
+    loadAdminJob.mockReset();
+    loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
     CurationQueueMock.mockClear();
     staffMfa.required = false;
@@ -108,30 +124,36 @@ describe("Admin", () => {
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
-  it("staff com authProfile no snapshot vê as tabs sem buscar perfil de curadoria", () => {
+  it("anon em deep link /admin/curadoria permanece no login staff", async () => {
+    renderAdmin(<Admin session={null} authReady />, { path: "/admin/curadoria" });
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
+  });
+
+  it("staff com authProfile no snapshot vê o painel e navega sem buscar perfil de curadoria", async () => {
     loadCurationProfile.mockImplementation(() => new Promise(() => {}));
     renderAdmin(
-      <Admin
-        authReady
-        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-      />,
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
     );
-    expect(screen.getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
+    expect(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar vaga" })).toHaveAttribute("href", "/admin/vagas/nova");
+    expect(screen.getByRole("link", { name: "Curadoria" })).toHaveAttribute("href", "/admin/curadoria");
+    expect(screen.getByRole("link", { name: "Gestão de vagas" })).toHaveAttribute("href", "/admin/vagas");
+    expect(screen.getByRole("link", { name: "Painel" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ingestão" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("id", "admin-job-title");
-    expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("name", "title");
-    const unnamedJobs = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
-    expect(unnamedJobs).toEqual([]);
+    expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
     expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Curadoria" }));
+    fireEvent.click(screen.getByRole("link", { name: "Curadoria" }));
     expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Publicar vaga" }));
-    expect(screen.getByTestId("curation-queue").closest("[hidden]")).toBeTruthy();
+    fireEvent.click(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar vaga" }));
+    expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("id", "admin-job-title");
+    const unnamedJobs = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
+    expect(unnamedJobs).toEqual([]);
+    fireEvent.click(screen.getByRole("link", { name: "Painel" }));
     fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
     expect(screen.getByTestId("ingest-panel")).toBeInTheDocument();
   });
@@ -144,17 +166,45 @@ describe("Admin", () => {
       email: "curator-homolog@example.invalid",
     });
     renderAdmin(<Admin session={{ user: { id: "c1" } }} authReady />);
-    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector(".admin-user")).toBeNull();
     expect(screen.queryByText("Cora Curadora")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
     expect(tabs).toBeTruthy();
-    expect(within(tabs).queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
-    expect(within(tabs).queryByRole("button", { name: "Ingestão" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Gestão de vagas" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ingestão" })).not.toBeInTheDocument();
   });
 
-  it("mostra tabs do admin sem esperar o CRUD de vagas", async () => {
+  it("curator não amplia acesso em /admin/vagas", async () => {
+    renderAdmin(
+      <Admin
+        authReady
+        session={{ user: { id: "c1", email: "cora@example.invalid" } }}
+        authProfile={{ id: "c1", role: "curator", full_name: "Cora Curadora" }}
+      />,
+      { path: "/admin/vagas" },
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(/restrita ao papel admin/i);
+    expect(screen.queryByRole("heading", { name: "Aguardando curadoria" })).not.toBeInTheDocument();
+    expect(loadAdminJobs).not.toHaveBeenCalled();
+  });
+
+  it("moderator não amplia acesso em /admin/vagas/nova", async () => {
+    renderAdmin(
+      <Admin
+        authReady
+        session={{ user: { id: "m1", email: "mo@example.invalid" } }}
+        authProfile={{ id: "m1", role: "moderator", full_name: "Mo Moderadora" }}
+      />,
+      { path: "/admin/vagas/nova" },
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(/restrita ao papel admin/i);
+    expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
+  });
+
+  it("mostra o painel do admin sem esperar o CRUD de vagas", async () => {
     let resolveJobs;
     loadAdminJobs.mockImplementation(
       () =>
@@ -169,11 +219,14 @@ describe("Admin", () => {
       email: "ada@example.invalid",
     });
     renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(screen.queryByText("Pessoa Estagiária (rascunho)")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("link", { name: "Gestão de vagas" }));
+    expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
+    expect(screen.getByText("Carregando vagas da área administrativa…")).toBeInTheDocument();
     resolveJobs([
       {
         id: "j2",
@@ -182,10 +235,13 @@ describe("Admin", () => {
         companies: { name: "Nuvem Lauro Demo" },
       },
     ]);
-    expect(await screen.findByRole("button", { name: /Pessoa Estagiária \(rascunho\)/ })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
+      "href",
+      "/admin/vagas/j2",
+    );
   });
 
-  it("admin troca Curadoria e Publicar vaga pelas tabs", async () => {
+  it("admin troca Curadoria e Publicar vaga pelas rotas", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
@@ -193,22 +249,25 @@ describe("Admin", () => {
       email: "ada@example.invalid",
     });
     renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(screen.queryByText("Ada Admin")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
-    expect(within(tabs).getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
-    expect(within(tabs).getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
+    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar vaga" }));
     expect(await screen.findByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cadastrar para curadoria" })).toBeInTheDocument();
-    fireEvent.click(within(tabs).getByRole("button", { name: "Curadoria" }));
+    fireEvent.click(within(tabs).getByRole("link", { name: "Curadoria" }));
     expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
-    fireEvent.click(within(tabs).getByRole("button", { name: "Publicar vaga" }));
+    expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
+    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar vaga" }));
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(document.querySelector(".job-form .form-actions")).toBeTruthy();
   });
 
-  it("lista pendentes e publicadas em seções separadas, com o form acima", async () => {
+  it("lista pendentes e publicadas em seções separadas na rota de vagas", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
@@ -229,21 +288,21 @@ describe("Admin", () => {
         companies: { name: "Nuvem Lauro Demo" },
       },
     ]);
-    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("heading", { name: "Aguardando curadoria" })).toBeInTheDocument();
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas" });
+    expect(await screen.findByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
+      "href",
+      "/admin/vagas/j2",
+    );
     expect(screen.queryByRole("heading", { name: "Vagas pending e approved" })).not.toBeInTheDocument();
     expect(screen.queryByText(/^pending$/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^approved$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/pending ·/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/approved ·/i)).not.toBeInTheDocument();
+    expect(document.querySelector("form.job-form")).toBeNull();
 
-    const form = document.querySelector("form.job-form");
     const pendingSection = screen.getByRole("heading", { name: "Aguardando curadoria" }).closest(".admin-job-list");
-    expect(form).toBeTruthy();
-    expect(pendingSection).toBeTruthy();
-    expect(form.compareDocumentPosition(pendingSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    expect(within(pendingSection).getByRole("button", { name: /Pessoa Estagiária \(rascunho\)/ })).toBeInTheDocument();
+    expect(within(pendingSection).getByRole("link", { name: /Pessoa Estagiária \(rascunho\)/ })).toHaveAttribute(
+      "href",
+      "/admin/vagas/j2",
+    );
     expect(within(pendingSection).getByText("Pendente")).toHaveClass("featured");
     expect(within(pendingSection).queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument();
 
@@ -253,8 +312,32 @@ describe("Admin", () => {
     expect(within(publishedSection).getByText("Vagas publicadas")).toBeInTheDocument();
     expect(within(publishedSection).getByText("Publicada")).toHaveClass("featured");
     expect(within(publishedSection).getByText("Pessoa Desenvolvedora Front-end")).toHaveClass("admin-job-list-title");
-    expect(within(publishedSection).queryByRole("button", { name: /Pessoa Desenvolvedora Front-end/ })).not.toBeInTheDocument();
+    expect(within(publishedSection).getByRole("link", { name: /Pessoa Desenvolvedora Front-end/ })).toHaveAttribute(
+      "href",
+      "/admin/vagas/j1",
+    );
     expect(within(publishedSection).getByText("Edite via nova rodada na Curadoria.")).toBeInTheDocument();
+  });
+
+  it("abre o detalhe de uma vaga por deep link", async () => {
+    loadAdminJob.mockResolvedValue({
+      id: "j2",
+      title: "Pessoa Estagiária (rascunho)",
+      status: "pending",
+      companies: { name: "Nuvem Lauro Demo" },
+      description: "Rascunho fictício.",
+      job_curation_reviews: [],
+    });
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas/j2" },
+    );
+    expect(await screen.findByRole("heading", { name: "Pessoa Estagiária (rascunho)" })).toBeInTheDocument();
+    expect(screen.getByText("Rascunho fictício.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Editar rascunho" })).toHaveAttribute(
+      "href",
+      "/admin/vagas/nova?editar=j2",
+    );
   });
 
   it("lista vagas rejeitadas com histórico de parecer", async () => {
@@ -281,8 +364,9 @@ describe("Admin", () => {
         ],
       },
     ]);
-    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByText("Vagas rejeitadas")).toBeInTheDocument();
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas" });
+    expect(await screen.findByText("Pessoa Dev rejeitada")).toBeInTheDocument();
+    expect(screen.getByText("Vagas rejeitadas")).toBeInTheDocument();
     const rejectedSection = screen.getByText("Vagas rejeitadas").closest("details");
     expect(within(rejectedSection).getByText("Rejeitada")).toHaveClass("featured");
     expect(within(rejectedSection).getByText("Pessoa Dev rejeitada")).toBeInTheDocument();
@@ -296,7 +380,7 @@ describe("Admin", () => {
       full_name: "Ada Admin",
       email: "ada@example.invalid",
     });
-    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas/nova" });
     expect(await screen.findByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     document.querySelectorAll("[required]").forEach((el) => el.removeAttribute("required"));
     fireEvent.click(screen.getByRole("button", { name: "Cadastrar para curadoria" }));
@@ -311,11 +395,8 @@ describe("Admin", () => {
   it("anuncia erro acessível quando o carregamento das vagas falha", async () => {
     loadAdminJobs.mockRejectedValue(new Error("Falha ao listar vagas"));
     renderAdmin(
-      <Admin
-        authReady
-        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-      />,
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas" },
     );
 
     const alert = await screen.findByRole("alert");
@@ -347,24 +428,28 @@ describe("Admin", () => {
       full_name: "Cora Curadora",
       email: "cora@example.invalid",
     });
-    const { rerender } = render(
-      <MemoryRouter>
-        <Admin session={null} authReady />
-      </MemoryRouter>,
-    );
+    const { rerender } = renderAdmin(<Admin session={null} authReady />);
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "cora@example.invalid" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
-    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.queryByDisplayValue("staff-secret")).not.toBeInTheDocument();
     rerender(
-      <MemoryRouter>
-        <Admin session={{ user: { id: "c1" } }} authReady />
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin session={{ user: { id: "c1" } }} authReady />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
     rerender(
-      <MemoryRouter>
-        <Admin session={null} authReady />
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin session={null} authReady />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
     expect(await screen.findByLabelText("E-mail")).toHaveValue("");
@@ -373,28 +458,28 @@ describe("Admin", () => {
 
   it("limpa e-mail, senha e erro quando session vira null", async () => {
     signInCuration.mockRejectedValue(new Error("Credenciais inválidas"));
-    const { rerender } = render(
-      <MemoryRouter>
-        <Admin session={null} authReady />
-      </MemoryRouter>,
-    );
+    const { rerender } = renderAdmin(<Admin session={null} authReady />);
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "ada@example.invalid" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Credenciais inválidas");
     rerender(
-      <MemoryRouter>
-        <Admin
-          authReady
-          session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-          authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-        />
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin authReady session={adminSession} authProfile={adminProfile} />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
     rerender(
-      <MemoryRouter>
-        <Admin session={null} authReady />
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin session={null} authReady />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
     expect(await screen.findByLabelText("E-mail")).toHaveValue("");
@@ -408,27 +493,23 @@ describe("Admin", () => {
       <Admin
         authReady
         session={null}
-        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
+        authProfile={adminProfile}
       />,
     );
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
     expect(screen.getByLabelText("E-mail")).toHaveValue("");
     expect(screen.getByLabelText("Senha")).toHaveValue("");
-    expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Curadoria" })).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
   it("com flag MFA e AAL2 libera a área admin", async () => {
     staffMfa.required = true;
     renderAdmin(
-      <Admin
-        authReady
-        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-      />,
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
     );
-    expect(await screen.findByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Confirmar segundo fator" })).not.toBeInTheDocument();
   });
 
@@ -440,19 +521,17 @@ describe("Admin", () => {
       verifiedTotp: [{ id: "totp-1", status: "verified" }],
     });
     renderAdmin(
-      <Admin
-        authReady
-        session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-        authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-      />,
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas/nova" },
     );
     expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(/código de 6 dígitos do autenticador/);
     expect(screen.getByLabelText("Código do autenticador")).toBeInTheDocument();
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("id", "admin-totp");
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("name", "totp");
-    expect(screen.queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Curadoria" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
   });
 
   it("staff sem fator inscrito vê enroll TOTP e só entra após verify", async () => {
@@ -468,12 +547,12 @@ describe("Admin", () => {
       full_name: "Cora Curadora",
       email: "cora@example.invalid",
     });
-    renderAdmin(<Admin session={null} authReady />);
+    renderAdmin(<Admin session={null} authReady />, { path: "/admin/curadoria" });
     fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: "cora@example.invalid" } });
     fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByRole("heading", { name: "Confirmar segundo fator" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Curadoria" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Curadoria" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Gerar QR do autenticador" }));
     const qr = await screen.findByAltText("QR code do autenticador");
     expect(qr.tagName).toBe("IMG");
@@ -482,7 +561,8 @@ describe("Admin", () => {
     expect(screen.getByText(/SECRETBASE32/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Código do autenticador"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirmar código" }));
-    expect(await screen.findByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
     expect(staffMfa.verifyStaffTotp).toHaveBeenCalledWith({ factorId: "factor-1", code: "123456" });
   });
 
@@ -493,20 +573,18 @@ describe("Admin", () => {
       nextLevel: "aal2",
       verifiedTotp: [{ id: "totp-1", status: "verified" }],
     });
-    const { rerender } = render(
-      <MemoryRouter>
-        <Admin
-          authReady
-          session={{ user: { id: "a1", email: "ada@example.invalid" } }}
-          authProfile={{ id: "a1", role: "admin", full_name: "Ada Admin" }}
-        />
-      </MemoryRouter>,
+    const { rerender } = renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
     );
     expect(await screen.findByLabelText("Código do autenticador")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Código do autenticador"), { target: { value: "123456" } });
     rerender(
-      <MemoryRouter>
-        <Admin session={null} authReady />
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin session={null} authReady />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
       </MemoryRouter>,
     );
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();

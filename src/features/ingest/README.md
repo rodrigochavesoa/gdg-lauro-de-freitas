@@ -71,7 +71,7 @@ RPC `process_job_ingestion` (admin AAL2): registra a origem, materializa `jobs` 
 
 `loadJobIngestions` lista o conjunto completo (homolog/fixture). Paginação fica para `INGEST-LIST-PAGE-01` antes de uso operacional maior.
 
-UI staff: aba **Ingestão** em `/admin` (loading / vazio / erro / reprocessar). Fixture fictícia: `fixture:homolog-acme-frontend`.
+UI staff: atalho **Ingestão** no painel `/admin` (loading / vazio / erro / reprocessar). Fixture fictícia: `fixture:homolog-acme-frontend`.
 
 Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql`, `20260920020100_job_ingestions_register_rpc_homolog.sql` e `20260920040000_job_ingestions_process_homolog.sql`.
 

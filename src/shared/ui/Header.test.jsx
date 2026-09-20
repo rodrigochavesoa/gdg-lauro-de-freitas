@@ -66,6 +66,12 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
   });
 
+  it("anon em /admin/curadoria também reserva o CTA e não mostra login de candidato", () => {
+    renderHeader({ logged: false, path: "/admin/curadoria" });
+    expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(document.querySelector(".nav-actions__spacer")).toBeTruthy();
+  });
+
   it("candidato logado vê Minhas candidaturas e não vê Área admin", () => {
     renderHeader({ logged: true, displayName: "Ana Demo", role: "candidate" });
     const desktopNav = document.querySelector(".topbar nav");

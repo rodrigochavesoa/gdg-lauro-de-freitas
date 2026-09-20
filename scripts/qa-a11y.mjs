@@ -416,7 +416,7 @@ export async function runA11yQa(options = {}) {
             };
             scans.push(scan);
           }
-          const curationTab = page.getByRole("button", { name: "Curadoria", exact: true });
+          const curationTab = page.getByRole("link", { name: "Curadoria", exact: true });
           if (await curationTab.count()) {
             await curationTab.click();
             await page.getByRole("heading", { name: /Fila de revisão/ }).waitFor({ timeout: 15_000 });
@@ -424,7 +424,7 @@ export async function runA11yQa(options = {}) {
             await settle(page);
             scans.push({
               id: "admin-curation-light-1280",
-              route: "/admin#curadoria",
+              route: "/admin/curadoria",
               theme: "light",
               viewport: DESKTOP,
               required: false,

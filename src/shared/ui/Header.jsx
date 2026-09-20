@@ -161,7 +161,8 @@ export function Header({
   const awaitingRole = Boolean(logged && !roleKnown);
   const prevAwaitingRole = useRef(awaitingRole);
   const fadeCandidateLinks = candidate && prevAwaitingRole.current;
-  const showAuthCta = Boolean(authReady) && !logged && pathname !== "/login" && pathname !== "/admin";
+  const inAdminArea = pathname === "/admin" || pathname.startsWith("/admin/");
+  const showAuthCta = Boolean(authReady) && !logged && pathname !== "/login" && !inAdminArea;
 
   useEffect(() => {
     prevAwaitingRole.current = awaitingRole;
