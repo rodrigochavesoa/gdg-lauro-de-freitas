@@ -26,12 +26,17 @@ export function AdminNav({ profile }) {
       </NavLink>
       {showJobs ? (
         <NavLink to="/admin/vagas" className={() => tabClass(isJobsListPath(pathname))}>
-          Gestão de vagas
+          Vagas
         </NavLink>
       ) : null}
       {showJobs ? (
         <NavLink to="/admin/vagas/nova" className={({ isActive }) => tabClass(isActive)}>
-          Publicar vaga
+          Publicar
+        </NavLink>
+      ) : null}
+      {showJobs ? (
+        <NavLink to="/admin/ingestao" className={({ isActive }) => tabClass(isActive)}>
+          Ingestão
         </NavLink>
       ) : null}
     </nav>
