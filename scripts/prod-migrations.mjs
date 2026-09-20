@@ -13,7 +13,15 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 export const PROD_MANIFEST_FILENAME = "prod.manifest.json";
 
-/** Arquivos que só existem para demo/RLS em homologação. Sufixo `_homolog.sql` é explícito; `avatars_` cobre a cadeia já aplicada. */
+/**
+ * Arquivos que só existem para demo/RLS em homologação.
+ * - `_homolog.sql` é o marcador explícito (MVP-013 e arquivos novos).
+ * - `seed_fictitious` cobre o catálogo fictício.
+ * - `avatars_` é legado amplo: também classifica `avatars_versioned_path.sql` e
+ *   `avatars_single_object.sql` (Camada B, sem sufixo `_homolog`). Não apertar neste
+ *   PR — follow-up GOV-AVATAR-MIG-CLASS-01 reclassifica esses arquivos (marcador
+ *   Camada B / manifesto) antes de promover avatar a produção.
+ */
 export const HOMOLOG_ONLY_PATTERN = /seed_fictitious|avatars_|_homolog\.sql$/i;
 
 /** Comentários SQL que proíbem apply em produção (Camada B / PO). */

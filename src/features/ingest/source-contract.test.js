@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  REGISTER_JOB_INGESTION_RPC,
   SOURCE_KINDS,
   buildIngestionFingerprint,
   canonicalizeIngestionPayload,
@@ -23,27 +24,9 @@ const BASE_PAYLOAD = {
   stack: ["TypeScript", "React"],
 };
 
-function createIngestionClient({ insertError = null, insertData = null, existingData = null } = {}) {
-  const insert = vi.fn(async () => ({
-    data: insertData,
-    error: insertError,
-  }));
-  const selectEq = vi.fn(() => ({
-    eq: selectEq,
-    single: async () => ({ data: existingData, error: existingData ? null : { message: "not found" } }),
-  }));
+function createRpcClient({ data = null, error = null } = {}) {
   return {
-    from: vi.fn(() => ({
-      insert: (row) => ({
-        select: () => ({
-          single: () => insert(row),
-        }),
-      }),
-      select: () => ({
-        eq: selectEq,
-      }),
-    })),
-    insert,
+    rpc: vi.fn(async () => ({ data, error })),
   };
 }
 
@@ -171,39 +154,15 @@ describe("expiração preserva histórico", () => {
 });
 
 describe("registerJobIngestion é idempotente na camada 013", () => {
-  it("devolve a linha existente no conflito 23505 sem criar jobs", async () => {
-    const existing = {
-      id: "c0ffeeee-0001-4000-8000-000000000001",
-      source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-      normalized_locator: "fixture:acme-front",
-      payload_hash: "a".repeat(64),
-      job_id: null,
-      expires_at: null,
-    };
-    const client = createIngestionClient({
-      insertError: {
-        code: "23505",
-        message: 'duplicate key value violates unique constraint "job_ingestions_source_fingerprint_key"',
-      },
-      existingData: existing,
-    });
-    const result = await registerJobIngestion(client, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
-      locator: "fixture:acme-front",
-      payload: BASE_PAYLOAD,
-    });
-    expect(result.idempotent).toBe(true);
-    expect(result.id).toBe(existing.id);
-    expect(client.from).toHaveBeenCalledWith("job_ingestions");
-  });
-
-  it("marca idempotent false na primeira inserção", async () => {
+  it("envia payload cru à RPC e não escolhe payload_hash", async () => {
     const created = {
       id: "c0ffeeee-0002-4000-8000-000000000002",
       source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
       normalized_locator: "fixture:acme-front",
+      payload_hash: "c".repeat(64),
+      idempotent: false,
     };
-    const client = createIngestionClient({ insertData: created });
+    const client = createRpcClient({ data: created });
     const result = await registerJobIngestion(client, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
       locator: "Fixture:Acme-Front",
@@ -211,11 +170,40 @@ describe("registerJobIngestion é idempotente na camada 013", () => {
     });
     expect(result.idempotent).toBe(false);
     expect(result.id).toBe(created.id);
+    expect(client.rpc).toHaveBeenCalledWith(REGISTER_JOB_INGESTION_RPC, {
+      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      p_locator: "Fixture:Acme-Front",
+      p_payload: BASE_PAYLOAD,
+      p_expires_at: null,
+      p_job_id: null,
+    });
+    expect(client.rpc.mock.calls[0][1]).not.toHaveProperty("payload_hash");
+    expect(client.rpc.mock.calls[0][1]).not.toHaveProperty("p_payload_hash");
   });
 
-  it("não trata 23505 de outra constraint como duplicata 013", async () => {
-    const client = createIngestionClient({
-      insertError: {
+  it("devolve a linha existente quando a RPC marca idempotent", async () => {
+    const existing = {
+      id: "c0ffeeee-0001-4000-8000-000000000001",
+      source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      normalized_locator: "fixture:acme-front",
+      payload_hash: "a".repeat(64),
+      job_id: null,
+      expires_at: null,
+      idempotent: true,
+    };
+    const client = createRpcClient({ data: existing });
+    const result = await registerJobIngestion(client, {
+      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      locator: "fixture:acme-front",
+      payload: BASE_PAYLOAD,
+    });
+    expect(result.idempotent).toBe(true);
+    expect(result.id).toBe(existing.id);
+  });
+
+  it("propaga erro da RPC e não trata 23505 de outra constraint como duplicata 013", async () => {
+    const client = createRpcClient({
+      error: {
         code: "23505",
         message: 'duplicate key value violates unique constraint "jobs_company_normalized_title_uidx"',
       },

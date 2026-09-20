@@ -172,10 +172,12 @@ function bytesToHex(buffer) {
   return [...new Uint8Array(buffer)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+export const REGISTER_JOB_INGESTION_RPC = "register_job_ingestion";
+
 /**
- * SHA-256 hex do payload canônico.
- * Fase A: calculado no cliente; o banco só valida `^[a-f0-9]{64}$`.
- * Antes de conectores externos ou da Fase B, recalcular em Edge Function ou pipeline backend.
+ * SHA-256 hex do payload canônico (preview/teste).
+ * Persistência usa `register_job_ingestion`, que recalcula o digest no banco
+ * (`private.hash_job_ingestion_payload`) e ignora qualquer hash enviado pelo cliente.
  */
 export async function hashIngestionPayload(payload) {
   const canonical = canonicalizeIngestionPayload(payload);
@@ -214,35 +216,28 @@ export function isIngestionUniqueViolation(error) {
 }
 
 /**
- * INSERT idempotente na camada 013. Conflito de fingerprint devolve a linha existente.
+ * Registro idempotente na camada 013 via RPC. O banco recalcula `payload_hash`.
  * Não cria `jobs` e não altera status de curadoria.
  */
 export async function registerJobIngestion(client, { sourceKind, locator, payload, expiresAt, jobId } = {}) {
-  if (!client?.from) {
+  if (!client?.rpc) {
     throw new Error("cliente de ingestão ausente.");
   }
-  const fingerprint = await buildIngestionFingerprint({ sourceKind, locator, payload });
-  const row = {
-    ...fingerprint,
-    expires_at: expiresAt ?? null,
-    job_id: jobId ?? null,
-  };
-  const inserted = await client.from("job_ingestions").insert(row).select("*").single();
-  if (!inserted.error) {
-    return { ...inserted.data, idempotent: false };
+  normalizeLocator(sourceKind, locator);
+  pickIngestionPayload(payload);
+  const { data, error } = await client.rpc(REGISTER_JOB_INGESTION_RPC, {
+    p_source_kind: String(sourceKind ?? "").trim().toLowerCase(),
+    p_locator: locator,
+    p_payload: payload,
+    p_expires_at: expiresAt ?? null,
+    p_job_id: jobId ?? null,
+  });
+  if (error) {
+    throw new Error(error.message || "Falha ao registrar ingestão.");
   }
-  if (!isIngestionUniqueViolation(inserted.error)) {
-    throw new Error(inserted.error.message || "Falha ao registrar ingestão.");
+  const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+  if (!row.id) {
+    throw new Error("RPC register_job_ingestion não devolveu a linha.");
   }
-  const existing = await client
-    .from("job_ingestions")
-    .select("*")
-    .eq("source_kind", fingerprint.source_kind)
-    .eq("normalized_locator", fingerprint.normalized_locator)
-    .eq("payload_hash", fingerprint.payload_hash)
-    .single();
-  if (existing.error || !existing.data) {
-    throw new Error(existing.error?.message || "Ingestão duplicada sem linha existente.");
-  }
-  return { ...existing.data, idempotent: true };
+  return { ...row, idempotent: Boolean(row.idempotent) };
 }

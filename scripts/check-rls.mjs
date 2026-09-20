@@ -148,6 +148,20 @@ function isTransientSupabaseError(error) {
   return /gateway timeout|502|503|504|522|524|ECONNRESET|fetch failed|Failed to fetch|NetworkError/i.test(errorText(error));
 }
 
+function isIngestionProbeTransient(error) {
+  return (
+    isTransientSupabaseError(error) ||
+    /timeout|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|unavailable|Failed to fetch|network/i.test(errorText(error))
+  );
+}
+
+/** RLS/GRANT/JWT recusou a leitura; não inclui rede, timeout nem 5xx. */
+function isIngestionReadDenied(error) {
+  return /row-level security|42501|permission denied|PGRST301|JWT expired|not authenticated|PGRST103/i.test(
+    errorText(error),
+  );
+}
+
 function isTransientAuthError(error) {
   return /rate limit|too many requests|429|timeout|502|503|504|gateway|fetch failed|network/i.test(errorText(error));
 }
@@ -1805,7 +1819,18 @@ async function deleteIngestions(ids) {
 }
 
 async function assertCannotSeeIngestion(client, id, label) {
-  const byId = await client.from("job_ingestions").select("id").eq("id", id);
+  const byId = await queryWithRetry(() => client.from("job_ingestions").select("id").eq("id", id));
+  if (isIngestionProbeTransient(byId.error)) {
+    assert(
+      false,
+      `${label} falhou por rede/timeout/indisponibilidade, não por RLS (${errorText(byId.error)})`,
+    );
+    return;
+  }
+  if (byId.error && !isIngestionReadDenied(byId.error)) {
+    assert(false, `${label} erro inesperado ao ler ingestão (${errorText(byId.error)})`);
+    return;
+  }
   assert(
     Boolean(byId.error) || !(byId.data ?? []).some((row) => row.id === id),
     `${label} não lê a ingestão existente`,
@@ -1866,6 +1891,16 @@ async function scenario21_jobIngestions() {
     assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
 
     await assertCannotSeeIngestion(anon, first.id, "anon");
+    const anonRpc = await anon.rpc("register_job_ingestion", {
+      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      p_locator: locator,
+      p_payload: payload,
+    });
+    assert(
+      Boolean(anonRpc.error) &&
+        (isExecuteDenied(anonRpc.error) || /aal2 required|42501|not authenticated/i.test(errorText(anonRpc.error))),
+      `anon não registra ingestão (${errorText(anonRpc.error) || "sem mensagem"})`,
+    );
     const pendingJobs = await queryWithRetry(() => anon.from("jobs").select("id,status"));
     assert(
       (pendingJobs.data ?? []).every((row) => row.status === "approved"),
@@ -1886,7 +1921,17 @@ async function scenario21_jobIngestions() {
           normalized_locator: `fixture:rls-s21-candidate-${stamp}`,
           payload_hash: "a".repeat(64),
         });
-        assert(Boolean(candidateInsert.error), "candidato não insere ingestão");
+        assert(Boolean(candidateInsert.error), "candidato não insere ingestão via tabela");
+        const candidateRpc = await candidate.rpc("register_job_ingestion", {
+          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_locator: `fixture:rls-s21-candidate-rpc-${stamp}`,
+          p_payload: payload,
+        });
+        assert(Boolean(candidateRpc.error), "candidato não registra ingestão via RPC");
+        assert(
+          /aal2 required|42501|permission denied/i.test(errorText(candidateRpc.error)),
+          `RPC ingestão candidato recusada (${errorText(candidateRpc.error) || "sem mensagem"})`,
+        );
       } finally {
         await candidate.auth.signOut();
       }
@@ -1921,10 +1966,20 @@ async function scenario21_jobIngestions() {
           normalized_locator: `fixture:rls-s21-aal1-${stamp}`,
           payload_hash: "b".repeat(64),
         });
-        assert(Boolean(aal1Insert.error), "AAL1 não insere ingestão");
+        assert(Boolean(aal1Insert.error), "AAL1 não insere ingestão via tabela");
         assert(
-          isStaffAal2Denied(aal1Insert.error),
+          isStaffAal2Denied(aal1Insert.error) || /permission denied|42501/i.test(errorText(aal1Insert.error)),
           `insert ingestão AAL1 recusado (${errorText(aal1Insert.error) || "sem mensagem"})`,
+        );
+        const aal1Rpc = await aal1Admin.rpc("register_job_ingestion", {
+          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_locator: `fixture:rls-s21-aal1-rpc-${stamp}`,
+          p_payload: payload,
+        });
+        assert(Boolean(aal1Rpc.error), "AAL1 não registra ingestão via RPC");
+        assert(
+          isStaffAal2Denied(aal1Rpc.error),
+          `RPC ingestão AAL1 recusada (${errorText(aal1Rpc.error) || "sem mensagem"})`,
         );
       } finally {
         await aal1Admin.auth.signOut();
@@ -1961,7 +2016,10 @@ async function scenario21_jobIngestions() {
       locator,
       payload,
     });
-    assert(fingerprint.payload_hash === first.payload_hash, "fingerprint estável entre cliente e linha persistida");
+    assert(
+      fingerprint.payload_hash === first.payload_hash,
+      "hash do banco coincide com o canônico de preview (cliente não persiste o digest)",
+    );
 
     const staffRead = await admin.from("job_ingestions").select("id").in("id", createdIds);
     assert((staffRead.data ?? []).length === createdIds.length, "admin AAL2 lê as ingestões criadas");
@@ -1985,7 +2043,11 @@ async function scenario21_jobIngestions() {
     );
     if (approvedHijack.data?.id) await deleteJob(admin, approvedHijack.data.id);
   } catch (error) {
-    assert(false, `fluxo 013 admin: ${error.message || error}`);
+    if (/could not find the function|PGRST202/i.test(error.message || "")) {
+      skipRequired(21, "RPC register_job_ingestion não aplicada no ambiente");
+    } else {
+      assert(false, `fluxo 013 admin: ${error.message || error}`);
+    }
   } finally {
     await deleteIngestions(createdIds);
     await admin.auth.signOut();

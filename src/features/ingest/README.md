@@ -17,7 +17,7 @@ As camadas são independentes. Repetir a mesma fonte na 013 é idempotente (mesm
 |---|---|
 | `source_kind` | `manual_fixture` ou `staff_replay` nesta sprint |
 | `normalized_locator` | identidade da fonte já normalizada |
-| `payload_hash` | SHA-256 hex (64) do JSON canônico |
+| `payload_hash` | SHA-256 hex (64) do JSON canônico, **recalculado no banco** |
 | `expires_at` | validade do ciclo; nulo = sem expiração |
 | `job_id` | FK opcional; `ON DELETE SET NULL` preserva o histórico |
 | `created_at` | append-only |
@@ -49,16 +49,20 @@ Entram no hash, nesta ordem estável via `JSON.stringify` das chaves já ordenad
 
 Mesmo payload + mesma origem → mesmo fingerprint. Payload diferente na mesma origem → nova linha (ciclo novo), sem apagar a anterior.
 
-## Limitação Fase A — `payload_hash`
+## `payload_hash` — camada confiável
 
-O SHA-256 é calculado no cliente (`hashIngestionPayload`). O banco só exige 64 hex (`^[a-f0-9]{64}$`) e **não** recalcula o digest. Em homologação interna isso é aceitável. Antes de conectores externos ou da Fase B, o hash deve nascer em camada confiável (Edge Function ou pipeline backend).
+O SHA-256 nasce em `private.hash_job_ingestion_payload`, chamado por `public.register_job_ingestion`. O cliente envia `source_kind`, locator e payload; **não** escolhe o digest. `hashIngestionPayload` no JS é só preview/teste e deve coincidir com o canônico do banco.
+
+INSERT direto em `job_ingestions` está revogado para `authenticated`. Sem essa RPC, não há escrita. Conectores externos e Fase B continuam fora de escopo; qualquer conector futuro deve usar esta RPC (ou sucessor) — nunca um hash enviado pelo cliente.
+
+Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql` e `20260920020100_job_ingestions_register_rpc_homolog.sql`.
 
 ## RLS (homologação)
 
 - Anon: sem GRANT
 - Candidato: SELECT vazio; INSERT recusado
 - Staff AAL2: SELECT
-- Admin AAL2: INSERT
+- Admin AAL2: `register_job_ingestion` (INSERT direto revogado)
 - Sem UPDATE/DELETE autenticado (histórico)
 
-Migration homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql`. Fora de `prod.manifest.json`.
+Fora de `prod.manifest.json`.

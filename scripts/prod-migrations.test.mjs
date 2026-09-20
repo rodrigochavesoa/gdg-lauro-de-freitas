@@ -33,6 +33,7 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260919120000_avatars_versioned_path_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260919120001_avatars_versioned_path.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920010148_job_ingestions_source_contract_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260920020100_job_ingestions_register_rpc_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20261001000000_job_ingestions_source_contract_prod.sql")).toBe(false);
     expect(isHomologOnlyMigration("20261001000001_job_ingestions_phase_b.sql")).toBe(false);
     expect(isHomologOnlyMigration("202608150001_ai_matching.sql")).toBe(false);
@@ -47,6 +48,7 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260919120000_avatars_versioned_path_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260919120001_avatars_versioned_path.sql")).toBe(false);
     expect(isProdSafeMigration("20260920010148_job_ingestions_source_contract_homolog.sql")).toBe(false);
+    expect(isProdSafeMigration("20260920020100_job_ingestions_register_rpc_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);
@@ -62,6 +64,14 @@ describe("prod migrations", () => {
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);
     expect(classifyNonManifestSql().unclassified).toEqual([]);
+  });
+
+  it("registra dívida GOV-AVATAR-MIG-CLASS-01: avatars_ ainda pega Camada B sem _homolog", () => {
+    // Prefix legado mais amplo que _homolog.sql. Não apertar neste PR.
+    expect(isHomologOnlyMigration("20260919120001_avatars_versioned_path.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260916153100_avatars_single_object.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20990101000000_avatars_unrelated_prod.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20990101000001_storage_prod.sql")).toBe(false);
   });
 
   it("não classifica job_ingestions_*_prod.sql como homolog-only", () => {
