@@ -118,11 +118,11 @@ Em **Space settings → Custom Fields**, crie:
 
 ### Contrato fixo (não alterar sem decisão Plan)
 
-1. **Custom fields** (tabela acima) são a fonte de verdade para **História ID**, **PR**, **Prioridade**, **Veredito Plan** e datas **Aberta em** / **Fechada em**.
-2. **Descrição** segue o modelo único em [`task-description-template.md`](task-description-template.md): Problema → Objetivo → Escopo → Fora → **DoD** → Dependências → Referências → **Entrega** (resolvido + alterado ao fechar).
-3. **Task ID** (`86a…` na URL) vai no PR (`ClickUp: …`), não substitui o campo **História ID**.
+1. **Custom fields** → preenchidos por **`pnpm clickup:sync`** a partir de `docs-local/clickup/sprint-handoff.config.json` (`fields`, `openedAt`, `closedAt`). **Não** editar Fields na UI no fluxo normal.
+2. **Descrição** → gerada de `sections` no JSON ([`task-description-template.md`](task-description-template.md)); **sem tabelas** na descrição.
+3. **`clickupId`** no JSON amarra task existente; **História ID** no campo custom; **ID da URL** no PR (`ClickUp: …`).
 
-Agentes: **não** criar tasks só com texto livre na descrição; usar sync + template. Ao concluir (**Done**), preencher campos **e** seção **Entrega** — não apagar o histórico de aceite.
+Agentes: nova task = entrada no handoff JSON + sync. Done = atualizar `fields`, `delivery` e `closedAt` no JSON + sync.
 
 ---
 

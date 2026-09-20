@@ -25,8 +25,8 @@ Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs
 | Passo | O que fazer |
 |---|---|
 | 1. Sprint | Colocar na **sprint atual** (default) ou na list mais adequada (ex.: bloqueio humano permanece em Sprint 10). |
-| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (task + `fields` + `description` no **[template fixo](docs-local.example/clickup/task-description-template.md)**) e rodar **`pnpm clickup:sync`**. |
-| 3. Documentação | Problema/DoD na **descrição** da task; decisões grandes em **`docs-local/`** (ex.: `decision-*.md`). Ao **Done**, preencher custom fields **PR**, **Fechada em**, **Veredito Plan** e seção **Entrega** (resolvido + alterado). |
+| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (`fields`, `sections`, `clickupId` se já existir) e rodar **`pnpm clickup:sync`** — campos e descrição **automáticos** ([template](docs-local.example/clickup/task-description-template.md)). |
+| 3. Documentação | Problema/DoD em `sections` no JSON; decisões grandes em **`docs-local/`**. Ao **Done**, atualizar JSON (`fields.PR`, `delivery`, `closedAt`) e **sync** — não preencher ClickUp na mão. |
 | 4. Ordem | Se alterar a sequência da sprint, atualizar a **Sprint Note** (fluxo numerado) antes do Executor. |
 | 5. Execução | Só depois: ONE-LINER ao agente correto; PR com `ClickUp: CU-xxx`. |
 
