@@ -37,6 +37,10 @@ vi.mock("./features/curation/CurationQueue.jsx", () => ({
   },
 }));
 
+vi.mock("./features/ingest/IngestPanel.jsx", () => ({
+  IngestPanel: () => <div data-testid="ingest-panel" />,
+}));
+
 vi.mock("./features/auth/staff-mfa.js", async () => {
   const actual = await vi.importActual("./features/auth/staff-mfa.js");
   return {
@@ -115,6 +119,7 @@ describe("Admin", () => {
     );
     expect(screen.getByRole("button", { name: "Publicar vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Curadoria" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ingestão" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("id", "admin-job-title");
     expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("name", "title");
@@ -127,6 +132,8 @@ describe("Admin", () => {
     expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Publicar vaga" }));
     expect(screen.getByTestId("curation-queue").closest("[hidden]")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
+    expect(screen.getByTestId("ingest-panel")).toBeInTheDocument();
   });
 
   it("área logada não renderiza sidebar nem card de perfil", async () => {
@@ -144,6 +151,7 @@ describe("Admin", () => {
     const tabs = document.querySelector(".admin-tabs");
     expect(tabs).toBeTruthy();
     expect(within(tabs).queryByRole("button", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("button", { name: "Ingestão" })).not.toBeInTheDocument();
   });
 
   it("mostra tabs do admin sem esperar o CRUD de vagas", async () => {

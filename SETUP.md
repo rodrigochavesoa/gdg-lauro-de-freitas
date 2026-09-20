@@ -74,7 +74,7 @@ Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar 
 - Policies: autenticado só lê/grava/apaga arquivos na própria pasta (`{uid}/{arquivo}` com extensão jpg/jpeg/png/webp, um nível). Anon e terceiros não acessam.
 - Frontend: JPEG/PNG/WebP até 2 MB; recorte circular no cliente; popover no header (foto 96 px, nome, e-mail, ações). Sem foto ou falha de load → iniciais.
 - Migrations `avatars_*` são tratadas como homolog-only pelo prefixo legado `avatars_` em `pnpm migrations:prod`. Isso também cobre arquivos Camada B sem sufixo `_homolog` (`avatars_versioned_path.sql`, `avatars_single_object.sql`) — dívida **GOV-AVATAR-MIG-CLASS-01**, a fechar antes de promover avatar a produção. **Não** aplicar em `gdg-jobs-prod`.
-- Migrations `20260920010148_job_ingestions_source_contract_homolog.sql` e `20260920020100_job_ingestions_register_rpc_homolog.sql` (MVP-013 Fase A) são **homolog-only** pelo sufixo `_homolog.sql`. O hash da ingestão é recalculado na RPC `register_job_ingestion`. **Não** aplicar em `gdg-jobs-prod`.
+- Migrations `20260920010148_job_ingestions_source_contract_homolog.sql`, `20260920020100_job_ingestions_register_rpc_homolog.sql` e `20260920040000_job_ingestions_process_homolog.sql` (MVP-013) são **homolog-only** pelo sufixo `_homolog.sql`. O hash é recalculado na RPC; `process_job_ingestion` materializa só `pending`. **Não** aplicar em `gdg-jobs-prod`.
 - Migration `20260920030000_staff_cannot_apply_homolog.sql` (SEC-STAFF-APPLY-01) é **homolog-only**: `apply_to_job` / `withdraw_application` recusam `admin`/`curator`/`moderator`. **Não** aplicar em `gdg-jobs-prod`.
 - Production permanece fail-closed (`VITE_AVATAR_UPLOAD_ENABLED` ausente/false) até o checklist da Camada B.
 

@@ -53,16 +53,35 @@ Mesmo payload + mesma origem → mesmo fingerprint. Payload diferente na mesma o
 
 O SHA-256 nasce em `private.hash_job_ingestion_payload`, chamado por `public.register_job_ingestion`. O cliente envia `source_kind`, locator e payload; **não** escolhe o digest. `hashIngestionPayload` no JS é só preview/teste e deve coincidir com o canônico do banco.
 
-INSERT direto em `job_ingestions` está revogado para `authenticated`. Sem essa RPC, não há escrita. Conectores externos e Fase B continuam fora de escopo; qualquer conector futuro deve usar esta RPC (ou sucessor) — nunca um hash enviado pelo cliente.
+INSERT direto em `job_ingestions` está revogado para `authenticated`. Sem a RPC, não há escrita. O cliente não escolhe o digest. Conectores externos continuam fora de escopo; qualquer conector futuro deve usar `register_job_ingestion` / `process_job_ingestion` — nunca um hash enviado pelo cliente.
 
-Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql` e `20260920020100_job_ingestions_register_rpc_homolog.sql`.
+## Fase B — processamento controlado
+
+RPC `process_job_ingestion` (admin AAL2): registra a origem, materializa `jobs` **pending**, grava `job_ingestion_attempts` (append-only) e **nunca** escolhe `approved`.
+
+| Outcome | Significado |
+|---|---|
+| `materialized` | vaga pending criada e ligada |
+| `idempotent` | mesma origem já tinha `job_id`; retry sem duplicar |
+| `duplicate_010` | camada MVP-010 (empresa + título) já existia; vaga reaproveitada |
+| `failed` | falha redigida (`payload_invalid`, `materialize_failed`); histórico permanece |
+| `expired` | `expires_at` passou; não materializa; catálogo público esconde vaga ligada |
+
+**Aceite de falha (Fase B):** só tentativas **depois** do registro da origem. Recusa de contrato (`source_kind` inválido, localizador vazio, payload proibido) falha em `register_job_ingestion` **antes** de existir linha — a UI mostra o erro; **não** há `job_ingestion_attempts` (follow-up `INGEST-ATTEMPT-CONTRACT-01`).
+
+`loadJobIngestions` lista o conjunto completo (homolog/fixture). Paginação fica para `INGEST-LIST-PAGE-01` antes de uso operacional maior.
+
+UI staff: aba **Ingestão** em `/admin` (loading / vazio / erro / reprocessar). Fixture fictícia: `fixture:homolog-acme-frontend`.
+
+Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql`, `20260920020100_job_ingestions_register_rpc_homolog.sql` e `20260920040000_job_ingestions_process_homolog.sql`.
 
 ## RLS (homologação)
 
 - Anon: sem GRANT
 - Candidato: SELECT vazio; INSERT recusado
 - Staff AAL2: SELECT
-- Admin AAL2: `register_job_ingestion` (INSERT direto revogado)
+- Admin AAL2: `register_job_ingestion` e `process_job_ingestion` (INSERT direto revogado)
+- Tentativas: leitura staff AAL2; sem INSERT autenticado
 - Sem UPDATE/DELETE autenticado (histórico)
 
 Fora de `prod.manifest.json`.
