@@ -587,13 +587,13 @@ describe("ARQ-01 — caracterização do shell", () => {
     authState.needsOnboarding = false;
     await renderAt("/admin");
     expect(await screen.findByRole("heading", { name: "Painel" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Gestão de vagas" })).toHaveAttribute("href", "/admin/vagas");
-    expect(screen.getByRole("button", { name: "Ingestão" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
-    expect(await screen.findByRole("heading", { name: "Entrada manual / fixture" })).toBeInTheDocument();
+    const tabs = document.querySelector(".admin-tabs");
+    expect(within(tabs).getByRole("link", { name: "Vagas" })).toHaveAttribute("href", "/admin/vagas");
+    fireEvent.click(within(tabs).getByRole("link", { name: "Ingestão" }));
+    expect(await screen.findByRole("heading", { name: "Ingestão" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ingerir fixture (pendente)" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
-    expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
+    fireEvent.click(within(tabs).getByRole("link", { name: "Vagas" }));
+    expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
   });
 
   it("staff abre /admin/curadoria por deep link e candidato permanece fora", async () => {

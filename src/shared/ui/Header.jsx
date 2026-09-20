@@ -5,6 +5,7 @@ import { ThemeToggle } from "./ThemeToggle.jsx";
 import { AccountMenu, AvatarFace } from "./AccountMenu.jsx";
 import { AvatarCropDialog } from "./AvatarCropDialog.jsx";
 import { assertAvatarFile, cropImageToCircle, loadImageFromFile, revokeLoadedImageUrl } from "../../features/auth/avatar-crop.js";
+import { adminNavItemsForRole, isAdminNavItemActive } from "../../features/admin/admin-nav-items.js";
 
 const STAFF_ROLES = ["admin", "curator", "moderator"];
 const HEADER_COMPACT_MQ = "(max-width: 1024px)";
@@ -155,6 +156,20 @@ export function Header({
     return () => document.removeEventListener("keydown", onKey);
   }, [mobileMenuOpen]);
 
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const onPointerDown = (event) => {
+      const menu = document.getElementById("mobile-navigation");
+      if (!menu) return;
+      if (menu.contains(event.target)) return;
+      if (menuButtonRef.current?.contains(event.target)) return;
+      if (avatarButtonRef.current?.contains(event.target)) return;
+      closeMobileMenu();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [mobileMenuOpen]);
+
   const roleKnown = Boolean(role);
   const staff = Boolean(logged && isStaffRole(role));
   const candidate = Boolean(logged && roleKnown && !staff);
@@ -176,9 +191,39 @@ export function Header({
     </>
   );
 
+  const showMobileAdminNav = staff && inAdminArea && compactHeader;
+
   const staffAdminLink = (onNavigate) => (
     staff || !logged ? (
-      <NavLink to="/admin" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Área admin</NavLink>
+      <NavLink
+        to="/admin"
+        aria-disabled={needsOnboarding || undefined}
+        aria-current={staff && inAdminArea ? "page" : undefined}
+        onClick={(event) => onGatedClick(event, onNavigate)}
+      >
+        Área admin
+      </NavLink>
+    ) : null
+  );
+
+  const mobileAdminNavSection = (onNavigate) => (
+    showMobileAdminNav ? (
+      <section className="mobile-nav__admin" aria-labelledby="mobile-nav-admin-heading">
+        <p id="mobile-nav-admin-heading" className="mobile-nav__heading">Administração</p>
+        {adminNavItemsForRole(role).map((item) => (
+          <NavLink
+            key={item.id}
+            to={item.to}
+            end={item.end ?? false}
+            className={isAdminNavItemActive(pathname, item) ? "active" : undefined}
+            aria-disabled={needsOnboarding || undefined}
+            aria-current={isAdminNavItemActive(pathname, item) ? "page" : undefined}
+            onClick={(event) => onGatedClick(event, onNavigate)}
+          >
+            {item.label}
+          </NavLink>
+        ))}
+      </section>
     ) : null
   );
 
@@ -260,6 +305,7 @@ export function Header({
   const mobileNavLinks = (onNavigate) => (
     <>
       {mobileAccountSection(onNavigate)}
+      {mobileAdminNavSection(onNavigate)}
       {baseNavLinks(onNavigate)}
       {staffAdminLink(onNavigate)}
     </>

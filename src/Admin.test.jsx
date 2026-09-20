@@ -5,6 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
+const loadAdminDashboardSummary = vi.hoisted(() =>
+  vi.fn(async () => ({
+    pendingCuration: 0,
+    approved: 0,
+    rejectedJobs: 0,
+    rejectedQueue: 0,
+    pendingJobs: 0,
+    ingestAttention: 0,
+  })),
+);
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 const loadAdminJob = vi.hoisted(() => vi.fn(async () => null));
 const signInCuration = vi.hoisted(() => vi.fn());
@@ -19,6 +29,10 @@ const staffMfa = vi.hoisted(() => ({
 vi.mock("./features/curation/curation-api.js", () => ({
   loadCurationProfile: (...args) => loadCurationProfile(...args),
   signInCuration: (...args) => signInCuration(...args),
+}));
+
+vi.mock("./features/admin/admin-dashboard-api.js", () => ({
+  loadAdminDashboardSummary: (...args) => loadAdminDashboardSummary(...args),
 }));
 
 vi.mock("./lib/admin-api.js", async () => {
@@ -82,6 +96,17 @@ describe("Admin", () => {
     loadAdminJob.mockReset();
     loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
+    loadAdminDashboardSummary.mockReset();
+    loadAdminDashboardSummary.mockImplementation(async () => ({
+      pendingCuration: 0,
+      approved: 0,
+      rejectedJobs: 0,
+      rejectedQueue: 0,
+      pendingJobs: 0,
+      ingestAttention: 0,
+    }));
+    loadAdminJobs.mockReset();
+    loadAdminJobs.mockResolvedValue([]);
     CurationQueueMock.mockClear();
     staffMfa.required = false;
     staffMfa.getStaffMfaAssurance.mockReset();
@@ -136,25 +161,29 @@ describe("Admin", () => {
       <Admin authReady session={adminSession} authProfile={adminProfile} />,
     );
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
-    expect(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar vaga" })).toHaveAttribute("href", "/admin/vagas/nova");
+    expect(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar" })).toHaveAttribute("href", "/admin/vagas/nova");
     expect(screen.getByRole("link", { name: "Curadoria" })).toHaveAttribute("href", "/admin/curadoria");
-    expect(screen.getByRole("link", { name: "Gestão de vagas" })).toHaveAttribute("href", "/admin/vagas");
+    expect(screen.getByRole("link", { name: "Vagas" })).toHaveAttribute("href", "/admin/vagas");
     expect(screen.getByRole("link", { name: "Painel" })).toHaveAttribute("href", "/admin");
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ingestão" })).toBeInTheDocument();
+    expect(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Ingestão" })).toHaveAttribute(
+      "href",
+      "/admin/ingestao",
+    );
     expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
     expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Curadoria" }));
     expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
-    fireEvent.click(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar vaga" }));
+    fireEvent.click(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Publicar" }));
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(screen.getByLabelText("Título da vaga")).toHaveAttribute("id", "admin-job-title");
     const unnamedJobs = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
     expect(unnamedJobs).toEqual([]);
     fireEvent.click(screen.getByRole("link", { name: "Painel" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ingestão" }));
+    expect(screen.queryByRole("link", { name: "Abrir curadoria" })).not.toBeInTheDocument();
+    fireEvent.click(within(document.querySelector(".admin-tabs")).getByRole("link", { name: "Ingestão" }));
     expect(screen.getByTestId("ingest-panel")).toBeInTheDocument();
   });
 
@@ -172,9 +201,9 @@ describe("Admin", () => {
     expect(screen.queryByText("Cora Curadora")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
     expect(tabs).toBeTruthy();
-    expect(within(tabs).queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
-    expect(within(tabs).queryByRole("link", { name: "Gestão de vagas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ingestão" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Vagas" })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole("link", { name: "Ingestão" })).not.toBeInTheDocument();
   });
 
   it("curator não amplia acesso em /admin/vagas", async () => {
@@ -219,12 +248,12 @@ describe("Admin", () => {
       email: "ada@example.invalid",
     });
     renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando área administrativa…")).not.toBeInTheDocument();
     expect(screen.queryByText("Pessoa Estagiária (rascunho)")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("link", { name: "Gestão de vagas" }));
+    fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
     expect(screen.getByText("Carregando vagas da área administrativa…")).toBeInTheDocument();
     resolveJobs([
@@ -241,7 +270,7 @@ describe("Admin", () => {
     );
   });
 
-  it("admin troca Curadoria e Publicar vaga pelas rotas", async () => {
+  it("admin troca Curadoria e Publicar pelas rotas", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
       role: "admin",
@@ -249,20 +278,20 @@ describe("Admin", () => {
       email: "ada@example.invalid",
     });
     renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />);
-    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar" })).toBeInTheDocument();
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(screen.queryByText("Ada Admin")).not.toBeInTheDocument();
     const tabs = document.querySelector(".admin-tabs");
     expect(within(tabs).getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
-    expect(within(tabs).getByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(within(tabs).getByRole("link", { name: "Publicar" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
-    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar vaga" }));
+    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar" }));
     expect(await screen.findByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cadastrar para curadoria" })).toBeInTheDocument();
     fireEvent.click(within(tabs).getByRole("link", { name: "Curadoria" }));
     expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
     expect(screen.getByTestId("curation-queue")).toBeInTheDocument();
-    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar vaga" }));
+    fireEvent.click(within(tabs).getByRole("link", { name: "Publicar" }));
     expect(screen.getByRole("heading", { name: "Publicar nova vaga" })).toBeInTheDocument();
     expect(document.querySelector(".job-form .form-actions")).toBeTruthy();
   });
@@ -472,7 +501,7 @@ describe("Admin", () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar" })).toBeInTheDocument();
     rerender(
       <MemoryRouter initialEntries={["/admin"]}>
         <Routes>
@@ -499,7 +528,7 @@ describe("Admin", () => {
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
     expect(screen.getByLabelText("E-mail")).toHaveValue("");
     expect(screen.getByLabelText("Senha")).toHaveValue("");
-    expect(screen.queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Curadoria" })).not.toBeInTheDocument();
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
@@ -509,7 +538,7 @@ describe("Admin", () => {
     renderAdmin(
       <Admin authReady session={adminSession} authProfile={adminProfile} />,
     );
-    expect(await screen.findByRole("link", { name: "Publicar vaga" })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Publicar" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Confirmar segundo fator" })).not.toBeInTheDocument();
   });
 
@@ -529,7 +558,7 @@ describe("Admin", () => {
     expect(screen.getByLabelText("Código do autenticador")).toBeInTheDocument();
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("id", "admin-totp");
     expect(screen.getByLabelText("Código do autenticador")).toHaveAttribute("name", "totp");
-    expect(screen.queryByRole("link", { name: "Publicar vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Curadoria" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
   });
