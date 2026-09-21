@@ -149,6 +149,18 @@ Um workflow de deploy condicionado ao RLS permanece **fora de escopo** desta his
 
 Smoke dos fluxos P0 (portal, catálogo, detalhe, login) entra em `pnpm test` via `App.smoke.test.jsx`. **Não** há Playwright neste recorte.
 
+### Observabilidade operacional (`ops.*`, MVP-014)
+
+Eventos mínimos de login, busca, candidatura, ingestão e RPC staff vão para o **Console do navegador** (`console.info`), não para dashboard externo. **Production não emite** `ops.*`.
+
+| Onde | Como validar |
+|---|---|
+| Local | `pnpm dev` → `http://127.0.0.1:5173` → DevTools → filtro `ops.`; opcional `VITE_OPS_ENVIRONMENT=homolog` em `.env.local` |
+| Preview (PR) | URL do deploy da branch → mesmo filtro; esperar `environment: "preview"` |
+| CI / merge | `pnpm test` (`ops-observability.test.js`, smoke) — sem smoke manual em Production |
+
+Guia passo a passo e checklist ~5 min (aceite PO / ClickUp): [`docs-local.example/ops-observability-qa.example.md`](docs-local.example/ops-observability-qa.example.md). Cópia operacional com bloco colável: `docs-local/mvp-014-preview-qa-checklist.md`.
+
 ### `pnpm test:rls` local
 
 ```powershell

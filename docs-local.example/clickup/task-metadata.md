@@ -16,6 +16,12 @@ Contrato **obrigatório** para **`pnpm clickup:sync`**. Configs reais em **`docs
 
 Task **sem** `tags` / datas / assignee resolvível → sync incompleto; corrigir config local antes de declarar sprint fechada.
 
+## Convenção de nomes de Sprint
+
+- O nome da **List** deve ser curto e conter apenas `Sprint NN` (por exemplo, `Sprint 19`).
+- O contexto da sprint fica na **Sprint Note** ou na task: `📋 Sprint Note — Sprint 19 (Observabilidade)`.
+- Não usar o tema, produto ou descrição no nome da List; isso prejudica a leitura do sidebar e não substitui a descrição estruturada.
+
 ---
 
 ## Scripts no Git vs dados locais

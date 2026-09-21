@@ -82,8 +82,10 @@ Se preferir criar tudo na UI (sem token), use o checklist §1–§2 abaixo.
 - [ ] **Space:** nome do produto (ex.: `Meu Produto MVP`)
 - [ ] **Folder:** `Product Backlog` — ideias P2/P3, polish
 - [ ] **Folder:** `Sprints` — uma **List** por sprint
-- [ ] **List:** `Sprint 01` (sprint atual ou encerrada)
-- [ ] **List:** `Sprint 02` (próxima sprint)
+- [ ] **List:** `Sprint 01` (sprint atual ou encerrada; nome curto)
+- [ ] **List:** `Sprint 02` (próxima sprint; nome curto)
+
+> Regra de nomenclatura: a List usa somente `Sprint NN`. Tema e contexto entram na Sprint Note/task, por exemplo `📋 Sprint Note — Sprint 19 (Observabilidade)`.
 - [ ] **Folder:** `Ops / Bloqueios` — credenciais, aceite PO, dependências humanas
 
 ### Status (workflow da List)
@@ -197,7 +199,7 @@ Não obrigatório para solo+IA.
 3. **Documentar o assunto** — mínimo na `description` da task; se for decisão ou escopo técnico, arquivo em `docs-local/` (ex.: `decision-*.md`). **Docs-only também entra** (tag `Governança` ou `Ops manual`).
 4. **Atualizar Sprint Note** — incluir no fluxo numerado da sprint se mudar ordem ou dependências.
 5. **`pnpm clickup:sync`** — validar task no ClickUp; anotar `CU-xxx` para o PR.
-6. **ONE-LINER** — só então colar no Cursor; PR body: `ClickUp: CU-xxx`.
+6. **ONE-LINER** — bloco completo com `Modelo indicado` + `Effort` (abaixo de `Função / Agente`, ver `CONTRIBUTING.md` e `docs-local.example/guideline-cursor-models-one-liner.example.md`); PO ajusta o modelo no Agent; depois colar no Cursor; PR body: `ClickUp: CU-xxx`.
 7. **Antes do merge (UI/deploy):** Plan/Executor entrega ao PO o **link direto Preview Vercel** da branch (ver `CONTRIBUTING.md` § *Aceite de merge — link Preview Vercel*).
 
 **Exemplos já aplicados (Sprint 13):** `UX-MOBILE-OVERFLOW-01`, aceite `SEC-02-DEC` + `MVP-021` (`decision-security-definer-rpc-hardening.md`).

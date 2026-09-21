@@ -60,7 +60,8 @@ Quando a entrega alterar **frontend**, **`vercel.json`** ou **deploy**, o **Plan
 1. **Número da PR** (ex.: `#91`)
 2. **Link direto do Preview** — URL completa do deploy **desta branch** (não `main`/Production)
 3. **Rotas a validar** — no mínimo `/`, `/vagas`, `/login` quando couber SPA
-4. Pedido explícito de **Sim** no PR após validação no celular ou DevTools mobile
+4. Entregas **MVP-014 / observabilidade:** checklist Console `ops.*` (~5 min) em [`docs-local.example/ops-observability-qa.example.md`](docs-local.example/ops-observability-qa.example.md); bloco colável ClickUp em `docs-local/mvp-014-preview-qa-checklist.md` (mantenedor)
+5. Pedido explícito de **Sim** no PR após validação no celular ou DevTools mobile
 
 **Proibido** pedir merge só com “valide no Preview” sem colar a URL. **Production** (`https://gdg-lauro-de-freitas.vercel.app`) só reflete a branch **depois** do squash merge — não usar para validar PR aberta.
 
@@ -116,7 +117,9 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 ### ONE-LINER AO EXECUTOR
 
 **Função / Agente:** (obrigatório) quem executa — ex.: Executor frontend, **Frontend Visual QA**, Executor / Shell (pwsh), Humano (PO), subagent security-review, Plan Tech Lead only
-**Modelo / ferramenta:** (obrigatório quando agente ≠ humano) ex.: sem LLM · Cursor Agent standard · raciocínio alto (só Plan)
+**Modelo indicado:** (obrigatório quando agente ≠ humano puro) família no seletor do Cursor — ex.: **Grok 4.6** · **Grok 4.7** · **Composer 2.5** · **—** (humano/scripts)
+**Effort:** (obrigatório junto com Modelo indicado, exceto humano/`—`) **low** · **medium** · **high** · **xhigh** — ver tabela do Plan em `docs-local/guideline-cursor-models-one-liner.md` (modelo genérico: [`docs-local.example/guideline-cursor-models-one-liner.example.md`](docs-local.example/guideline-cursor-models-one-liner.example.md))
+**Modelo / ferramenta:** (obrigatório quando agente ≠ humano) *como* executar — ex.: Cursor Agent standard · shell `pnpm test`/`test:rls` (sem delegar CI ao LLM) · Playwriter CLI · subagent security-review
 **Perfil:** ... (opcional — competência: Fullstack Engineer, etc.)
 **História:** Sx-xx — ...
 **Tarefa:** ...
@@ -135,7 +138,9 @@ O Tech Lead publica **um único bloco** copiável — sem exigir seleção parci
 
 Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs-local/project-backlog-scrum.md`), não espalhados no chat.
 
-**Regra de ouro (ONE-LINER — função do executor):** todo ONE-LINER **deve** declarar explicitamente **quem executa** (`**Função / Agente:**`) e, quando o agente não for humano puro, **como executa** (`**Modelo / ferramenta:**`). ONE-LINER **sem** esses campos é **inválido** — o Executor **não inicia**; o Plan republica o bloco completo antes de dar **Sim**.
+**Regra de ouro (ONE-LINER — função do executor):** todo ONE-LINER **deve** declarar **quem executa** (`**Função / Agente:**`), **qual modelo o PO deve selecionar no Agent** (`**Modelo indicado:**` + `**Effort:**` logo abaixo) e **como executa** (`**Modelo / ferramenta:**`). ONE-LINER **sem** esses campos é **inválido** — o Executor **não inicia**; o Plan republica o bloco completo antes de dar **Sim**. O mantenedor **troca modelo/effort no Cursor** conforme o ONE-LINER antes de colar o bloco (não é decisão do Executor).
+
+**Referência Plan (Grok 4.6 vs 4.7, custo I/O, funções GDG Jobs):** `docs-local/guideline-cursor-models-one-liner.md` — resumo público em [`docs-local.example/guideline-cursor-models-one-liner.example.md`](docs-local.example/guideline-cursor-models-one-liner.example.md).
 
 ## Papéis — Plan Tech Lead vs Executor (obrigatório)
 
@@ -165,7 +170,7 @@ Quando o Executor reporta **“pronto na branch / PR #N”**, o Plan **revisa** 
 |---|---|
 | **APROVADO** | ONE-LINER cumprido; CI verde; escopo isolado; critérios de aceite ok; se UI/deploy: **link direto Preview Vercel da branch** entregue ao PO |
 | **APROVADO com ressalvas** | Entrega válida; polish ou follow-up documentado (não bloqueia merge se P0 ok) |
-| **REPROVADO** | Fora de escopo; falha CI; critério P0 não atendido; divergência do ONE-LINER; **ONE-LINER sem `Função / Agente` (e `Modelo / ferramenta` quando couber)** |
+| **REPROVADO** | Fora de escopo; falha CI; critério P0 não atendido; divergência do ONE-LINER; **ONE-LINER sem `Função / Agente`, `Modelo indicado`/`Effort` (quando couber) e `Modelo / ferramenta`** |
 
 Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Se UI/deploy: incluir **link direto Preview Vercel da branch** na mensagem ao PO (não pedir merge sem URL). Registrar revisões relevantes em `docs-local/project-backlog-scrum.md` quando for marco de sprint.
 
