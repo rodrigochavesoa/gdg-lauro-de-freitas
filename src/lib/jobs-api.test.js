@@ -120,6 +120,30 @@ describe("loadApprovedJobs", () => {
     expect(builder.or.mock.calls[0][0]).toMatch(/stack\.ov\./);
   });
 
+  it("registra a busca sem a query do catálogo", async () => {
+    vi.stubEnv("VITE_OPS_EMIT", "true");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      mockCatalogQuery({ data: [], count: 0 });
+      await loadApprovedJobs({ query: "Nuvem pessoa@example.com", tech: ["React"] });
+      await loadApprovedJobs({ query: "Nuvem pessoa@example.com", tech: ["React"] });
+      const events = info.mock.calls.map((call) => call[0]).filter((entry) => entry?.event_name === "ops.search");
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        event_name: "ops.search",
+        action: "catalog_search",
+        route: "/vagas",
+        outcome: "success",
+        error_class: "none",
+        environment: "ci",
+      });
+      expect(JSON.stringify(events)).not.toMatch(/Nuvem|pessoa@example.com|React/);
+    } finally {
+      info.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("mapeia Sênior para senior e lead", async () => {
     const builder = mockCatalogQuery({ data: [], count: 0 });
     await loadApprovedJobs({ level: ["Sênior"] });

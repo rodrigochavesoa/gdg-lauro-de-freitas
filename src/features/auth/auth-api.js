@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { classifyOpsFailure, emitOpsEvent, runObserved, technicalRoute } from "../../lib/ops-observability.js";
 import {
   isCandidateProfile,
   isD01Complete,
@@ -289,8 +290,14 @@ export function subscribeAuth(onChange) {
         lastNeedsOnboarding = snapshot.needsOnboarding;
         onChange(snapshot);
       })
-      .catch(() => {
+      .catch((error) => {
         if (gen !== hydrateGen) return;
+        emitOpsEvent({
+          flow: "login",
+          action: "session_hydrate",
+          route: technicalRoute(globalThis.location?.pathname),
+          ...classifyOpsFailure("login", error),
+        });
       });
   });
 
@@ -301,13 +308,15 @@ export function subscribeAuth(onChange) {
 }
 
 export async function startGoogleOAuth() {
-  const client = clientOrThrow();
-  const redirectTo = `${window.location.origin}/`;
-  const { error } = await client.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo },
+  return runObserved({ flow: "login", action: "google_oauth", route: "/login" }, async () => {
+    const client = clientOrThrow();
+    const redirectTo = `${window.location.origin}/`;
+    const { error } = await client.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo },
+    });
+    throwIfError(error);
   });
-  throwIfError(error);
 }
 
 export async function signOutUser() {

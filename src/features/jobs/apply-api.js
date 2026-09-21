@@ -1,3 +1,4 @@
+import { runObserved } from "../../lib/ops-observability.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 const APPLICATION_SELECT = "id,job_id,candidate_id,status,snapshot,created_at,updated_at";
@@ -144,25 +145,29 @@ export function parseApplication(row) {
 
 export async function applyToJob(jobId) {
   if (!jobId) throw new Error("Vaga não informada.");
-  const client = clientOrThrow();
-  const { data, error } = await client.rpc("apply_to_job", { p_job_id: jobId });
-  if (error) throw createApplyError(error);
-  if (data && typeof data === "object" && typeof data.error === "string") {
-    throw createApplyError({ message: data.error });
-  }
-  const parsed = parseApplication(data);
-  invalidateMyApplicationsCache(parsed?.candidateId);
-  return parsed;
+  return runObserved({ flow: "application", action: "apply_to_job", route: "/jobs/:id" }, async () => {
+    const client = clientOrThrow();
+    const { data, error } = await client.rpc("apply_to_job", { p_job_id: jobId });
+    if (error) throw createApplyError(error);
+    if (data && typeof data === "object" && typeof data.error === "string") {
+      throw createApplyError({ message: data.error });
+    }
+    const parsed = parseApplication(data);
+    invalidateMyApplicationsCache(parsed?.candidateId);
+    return parsed;
+  });
 }
 
 export async function withdrawApplication(jobId) {
   if (!jobId) throw new Error("Vaga não informada.");
-  const client = clientOrThrow();
-  const { data, error } = await client.rpc("withdraw_application", { p_job_id: jobId });
-  if (error) throw createApplyError(error);
-  const parsed = parseApplication(data);
-  invalidateMyApplicationsCache(parsed?.candidateId);
-  return parsed;
+  return runObserved({ flow: "application", action: "withdraw_application", route: "/jobs/:id" }, async () => {
+    const client = clientOrThrow();
+    const { data, error } = await client.rpc("withdraw_application", { p_job_id: jobId });
+    if (error) throw createApplyError(error);
+    const parsed = parseApplication(data);
+    invalidateMyApplicationsCache(parsed?.candidateId);
+    return parsed;
+  });
 }
 
 export async function loadMyApplication(jobId, userId) {

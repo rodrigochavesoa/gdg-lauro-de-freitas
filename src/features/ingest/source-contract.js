@@ -4,6 +4,8 @@
  * Não materializa vaga, não altera curadoria e não escolhe `approved`.
  */
 
+import { runObserved } from "../../lib/ops-observability.js";
+
 export const SOURCE_KINDS = Object.freeze({
   MANUAL_FIXTURE: "manual_fixture",
   STAFF_REPLAY: "staff_replay",
@@ -220,24 +222,29 @@ export function isIngestionUniqueViolation(error) {
  * Não cria `jobs` e não altera status de curadoria.
  */
 export async function registerJobIngestion(client, { sourceKind, locator, payload, expiresAt, jobId } = {}) {
-  if (!client?.rpc) {
-    throw new Error("cliente de ingestão ausente.");
-  }
-  normalizeLocator(sourceKind, locator);
-  pickIngestionPayload(payload);
-  const { data, error } = await client.rpc(REGISTER_JOB_INGESTION_RPC, {
-    p_source_kind: String(sourceKind ?? "").trim().toLowerCase(),
-    p_locator: locator,
-    p_payload: payload,
-    p_expires_at: expiresAt ?? null,
-    p_job_id: jobId ?? null,
-  });
-  if (error) {
-    throw new Error(error.message || "Falha ao registrar ingestão.");
-  }
-  const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
-  if (!row.id) {
-    throw new Error("RPC register_job_ingestion não devolveu a linha.");
-  }
-  return { ...row, idempotent: Boolean(row.idempotent) };
+  return runObserved(
+    { flow: "ingestion", action: "register_job_ingestion", route: "/admin/ingestao" },
+    async () => {
+      if (!client?.rpc) {
+        throw new Error("cliente de ingestão ausente.");
+      }
+      normalizeLocator(sourceKind, locator);
+      pickIngestionPayload(payload);
+      const { data, error } = await client.rpc(REGISTER_JOB_INGESTION_RPC, {
+        p_source_kind: String(sourceKind ?? "").trim().toLowerCase(),
+        p_locator: locator,
+        p_payload: payload,
+        p_expires_at: expiresAt ?? null,
+        p_job_id: jobId ?? null,
+      });
+      if (error) {
+        throw new Error(error.message || "Falha ao registrar ingestão.");
+      }
+      const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+      if (!row.id) {
+        throw new Error("RPC register_job_ingestion não devolveu a linha.");
+      }
+      return { ...row, idempotent: Boolean(row.idempotent) };
+    },
+  );
 }
