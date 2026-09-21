@@ -69,6 +69,38 @@ describe("processJobIngestion", () => {
     expect(result.failure_code).toBe("payload_invalid");
     expect(result.failure_detail).not.toMatch(/@|email|token/i);
   });
+
+  it("evento operacional omite payload, locator e failure_detail", async () => {
+    vi.stubEnv("VITE_OPS_EMIT", "true");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const data = {
+        ingestion: { id: "ing-2", job_id: null },
+        job: null,
+        outcome: INGESTION_OUTCOMES.FAILED,
+        failure_code: "payload_invalid",
+        failure_detail: "curriculo pessoa@example.com",
+      };
+      const client = createRpcClient({ data });
+      await processJobIngestion(client, {
+        ...HOMOLOG_MANUAL_FIXTURE,
+        locator: "fixture:segredo-pessoa@example.com",
+        payload: { title: "Dev", company_name: "Empresa Fictícia Lab", description: "texto livre secreto" },
+      });
+      const events = info.mock.calls.map((call) => call[0]).filter((entry) => entry?.event_name === "ops.ingestion");
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        action: "process_job_ingestion",
+        route: "/admin/ingestao",
+        outcome: "failure",
+        error_class: "ingest_invalid",
+      });
+      expect(JSON.stringify(events)).not.toMatch(/pessoa@example.com|curriculo|texto livre|fixture:segredo/);
+    } finally {
+      info.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
 });
 
 describe("latestIngestionAttempt e copy", () => {

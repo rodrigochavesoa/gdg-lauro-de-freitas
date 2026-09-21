@@ -1,3 +1,4 @@
+import { runObserved } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
 export const LEVEL_TO_DB = {
@@ -80,15 +81,17 @@ function throwIfError(error) {
 }
 
 export async function signInAdmin(email, password) {
-  const client = clientOrThrow();
-  const { data, error } = await client.auth.signInWithPassword({ email, password });
-  throwIfError(error);
-  const isAdmin = await loadIsAdmin();
-  if (!isAdmin) {
-    await client.auth.signOut();
-    throw new Error("Esta conta não é administradora.");
-  }
-  return data.user;
+  return runObserved({ flow: "login", action: "staff_password", route: "/admin" }, async () => {
+    const client = clientOrThrow();
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    throwIfError(error);
+    const isAdmin = await loadIsAdmin();
+    if (!isAdmin) {
+      await client.auth.signOut();
+      throw new Error("Esta conta não é administradora.");
+    }
+    return data.user;
+  });
 }
 
 export async function signOutAdmin() {
@@ -101,10 +104,12 @@ export async function signOutAdmin() {
 export async function loadIsAdmin() {
   const client = getSupabaseBrowserClient();
   if (!client) return false;
-  const { data: sessionData } = await client.auth.getUser();
+  const { data: sessionData, error: sessionError } = await client.auth.getUser();
+  if (sessionError) throw new Error(sessionError.message || "Falha na API do Supabase.");
   if (!sessionData?.user) return false;
   const { data, error } = await client.from("profiles").select("role").eq("id", sessionData.user.id).maybeSingle();
-  if (error || data?.role !== "admin") return false;
+  if (error) throw new Error(error.message || "Falha na API do Supabase.");
+  if (data?.role !== "admin") return false;
   return true;
 }
 

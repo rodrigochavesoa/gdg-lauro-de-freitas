@@ -10,6 +10,7 @@ import {
   normalizeLocator,
   isIngestionExpired,
 } from "./source-contract.js";
+import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
 import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
@@ -84,21 +85,31 @@ function throwIfError(error) {
 }
 
 export async function processJobIngestion(client, { sourceKind, locator, payload, expiresAt } = {}) {
-  const resolved = clientOrThrow(client);
-  normalizeLocator(sourceKind, locator);
-  pickIngestionPayload(payload);
-  const { data, error } = await resolved.rpc(PROCESS_JOB_INGESTION_RPC, {
-    p_source_kind: String(sourceKind ?? "").trim().toLowerCase(),
-    p_locator: locator,
-    p_payload: payload,
-    p_expires_at: expiresAt ?? null,
-  });
-  throwIfError(error);
-  const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
-  if (!row.ingestion?.id) {
-    throw new Error("RPC process_job_ingestion não devolveu a ingestão.");
-  }
-  return row;
+  return runObserved(
+    {
+      flow: "ingestion",
+      action: "process_job_ingestion",
+      route: "/admin/ingestao",
+      classifyResult: classifyIngestionResult,
+    },
+    async () => {
+      const resolved = clientOrThrow(client);
+      normalizeLocator(sourceKind, locator);
+      pickIngestionPayload(payload);
+      const { data, error } = await resolved.rpc(PROCESS_JOB_INGESTION_RPC, {
+        p_source_kind: String(sourceKind ?? "").trim().toLowerCase(),
+        p_locator: locator,
+        p_payload: payload,
+        p_expires_at: expiresAt ?? null,
+      });
+      throwIfError(error);
+      const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
+      if (!row.ingestion?.id) {
+        throw new Error("RPC process_job_ingestion não devolveu a ingestão.");
+      }
+      return row;
+    },
+  );
 }
 
 /** Lista completa para homolog/fixture. Sem limite — follow-up INGEST-LIST-PAGE-01 antes de uso operacional maior. */

@@ -148,6 +148,32 @@ describe("RPCs", () => {
     await expect(applyToJob("job-1")).rejects.toMatchObject({ code: "rate limit exceeded", status: 429 });
   });
 
+  it("rate limit da candidatura não escreve e-mail, JWT nem senha no console", async () => {
+    vi.stubEnv("VITE_OPS_EMIT", "true");
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      rpcMock.mockResolvedValue({
+        data: null,
+        error: {
+          message: "rate limit exceeded pessoa@example.com password=hunter2 token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.payload.sig",
+        },
+      });
+      await expect(applyToJob("job-1")).rejects.toMatchObject({ code: "rate limit exceeded", status: 429 });
+      const events = info.mock.calls.map((call) => call[0]).filter((entry) => entry?.event_name === "ops.application");
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        outcome: "rate_limited",
+        error_class: "rate_limited",
+        action: "apply_to_job",
+        route: "/jobs/:id",
+      });
+      expect(JSON.stringify(info.mock.calls)).not.toMatch(/pessoa@example.com|hunter2|eyJ/);
+    } finally {
+      info.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("withdrawApplication chama withdraw_application", async () => {
     rpcMock.mockResolvedValue({
       data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "withdrawn" },
