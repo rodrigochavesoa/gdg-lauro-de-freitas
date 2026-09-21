@@ -1,4 +1,5 @@
 import { mapJob } from "./map-job.js";
+import { classifyOpsFailure, emitOpsEvent } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 import {
   mapLevelFiltersToDb,
@@ -254,11 +255,37 @@ export async function loadApprovedJobs(options = {}) {
 
   const client = getSupabaseBrowserClient();
   if (!client) {
-    throw new Error("VITE_SUPABASE_URL e chave publishable/anon não configuradas.");
+    const error = new Error("VITE_SUPABASE_URL e chave publishable/anon não configuradas.");
+    emitOpsEvent({
+      flow: "search",
+      action: "catalog_search",
+      route: "/vagas",
+      ...classifyOpsFailure("search", error),
+    });
+    throw error;
   }
 
   const request = (async () => {
-    const { rows, count } = await fetchApprovedJobsPage(client, params);
+    let rows;
+    let count;
+    try {
+      ({ rows, count } = await fetchApprovedJobsPage(client, params));
+    } catch (error) {
+      emitOpsEvent({
+        flow: "search",
+        action: "catalog_search",
+        route: "/vagas",
+        ...classifyOpsFailure("search", error),
+      });
+      throw error;
+    }
+    emitOpsEvent({
+      flow: "search",
+      action: "catalog_search",
+      route: "/vagas",
+      outcome: "success",
+      error_class: "none",
+    });
     const jobs = rows.map(mapJob);
     const previous = params.offset > 0 && !params.forceRefresh ? catalogCache.get(key) : null;
     const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, rows) : rows;

@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { runObserved } from "../../lib/ops-observability.js";
 import { mergeCurationQueue } from "./curation-queue.js";
 import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 
@@ -24,27 +25,31 @@ function throwIfError(error) {
 export async function loadCurationProfile() {
   const client = getSupabaseBrowserClient();
   if (!client) return null;
-  const { data: sessionData } = await client.auth.getUser();
+  const { data: sessionData, error: sessionError } = await client.auth.getUser();
+  if (sessionError) throw new Error(sessionError.message || "Falha na API do Supabase.");
   if (!sessionData?.user) return null;
   const { data, error } = await client
     .from("profiles")
     .select("id,full_name,role")
     .eq("id", sessionData.user.id)
     .maybeSingle();
-  if (error || !STAFF_ROLES.has(data?.role)) return null;
+  if (error) throw new Error(error.message || "Falha na API do Supabase.");
+  if (!STAFF_ROLES.has(data?.role)) return null;
   return { ...data, email: sessionData.user.email };
 }
 
 export async function signInCuration(email, password) {
-  const client = clientOrThrow();
-  const { error } = await client.auth.signInWithPassword({ email, password });
-  throwIfError(error);
-  const profile = await loadCurationProfile();
-  if (!profile) {
-    await client.auth.signOut();
-    throw new Error("Esta conta não tem permissão de curadoria.");
-  }
-  return profile;
+  return runObserved({ flow: "login", action: "staff_password", route: "/admin" }, async () => {
+    const client = clientOrThrow();
+    const { error } = await client.auth.signInWithPassword({ email, password });
+    throwIfError(error);
+    const profile = await loadCurationProfile();
+    if (!profile) {
+      await client.auth.signOut();
+      throw new Error("Esta conta não tem permissão de curadoria.");
+    }
+    return profile;
+  });
 }
 
 export async function signOutCuration() {
@@ -140,46 +145,52 @@ export async function loadCurationQueue({ includeRejected = false, forceRefresh 
 }
 
 export async function submitCurationReview({ jobId, decision, rubricCode, internalComment }) {
-  const errors = validateCurationReview({ decision, rubricCode });
-  if (errors.length) throw new Error(errors[0]);
-  const client = clientOrThrow();
-  const { data, error } = await client.rpc("submit_curation_review", {
-    p_job_id: jobId,
-    p_decision: decision,
-    p_rubric_code: rubricCode.trim(),
-    p_internal_comment: String(internalComment ?? "").trim() || null,
+  return runObserved({ flow: "rpc", action: "submit_curation_review", route: "/admin/curadoria" }, async () => {
+    const errors = validateCurationReview({ decision, rubricCode });
+    if (errors.length) throw new Error(errors[0]);
+    const client = clientOrThrow();
+    const { data, error } = await client.rpc("submit_curation_review", {
+      p_job_id: jobId,
+      p_decision: decision,
+      p_rubric_code: rubricCode.trim(),
+      p_internal_comment: String(internalComment ?? "").trim() || null,
+    });
+    throwIfError(error);
+    invalidateCurationQueueCache();
+    return data;
   });
-  throwIfError(error);
-  invalidateCurationQueueCache();
-  return data;
 }
 
 export async function resubmitJobForCuration(jobId) {
-  if (!jobId) throw new Error("Vaga para reenvio não informada.");
-  const client = clientOrThrow();
-  const { data, error } = await client.rpc("resubmit_job_for_curation", { p_job_id: jobId });
-  throwIfError(error);
-  invalidateCurationQueueCache();
-  return data;
+  return runObserved({ flow: "rpc", action: "resubmit_job_for_curation", route: "/admin/curadoria" }, async () => {
+    if (!jobId) throw new Error("Vaga para reenvio não informada.");
+    const client = clientOrThrow();
+    const { data, error } = await client.rpc("resubmit_job_for_curation", { p_job_id: jobId });
+    throwIfError(error);
+    invalidateCurationQueueCache();
+    return data;
+  });
 }
 
 export async function setJobCurationPriority(jobId, priority, reason) {
-  if (priority !== "normal" && priority !== "urgent") {
-    throw new Error("Prioridade inválida.");
-  }
-  if (priority === "urgent") {
-    const reasonError = validateUrgentPriority(reason);
-    if (reasonError) throw new Error(reasonError);
-  }
-  const client = clientOrThrow();
-  const { data, error } = await client.rpc("set_job_curation_priority", {
-    p_job_id: jobId,
-    p_priority: priority,
-    p_reason: priority === "urgent" ? String(reason).trim() : null,
+  return runObserved({ flow: "rpc", action: "set_job_curation_priority", route: "/admin/curadoria" }, async () => {
+    if (priority !== "normal" && priority !== "urgent") {
+      throw new Error("Prioridade inválida.");
+    }
+    if (priority === "urgent") {
+      const reasonError = validateUrgentPriority(reason);
+      if (reasonError) throw new Error(reasonError);
+    }
+    const client = clientOrThrow();
+    const { data, error } = await client.rpc("set_job_curation_priority", {
+      p_job_id: jobId,
+      p_priority: priority,
+      p_reason: priority === "urgent" ? String(reason).trim() : null,
+    });
+    throwIfError(error);
+    invalidateCurationQueueCache();
+    return data;
   });
-  throwIfError(error);
-  invalidateCurationQueueCache();
-  return data;
 }
 
 /** Realtime na tabela jobs; o chamador dá unsubscribe no unmount. */
