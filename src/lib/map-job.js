@@ -32,6 +32,36 @@ export function contrastRatio(foreground, background) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function readSalaryCents(value) {
+  if (value == null || value === "") return null;
+  if (typeof value === "string" && !/^\d+$/.test(value)) return null;
+  const cents = typeof value === "number" ? value : Number(value);
+  if (!Number.isInteger(cents) || cents < 0) return null;
+  return cents;
+}
+
+function formatCents(cents, currency) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: cents % 100 === 0 ? 0 : 2,
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
+}
+
+/** Faixa em pt-BR, ou "A combinar" quando piso e teto estão vazios. */
+export function formatJobSalary(row) {
+  const min = readSalaryCents(row?.salary_min);
+  const max = readSalaryCents(row?.salary_max);
+  if (min == null && max == null) return "A combinar";
+  const currency = /^[A-Z]{3}$/.test(String(row?.salary_currency ?? ""))
+    ? row.salary_currency
+    : "BRL";
+  if (min != null && max != null) return `${formatCents(min, currency)} – ${formatCents(max, currency)}`;
+  if (min != null) return `A partir de ${formatCents(min, currency)}`;
+  return `Até ${formatCents(max, currency)}`;
+}
+
 export function mapJob(row) {
   const company = row.companies?.name ?? "Empresa";
   const stack = Array.isArray(row.stack) ? row.stack : [];
@@ -54,7 +84,7 @@ export function mapJob(row) {
     posted: formatPosted(row.approved_at ?? row.created_at),
     postedAt: row.approved_at ?? row.created_at ?? null,
     stack,
-    salary: "A combinar",
+    salary: formatJobSalary(row),
     featured: false,
     description: row.description,
     about: row.companies?.description ?? "",

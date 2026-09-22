@@ -10,6 +10,8 @@ vi.mock("./supabase-client.js", () => ({
 
 import {
   buildCatalogSearchOr,
+  buildCountryVisibilityOr,
+  buildSalaryVisibilityOr,
   CATALOG_CACHE_TTL_MS,
   CATALOG_PAGE_SIZE,
   findApprovedJobInCache,
@@ -35,7 +37,7 @@ const SAMPLE_ROW = {
 
 function mockCatalogQuery({ data = [SAMPLE_ROW], count = data.length, error = null, pending } = {}) {
   const builder = {};
-  const methods = ["select", "eq", "overlaps", "in", "or", "filter", "order", "range"];
+  const methods = ["select", "eq", "overlaps", "in", "or", "filter", "ilike", "order", "range"];
   for (const name of methods) {
     builder[name] = vi.fn(() => {
       if (name === "range") {
@@ -82,6 +84,9 @@ describe("loadApprovedJobs", () => {
 
     expect(fromMock).toHaveBeenCalledWith("jobs");
     expect(builder.select).toHaveBeenCalledWith(expect.stringContaining("title"), { count: "exact" });
+    expect(builder.select.mock.calls[0][0]).toMatch(/country_code/);
+    expect(builder.select.mock.calls[0][0]).toMatch(/salary_min/);
+    expect(builder.select.mock.calls[0][0]).toMatch(/salary_currency/);
     expect(builder.select.mock.calls[0][0]).not.toMatch(/description/);
     expect(builder.select.mock.calls[0][0]).not.toMatch(/requirements/);
     expect(builder.eq).toHaveBeenCalledWith("status", "approved");
@@ -118,6 +123,43 @@ describe("loadApprovedJobs", () => {
     expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("title.ilike."));
     expect(builder.or).toHaveBeenCalledWith(expect.stringContaining("co.not.is.null"));
     expect(builder.or.mock.calls[0][0]).toMatch(/stack\.ov\./);
+  });
+
+  it("filtra país, localidade e faixa no PostgREST e mantém ordem e página", async () => {
+    const builder = mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({
+      country: "br",
+      place: "Salvador",
+      salaryMin: 800000,
+      salaryMax: 1200000,
+    });
+
+    expect(builder.eq).toHaveBeenCalledWith("status", "approved");
+    expect(builder.or).toHaveBeenCalledWith("country_code.eq.BR,country_code.is.null");
+    expect(builder.or).toHaveBeenCalledWith(
+      "and(or(salary_min.is.null,salary_min.lte.1200000),or(salary_max.is.null,salary_max.gte.800000))",
+    );
+    expect(builder.ilike).toHaveBeenCalledWith("location", "%Salvador%");
+    expect(builder.order).toHaveBeenNthCalledWith(1, "approved_at", { ascending: false });
+    expect(builder.order).toHaveBeenNthCalledWith(2, "id", { ascending: false });
+    expect(builder.range).toHaveBeenCalledWith(0, CATALOG_PAGE_SIZE - 1);
+  });
+
+  it("ignora país inválido e faixa invertida sem segundo or", async () => {
+    const builder = mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({ country: "brasil", salaryMin: 20, salaryMax: 1, place: "  " });
+    expect(builder.or).not.toHaveBeenCalled();
+    expect(builder.ilike).not.toHaveBeenCalled();
+  });
+
+  it("não reusa cache quando país ou salário mudam", async () => {
+    mockCatalogQuery();
+    await loadApprovedJobs();
+    mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({ country: "BR" });
+    mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs({ country: "BR", salaryMin: 100 });
+    expect(fromMock).toHaveBeenCalledTimes(3);
   });
 
   it("registra a busca sem a query do catálogo", async () => {
@@ -228,6 +270,16 @@ describe("loadApprovedJobs", () => {
     expect(findApprovedJobInCache("missing")).toBeNull();
     invalidateApprovedJobsCache();
     expect(findApprovedJobInCache("1")).toBeNull();
+  });
+});
+
+describe("filtros estruturados", () => {
+  it("monta or de país e interseção salarial", () => {
+    expect(buildCountryVisibilityOr("us")).toBe("country_code.eq.US,country_code.is.null");
+    expect(buildCountryVisibilityOr("")).toBeNull();
+    expect(buildSalaryVisibilityOr(500000, null)).toBe("salary_max.is.null,salary_max.gte.500000");
+    expect(buildSalaryVisibilityOr(null, 700000)).toBe("salary_min.is.null,salary_min.lte.700000");
+    expect(buildSalaryVisibilityOr(null, null)).toBeNull();
   });
 });
 

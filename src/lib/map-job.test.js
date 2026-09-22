@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companyColor, companyLogo, contrastRatio, formatPosted, LOGO_COLORS, LOGO_FG, mapJob, MIN_LOGO_CONTRAST_RATIO } from "./map-job.js";
+import { companyColor, companyLogo, contrastRatio, formatJobSalary, formatPosted, LOGO_COLORS, LOGO_FG, mapJob, MIN_LOGO_CONTRAST_RATIO } from "./map-job.js";
 
 const row = {
   id: "b2b2b2b2-0001-4000-8000-000000000001",
@@ -31,6 +31,23 @@ describe("mapJob", () => {
     expect(job.responsibilities).toEqual(["Construir interfaces acessíveis e performáticas"]);
     expect(job.status).toBe("approved");
     expect(job.postedAt).toBe(row.approved_at);
+    expect(job.salary).toBe("A combinar");
+  });
+
+  it("formata a faixa em reais e mantém A combinar sem dados", () => {
+    const money = (value) => value.replaceAll("\u00a0", " ");
+    expect(formatJobSalary({})).toBe("A combinar");
+    expect(money(formatJobSalary({ salary_min: 800000, salary_max: 1200000 }))).toBe(
+      "R$ 8.000 – R$ 12.000",
+    );
+    expect(money(formatJobSalary({ salary_min: 800050, salary_max: 900000 }))).toBe(
+      "R$ 8.000,50 – R$ 9.000",
+    );
+    expect(money(formatJobSalary({ salary_min: 500000 }))).toBe("A partir de R$ 5.000");
+    expect(money(formatJobSalary({ salary_max: 700000 }))).toBe("Até R$ 7.000");
+    expect(mapJob({ ...row, salary_min: 800000, salary_max: 1200000 }).salary.replaceAll("\u00a0", " ")).toBe(
+      "R$ 8.000 – R$ 12.000",
+    );
   });
 
   it("não promove vaga pendente no mapper — o status segue o banco", () => {
