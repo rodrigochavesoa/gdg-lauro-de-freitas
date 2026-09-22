@@ -5,8 +5,9 @@
 -- Fora desta entrega: publicação staff (/admin/vagas/nova) e ingestão.
 -- O formulário staff grava location em texto e não envia country_code,
 -- salary_min nem salary_max. O JSON canônico e process_job_ingestion
--- também materializam a vaga sem esses campos (salary_currency cai no default BRL).
--- Follow-up: decidir como preencher país e salário estruturados nos dois fluxos.
+-- também materializam a vaga sem código de país nem valores de faixa salarial.
+-- salary_currency continua BRL mesmo com piso e teto vazios.
+-- Follow-up: decidir como preencher country_code, salary_min e salary_max nos dois fluxos.
 -- Os UPDATEs abaixo só amostram o seed fictício; não passam pelos formulários.
 -- Sem índice neste arquivo: EXPLAIN do volume de seed está em
 -- docs-local/v1-catalog-filters-01-explain.md.
