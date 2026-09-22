@@ -112,26 +112,26 @@ export function catalogCacheKey({
   });
 }
 
-/** País selecionado inclui vagas legadas com country_code null. */
-export function buildCountryVisibilityOr(country) {
-  const code = normalizeCountryCode(country);
-  if (!code) return null;
-  return `country_code.eq.${code},country_code.is.null`;
+/**
+ * País ativo é igualdade. Null não corresponde: a vaga legada só aparece
+ * quando o filtro de país está desligado.
+ */
+export function catalogCountryCode(country) {
+  return normalizeCountryCode(country) || null;
 }
 
 /**
- * Interseção de intervalos. Null no piso ou no teto é extremo aberto.
- * Ambos null na vaga passam qualquer filtro (legado "A combinar").
+ * Interseção de intervalos. Null num extremo é aberto.
+ * Ambos null ("A combinar") não atendem a faixa quando o filtro está ativo.
  */
 export function buildSalaryVisibilityOr(salaryMin, salaryMax) {
   const min = normalizeSalaryCents(salaryMin);
   const max = normalizeSalaryCents(salaryMax);
   if (min == null && max == null) return null;
   if (min != null && max != null && min > max) return null;
-  const parts = [];
+  const parts = ["or(salary_min.not.is.null,salary_max.not.is.null)"];
   if (max != null) parts.push(`or(salary_min.is.null,salary_min.lte.${max})`);
   if (min != null) parts.push(`or(salary_max.is.null,salary_max.gte.${min})`);
-  if (parts.length === 1) return parts[0].slice(3, -1);
   return `and(${parts.join(",")})`;
 }
 
@@ -286,8 +286,8 @@ async function fetchApprovedJobsPage(client, options) {
     const searchPattern = buildCatalogSearchPattern(options.query);
     request = request.filter("co.name", "ilike", searchPattern).or(searchOr);
   }
-  const countryOr = buildCountryVisibilityOr(options.country);
-  if (countryOr) request = request.or(countryOr);
+  const countryCode = catalogCountryCode(options.country);
+  if (countryCode) request = request.eq("country_code", countryCode);
   const salaryOr = buildSalaryVisibilityOr(options.salaryMin, options.salaryMax);
   if (salaryOr) request = request.or(salaryOr);
   const placePattern = buildCatalogSearchPattern(options.place);

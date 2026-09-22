@@ -45,9 +45,9 @@ alter table public.jobs
   check (salary_min is null or salary_max is null or salary_min <= salary_max);
 
 comment on column public.jobs.country_code is
-  'ISO 3166-1 alpha-2. Null permanece visível no filtro de país.';
+  'ISO 3166-1 alpha-2. Sem filtro de país, null aparece. Com filtro, null não corresponde.';
 comment on column public.jobs.salary_min is
-  'Piso em centavos da moeda. Ambos null = A combinar.';
+  'Piso em centavos da moeda. Ambos null = A combinar e não atende faixa ativa.';
 comment on column public.jobs.salary_max is
   'Teto em centavos da moeda.';
 comment on column public.jobs.salary_currency is

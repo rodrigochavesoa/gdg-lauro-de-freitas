@@ -10,8 +10,8 @@ vi.mock("./supabase-client.js", () => ({
 
 import {
   buildCatalogSearchOr,
-  buildCountryVisibilityOr,
   buildSalaryVisibilityOr,
+  catalogCountryCode,
   CATALOG_CACHE_TTL_MS,
   CATALOG_PAGE_SIZE,
   findApprovedJobInCache,
@@ -135,9 +135,10 @@ describe("loadApprovedJobs", () => {
     });
 
     expect(builder.eq).toHaveBeenCalledWith("status", "approved");
-    expect(builder.or).toHaveBeenCalledWith("country_code.eq.BR,country_code.is.null");
+    expect(builder.eq).toHaveBeenCalledWith("country_code", "BR");
+    expect(builder.or).not.toHaveBeenCalledWith(expect.stringContaining("country_code.is.null"));
     expect(builder.or).toHaveBeenCalledWith(
-      "and(or(salary_min.is.null,salary_min.lte.1200000),or(salary_max.is.null,salary_max.gte.800000))",
+      "and(or(salary_min.not.is.null,salary_max.not.is.null),or(salary_min.is.null,salary_min.lte.1200000),or(salary_max.is.null,salary_max.gte.800000))",
     );
     expect(builder.ilike).toHaveBeenCalledWith("location", "%Salvador%");
     expect(builder.order).toHaveBeenNthCalledWith(1, "approved_at", { ascending: false });
@@ -273,13 +274,36 @@ describe("loadApprovedJobs", () => {
   });
 });
 
-describe("filtros estruturados", () => {
-  it("monta or de país e interseção salarial", () => {
-    expect(buildCountryVisibilityOr("us")).toBe("country_code.eq.US,country_code.is.null");
-    expect(buildCountryVisibilityOr("")).toBeNull();
-    expect(buildSalaryVisibilityOr(500000, null)).toBe("salary_max.is.null,salary_max.gte.500000");
-    expect(buildSalaryVisibilityOr(null, 700000)).toBe("salary_min.is.null,salary_min.lte.700000");
+describe("vagas legadas com filtro ativo", () => {
+  it("sem país nem faixa não envia predicado estruturado", async () => {
+    invalidateApprovedJobsCache();
+    const builder = mockCatalogQuery({ data: [], count: 0 });
+    await loadApprovedJobs();
+    expect(builder.eq).not.toHaveBeenCalledWith("country_code", expect.anything());
+    expect(builder.or).not.toHaveBeenCalled();
+    expect(catalogCountryCode("")).toBeNull();
     expect(buildSalaryVisibilityOr(null, null)).toBeNull();
+  });
+
+  it("com país exige country_code e não trata null como correspondente", () => {
+    expect(catalogCountryCode("br")).toBe("BR");
+    expect(catalogCountryCode("br")).not.toMatch(/null/);
+    const clause = buildSalaryVisibilityOr(null, null);
+    expect(clause).toBeNull();
+  });
+
+  it("com faixa exige dado salarial e não trata A combinar como interseção", () => {
+    const both = buildSalaryVisibilityOr(800000, 1200000);
+    expect(both).toContain("salary_min.not.is.null");
+    expect(both).toContain("salary_max.not.is.null");
+    expect(both).not.toMatch(/salary_min\.is\.null,salary_max\.is\.null/);
+    expect(buildSalaryVisibilityOr(500000, null)).toBe(
+      "and(or(salary_min.not.is.null,salary_max.not.is.null),or(salary_max.is.null,salary_max.gte.500000))",
+    );
+    expect(buildSalaryVisibilityOr(null, 700000)).toBe(
+      "and(or(salary_min.not.is.null,salary_max.not.is.null),or(salary_min.is.null,salary_min.lte.700000))",
+    );
+    expect(buildSalaryVisibilityOr(20, 10)).toBeNull();
   });
 });
 

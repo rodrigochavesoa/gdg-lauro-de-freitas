@@ -342,6 +342,7 @@ function StructuredFilters({
             ))}
           </select>
         </label>
+        <p className="filter-hint">Com um país escolhido, vagas sem país ficam de fora.</p>
       </div>
       <div className="filter-group">
         <label className="filter-field" htmlFor="catalog-place">
@@ -387,7 +388,7 @@ function StructuredFilters({
           />
         </label>
         {salaryError ? <p id="catalog-salary-error" className="filter-field__error" role="alert">{salaryError}</p> : null}
-        <p id="catalog-salary-hint" className="filter-hint">Vagas sem salário informado continuam na lista.</p>
+        <p id="catalog-salary-hint" className="filter-hint">Com a faixa preenchida, vagas A combinar ficam de fora.</p>
       </fieldset>
     </>
   );

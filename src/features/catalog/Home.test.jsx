@@ -277,6 +277,8 @@ describe("Home", () => {
     expect(screen.getByLabelText("Mínimo")).toHaveValue("8000");
     expect(screen.getByLabelText("Máximo")).toHaveValue("12000");
     expect(screen.getByRole("checkbox", { name: "React" })).toBeChecked();
+    expect(screen.getByText("Com um país escolhido, vagas sem país ficam de fora.")).toBeInTheDocument();
+    expect(screen.getByText("Com a faixa preenchida, vagas A combinar ficam de fora.")).toBeInTheDocument();
     await waitFor(() => {
       expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({
         country: "BR",

@@ -25,6 +25,15 @@ describe("parseCatalogSearch", () => {
     });
   });
 
+  it("ignora salário negativo, decimal, enorme e faixa invertida", () => {
+    expect(parseCatalogSearch("?salaryMin=-1&salaryMax=100").salaryMin).toBeNull();
+    expect(parseCatalogSearch("?salaryMin=10.5").salaryMin).toBeNull();
+    expect(parseCatalogSearch("?salaryMax=2147483648").salaryMax).toBeNull();
+    const inverted = parseCatalogSearch("?salaryMin=2000000&salaryMax=100");
+    expect(inverted.salaryMin).toBeNull();
+    expect(inverted.salaryMax).toBeNull();
+  });
+
   it("descarta país inválido, faixa invertida e listas fora do catálogo", () => {
     const parsed = parseCatalogSearch("?country=brasil&tech=Cobol&salaryMin=20&salaryMax=10&sort=novo");
     expect(parsed.country).toBe("");
