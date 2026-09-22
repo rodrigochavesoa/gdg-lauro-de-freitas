@@ -53,6 +53,24 @@ export const HOMOLOG_MANUAL_FIXTURE = Object.freeze({
   }),
 });
 
+/** País e faixa explícitos. A localidade não é a fonte do country_code. */
+export const HOMOLOG_STRUCTURED_FIXTURE = Object.freeze({
+  sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+  locator: "fixture:homolog-acme-frontend-structured",
+  payload: Object.freeze({
+    title: "Pessoa Dev Front-end (fixture estruturada)",
+    company_name: "Empresa Fictícia Lab",
+    description: "Vaga fictícia com país e faixa informados na origem. Sem dados pessoais.",
+    level: "junior",
+    work_model: "remote",
+    location: "Salvador · BA",
+    country_code: "BR",
+    salary_min: 800000,
+    salary_max: 1200000,
+    stack: Object.freeze(["React", "TypeScript"]),
+  }),
+});
+
 export function describeIngestionOutcome(outcome) {
   return OUTCOME_LABEL[outcome] ?? "Estado desconhecido";
 }

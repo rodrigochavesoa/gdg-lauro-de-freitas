@@ -23,6 +23,28 @@ describe("job-form-state", () => {
     });
   });
 
+  it("reabre país e faixa em reais sem inventar país", () => {
+    expect(
+      jobToForm({
+        title: "Pessoa Dev",
+        location: "Brasil",
+        country_code: "BR",
+        salary_min: 800000,
+        salary_max: null,
+      }),
+    ).toMatchObject({
+      location: "Brasil",
+      countryCode: "BR",
+      salaryMinText: "8000",
+      salaryMaxText: "",
+    });
+    expect(jobToForm({ title: "Sem estrutura", location: "Brasil" })).toMatchObject({
+      countryCode: "",
+      salaryMinText: "",
+      salaryMaxText: "",
+    });
+  });
+
   it("rótula status sem expor pending/approved crus", () => {
     expect(adminJobStatusLabel("pending")).toBe("Pendente");
     expect(adminJobStatusLabel("approved")).toBe("Publicada");

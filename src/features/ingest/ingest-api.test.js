@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   HOMOLOG_MANUAL_FIXTURE,
+  HOMOLOG_STRUCTURED_FIXTURE,
   INGESTION_OUTCOMES,
   PROCESS_JOB_INGESTION_RPC,
   describeIngestionOutcome,
@@ -8,7 +9,7 @@ import {
   loadJobIngestions,
   processJobIngestion,
 } from "./ingest-api.js";
-import { SOURCE_KINDS } from "./source-contract.js";
+import { SOURCE_KINDS, canonicalizeIngestionPayload } from "./source-contract.js";
 
 function createRpcClient({ data = null, error = null, query = null } = {}) {
   return {
@@ -16,6 +17,18 @@ function createRpcClient({ data = null, error = null, query = null } = {}) {
     from: vi.fn(() => query),
   };
 }
+
+describe("fixtures homolog", () => {
+  it("a fixture antiga não traz país nem faixa; a estruturada traz os dois explícitos", () => {
+    expect(HOMOLOG_MANUAL_FIXTURE.payload).not.toHaveProperty("country_code");
+    expect(HOMOLOG_MANUAL_FIXTURE.payload.location).toMatch(/Brasil/);
+    const canonical = canonicalizeIngestionPayload(HOMOLOG_STRUCTURED_FIXTURE.payload);
+    expect(canonical).toContain('"country_code":"BR"');
+    expect(canonical).toContain('"salary_min":800000');
+    expect(canonical).toContain('"salary_max":1200000');
+    expect(canonical).toContain("Salvador");
+  });
+});
 
 describe("processJobIngestion", () => {
   it("envia payload à RPC de processo e não escolhe approved nem hash", async () => {

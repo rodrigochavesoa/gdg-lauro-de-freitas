@@ -7,7 +7,8 @@ import {
   processJobIngestion,
 } from "./ingest-api.js";
 import { SOURCE_KINDS, isIngestionExpired } from "./source-contract.js";
-import { LEVEL_TO_DB, MODEL_TO_DB, parseStack } from "../../lib/admin-api.js";
+import { LEVEL_TO_DB, MODEL_TO_DB, parseStack, structuredJobColumns } from "../../lib/admin-api.js";
+import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 
 const emptyForm = {
   locator: HOMOLOG_MANUAL_FIXTURE.locator,
@@ -18,11 +19,20 @@ const emptyForm = {
   description: HOMOLOG_MANUAL_FIXTURE.payload.description,
   stackText: "React, TypeScript",
   location: HOMOLOG_MANUAL_FIXTURE.payload.location,
+  countryCode: "",
+  salaryMinText: "",
+  salaryMaxText: "",
   workModel: "Remoto",
 };
 
 function toPayload(form) {
-  return {
+  const structured = structuredJobColumns(form);
+  if (structured.errors.length) {
+    const error = new Error(structured.errors[0]);
+    error.errors = structured.errors;
+    throw error;
+  }
+  const payload = {
     title: form.title,
     company_name: form.companyName,
     description: form.description,
@@ -31,6 +41,11 @@ function toPayload(form) {
     location: form.location,
     stack: parseStack(form.stackText),
   };
+  const { country_code: countryCode, salary_min: salaryMin, salary_max: salaryMax } = structured.columns;
+  if (countryCode) payload.country_code = countryCode;
+  if (salaryMin != null) payload.salary_min = salaryMin;
+  if (salaryMax != null) payload.salary_max = salaryMax;
+  return payload;
 }
 
 function expiresAtIso(value) {
@@ -97,10 +112,18 @@ export function IngestPanel() {
 
   const onSubmit = (event) => {
     event.preventDefault();
+    let payload;
+    try {
+      payload = toPayload(form);
+    } catch (err) {
+      setMessage("");
+      setError(err.errors?.join(" ") || err.message);
+      return;
+    }
     void runProcess({
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
       locator: form.locator,
-      payload: toPayload(form),
+      payload,
       expiresAt: expiresAtIso(form.expiresAt),
     });
   };
@@ -198,6 +221,51 @@ export function IngestPanel() {
               Localidade
               <input id="ingest-location" name="location" value={form.location} onChange={field("location")} />
             </label>
+            <label>
+              País
+              <select
+                id="ingest-country"
+                name="countryCode"
+                value={form.countryCode}
+                onChange={field("countryCode")}
+                aria-describedby="ingest-country-hint"
+              >
+                <option value="">Não informado</option>
+                {CATALOG_COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p id="ingest-country-hint" className="filter-hint wide">
+              Opcional. O texto da localidade não define o país.
+            </p>
+            <label>
+              Salário mínimo (R$)
+              <input
+                id="ingest-salary-min"
+                name="salaryMinText"
+                inputMode="decimal"
+                value={form.salaryMinText}
+                onChange={field("salaryMinText")}
+                aria-describedby="ingest-salary-hint"
+              />
+            </label>
+            <label>
+              Salário máximo (R$)
+              <input
+                id="ingest-salary-max"
+                name="salaryMaxText"
+                inputMode="decimal"
+                value={form.salaryMaxText}
+                onChange={field("salaryMaxText")}
+                aria-describedby="ingest-salary-hint"
+              />
+            </label>
+            <p id="ingest-salary-hint" className="filter-hint wide">
+              Opcional, em reais. Em branco nos dois campos, a vaga fica A combinar.
+            </p>
             <label>
               Modelo
               <select id="ingest-work-model" name="workModel" value={form.workModel} onChange={field("workModel")}>

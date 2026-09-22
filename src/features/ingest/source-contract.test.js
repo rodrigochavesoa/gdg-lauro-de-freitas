@@ -74,6 +74,51 @@ describe("fingerprint estável", () => {
     expect(second).toBe(first);
   });
 
+  it("omite país e faixa vazios e não infere país da localidade", async () => {
+    const plain = await hashIngestionPayload(BASE_PAYLOAD);
+    const emptyStructured = await hashIngestionPayload({
+      ...BASE_PAYLOAD,
+      country_code: "",
+      salary_min: null,
+      salary_max: "",
+    });
+    expect(emptyStructured).toBe(plain);
+    expect(canonicalizeIngestionPayload(BASE_PAYLOAD)).not.toContain("country_code");
+    expect(canonicalizeIngestionPayload({ ...BASE_PAYLOAD, location: "Brasil" })).not.toContain("country_code");
+  });
+
+  it("inclui país e centavos no canônico, na ordem das chaves", () => {
+    expect(
+      canonicalizeIngestionPayload({
+        ...BASE_PAYLOAD,
+        country_code: "br",
+        salary_min: "0800000",
+        salary_max: 1200000,
+      }),
+    ).toBe(
+      JSON.stringify({
+        company_name: BASE_PAYLOAD.company_name,
+        description: BASE_PAYLOAD.description,
+        level: "junior",
+        location: "Brasil · Remoto",
+        stack: ["React", "TypeScript"],
+        title: BASE_PAYLOAD.title,
+        work_model: "remote",
+        country_code: "BR",
+        salary_min: 800000,
+        salary_max: 1200000,
+      }),
+    );
+  });
+
+  it("recusa país textual, centavos inválidos e mínimo maior que o máximo", () => {
+    expect(() => canonicalizeIngestionPayload({ ...BASE_PAYLOAD, country_code: "Brasil" })).toThrow(/country_code/);
+    expect(() => canonicalizeIngestionPayload({ ...BASE_PAYLOAD, salary_min: 800000.5 })).toThrow(/salary_min/);
+    expect(() =>
+      canonicalizeIngestionPayload({ ...BASE_PAYLOAD, salary_min: 1200000, salary_max: 800000 }),
+    ).toThrow(/faixa salarial/);
+  });
+
   it("canônico exige title e company_name e recusa PII", () => {
     expect(() => pickIngestionPayload({ title: "Dev" })).toThrow(/company_name/);
     expect(() =>

@@ -472,6 +472,46 @@ describe("Admin", () => {
     expect(within(alert).getByText("Nível é obrigatório.")).toBeInTheDocument();
   });
 
+  it("mostra erro de faixa no bloco e envia país e salário do formulário", async () => {
+    const { createPendingJob } = await import("./lib/admin-api.js");
+    createPendingJob.mockResolvedValue({ id: "job-new", title: "Pessoa Dev", status: "pending" });
+    loadCurationProfile.mockResolvedValue({
+      id: "a1",
+      role: "admin",
+      full_name: "Ada Admin",
+      email: "ada@example.invalid",
+    });
+    renderAdmin(<Admin session={{ user: { id: "a1" } }} authReady />, { path: "/admin/vagas/nova" });
+    expect(await screen.findByLabelText("País")).toBeInTheDocument();
+    expect(screen.getByLabelText("País")).toHaveAttribute("id", "admin-job-country");
+    fireEvent.change(screen.getByLabelText("Título da vaga"), { target: { value: "Pessoa Dev" } });
+    fireEvent.change(screen.getByLabelText("Nova empresa fictícia"), { target: { value: "Empresa Fictícia Lab" } });
+    fireEvent.change(screen.getByLabelText("Nível"), { target: { value: "Pleno" } });
+    fireEvent.change(screen.getByLabelText("Descrição"), { target: { value: "Vaga fictícia de teste." } });
+    fireEvent.change(screen.getByLabelText("Localidade"), { target: { value: "Brasil" } });
+    fireEvent.change(screen.getByLabelText("Salário mínimo (R$)"), { target: { value: "12000" } });
+    fireEvent.change(screen.getByLabelText("Salário máximo (R$)"), { target: { value: "8000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar para curadoria" }));
+    const inline = await screen.findByRole("alert");
+    expect(inline).toHaveAttribute("id", "admin-job-structured-errors");
+    expect(within(inline).getByText("A faixa mínima não pode ser maior que a máxima.")).toBeInTheDocument();
+    expect(createPendingJob).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("País"), { target: { value: "BR" } });
+    fireEvent.change(screen.getByLabelText("Salário mínimo (R$)"), { target: { value: "8.000" } });
+    fireEvent.change(screen.getByLabelText("Salário máximo (R$)"), { target: { value: "12000" } });
+    fireEvent.click(screen.getByRole("button", { name: "Cadastrar para curadoria" }));
+    await waitFor(() => expect(createPendingJob).toHaveBeenCalled());
+    expect(createPendingJob).toHaveBeenCalledWith(
+      expect.objectContaining({
+        location: "Brasil",
+        countryCode: "BR",
+        salaryMinText: "8.000",
+        salaryMaxText: "12000",
+      }),
+    );
+  });
+
   it("anuncia erro acessível quando o carregamento das vagas falha", async () => {
     loadAdminJobPage.mockRejectedValue(new Error("Falha ao listar vagas"));
     renderAdmin(

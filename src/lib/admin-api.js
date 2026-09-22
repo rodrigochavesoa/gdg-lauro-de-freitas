@@ -1,3 +1,4 @@
+import { centsFromReaisInput, normalizeCountryCode, normalizeSalaryCents } from "./catalog-url.js";
 import { runObserved } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
@@ -43,10 +44,47 @@ export function findDuplicateJob(jobs, { companyId, title, excludeId } = {}) {
   );
 }
 
-export function validateAdminJob(
-  { title, description, companyId, newCompanyName, level, workModel },
-  { requireCompany = true } = {},
-) {
+function readSalaryBound(input, textKey, centsKey, label) {
+  const source = input ?? {};
+  if (Object.prototype.hasOwnProperty.call(source, textKey)) {
+    const parsed = centsFromReaisInput(source[textKey]);
+    if (parsed.error === "Informe o valor em reais.") return { error: `Informe o ${label} em reais.` };
+    if (parsed.error) return { error: `${label}: ${parsed.error}` };
+    return { cents: parsed.cents };
+  }
+  if (source[centsKey] == null || source[centsKey] === "") return { cents: null };
+  const cents = normalizeSalaryCents(source[centsKey]);
+  if (cents == null) return { error: `Informe o ${label} em centavos inteiros.` };
+  return { cents };
+}
+
+/** Colunas estruturadas. País e faixa são opcionais; localidade não vira país. */
+export function structuredJobColumns(input = {}) {
+  const errors = [];
+  const rawCountry = String(input.countryCode ?? input.country_code ?? "").trim();
+  const country = rawCountry ? normalizeCountryCode(rawCountry) : "";
+  if (rawCountry && !country) errors.push("País deve ser um código ISO de duas letras.");
+
+  const min = readSalaryBound(input, "salaryMinText", "salaryMin", "salário mínimo");
+  const max = readSalaryBound(input, "salaryMaxText", "salaryMax", "salário máximo");
+  if (min.error) errors.push(min.error);
+  if (max.error) errors.push(max.error);
+  if (min.cents != null && max.cents != null && min.cents > max.cents) {
+    errors.push("A faixa mínima não pode ser maior que a máxima.");
+  }
+
+  return {
+    errors,
+    columns: {
+      country_code: country || null,
+      salary_min: min.cents ?? null,
+      salary_max: max.cents ?? null,
+    },
+  };
+}
+
+export function validateAdminJob(input = {}, { requireCompany = true } = {}) {
+  const { title, description, companyId, newCompanyName, level, workModel } = input;
   const errors = [];
   if (!String(title ?? "").trim()) errors.push("Título é obrigatório.");
   if (!String(description ?? "").trim()) errors.push("Descrição é obrigatória.");
@@ -55,6 +93,7 @@ export function validateAdminJob(
   }
   if (!LEVEL_TO_DB[level]) errors.push("Nível é obrigatório.");
   if (!MODEL_TO_DB[workModel]) errors.push("Modelo de trabalho é obrigatório.");
+  errors.push(...structuredJobColumns(input).errors);
   return errors;
 }
 
@@ -121,7 +160,7 @@ export async function loadCompanies() {
 }
 
 const ADMIN_JOB_SELECT =
-  "id,title,status,company_id,level,work_model,location,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
+  "id,title,status,company_id,level,work_model,location,country_code,salary_min,salary_max,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
 
 /** Lista completa (description + reviews). Não usar em /admin/vagas — ver loadAdminJobPage. */
 export async function loadAdminJobs() {
@@ -175,6 +214,7 @@ export async function createPendingJob(input) {
     companyId = company.id;
   }
   await assertNoDuplicateTitle(client, { companyId, title: input.title });
+  const { columns } = structuredJobColumns(input);
   const payload = {
     company_id: companyId,
     title: input.title.trim(),
@@ -183,6 +223,9 @@ export async function createPendingJob(input) {
     level: LEVEL_TO_DB[input.level],
     work_model: MODEL_TO_DB[input.workModel],
     location: String(input.location ?? "").trim() || null,
+    country_code: columns.country_code,
+    salary_min: columns.salary_min,
+    salary_max: columns.salary_max,
     requirements: { mandatory: [], desirable: [] },
   };
   const { data, error } = await client.from("jobs").insert(payload).select("id,title,status").single();
@@ -202,6 +245,7 @@ export async function updatePendingJob(id, input) {
     companyId = current.data?.company_id ?? "";
   }
   await assertNoDuplicateTitle(client, { companyId, title: input.title, excludeId: id });
+  const { columns } = structuredJobColumns(input);
   const payload = {
     title: input.title.trim(),
     description: input.description.trim(),
@@ -209,6 +253,9 @@ export async function updatePendingJob(id, input) {
     level: LEVEL_TO_DB[input.level],
     work_model: MODEL_TO_DB[input.workModel],
     location: String(input.location ?? "").trim() || null,
+    country_code: columns.country_code,
+    salary_min: columns.salary_min,
+    salary_max: columns.salary_max,
     updated_at: new Date().toISOString(),
   };
   if (input.companyId) payload.company_id = input.companyId;

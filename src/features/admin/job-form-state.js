@@ -1,3 +1,5 @@
+import { reaisInputFromCents } from "../../lib/catalog-url.js";
+
 export const emptyJobForm = {
   title: "",
   companyId: "",
@@ -6,6 +8,9 @@ export const emptyJobForm = {
   description: "",
   stackText: "",
   location: "",
+  countryCode: "",
+  salaryMinText: "",
+  salaryMaxText: "",
   workModel: "Remoto",
 };
 
@@ -31,6 +36,9 @@ export function jobToForm(job) {
     description: job.description ?? "",
     stackText: (job.stack ?? []).join(", "),
     location: job.location ?? "",
+    countryCode: job.country_code ?? "",
+    salaryMinText: reaisInputFromCents(job.salary_min),
+    salaryMaxText: reaisInputFromCents(job.salary_max),
     workModel: MODEL_FROM_DB[job.work_model] ?? "Remoto",
   };
 }
