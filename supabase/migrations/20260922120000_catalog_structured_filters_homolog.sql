@@ -2,9 +2,12 @@
 -- Homologação apenas. Produção: não aplicar (fora de prod.manifest.json).
 -- RLS inalterada: leitura pública continua só em status = 'approved'.
 -- Novas colunas não são PII.
--- Follow-up ingest: o JSON canônico (title, company_name, description, level,
--- work_model, location, stack) não traz country_code nem salário.
--- process_job_ingestion deixa esses campos null; salary_currency usa o default BRL.
+-- Fora desta entrega: publicação staff (/admin/vagas/nova) e ingestão.
+-- O formulário staff grava location em texto e não envia country_code,
+-- salary_min nem salary_max. O JSON canônico e process_job_ingestion
+-- também materializam a vaga sem esses campos (salary_currency cai no default BRL).
+-- Follow-up: decidir como preencher país e salário estruturados nos dois fluxos.
+-- Os UPDATEs abaixo só amostram o seed fictício; não passam pelos formulários.
 -- Sem índice neste arquivo: EXPLAIN do volume de seed está em
 -- docs-local/v1-catalog-filters-01-explain.md.
 
