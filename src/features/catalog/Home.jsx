@@ -1,10 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Filter,
   MapPin, Search, Sparkles, Users
 } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
+import {
+  CATALOG_COUNTRIES,
+  centsFromReaisInput,
+  parseCatalogSearch,
+  reaisInputFromCents,
+  writeCatalogSearch,
+} from "../../lib/catalog-url.js";
 import {
   CATALOG_LEVELS,
   CATALOG_TECHNOLOGIES,
@@ -23,37 +30,63 @@ function mergeJobsById(current, incoming) {
   return [...current, ...extra];
 }
 
-function peekHomeCatalog(query) {
-  return peekApprovedJobsPage({
-    query: query ?? "",
-    tech: [],
-    level: [],
-    workModel: [],
-    sort: SORT_RECENT,
-  });
+function toLoadParams(filters, query) {
+  return {
+    query,
+    tech: filters.tech,
+    level: filters.level,
+    workModel: filters.workModel,
+    sort: filters.sort,
+    country: filters.country,
+    place: filters.place,
+    salaryMin: filters.salaryMin,
+    salaryMax: filters.salaryMax,
+  };
 }
 
 export function Home({ logged = false }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const urlQuery = searchParams.get("query") ?? "";
+  const searchKey = searchParams.toString();
+  const urlFilters = useMemo(() => parseCatalogSearch(searchKey), [searchKey]);
+  const urlQuery = urlFilters.query;
   const [query, setQuery] = useState(() => urlQuery);
-  const [tech, setTech] = useState([]);
-  const [level, setLevel] = useState([]);
-  const [workModel, setWorkModel] = useState([]);
+  const [placeDraft, setPlaceDraft] = useState(() => urlFilters.place);
+  const [salaryMinDraft, setSalaryMinDraft] = useState(() => reaisInputFromCents(urlFilters.salaryMin));
+  const [salaryMaxDraft, setSalaryMaxDraft] = useState(() => reaisInputFromCents(urlFilters.salaryMax));
+  const [salaryError, setSalaryError] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const [sortOrder, setSortOrder] = useState(SORT_RECENT);
-  const [jobs, setJobs] = useState(() => peekHomeCatalog(searchParams.get("query"))?.jobs ?? []);
-  const [resultCount, setResultCount] = useState(() => peekHomeCatalog(searchParams.get("query"))?.count ?? null);
-  const [catalogStatus, setCatalogStatus] = useState(() => (peekHomeCatalog(searchParams.get("query")) ? "ready" : "loading"));
+  const initialPage = peekApprovedJobsPage(toLoadParams(urlFilters, urlQuery));
+  const [jobs, setJobs] = useState(() => initialPage?.jobs ?? []);
+  const [resultCount, setResultCount] = useState(() => initialPage?.count ?? null);
+  const [catalogStatus, setCatalogStatus] = useState(() => (initialPage ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
+  const loadParams = useMemo(() => toLoadParams(urlFilters, query), [urlFilters, query]);
 
   useEffect(() => {
     setQuery((current) => (current === urlQuery ? current : urlQuery));
   }, [urlQuery]);
 
   useEffect(() => {
+    setPlaceDraft(urlFilters.place);
+  }, [urlFilters.place]);
+
+  useEffect(() => {
+    setSalaryMinDraft(reaisInputFromCents(urlFilters.salaryMin));
+    setSalaryMaxDraft(reaisInputFromCents(urlFilters.salaryMax));
+  }, [urlFilters.salaryMin, urlFilters.salaryMax]);
+
+  useEffect(() => {
+    const trimmed = placeDraft.trim().slice(0, 80);
+    if (trimmed === urlFilters.place) return undefined;
+    const handle = setTimeout(() => {
+      setSearchParams((current) => writeCatalogSearch(current, { place: trimmed }), { replace: true });
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [placeDraft, urlFilters.place, setSearchParams]);
+
+  useEffect(() => {
     let cancelled = false;
-    const peeked = peekApprovedJobsPage({ query, tech, level, workModel, sort: sortOrder });
+    const peeked = peekApprovedJobsPage(loadParams);
     if (peeked) {
       setJobs(peeked.jobs);
       setResultCount(peeked.count);
@@ -65,7 +98,7 @@ export function Home({ logged = false }) {
     }
     setLoadingMore(false);
 
-    loadApprovedJobs({ query, tech, level, workModel, sort: sortOrder, offset: 0 })
+    loadApprovedJobs({ ...loadParams, offset: 0 })
       .then((page) => {
         if (cancelled) return;
         setJobs(page.jobs);
@@ -79,7 +112,7 @@ export function Home({ logged = false }) {
         setCatalogStatus("error");
       });
     return () => { cancelled = true; };
-  }, [query, tech, level, workModel, sortOrder]);
+  }, [loadParams]);
 
   const loadMore = async () => {
     if (loadingMore || catalogStatus !== "ready") return;
@@ -87,11 +120,7 @@ export function Home({ logged = false }) {
     setLoadingMore(true);
     try {
       const page = await loadApprovedJobs({
-        query,
-        tech,
-        level,
-        workModel,
-        sort: sortOrder,
+        ...loadParams,
         offset: jobs.length,
       });
       setJobs((current) => mergeJobsById(current, page.jobs));
@@ -103,7 +132,12 @@ export function Home({ logged = false }) {
     }
   };
 
-  const toggle = (item, values, setter) => setter(toggleFilterValue(item, values));
+  const replaceFilters = (patch) => {
+    setSearchParams((current) => writeCatalogSearch(current, patch), { replace: true });
+  };
+  const toggle = (key, item, values) => {
+    replaceFilters({ [key]: toggleFilterValue(item, values) });
+  };
   const commitQueryToUrl = (nextQuery) => {
     const trimmed = String(nextQuery ?? "").trim();
     const current = searchParams.get("query") ?? "";
@@ -117,14 +151,38 @@ export function Home({ logged = false }) {
     setQuery(nextQuery);
     commitQueryToUrl(nextQuery);
   };
+  const commitSalary = (event) => {
+    const nextId = event?.relatedTarget?.id;
+    if (nextId === "catalog-salary-min" || nextId === "catalog-salary-max") return;
+    const min = centsFromReaisInput(salaryMinDraft);
+    const max = centsFromReaisInput(salaryMaxDraft);
+    if (min.error || max.error) {
+      setSalaryError(min.error || max.error);
+      return;
+    }
+    if (min.cents != null && max.cents != null && min.cents > max.cents) {
+      setSalaryError("O mínimo não pode ser maior que o máximo.");
+      return;
+    }
+    setSalaryError("");
+    if (min.cents === urlFilters.salaryMin && max.cents === urlFilters.salaryMax) return;
+    replaceFilters({ salaryMin: min.cents, salaryMax: max.cents });
+  };
   const reset = () => {
     setQuery("");
-    setTech([]);
-    setLevel([]);
-    setWorkModel([]);
-    commitQueryToUrl("");
+    setPlaceDraft("");
+    setSalaryMinDraft("");
+    setSalaryMaxDraft("");
+    setSalaryError("");
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
-  const activeFilterCount = tech.length + level.length + workModel.length;
+  const activeFilterCount =
+    urlFilters.tech.length +
+    urlFilters.level.length +
+    urlFilters.workModel.length +
+    (urlFilters.country ? 1 : 0) +
+    (urlFilters.place ? 1 : 0) +
+    (urlFilters.salaryMin != null || urlFilters.salaryMax != null ? 1 : 0);
   const displayedCount = resultCount ?? jobs.length;
   const hasMore = catalogStatus === "ready" && resultCount != null && jobs.length < resultCount;
   const catalogAnnouncement =
@@ -153,9 +211,21 @@ export function Home({ logged = false }) {
           <button type="button" onClick={reset}>Limpar</button>
         </div>
         <div className="filters__body">
-          <FilterGroup name="catalog-tech" label="Tecnologias" values={CATALOG_TECHNOLOGIES} active={tech} toggle={x => toggle(x, tech, setTech)} />
-          <FilterGroup name="catalog-level" label="Nível de experiência" values={CATALOG_LEVELS} active={level} toggle={x => toggle(x, level, setLevel)} />
-          <FilterGroup name="catalog-work-model" label="Modelo de trabalho" values={CATALOG_WORK_MODELS} active={workModel} toggle={x => toggle(x, workModel, setWorkModel)} />
+          <FilterGroup name="catalog-tech" label="Tecnologias" values={CATALOG_TECHNOLOGIES} active={urlFilters.tech} toggle={(value) => toggle("tech", value, urlFilters.tech)} />
+          <FilterGroup name="catalog-level" label="Nível de experiência" values={CATALOG_LEVELS} active={urlFilters.level} toggle={(value) => toggle("level", value, urlFilters.level)} />
+          <FilterGroup name="catalog-work-model" label="Modelo de trabalho" values={CATALOG_WORK_MODELS} active={urlFilters.workModel} toggle={(value) => toggle("workModel", value, urlFilters.workModel)} />
+          <StructuredFilters
+            country={urlFilters.country}
+            placeDraft={placeDraft}
+            salaryMinDraft={salaryMinDraft}
+            salaryMaxDraft={salaryMaxDraft}
+            salaryError={salaryError}
+            onCountry={(country) => replaceFilters({ country })}
+            onPlace={setPlaceDraft}
+            onSalaryMin={setSalaryMinDraft}
+            onSalaryMax={setSalaryMaxDraft}
+            onSalaryCommit={commitSalary}
+          />
         </div>
       </FilterSheet>
       <div className="job-content">
@@ -165,7 +235,7 @@ export function Home({ logged = false }) {
             <p>{displayedCount} oportunidades encontradas</p>
           </div>
           <button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
-          <SortMenu value={sortOrder} onChange={setSortOrder} />
+          <SortMenu value={urlFilters.sort} onChange={(sort) => replaceFilters({ sort })} />
         </div>
         <div className="cards">
           {catalogAnnouncement ? <p className="sr-only" role="status">{catalogAnnouncement}</p> : null}
@@ -238,6 +308,89 @@ function SortMenu({ value, onChange }) {
         </ul>
       )}
     </div>
+  );
+}
+
+function StructuredFilters({
+  country,
+  placeDraft,
+  salaryMinDraft,
+  salaryMaxDraft,
+  salaryError,
+  onCountry,
+  onPlace,
+  onSalaryMin,
+  onSalaryMax,
+  onSalaryCommit,
+}) {
+  const describedBy = salaryError ? "catalog-salary-error catalog-salary-hint" : "catalog-salary-hint";
+  const commitOnEnter = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onSalaryCommit();
+    }
+  };
+  return (
+    <>
+      <div className="filter-group">
+        <label className="filter-field" htmlFor="catalog-country">
+          País
+          <select id="catalog-country" name="country" value={country} onChange={(event) => onCountry(event.target.value)}>
+            <option value="">Todos</option>
+            {CATALOG_COUNTRIES.map((item) => (
+              <option key={item.code} value={item.code}>{item.label}</option>
+            ))}
+          </select>
+        </label>
+        <p className="filter-hint">Com um país escolhido, vagas sem país ficam de fora.</p>
+      </div>
+      <div className="filter-group">
+        <label className="filter-field" htmlFor="catalog-place">
+          Localidade
+          <input
+            id="catalog-place"
+            name="place"
+            value={placeDraft}
+            onChange={(event) => onPlace(event.target.value)}
+            placeholder="Cidade ou região"
+            autoComplete="off"
+          />
+        </label>
+      </div>
+      <fieldset className="filter-group">
+        <legend>Faixa salarial (R$)</legend>
+        <label className="filter-field" htmlFor="catalog-salary-min">
+          Mínimo
+          <input
+            id="catalog-salary-min"
+            name="salaryMin"
+            inputMode="decimal"
+            value={salaryMinDraft}
+            onChange={(event) => onSalaryMin(event.target.value)}
+            onBlur={onSalaryCommit}
+            onKeyDown={commitOnEnter}
+            aria-invalid={salaryError ? "true" : undefined}
+            aria-describedby={describedBy}
+          />
+        </label>
+        <label className="filter-field" htmlFor="catalog-salary-max">
+          Máximo
+          <input
+            id="catalog-salary-max"
+            name="salaryMax"
+            inputMode="decimal"
+            value={salaryMaxDraft}
+            onChange={(event) => onSalaryMax(event.target.value)}
+            onBlur={onSalaryCommit}
+            onKeyDown={commitOnEnter}
+            aria-invalid={salaryError ? "true" : undefined}
+            aria-describedby={describedBy}
+          />
+        </label>
+        {salaryError ? <p id="catalog-salary-error" className="filter-field__error" role="alert">{salaryError}</p> : null}
+        <p id="catalog-salary-hint" className="filter-hint">Com a faixa preenchida, vagas A combinar ficam de fora.</p>
+      </fieldset>
+    </>
   );
 }
 

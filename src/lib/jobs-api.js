@@ -1,3 +1,4 @@
+import { normalizeCountryCode, normalizePlace, normalizeSalaryCents } from "./catalog-url.js";
 import { mapJob } from "./map-job.js";
 import { classifyOpsFailure, emitOpsEvent } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
@@ -18,6 +19,10 @@ const JOB_DETAIL_SELECT = `
   level,
   work_model,
   location,
+  country_code,
+  salary_min,
+  salary_max,
+  salary_currency,
   status,
   approved_at,
   created_at,
@@ -39,6 +44,10 @@ const JOB_LIST_SELECT = `
   level,
   work_model,
   location,
+  country_code,
+  salary_min,
+  salary_max,
+  salary_currency,
   status,
   approved_at,
   created_at,
@@ -53,6 +62,10 @@ const JOB_LIST_SELECT_SEARCH = `
   level,
   work_model,
   location,
+  country_code,
+  salary_min,
+  salary_max,
+  salary_currency,
   status,
   approved_at,
   created_at,
@@ -81,6 +94,10 @@ export function catalogCacheKey({
   level = [],
   workModel = [],
   sort = SORT_RECENT,
+  country = "",
+  place = "",
+  salaryMin = null,
+  salaryMax = null,
 } = {}) {
   return JSON.stringify({
     q: String(query ?? "").trim().toLowerCase(),
@@ -88,7 +105,34 @@ export function catalogCacheKey({
     l: sortedCopy(level),
     w: sortedCopy(workModel),
     s: sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+    c: normalizeCountryCode(country),
+    p: normalizePlace(place).toLowerCase(),
+    smin: normalizeSalaryCents(salaryMin),
+    smax: normalizeSalaryCents(salaryMax),
   });
+}
+
+/**
+ * País ativo é igualdade. Null não corresponde: a vaga legada só aparece
+ * quando o filtro de país está desligado.
+ */
+export function catalogCountryCode(country) {
+  return normalizeCountryCode(country) || null;
+}
+
+/**
+ * Interseção de intervalos. Null num extremo é aberto.
+ * Ambos null ("A combinar") não atendem a faixa quando o filtro está ativo.
+ */
+export function buildSalaryVisibilityOr(salaryMin, salaryMax) {
+  const min = normalizeSalaryCents(salaryMin);
+  const max = normalizeSalaryCents(salaryMax);
+  if (min == null && max == null) return null;
+  if (min != null && max != null && min > max) return null;
+  const parts = ["or(salary_min.not.is.null,salary_max.not.is.null)"];
+  if (max != null) parts.push(`or(salary_min.is.null,salary_min.lte.${max})`);
+  if (min != null) parts.push(`or(salary_max.is.null,salary_max.gte.${min})`);
+  return `and(${parts.join(",")})`;
 }
 
 function cacheEntryFresh(entry) {
@@ -189,7 +233,17 @@ function normalizeCatalogOptions({
   level = [],
   workModel = [],
   sort = SORT_RECENT,
+  country = "",
+  place = "",
+  salaryMin = null,
+  salaryMax = null,
 } = {}) {
+  let min = normalizeSalaryCents(salaryMin);
+  let max = normalizeSalaryCents(salaryMax);
+  if (min != null && max != null && min > max) {
+    min = null;
+    max = null;
+  }
   return {
     forceRefresh: Boolean(forceRefresh),
     offset: Math.max(0, Number(offset) || 0),
@@ -198,6 +252,10 @@ function normalizeCatalogOptions({
     level: [...level],
     workModel: [...workModel],
     sort: sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+    country: normalizeCountryCode(country),
+    place: normalizePlace(place),
+    salaryMin: min,
+    salaryMax: max,
   };
 }
 
@@ -228,6 +286,12 @@ async function fetchApprovedJobsPage(client, options) {
     const searchPattern = buildCatalogSearchPattern(options.query);
     request = request.filter("co.name", "ilike", searchPattern).or(searchOr);
   }
+  const countryCode = catalogCountryCode(options.country);
+  if (countryCode) request = request.eq("country_code", countryCode);
+  const salaryOr = buildSalaryVisibilityOr(options.salaryMin, options.salaryMax);
+  if (salaryOr) request = request.or(salaryOr);
+  const placePattern = buildCatalogSearchPattern(options.place);
+  if (placePattern) request = request.ilike("location", placePattern);
 
   const { data, error, count } = await request
     .order("approved_at", { ascending })

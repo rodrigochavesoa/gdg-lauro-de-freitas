@@ -63,7 +63,17 @@ describe("Home", () => {
       const tech = params?.tech ?? [];
       const level = params?.level ?? [];
       const workModel = params?.workModel ?? [];
-      if (query || tech.length || level.length || workModel.length) return null;
+      if (
+        query ||
+        tech.length ||
+        level.length ||
+        workModel.length ||
+        params?.country ||
+        params?.place ||
+        params?.salaryMin != null ||
+        params?.salaryMax != null ||
+        params?.sort === "oldest"
+      ) return null;
       return { jobs: [cachedJob], count: 1 };
     });
     loadApprovedJobs.mockImplementation(async (options = {}) => pageFor(options));
@@ -253,5 +263,91 @@ describe("Home", () => {
     expect(card).toHaveAttribute("href", "/jobs/1");
     fireEvent.keyDown(card, { key: "Enter" });
     expect(card).toHaveClass("job-card");
+  });
+
+  it("abre deep link de país, localidade e faixa e limpa junto com os filtros existentes", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?country=BR&place=salvador&salaryMin=800000&salaryMax=1200000&tech=React"]}>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("País")).toHaveValue("BR");
+    expect(screen.getByLabelText("Localidade")).toHaveValue("salvador");
+    expect(screen.getByLabelText("Mínimo")).toHaveValue("8000");
+    expect(screen.getByLabelText("Máximo")).toHaveValue("12000");
+    expect(screen.getByRole("checkbox", { name: "React" })).toBeChecked();
+    expect(screen.getByText("Com um país escolhido, vagas sem país ficam de fora.")).toBeInTheDocument();
+    expect(screen.getByText("Com a faixa preenchida, vagas A combinar ficam de fora.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({
+        country: "BR",
+        place: "salvador",
+        salaryMin: 800000,
+        salaryMax: 1200000,
+        tech: ["React"],
+        offset: 0,
+      }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Limpar" }));
+    expect(screen.getByLabelText("País")).toHaveValue("");
+    expect(screen.getByLabelText("Localidade")).toHaveValue("");
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({
+        country: "",
+        place: "",
+        salaryMin: null,
+        salaryMax: null,
+        tech: [],
+      }));
+    });
+  });
+
+  it("restaura o país ao voltar no histórico", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?country=BR"]}>
+        <CatalogHistory to="/vagas?country=PT" />
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText("País")).toHaveValue("BR");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir busca" }));
+    await waitFor(() => expect(screen.getByLabelText("País")).toHaveValue("PT"));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar" }));
+    await waitFor(() => expect(screen.getByLabelText("País")).toHaveValue("BR"));
+  });
+
+  it("grava a faixa em centavos e recusa mínimo maior que o máximo", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    fireEvent.change(screen.getByLabelText("Mínimo"), { target: { value: "8000" } });
+    fireEvent.change(screen.getByLabelText("Máximo"), { target: { value: "12000" } });
+    fireEvent.blur(screen.getByLabelText("Máximo"));
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({
+        salaryMin: 800000,
+        salaryMax: 1200000,
+      }));
+    });
+
+    fireEvent.change(screen.getByLabelText("Mínimo"), { target: { value: "20000" } });
+    fireEvent.blur(screen.getByLabelText("Mínimo"));
+    expect(screen.getByRole("alert")).toHaveTextContent("O mínimo não pode ser maior que o máximo.");
+  });
+
+  it("mostra o salário mapeado no card", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("A combinar")).toBeInTheDocument();
   });
 });
