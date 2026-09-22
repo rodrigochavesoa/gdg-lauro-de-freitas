@@ -18,6 +18,8 @@ export const SOURCE_KIND_VALUES = Object.freeze([
 
 export const NORMALIZED_LOCATOR_MAX_LENGTH = 2048;
 
+const SALARY_CENTS_MAX = 2_147_483_647;
+
 /** Campos que entram no hash. Qualquer outra chave é ignorada no canônico. */
 export const INGESTION_PAYLOAD_KEYS = Object.freeze([
   "company_name",
@@ -27,6 +29,9 @@ export const INGESTION_PAYLOAD_KEYS = Object.freeze([
   "stack",
   "title",
   "work_model",
+  "country_code",
+  "salary_min",
+  "salary_max",
 ]);
 
 /** Campos de titular/segredo que o contrato recusa no payload de origem. */
@@ -153,6 +158,29 @@ export function pickIngestionPayload(payload) {
       if (stack.length > 0) picked.stack = stack;
       continue;
     }
+    if (key === "country_code") {
+      if (value == null || value === "") continue;
+      const code = String(value).trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(code)) {
+        throw new Error("payload de ingestão tem country_code inválido.");
+      }
+      picked.country_code = code;
+      continue;
+    }
+    if (key === "salary_min" || key === "salary_max") {
+      if (value == null || value === "") continue;
+      const raw = typeof value === "number" ? String(value) : String(value).trim();
+      if (!raw) continue;
+      if (!/^\d+$/.test(raw)) {
+        throw new Error(`payload de ingestão tem ${key} inválido.`);
+      }
+      const cents = Number(raw);
+      if (!Number.isSafeInteger(cents) || cents > SALARY_CENTS_MAX) {
+        throw new Error(`payload de ingestão tem ${key} inválido.`);
+      }
+      picked[key] = cents;
+      continue;
+    }
     if (typeof value === "string") {
       const text = normalizePayloadString(value);
       if (text) picked[key] = text;
@@ -162,6 +190,9 @@ export function pickIngestionPayload(payload) {
   }
   if (!picked.title || !picked.company_name) {
     throw new Error("payload de ingestão exige title e company_name.");
+  }
+  if (picked.salary_min != null && picked.salary_max != null && picked.salary_min > picked.salary_max) {
+    throw new Error("payload de ingestão tem faixa salarial inválida.");
   }
   return picked;
 }

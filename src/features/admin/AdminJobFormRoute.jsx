@@ -8,8 +8,15 @@ import {
   updatePendingJob,
   validateAdminJob,
 } from "../../lib/admin-api.js";
+import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
 import { emptyJobForm, jobToForm } from "./job-form-state.js";
+
+const STRUCTURED_ERROR = /país|salário|faixa/i;
+
+function describedBy(hintId, invalid) {
+  return invalid ? `${hintId} admin-job-structured-errors` : hintId;
+}
 
 export function AdminJobFormRoute() {
   const [searchParams] = useSearchParams();
@@ -98,6 +105,11 @@ export function AdminJobFormRoute() {
     persist(false);
   };
 
+  const structuredErrors = formErrors.filter((item) => STRUCTURED_ERROR.test(item));
+  const otherErrors = formErrors.filter((item) => !structuredErrors.includes(item));
+  const countryInvalid = structuredErrors.some((item) => /país/i.test(item));
+  const salaryInvalid = structuredErrors.some((item) => /salário|faixa/i.test(item));
+
   return (
     <>
       <div className="admin-title">
@@ -168,6 +180,65 @@ export function AdminJobFormRoute() {
               <input id="admin-job-location" name="location" value={form.location} onChange={field("location")} placeholder="Ex.: Remoto · Brasil" />
             </label>
             <label>
+              País
+              <select
+                id="admin-job-country"
+                name="countryCode"
+                value={form.countryCode}
+                onChange={field("countryCode")}
+                aria-invalid={countryInvalid || undefined}
+                aria-describedby={describedBy("admin-job-country-hint", countryInvalid)}
+              >
+                <option value="">Não informado</option>
+                {CATALOG_COUNTRIES.map((country) => (
+                  <option key={country.code} value={country.code}>
+                    {country.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p id="admin-job-country-hint" className="filter-hint wide">
+              Opcional. O texto da localidade não define o país.
+            </p>
+            <label>
+              Salário mínimo (R$)
+              <input
+                id="admin-job-salary-min"
+                name="salaryMinText"
+                inputMode="decimal"
+                value={form.salaryMinText}
+                onChange={field("salaryMinText")}
+                placeholder="8000"
+                aria-invalid={salaryInvalid || undefined}
+                aria-describedby={describedBy("admin-job-salary-hint", salaryInvalid)}
+              />
+            </label>
+            <label>
+              Salário máximo (R$)
+              <input
+                id="admin-job-salary-max"
+                name="salaryMaxText"
+                inputMode="decimal"
+                value={form.salaryMaxText}
+                onChange={field("salaryMaxText")}
+                placeholder="12000"
+                aria-invalid={salaryInvalid || undefined}
+                aria-describedby={describedBy("admin-job-salary-hint", salaryInvalid)}
+              />
+            </label>
+            <p id="admin-job-salary-hint" className="filter-hint wide">
+              Opcional, em reais. Em branco nos dois campos, a vaga fica A combinar.
+            </p>
+            {structuredErrors.length > 0 ? (
+              <div className="form-alert wide" id="admin-job-structured-errors" role="alert">
+                <ul>
+                  {structuredErrors.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            <label>
               Modelo
               <select id="admin-job-work-model" name="workModel" value={form.workModel} onChange={field("workModel")}>
                 <option>Remoto</option>
@@ -190,11 +261,11 @@ export function AdminJobFormRoute() {
             <Check size={18} /> {message}
           </div>
         )}
-        {(formErrors.length > 0 || error) && (
-          <div className="form-alert" role="alert">
-            {formErrors.length > 0 ? (
+        {(otherErrors.length > 0 || error) && (
+          <div className="form-alert" id="admin-job-form-errors" role="alert">
+            {otherErrors.length > 0 ? (
               <ul>
-                {formErrors.map((item) => (
+                {otherErrors.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

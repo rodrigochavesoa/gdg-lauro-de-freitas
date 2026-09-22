@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseStack, validateAdminJob, normalizeJobTitle, findDuplicateJob } from "./admin-api.js";
+import { parseStack, structuredJobColumns, validateAdminJob, normalizeJobTitle, findDuplicateJob } from "./admin-api.js";
 
 describe("validateAdminJob", () => {
   const valid = {
@@ -26,6 +26,44 @@ describe("validateAdminJob", () => {
 
   it("aceita empresa nova no lugar do select", () => {
     expect(validateAdminJob({ ...valid, companyId: "", newCompanyName: "Empresa Fictícia Lab" })).toEqual([]);
+  });
+
+  it("aceita país e faixa vazios e não lê o país na localidade", () => {
+    expect(validateAdminJob({ ...valid, location: "Brasil" })).toEqual([]);
+    expect(
+      structuredJobColumns({ location: "Brasil", countryCode: "", salaryMinText: "", salaryMaxText: "" }).columns,
+    ).toEqual({
+      country_code: null,
+      salary_min: null,
+      salary_max: null,
+    });
+  });
+
+  it("grava país ISO e faixa em centavos", () => {
+    expect(
+      structuredJobColumns({
+        countryCode: "br",
+        salaryMinText: "8.000",
+        salaryMaxText: "12.000,50",
+      }),
+    ).toEqual({
+      errors: [],
+      columns: { country_code: "BR", salary_min: 800000, salary_max: 1200050 },
+    });
+  });
+
+  it("aceita um só extremo e recusa mínimo maior que o máximo", () => {
+    expect(structuredJobColumns({ salaryMinText: "5000", salaryMaxText: "" }).columns).toEqual({
+      country_code: null,
+      salary_min: 500000,
+      salary_max: null,
+    });
+    expect(validateAdminJob({ ...valid, salaryMinText: "12000", salaryMaxText: "8000" })).toContain(
+      "A faixa mínima não pode ser maior que a máxima.",
+    );
+    expect(validateAdminJob({ ...valid, countryCode: "Brasil" })).toContain(
+      "País deve ser um código ISO de duas letras.",
+    );
   });
 });
 
