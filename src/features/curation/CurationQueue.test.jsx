@@ -5,13 +5,28 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const loadCurationQueue = vi.hoisted(() => vi.fn());
+const curationEvents = vi.hoisted(() => ({ notify() {} }));
+const loadCurationJobDetail = vi.hoisted(() =>
+  vi.fn(async () => ({
+    id: "job-1",
+    description: "Vaga fictícia para curadoria.",
+    stack: ["React"],
+    reviews: [],
+  })),
+);
 const peekCurationQueueCache = vi.hoisted(() => vi.fn(() => null));
 const setJobCurationPriority = vi.hoisted(() => vi.fn());
 
 vi.mock("./curation-api.js", () => ({
   loadCurationQueue: (...args) => loadCurationQueue(...args),
+  loadCurationJobDetail: (...args) => loadCurationJobDetail(...args),
   peekCurationQueueCache: (...args) => peekCurationQueueCache(...args),
-  subscribeCurationJobs: () => () => {},
+  subscribeCurationJobs: (listener) => {
+    curationEvents.notify = listener;
+    return () => {
+      curationEvents.notify = () => {};
+    };
+  },
   submitCurationReview: vi.fn(),
   resubmitJobForCuration: vi.fn(),
   setJobCurationPriority: (...args) => setJobCurationPriority(...args),
@@ -55,6 +70,10 @@ const adminProfile = {
   email: "admin-homolog@example.invalid",
 };
 
+async function selectQueueJob(name) {
+  fireEvent.click(await screen.findByRole("button", { name }));
+}
+
 async function markUrgent(reason = "SLA interno") {
   fireEvent.change(screen.getByLabelText("Motivo interno para urgente"), {
     target: { value: reason },
@@ -66,6 +85,13 @@ describe("CurationQueue", () => {
   beforeEach(() => {
     loadCurationQueue.mockReset();
     loadCurationQueue.mockResolvedValue(queuePayload);
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "job-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
     setJobCurationPriority.mockReset();
@@ -94,9 +120,10 @@ describe("CurationQueue", () => {
 
     resolveQueue(queuePayload);
 
-    expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
     expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
-    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: false });
+    expect(loadCurationQueue).toHaveBeenCalledWith({ scope: "pending", page: 1, forceRefresh: false });
   });
 
   it("reusa o cache no remount e não mostra o gate de loading", async () => {
@@ -110,8 +137,10 @@ describe("CurationQueue", () => {
     );
 
     expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
-    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: true });
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+    expect(loadCurationQueue).toHaveBeenCalledWith({ scope: "pending", page: 1, forceRefresh: true });
   });
 
   it("lista a fila e a rubrica sem chamar Supabase no JSX", async () => {
@@ -126,8 +155,10 @@ describe("CurationQueue", () => {
     expect(document.querySelector(".admin-user")).toBeNull();
     expect(screen.queryByText("Curador Homolog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Histórico de pareceres (0)"));
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
+    expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByText("Histórico de pareceres (0)"));
     expect(screen.getByText("Ainda sem parecer nesta vaga.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Iniciar parecer" }));
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
@@ -139,6 +170,125 @@ describe("CurationQueue", () => {
     const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
     expect(unnamed).toEqual([]);
   });
+
+  it("mantém a vaga selecionada no reload e não troca o detalhe se ela sair da página", async () => {
+    const job1 = queuePayload.queue[0];
+    const job2 = {
+      ...job1,
+      id: "job-2",
+      title: "Pessoa QA (fila)",
+      priority: "normal",
+    };
+    loadCurationQueue
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1], hasNext: false, page: 1 });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+
+    expect(await screen.findByRole("button", { name: /Pessoa QA \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /Pessoa QA \(fila\)/ }));
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+
+    curationEvents.notify();
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pessoa QA \(fila\)/ })).toHaveAttribute("aria-pressed", "true");
+
+    curationEvents.notify();
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Pessoa QA (fila)" })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
+  });
+
+  it("no mobile devolve a fila quando a vaga selecionada sai da página", async () => {
+    window.innerWidth = 390;
+    const job1 = queuePayload.queue[0];
+    const job2 = {
+      ...job1,
+      id: "job-2",
+      title: "Pessoa QA (fila)",
+      priority: "normal",
+    };
+    loadCurationQueue
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValue({ ...queuePayload, queue: [job1], hasNext: false, page: 1 });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await selectQueueJob(/Pessoa QA \(fila\)/);
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+    expect(document.querySelector(".curation-workspace")).toHaveClass("curation-workspace--detail-open");
+
+    curationEvents.notify();
+
+    await waitFor(() => {
+      expect(document.querySelector(".curation-workspace")).not.toHaveClass("curation-workspace--detail-open");
+    });
+    const queue = screen.getByRole("region", { name: "Vagas pendentes" });
+    expect(queue).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Pendentes", level: 2 })).toBeVisible();
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Pessoa QA (fila)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
+  });
+
+  it("não reabre o detalhe se a vaga sair e voltar sem novo clique", async () => {
+    const job1 = queuePayload.queue[0];
+    const job2 = {
+      ...job1,
+      id: "job-2",
+      title: "Pessoa QA (fila)",
+      priority: "normal",
+    };
+    loadCurationQueue
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await selectQueueJob(/Pessoa QA \(fila\)/);
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+
+    curationEvents.notify();
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Pessoa QA (fila)" })).not.toBeInTheDocument();
+    });
+    const callsAfterRemoval = loadCurationJobDetail.mock.calls.length;
+
+    curationEvents.notify();
+    expect(await screen.findByRole("button", { name: /Pessoa QA \(fila\)/ })).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => {
+      expect(loadCurationQueue).toHaveBeenCalledTimes(3);
+    });
+    expect(screen.queryByRole("heading", { name: "Pessoa QA (fila)" })).not.toBeInTheDocument();
+    expect(document.querySelector(".curation-workspace")).not.toHaveClass("curation-workspace--detail-open");
+    expect(loadCurationJobDetail).toHaveBeenCalledTimes(callsAfterRemoval);
+
+    fireEvent.click(screen.getByRole("button", { name: /Pessoa QA \(fila\)/ }));
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(loadCurationJobDetail).toHaveBeenCalledTimes(callsAfterRemoval + 1);
+    });
+    expect(loadCurationJobDetail).toHaveBeenLastCalledWith("job-2", { forceRefresh: true });
+  });
+
+  it("busca descrição e pareceres só depois do clique na fila", async () => {
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledWith({ scope: "pending", page: 1, forceRefresh: false });
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
+
+    await waitFor(() => {
+      expect(loadCurationJobDetail).toHaveBeenCalledWith("job-1", { forceRefresh: false });
+    });
+    expect(loadCurationJobDetail).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("CurationQueue Sprint 20A", () => {
@@ -148,21 +298,31 @@ describe("CurationQueue Sprint 20A", () => {
       ...queuePayload,
       rejected: [{ ...queuePayload.queue[0], id: "rejected-1", title: "Vaga rejeitada", priority: "normal" }],
     });
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "rejected-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
   });
 
   it("admin encontra rejeitadas em filtro e o reenvio no detalhe, sem formulário de parecer", async () => {
     render(<CurationQueue includeRejected profile={adminProfile} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas 1/ }));
-    expect(screen.getByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+    await selectQueueJob(/Vaga rejeitada/);
+    expect(await screen.findByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reenviar para curadoria" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
   });
 
   it("curator não recebe a vista de rejeitadas nem prioridade admin", async () => {
     render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
-    await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" });
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /Rejeitadas/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Marcar urgente" })).not.toBeInTheDocument();
   });
@@ -172,6 +332,13 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
   beforeEach(() => {
     loadCurationQueue.mockReset();
     loadCurationQueue.mockResolvedValue(normalQueuePayload);
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "job-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
     setJobCurationPriority.mockReset();
@@ -200,6 +367,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     );
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     expect(await screen.findByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
 
     await markUrgent();
@@ -224,6 +392,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     setJobCurationPriority.mockRejectedValue(new Error("cannot review own submission"));
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     expect(await screen.findByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
 
     await markUrgent();
@@ -238,6 +407,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
 
   it("associa o erro de motivo obrigatório ao campo", async () => {
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     fireEvent.click(await screen.findByRole("button", { name: "Marcar urgente" }));
 
     const input = screen.getByLabelText("Motivo interno para urgente");
@@ -277,6 +447,9 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     );
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    expect(loadCurationJobDetail).not.toHaveBeenCalled();
+    await selectQueueJob(/Vaga Alfa/);
+    expect(loadCurationJobDetail).toHaveBeenCalledWith("job-1", { forceRefresh: false });
     expect(await screen.findByRole("heading", { name: "Vaga Alfa" })).toBeInTheDocument();
     await markUrgent();
     fireEvent.click(screen.getByRole("button", { name: /Vaga Beta/ }));
@@ -301,6 +474,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     });
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     expect(await screen.findByRole("button", { name: "Marcar urgente" })).toBeInTheDocument();
     await markUrgent();
 
@@ -314,6 +488,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
 
   it("o botão é nativo, focável e dispara a ação com o controle focado", async () => {
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     const btn = await screen.findByRole("button", { name: "Marcar urgente" });
     expect(btn.tagName).toBe("BUTTON");
     expect(btn).toHaveAttribute("type", "button");
@@ -337,6 +512,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     Object.defineProperty(document.documentElement, "scrollTop", { configurable: true, value: 640 });
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
     expect(await screen.findByRole("button", { name: "Marcar urgente" })).toBeInTheDocument();
     await markUrgent("Fila da semana");
     await waitFor(() => {

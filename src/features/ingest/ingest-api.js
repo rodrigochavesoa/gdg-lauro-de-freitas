@@ -130,17 +130,71 @@ export async function processJobIngestion(client, { sourceKind, locator, payload
   );
 }
 
-/** Lista completa para homolog/fixture. Sem limite — follow-up INGEST-LIST-PAGE-01 antes de uso operacional maior. */
-export async function loadJobIngestions(client) {
+export const INGESTION_PAGE_SIZE = 24;
+
+const INGESTION_LIST_SELECT =
+  "id,source_kind,normalized_locator,expires_at,job_id,created_at,payload_title,job_title,job_status,latest_outcome";
+
+const INGESTION_DETAIL_SELECT =
+  "id,source_kind,normalized_locator,payload_hash,expires_at,job_id,created_at,canonical_payload,jobs(id,title,status),job_ingestion_attempts(id,outcome,failure_code,failure_detail,job_id,created_at)";
+
+function normalizePositiveInt(value, fallback) {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+export function mapIngestionListRow(row) {
+  const source = row ?? {};
+  const jobId = source.job_id ?? null;
+  const title = source.job_title ?? null;
+  const status = source.job_status ?? null;
+  return {
+    id: source.id,
+    source_kind: source.source_kind,
+    normalized_locator: source.normalized_locator,
+    expires_at: source.expires_at ?? null,
+    job_id: jobId,
+    created_at: source.created_at,
+    payload_title: source.payload_title ?? null,
+    latest_outcome: source.latest_outcome ?? null,
+    jobs: jobId || title || status ? { id: jobId, title, status } : null,
+  };
+}
+
+/** Página enxuta. Payload e tentativas ficam em loadJobIngestionDetail. */
+export async function loadJobIngestions(client, { page = 1, pageSize = INGESTION_PAGE_SIZE } = {}) {
+  const resolved = clientOrThrow(client);
+  const safePage = normalizePositiveInt(page, 1);
+  const safePageSize = Math.min(normalizePositiveInt(pageSize, INGESTION_PAGE_SIZE), INGESTION_PAGE_SIZE);
+  const from = (safePage - 1) * safePageSize;
+  const to = from + safePageSize;
+  const { data, error } = await resolved
+    .from("job_ingestion_staff_list")
+    .select(INGESTION_LIST_SELECT)
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .range(from, to);
+  throwIfError(error);
+  const rows = data ?? [];
+  const hasNext = rows.length > safePageSize;
+  return {
+    items: (hasNext ? rows.slice(0, safePageSize) : rows).map(mapIngestionListRow),
+    page: safePage,
+    pageSize: safePageSize,
+    hasNext,
+  };
+}
+
+export async function loadJobIngestionDetail(client, id) {
+  if (!id) throw new Error("Ingestão para detalhe não informada.");
   const resolved = clientOrThrow(client);
   const { data, error } = await resolved
     .from("job_ingestions")
-    .select(
-      "id,source_kind,normalized_locator,payload_hash,expires_at,job_id,created_at,canonical_payload,jobs(id,title,status),job_ingestion_attempts(id,outcome,failure_code,failure_detail,job_id,created_at)",
-    )
-    .order("created_at", { ascending: false });
+    .select(INGESTION_DETAIL_SELECT)
+    .eq("id", id)
+    .maybeSingle();
   throwIfError(error);
-  return data ?? [];
+  return data ?? null;
 }
 
 export { REGISTER_JOB_INGESTION_RPC, isIngestionExpired };

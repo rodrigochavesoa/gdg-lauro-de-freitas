@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ingestNeedsAttention, summarizeAdminDashboard } from "./admin-dashboard.js";
+import { latestIngestionAttempt } from "../ingest/ingest-api.js";
+import { ingestNeedsAttention, staffListRowNeedsAttention, summarizeAdminDashboard } from "./admin-dashboard.js";
 
 describe("admin-dashboard", () => {
   it("marca ingestão sem job e com falha recente como atenção", () => {
@@ -16,6 +17,46 @@ describe("admin-dashboard", () => {
         job_ingestion_attempts: [{ outcome: "materialized", created_at: "2026-01-01T00:00:00Z" }],
       }),
     ).toBe(false);
+  });
+
+  it("casa o predicado da view com ingestNeedsAttention, inclusive retry idempotente", () => {
+    expect(staffListRowNeedsAttention({ job_id: null, latest_outcome: null })).toBe(true);
+    expect(staffListRowNeedsAttention({ job_id: null, latest_outcome: "failed" })).toBe(true);
+    expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: "failed" })).toBe(true);
+    expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: "expired" })).toBe(true);
+    expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: "materialized" })).toBe(false);
+    expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: "idempotent" })).toBe(false);
+    expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: null })).toBe(false);
+
+    const cases = [
+      { job_id: null, job_ingestion_attempts: [] },
+      { job_id: "j1", job_ingestion_attempts: [] },
+      {
+        job_id: null,
+        job_ingestion_attempts: [{ id: "b", outcome: "failed", created_at: "2026-01-02T00:00:00Z" }],
+      },
+      {
+        job_id: "j1",
+        job_ingestion_attempts: [{ id: "b", outcome: "expired", created_at: "2026-01-02T00:00:00Z" }],
+      },
+      {
+        job_id: "j1",
+        job_ingestion_attempts: [{ id: "a", outcome: "materialized", created_at: "2026-01-01T00:00:00Z" }],
+      },
+      {
+        job_id: "j1",
+        job_ingestion_attempts: [
+          { id: "a", outcome: "materialized", created_at: "2026-01-01T00:00:00Z" },
+          { id: "b", outcome: "idempotent", created_at: "2026-01-02T00:00:00Z" },
+        ],
+      },
+    ];
+
+    for (const ingestion of cases) {
+      const attempt = latestIngestionAttempt(ingestion);
+      const row = { job_id: ingestion.job_id ?? null, latest_outcome: attempt?.outcome ?? null };
+      expect(staffListRowNeedsAttention(row)).toBe(ingestNeedsAttention(ingestion));
+    }
   });
 
   it("só sugere CTA de curadoria quando há fila", () => {

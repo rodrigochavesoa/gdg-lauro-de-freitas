@@ -1,6 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
-import { ingestNeedsAttention } from "./admin-dashboard.js";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -26,17 +25,7 @@ async function countJobsByStatus(status) {
   return count ?? 0;
 }
 
-async function countIngestionsNeedingAttention() {
-  const client = clientOrThrow();
-  const { data, error } = await client
-    .from("job_ingestions")
-    .select("id, job_id, job_ingestion_attempts(outcome, created_at)");
-  throwIfError(error);
-  return (data ?? []).filter(ingestNeedsAttention).length;
-}
-
-/** Contadores enxutos para o painel — sem descrições, pareceres ou payloads completos. */
-export async function loadAdminDashboardSummary({ isAdmin }) {
+export async function loadAdminDashboardJobCounts({ isAdmin }) {
   if (!isAdmin) {
     const pendingCuration = await countJobsByStatus("pending");
     return {
@@ -45,15 +34,13 @@ export async function loadAdminDashboardSummary({ isAdmin }) {
       rejectedJobs: 0,
       rejectedQueue: 0,
       pendingJobs: pendingCuration,
-      ingestAttention: 0,
     };
   }
 
-  const [pendingCuration, approved, rejected, ingestAttention] = await Promise.all([
+  const [pendingCuration, approved, rejected] = await Promise.all([
     countJobsByStatus("pending"),
     countJobsByStatus("approved"),
     countJobsByStatus("rejected"),
-    countIngestionsNeedingAttention(),
   ]);
 
   return {
@@ -62,6 +49,26 @@ export async function loadAdminDashboardSummary({ isAdmin }) {
     rejectedJobs: rejected,
     rejectedQueue: rejected,
     pendingJobs: pendingCuration,
-    ingestAttention,
   };
+}
+
+/** Contagem no servidor. Não baixa job_ingestions nem o histórico de tentativas. */
+export async function countIngestionsNeedingAttention() {
+  const client = clientOrThrow();
+  const { data, error } = await client.rpc("count_job_ingestions_needing_attention");
+  throwIfError(error);
+  const count = Number(data ?? 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
+/** Contadores enxutos para o painel — sem descrições, pareceres ou payloads completos. */
+export async function loadAdminDashboardSummary({ isAdmin }) {
+  const jobsPromise = loadAdminDashboardJobCounts({ isAdmin });
+  if (!isAdmin) {
+    const jobs = await jobsPromise;
+    return { ...jobs, ingestAttention: 0 };
+  }
+
+  const [jobs, ingestAttention] = await Promise.all([jobsPromise, countIngestionsNeedingAttention()]);
+  return { ...jobs, ingestAttention };
 }

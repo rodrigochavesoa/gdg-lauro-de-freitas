@@ -3,10 +3,13 @@ import {
   HOMOLOG_MANUAL_FIXTURE,
   HOMOLOG_STRUCTURED_FIXTURE,
   INGESTION_OUTCOMES,
+  INGESTION_PAGE_SIZE,
   PROCESS_JOB_INGESTION_RPC,
   describeIngestionOutcome,
   latestIngestionAttempt,
+  loadJobIngestionDetail,
   loadJobIngestions,
+  mapIngestionListRow,
   processJobIngestion,
 } from "./ingest-api.js";
 import { SOURCE_KINDS, canonicalizeIngestionPayload } from "./source-contract.js";
@@ -130,15 +133,58 @@ describe("latestIngestionAttempt e copy", () => {
 });
 
 describe("loadJobIngestions", () => {
-  it("lista ingestões com tentativas para a operação staff", async () => {
-    const order = vi.fn(async () => ({ data: [{ id: "ing-1" }], error: null }));
-    const select = vi.fn(() => ({ order }));
+  it("lista uma página enxuta, sem payload nem tentativas", async () => {
+    const range = vi.fn(async () => ({
+      data: [{ id: "ing-1", payload_title: "Dev", latest_outcome: "failed", job_id: null }],
+      error: null,
+    }));
+    const orderId = vi.fn(() => ({ range }));
+    const orderCreated = vi.fn(() => ({ order: orderId }));
+    const select = vi.fn(() => ({ order: orderCreated }));
     const client = {
       rpc: vi.fn(),
       from: vi.fn(() => ({ select })),
     };
-    const rows = await loadJobIngestions(client);
+    const page = await loadJobIngestions(client);
+    expect(client.from).toHaveBeenCalledWith("job_ingestion_staff_list");
+    expect(select.mock.calls[0][0]).not.toMatch(/canonical_payload|job_ingestion_attempts/);
+    expect(range).toHaveBeenCalledWith(0, INGESTION_PAGE_SIZE);
+    expect(page.items).toEqual([
+      mapIngestionListRow({ id: "ing-1", payload_title: "Dev", latest_outcome: "failed", job_id: null }),
+    ]);
+    expect(page.items[0]).not.toHaveProperty("canonical_payload");
+    expect(page.hasNext).toBe(false);
+  });
+
+  it("marca hasNext quando volta uma linha além da página", async () => {
+    const rows = Array.from({ length: INGESTION_PAGE_SIZE + 1 }, (_, index) => ({ id: `ing-${index}` }));
+    const range = vi.fn(async () => ({ data: rows, error: null }));
+    const orderId = vi.fn(() => ({ range }));
+    const orderCreated = vi.fn(() => ({ order: orderId }));
+    const select = vi.fn(() => ({ order: orderCreated }));
+    const client = { rpc: vi.fn(), from: vi.fn(() => ({ select })) };
+    const page = await loadJobIngestions(client, { page: 2 });
+    expect(range).toHaveBeenCalledWith(INGESTION_PAGE_SIZE, INGESTION_PAGE_SIZE * 2);
+    expect(page.items).toHaveLength(INGESTION_PAGE_SIZE);
+    expect(page.hasNext).toBe(true);
+    expect(page.page).toBe(2);
+  });
+});
+
+describe("loadJobIngestionDetail", () => {
+  it("busca payload e tentativas de um registro", async () => {
+    const maybeSingle = vi.fn(async () => ({
+      data: { id: "ing-1", canonical_payload: { title: "Dev" }, job_ingestion_attempts: [] },
+      error: null,
+    }));
+    const eq = vi.fn(() => ({ maybeSingle }));
+    const select = vi.fn(() => ({ eq }));
+    const client = { rpc: vi.fn(), from: vi.fn(() => ({ select })) };
+    const row = await loadJobIngestionDetail(client, "ing-1");
     expect(client.from).toHaveBeenCalledWith("job_ingestions");
-    expect(rows).toEqual([{ id: "ing-1" }]);
+    expect(select.mock.calls[0][0]).toMatch(/canonical_payload/);
+    expect(select.mock.calls[0][0]).toMatch(/job_ingestion_attempts/);
+    expect(eq).toHaveBeenCalledWith("id", "ing-1");
+    expect(row.canonical_payload.title).toBe("Dev");
   });
 });

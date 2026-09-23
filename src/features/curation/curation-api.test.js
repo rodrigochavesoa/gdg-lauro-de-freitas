@@ -10,7 +10,9 @@ vi.mock("../../lib/supabase-client.js", () => ({
 
 import {
   CURATION_QUEUE_CACHE_TTL_MS,
+  CURATION_QUEUE_PAGE_SIZE,
   invalidateCurationQueueCache,
+  loadCurationJobDetail,
   loadCurationQueue,
   peekCurationQueueCache,
 } from "./curation-api.js";
@@ -39,6 +41,8 @@ function thenable(getPromise) {
     eq: vi.fn(() => builder),
     in: vi.fn(() => builder),
     order: vi.fn(() => builder),
+    range: vi.fn(() => builder),
+    maybeSingle: vi.fn(() => getPromise()),
     then: (onFulfilled, onRejected) => getPromise().then(onFulfilled, onRejected),
   };
   return builder;
@@ -94,46 +98,75 @@ describe("loadCurationQueue", () => {
     invalidateCurationQueueCache();
   });
 
-  it("busca pending e depois moderation e rejected em paralelo; reviews vêm na sequência", async () => {
-    const promiseAll = vi.spyOn(Promise, "all");
-    const wave2 = mockQueueClient({
+  it("página pendente usa campos enxutos e só então consulta moderação dos ids da página", async () => {
+    mockQueueClient({
       pending: [PENDING_JOB],
       moderation: [{ id: "job-1" }],
-      reviews: [{ job_id: "job-1", curation_round: 1, decision: "approve" }],
-      rejected: [{ id: "job-r", status: "rejected", title: "Rejeitada" }],
     });
 
-    const result = await loadCurationQueue({ includeRejected: true });
+    const result = await loadCurationQueue();
 
-    expect(promiseAll).toHaveBeenCalledTimes(1);
-    expect(promiseAll.mock.calls[0][0]).toHaveLength(2);
-    expect(wave2.max).toBe(2);
-    expect(wave2.labels.filter((label) => label !== "reviews").sort()).toEqual(["moderation", "rejected"]);
-
-    const reviewsBuilder = fromMock.mock.results.find((_, index) => fromMock.mock.calls[index][0] === "job_curation_reviews")
-      ?.value;
-    expect(reviewsBuilder.in).toHaveBeenCalledWith("job_id", ["job-1", "job-r"]);
-    expect(result.queue).toHaveLength(1);
-    expect(result.queue[0].needsModeration).toBe(true);
-    expect(result.rejected).toHaveLength(1);
-    expect(result.reviews).toHaveLength(1);
-
-    promiseAll.mockRestore();
-  });
-
-  it("não busca rejected nem a tabela inteira de reviews quando a fila está vazia e o caller não é admin", async () => {
-    const wave2 = mockQueueClient({ pending: [] });
-
-    const result = await loadCurationQueue({ includeRejected: false });
-
-    expect(fromMock).toHaveBeenCalledWith("jobs");
+    const jobsBuilder = fromMock.mock.results.find((_, index) => fromMock.mock.calls[index][0] === "jobs")?.value;
+    expect(jobsBuilder.select.mock.calls[0][0]).not.toMatch(/\bdescription\b|\bstack\b/);
+    expect(jobsBuilder.order).toHaveBeenNthCalledWith(1, "priority", { ascending: false, nullsFirst: false });
+    expect(jobsBuilder.range).toHaveBeenCalledWith(0, CURATION_QUEUE_PAGE_SIZE);
     expect(fromMock).toHaveBeenCalledWith("jobs_needing_moderation");
     expect(fromMock.mock.calls.some((call) => call[0] === "job_curation_reviews")).toBe(false);
+    const moderationBuilder = fromMock.mock.results.find(
+      (_, index) => fromMock.mock.calls[index][0] === "jobs_needing_moderation",
+    )?.value;
+    expect(moderationBuilder.in).toHaveBeenCalledWith("id", ["job-1"]);
+    expect(result.queue).toHaveLength(1);
+    expect(result.queue[0].needsModeration).toBe(true);
+    expect(result.rejected).toEqual([]);
+    expect(result.hasNext).toBe(false);
+  });
+
+  it("não consulta moderação, rejeitadas nem pareceres quando a página pendente vem vazia", async () => {
+    mockQueueClient({ pending: [] });
+
+    const result = await loadCurationQueue();
+
+    expect(fromMock).toHaveBeenCalledWith("jobs");
+    expect(fromMock).not.toHaveBeenCalledWith("jobs_needing_moderation");
+    expect(fromMock.mock.calls.some((call) => call[0] === "job_curation_reviews")).toBe(false);
     expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
-    expect(wave2.labels).toEqual(["moderation"]);
     expect(result.queue).toEqual([]);
     expect(result.rejected).toEqual([]);
-    expect(result.reviews).toEqual([]);
+    expect(result.hasNext).toBe(false);
+  });
+
+  it("rejeitadas paginam sem moderação e sem pareceres", async () => {
+    mockQueueClient({
+      rejected: [{ id: "job-r", status: "rejected", title: "Rejeitada", created_at: "2026-09-01T00:00:00Z" }],
+    });
+
+    const result = await loadCurationQueue({ scope: "rejected" });
+
+    expect(fromMock).not.toHaveBeenCalledWith("jobs_needing_moderation");
+    expect(fromMock.mock.calls.some((call) => call[0] === "job_curation_reviews")).toBe(false);
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
+    const jobsBuilder = fromMock.mock.results[0].value;
+    expect(jobsBuilder.eq).toHaveBeenCalledWith("status", "rejected");
+    expect(result.rejected).toHaveLength(1);
+    expect(result.queue).toEqual([]);
+  });
+
+  it("sinaliza próxima página quando a consulta devolve um item além do limite", async () => {
+    const pending = Array.from({ length: CURATION_QUEUE_PAGE_SIZE + 1 }, (_, index) => ({
+      ...PENDING_JOB,
+      id: `job-${index}`,
+    }));
+    mockQueueClient({ pending });
+
+    const result = await loadCurationQueue();
+
+    expect(result.queue).toHaveLength(CURATION_QUEUE_PAGE_SIZE);
+    expect(result.hasNext).toBe(true);
+    const moderationBuilder = fromMock.mock.results.find(
+      (_, index) => fromMock.mock.calls[index][0] === "jobs_needing_moderation",
+    )?.value;
+    expect(moderationBuilder.in.mock.calls[0][1]).toHaveLength(CURATION_QUEUE_PAGE_SIZE);
   });
 
   it("reusa o cache na segunda chamada dentro do TTL", async () => {
@@ -165,9 +198,6 @@ describe("loadCurationQueue", () => {
       if (table === "jobs_needing_moderation") {
         return thenable(() => Promise.resolve({ data: [], error: null }));
       }
-      if (table === "job_curation_reviews") {
-        return thenable(() => Promise.resolve({ data: [], error: null }));
-      }
       throw new Error(`tabela inesperada: ${table}`);
     });
 
@@ -187,5 +217,48 @@ describe("loadCurationQueue", () => {
     const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + CURATION_QUEUE_CACHE_TTL_MS + 1);
     expect(peekCurationQueueCache()).toBeNull();
     nowSpy.mockRestore();
+  });
+});
+
+describe("loadCurationJobDetail", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    invalidateCurationQueueCache();
+  });
+
+  it("busca descrição, stack e pareceres só da vaga aberta", async () => {
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        const eq = vi.fn(() => ({
+          maybeSingle: vi.fn(async () => ({
+            data: { id: "job-1", description: "Texto", stack: ["React"] },
+            error: null,
+          })),
+        }));
+        const select = vi.fn(() => ({ eq }));
+        return { select };
+      }
+      if (table === "job_curation_reviews") {
+        const order = vi.fn(async () => ({
+          data: [{ job_id: "job-1", decision: "approve", created_at: "2026-09-07T12:00:00Z" }],
+          error: null,
+        }));
+        const eq = vi.fn(() => ({ order }));
+        const select = vi.fn(() => ({ eq }));
+        return { select };
+      }
+      throw new Error(`tabela inesperada: ${table}`);
+    });
+
+    const detail = await loadCurationJobDetail("job-1");
+    const jobsSelect = fromMock.mock.results[0].value.select.mock.calls[0][0];
+    expect(jobsSelect).toMatch(/description/);
+    expect(jobsSelect).toMatch(/stack/);
+    expect(fromMock.mock.results[1].value.select.mock.results[0].value.eq).toHaveBeenCalledWith("job_id", "job-1");
+    expect(detail.description).toBe("Texto");
+    expect(detail.reviews).toHaveLength(1);
+
+    await loadCurationJobDetail("job-1");
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
   });
 });

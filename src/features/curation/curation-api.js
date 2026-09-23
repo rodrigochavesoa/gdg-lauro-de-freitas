@@ -5,8 +5,15 @@ import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
-const JOB_FIELDS =
-  "id,title,status,priority,priority_reason,curation_round,submitted_by,description,stack,level,work_model,location,created_at,rejected_at,companies(name)";
+export const CURATION_QUEUE_PAGE_SIZE = 24;
+
+const CURATION_LIST_FIELDS =
+  "id,title,status,priority,curation_round,level,work_model,location,created_at,companies(name)";
+
+const CURATION_DETAIL_FIELDS = "id,description,stack";
+
+const CURATION_REVIEW_FIELDS =
+  "job_id,curation_round,reviewer_id,decision,rubric_code,internal_comment,created_at";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -63,77 +70,132 @@ export const CURATION_QUEUE_CACHE_TTL_MS = 30_000;
 
 const curationQueueCache = new Map();
 const curationQueueInflight = new Map();
+const curationDetailCache = new Map();
+const curationDetailInflight = new Map();
 
-function queueCacheKey(includeRejected) {
-  return includeRejected ? "with-rejected" : "pending-only";
+function normalizePage(page) {
+  const n = Number.parseInt(page, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function normalizePageSize(pageSize) {
+  const n = Number.parseInt(pageSize, 10);
+  if (!Number.isFinite(n) || n <= 0) return CURATION_QUEUE_PAGE_SIZE;
+  return Math.min(n, CURATION_QUEUE_PAGE_SIZE);
+}
+
+function queueCacheKey({ scope, page, pageSize }) {
+  return `${scope}:${page}:${pageSize}`;
 }
 
 export function invalidateCurationQueueCache() {
   curationQueueCache.clear();
   curationQueueInflight.clear();
+  curationDetailCache.clear();
+  curationDetailInflight.clear();
 }
 
-export function peekCurationQueueCache({ includeRejected = false } = {}) {
-  const entry = curationQueueCache.get(queueCacheKey(includeRejected));
+export function peekCurationQueueCache({
+  scope = "pending",
+  page = 1,
+  pageSize = CURATION_QUEUE_PAGE_SIZE,
+} = {}) {
+  const entry = curationQueueCache.get(
+    queueCacheKey({ scope, page: normalizePage(page), pageSize: normalizePageSize(pageSize) }),
+  );
   if (!entry) return null;
   if (Date.now() - entry.fetchedAt > CURATION_QUEUE_CACHE_TTL_MS) return null;
   return entry.data;
 }
 
-async function fetchCurationQueue({ includeRejected = false } = {}) {
-  const client = clientOrThrow();
+function sliceCurationPage(rows, pageSize) {
+  const hasNext = rows.length > pageSize;
+  return { rows: hasNext ? rows.slice(0, pageSize) : rows, hasNext };
+}
+
+async function fetchPendingPage(client, page, pageSize) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize;
   const pending = await client
     .from("jobs")
-    .select(JOB_FIELDS)
-    .eq("status", "pending");
+    .select(CURATION_LIST_FIELDS)
+    .eq("status", "pending")
+    .order("priority", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: true })
+    .range(from, to);
   throwIfError(pending.error);
 
-  const pendingRows = pending.data ?? [];
-  const pendingIds = pendingRows.map((row) => row.id);
-  const rejectedQuery = includeRejected
-    ? client
-        .from("jobs")
-        .select(JOB_FIELDS)
-        .eq("status", "rejected")
-        .order("rejected_at", { ascending: false })
-    : Promise.resolve({ data: [], error: null });
+  const sliced = sliceCurationPage(pending.data ?? [], pageSize);
+  let moderationIds = [];
+  if (sliced.rows.length > 0) {
+    const moderation = await client
+      .from("jobs_needing_moderation")
+      .select("id")
+      .in(
+        "id",
+        sliced.rows.map((row) => row.id),
+      );
+    throwIfError(moderation.error);
+    moderationIds = (moderation.data ?? []).map((row) => row.id);
+  }
 
-  const [moderation, rejected] = await Promise.all([
-    client.from("jobs_needing_moderation").select("id"),
-    rejectedQuery,
-  ]);
-  throwIfError(moderation.error);
-  throwIfError(rejected.error);
-
-  const rejectedRows = rejected.data ?? [];
-  const reviewJobIds = [...new Set([...pendingIds, ...rejectedRows.map((row) => row.id)])];
-  const reviews = reviewJobIds.length
-    ? await client
-        .from("job_curation_reviews")
-        .select("job_id,curation_round,reviewer_id,decision,rubric_code,internal_comment,created_at")
-        .in("job_id", reviewJobIds)
-        .order("created_at", { ascending: true })
-    : { data: [], error: null };
-  throwIfError(reviews.error);
-
-  const moderationIds = (moderation.data ?? []).map((row) => row.id);
   return {
-    queue: mergeCurationQueue(pendingRows, moderationIds),
-    rejected: rejectedRows,
-    reviews: reviews.data ?? [],
+    queue: mergeCurationQueue(sliced.rows, moderationIds),
+    rejected: [],
+    page,
+    pageSize,
+    hasNext: sliced.hasNext,
   };
 }
 
-export async function loadCurationQueue({ includeRejected = false, forceRefresh = false } = {}) {
-  const key = queueCacheKey(includeRejected);
+async function fetchRejectedPage(client, page, pageSize) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize;
+  const rejected = await client
+    .from("jobs")
+    .select(CURATION_LIST_FIELDS)
+    .eq("status", "rejected")
+    .order("rejected_at", { ascending: false, nullsFirst: false })
+    .order("id", { ascending: true })
+    .range(from, to);
+  throwIfError(rejected.error);
+  const sliced = sliceCurationPage(rejected.data ?? [], pageSize);
+  return {
+    queue: [],
+    rejected: sliced.rows,
+    page,
+    pageSize,
+    hasNext: sliced.hasNext,
+  };
+}
+
+async function fetchCurationQueue({ scope = "pending", page = 1, pageSize = CURATION_QUEUE_PAGE_SIZE } = {}) {
+  const client = clientOrThrow();
+  if (scope === "rejected") return fetchRejectedPage(client, page, pageSize);
+  return fetchPendingPage(client, page, pageSize);
+}
+
+export async function loadCurationQueue({
+  scope = "pending",
+  page = 1,
+  pageSize = CURATION_QUEUE_PAGE_SIZE,
+  forceRefresh = false,
+} = {}) {
+  const params = {
+    scope: scope === "rejected" ? "rejected" : "pending",
+    page: normalizePage(page),
+    pageSize: normalizePageSize(pageSize),
+  };
+  const key = queueCacheKey(params);
   if (!forceRefresh) {
-    const cached = peekCurationQueueCache({ includeRejected });
+    const cached = peekCurationQueueCache(params);
     if (cached) return cached;
     const inflight = curationQueueInflight.get(key);
     if (inflight) return inflight;
   }
 
-  const request = fetchCurationQueue({ includeRejected });
+  const request = fetchCurationQueue(params);
   curationQueueInflight.set(key, request);
   try {
     const data = await request;
@@ -141,6 +203,46 @@ export async function loadCurationQueue({ includeRejected = false, forceRefresh 
     return data;
   } finally {
     if (curationQueueInflight.get(key) === request) curationQueueInflight.delete(key);
+  }
+}
+
+async function fetchCurationJobDetail(jobId) {
+  const client = clientOrThrow();
+  const [job, reviews] = await Promise.all([
+    client.from("jobs").select(CURATION_DETAIL_FIELDS).eq("id", jobId).maybeSingle(),
+    client
+      .from("job_curation_reviews")
+      .select(CURATION_REVIEW_FIELDS)
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: true }),
+  ]);
+  throwIfError(job.error);
+  throwIfError(reviews.error);
+  return {
+    id: jobId,
+    description: job.data?.description ?? "",
+    stack: job.data?.stack ?? [],
+    reviews: reviews.data ?? [],
+  };
+}
+
+export async function loadCurationJobDetail(jobId, { forceRefresh = false } = {}) {
+  if (!jobId) throw new Error("Vaga para detalhe não informada.");
+  if (!forceRefresh) {
+    const cached = curationDetailCache.get(jobId);
+    if (cached && Date.now() - cached.fetchedAt <= CURATION_QUEUE_CACHE_TTL_MS) return cached.data;
+    const inflight = curationDetailInflight.get(jobId);
+    if (inflight) return inflight;
+  }
+
+  const request = fetchCurationJobDetail(jobId);
+  curationDetailInflight.set(jobId, request);
+  try {
+    const data = await request;
+    curationDetailCache.set(jobId, { data, fetchedAt: Date.now() });
+    return data;
+  } finally {
+    if (curationDetailInflight.get(jobId) === request) curationDetailInflight.delete(jobId);
   }
 }
 

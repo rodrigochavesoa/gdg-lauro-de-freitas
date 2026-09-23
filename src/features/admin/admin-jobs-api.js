@@ -139,6 +139,8 @@ function mapAdminJobListItem(row) {
 /**
  * Página enxuta para /admin/vagas.
  * Sem description, sem job_curation_reviews — o detalhe usa loadAdminJob(id).
+ * `count: "exact"` permanece neste contrato. Índice novo só depois de EXPLAIN
+ * com volume representativo e aprovação do Plan.
  */
 export async function loadAdminJobPage(options = {}) {
   const params = normalizeAdminJobPageParams(options);
