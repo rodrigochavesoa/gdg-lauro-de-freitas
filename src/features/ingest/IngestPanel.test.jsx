@@ -65,10 +65,15 @@ describe("IngestPanel", () => {
     });
     render(<IngestPanel />);
     expect(await screen.findByText("Nenhuma ingestão registrada.")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Localizador")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Nova fixture" }));
+    expect(screen.getByLabelText("Localizador")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ingerir fixture (pendente)" }));
     await waitFor(() => expect(processJobIngestion).toHaveBeenCalled());
     expect(screen.getByText(/Vaga pendente de curadoria · Pessoa Dev Front-end/)).toBeInTheDocument();
-    expect(screen.getByText("Vaga: pending")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ver detalhes" }));
+    expect(screen.getByText("pending")).toBeInTheDocument();
+    expect(screen.getByText(/Localizador:/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reprocessar" }));
     await waitFor(() => expect(processJobIngestion).toHaveBeenCalledTimes(2));
   });

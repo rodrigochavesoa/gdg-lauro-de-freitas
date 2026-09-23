@@ -115,7 +115,7 @@ export function AdminJobFormRoute() {
       <div className="admin-title">
         <div>
           <span className="eyebrow">Área administrativa</span>
-          <h1>Publicar nova vaga</h1>
+          <h1>Nova vaga</h1>
           <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
         </div>
       </div>
@@ -278,10 +278,10 @@ export function AdminJobFormRoute() {
           <button type="button" className="ghost" disabled={busy || !editingId} onClick={() => persist(true)}>
             Salvar rascunho
           </button>
-          <button className="primary" type="submit" disabled={busy} aria-label="Cadastrar para curadoria">
+          <button className="primary" type="submit" disabled={busy} aria-label="Enviar à curadoria">
             <Plus size={17} />
-            <span className="hide-mobile">Cadastrar para curadoria</span>
-            <span className="job-form-submit-mobile">Cadastrar vaga</span>
+            <span className="hide-mobile">Enviar à curadoria</span>
+            <span className="job-form-submit-mobile">Enviar à curadoria</span>
           </button>
         </div>
       </form>

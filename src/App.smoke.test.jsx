@@ -537,7 +537,10 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(document.querySelector(".admin-side")).toBeNull();
     expect(document.querySelector("form.admin-auth-form")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Ir para a página inicial" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Contexto atual")).toHaveTextContent("Administração");
+    fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
+    expect(within(document.getElementById("mobile-navigation")).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
   });
 
   it("abre o menu mobile com os destinos existentes", async () => {
@@ -607,7 +610,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(tabs).getByRole("link", { name: "Vagas" })).toHaveAttribute("href", "/admin/vagas");
     fireEvent.click(within(tabs).getByRole("link", { name: "Ingestão" }));
     expect(await screen.findByRole("heading", { name: "Ingestão" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ingerir fixture (pendente)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nova fixture" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ingerir fixture (pendente)" })).not.toBeInTheDocument();
     fireEvent.click(within(tabs).getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
   });
@@ -625,7 +629,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     authState.needsOnboarding = false;
     await renderAt("/admin/vagas/nova");
     expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Publicar nova vaga" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nova vaga" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("curation-queue")).not.toBeInTheDocument();
   });
 

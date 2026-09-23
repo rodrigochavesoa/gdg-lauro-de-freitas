@@ -1,6 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import React from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as avatarCrop from "../../features/auth/avatar-crop.js";
 import { Header } from "./Header.jsx";
@@ -56,7 +58,10 @@ describe("Header", () => {
   it("anon em /admin não mostra CTAs de auth no Header e reserva slot do CTA", () => {
     renderHeader({ logged: false, path: "/admin" });
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
+    expect(screen.getByRole("link", { name: "Ir para a página inicial" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Contexto atual")).toHaveTextContent("Administração");
+    expect(document.querySelector(".topbar-center nav")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
     const spacer = document.querySelector(".nav-actions__spacer");
     expect(spacer).toBeTruthy();
     expect(spacer).toHaveAttribute("aria-hidden", "true");
@@ -64,6 +69,7 @@ describe("Header", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(within(mobile).queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Área admin" })).toHaveAttribute("href", "/admin");
   });
 
   it("anon em /admin/curadoria também reserva o CTA e não mostra login de candidato", () => {
@@ -495,7 +501,7 @@ describe("Header", () => {
     expect(within(mobile).queryByRole("link", { name: "Privacidade" })).not.toBeInTheDocument();
   });
 
-  it("staff em /admin no drawer compacto lista seções da administração e mantém Área admin", () => {
+  it("staff em /admin no drawer compacto lista seções sem repetir Área admin", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({
       matches: String(query).includes("1024"),
@@ -520,12 +526,11 @@ describe("Header", () => {
         "Painel",
         "Curadoria",
         "Vagas",
-        "Publicar",
+        "Nova vaga",
         "Ingestão",
         "Vagas",
         "Eventos",
         "Newsletter",
-        "Área admin",
       ]);
       fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
       expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
@@ -535,20 +540,20 @@ describe("Header", () => {
     }
   });
 
-  it("staff em /admin no desktop mantém Área admin na nav principal", () => {
+  it("staff em /admin no desktop mostra Administração e esconde a nav pública", () => {
     renderHeader({
       logged: true,
       displayName: "Ada Admin",
       role: "admin",
       path: "/admin/curadoria",
     });
-    const desktopNav = document.querySelector(".topbar nav");
-    const areaAdmin = within(desktopNav).getByRole("link", { name: "Área admin" });
-    expect(areaAdmin).toHaveAttribute("href", "/admin");
-    expect(areaAdmin).toHaveAttribute("aria-current", "page");
+    expect(screen.getByLabelText("Contexto atual")).toHaveTextContent("Administração");
+    expect(document.querySelector(".topbar-center nav")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
   });
 
-  it("em /admin/vagas/nova no drawer marca só Publicar, não Vagas", () => {
+  it("em /admin/vagas/nova no drawer marca só Nova vaga, não Vagas", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({
       matches: String(query).includes("1024"),
@@ -568,7 +573,7 @@ describe("Header", () => {
       fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
       const mobile = document.getElementById("mobile-navigation");
       const adminSection = mobile.querySelector(".mobile-nav__admin");
-      expect(within(adminSection).getByRole("link", { name: "Publicar" })).toHaveClass("active");
+      expect(within(adminSection).getByRole("link", { name: "Nova vaga" })).toHaveClass("active");
       expect(within(adminSection).getByRole("link", { name: "Vagas" })).not.toHaveClass("active");
     } finally {
       window.matchMedia = originalMatchMedia;
@@ -597,7 +602,7 @@ describe("Header", () => {
       const adminSection = mobile.querySelector(".mobile-nav__admin");
       const adminLinks = within(adminSection).getAllByRole("link");
       expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
-      expect(within(adminSection).queryByRole("link", { name: "Publicar" })).not.toBeInTheDocument();
+      expect(within(adminSection).queryByRole("link", { name: "Nova vaga" })).not.toBeInTheDocument();
     } finally {
       window.matchMedia = originalMatchMedia;
     }
@@ -681,6 +686,64 @@ describe("Header", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(document.getElementById("mobile-navigation")).toBeNull();
     expect(avatarButton).toHaveFocus();
+  });
+
+  it("mantém marca, três colunas e cluster direito ao ir de /admin para /vagas", () => {
+    render(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Header logged displayName="Ada Admin" {...{ role: "admin" }} />
+        <LocationProbe />
+        <Routes>
+          <Route path="/admin" element={<main className="admin-workspace">Painel</main>} />
+          <Route path="/vagas" element={<main>Catálogo</main>} />
+        </Routes>
+        <Link to="/vagas">Ir para vagas</Link>
+      </MemoryRouter>,
+    );
+
+    const row = document.querySelector(".topbar .nav");
+    const [brandSlot, centerSlot, actionsSlot] = [...row.children];
+    expect(brandSlot).toHaveClass("brand");
+    expect(centerSlot).toHaveClass("topbar-center");
+    expect(actionsSlot).toHaveClass("nav-actions");
+    expect(brandSlot).toHaveAttribute("href", "/");
+    expect(within(centerSlot).getByLabelText("Contexto atual")).toHaveTextContent("Administração");
+    expect(centerSlot.querySelector("nav")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
+    const notifySlot = actionsSlot.querySelector(".nav-actions__notify-slot");
+    expect(notifySlot).toHaveAttribute("aria-hidden", "true");
+    const adminActionsBox = actionsSlot.getBoundingClientRect();
+
+    fireEvent.click(screen.getByRole("link", { name: "Ir para vagas" }));
+    expect(screen.getByTestId("pathname")).toHaveTextContent("/vagas");
+    const nextRow = document.querySelector(".topbar .nav");
+    const [nextBrand, nextCenter, nextActions] = [...nextRow.children];
+    expect(nextBrand).toHaveClass("brand");
+    expect(nextCenter).toHaveClass("topbar-center");
+    expect(nextActions).toHaveClass("nav-actions");
+    expect(nextActions).toBe(actionsSlot);
+    expect(nextBrand).toBe(brandSlot);
+    expect(nextCenter).toBe(centerSlot);
+    expect(screen.queryByLabelText("Contexto atual")).not.toBeInTheDocument();
+    expect(nextCenter.querySelector("nav")).not.toHaveAttribute("aria-hidden");
+    expect(within(nextCenter).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
+    expect(within(nextCenter).getByRole("link", { name: "Eventos" })).toBeInTheDocument();
+    expect(within(nextCenter).getByRole("link", { name: "Newsletter" })).toBeInTheDocument();
+    expect(nextActions.getBoundingClientRect().x).toBe(adminActionsBox.x);
+  });
+
+  it("não esconde a marca no admin desktop nem empurra o cluster com flex-end", () => {
+    const css = readFileSync(resolve("src/styles.css"), "utf8");
+    expect(css).toMatch(/\.nav\{display:grid;grid-template-columns:max-content minmax\(0,1fr\) max-content/);
+    expect(css).toMatch(/html\{scrollbar-gutter:stable\}/);
+    expect(css).toMatch(/\.topbar-center--admin nav\{visibility:hidden/);
+    expect(css).toMatch(/\.brand\{grid-column:1;/);
+    expect(css).toMatch(/\.topbar-center\{grid-column:2;/);
+    expect(css).toMatch(/\.nav-actions\{grid-column:3;/);
+    expect(css).toMatch(/\.nav-actions__notify-slot\{/);
+    expect(css).not.toMatch(/body:has\(\.admin-workspace\) \.topbar \.brand/);
+    expect(css).not.toMatch(/body:has\(\.admin-workspace\) \.topbar>\.nav\{justify-content:flex-end\}/);
+    expect(css).not.toMatch(/\.topbar-context\{display:none/);
   });
 });
 

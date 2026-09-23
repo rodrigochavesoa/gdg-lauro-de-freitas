@@ -310,7 +310,7 @@ export function Header({
       {mobileAccountSection(onNavigate)}
       {mobileAdminNavSection(onNavigate)}
       {baseNavLinks(onNavigate)}
-      {staffAdminLink(onNavigate)}
+      {showMobileAdminNav ? null : staffAdminLink(onNavigate)}
     </>
   );
 
@@ -327,10 +327,14 @@ export function Header({
           <span className="brand-mark"><img src="/favicon.svg" alt="" /></span>
           <span className="brand-name">GDG <span className="brand-accent">Jobs</span></span>
         </Link>
-        <nav aria-label="Principal">
-          {desktopNavLinks}
-        </nav>
+        <div className={inAdminArea ? "topbar-center topbar-center--admin" : "topbar-center"}>
+          <nav aria-label="Principal" aria-hidden={inAdminArea ? "true" : undefined} inert={inAdminArea || undefined}>
+            {desktopNavLinks}
+          </nav>
+          {inAdminArea ? <span className="topbar-context" aria-label="Contexto atual">Administração</span> : null}
+        </div>
         <div className="nav-actions">
+          <span className="nav-actions__notify-slot" aria-hidden="true" />
           <ThemeToggle className="hide-mobile" />
           {logged ? (
             <>

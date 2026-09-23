@@ -127,7 +127,9 @@ describe("CurationQueue", () => {
     expect(screen.queryByText("Curador Homolog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Histórico de pareceres (0)"));
     expect(screen.getByText("Ainda sem parecer nesta vaga.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Iniciar parecer" }));
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Enviar parecer/i })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /Aprovar/i })).toHaveAttribute("name", "decision");
@@ -136,6 +138,33 @@ describe("CurationQueue", () => {
     expect(screen.getByLabelText("Comentário interno (opcional)")).toHaveAttribute("name", "comment");
     const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
     expect(unnamed).toEqual([]);
+  });
+});
+
+describe("CurationQueue Sprint 20A", () => {
+  beforeEach(() => {
+    loadCurationQueue.mockReset();
+    loadCurationQueue.mockResolvedValue({
+      ...queuePayload,
+      rejected: [{ ...queuePayload.queue[0], id: "rejected-1", title: "Vaga rejeitada", priority: "normal" }],
+    });
+    peekCurationQueueCache.mockReset();
+    peekCurationQueueCache.mockReturnValue(null);
+  });
+
+  it("admin encontra rejeitadas em filtro e o reenvio no detalhe, sem formulário de parecer", async () => {
+    render(<CurationQueue includeRejected profile={adminProfile} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas 1/ }));
+    expect(screen.getByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reenviar para curadoria" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
+  });
+
+  it("curator não recebe a vista de rejeitadas nem prioridade admin", async () => {
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" });
+    expect(screen.queryByRole("button", { name: /Rejeitadas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Marcar urgente" })).not.toBeInTheDocument();
   });
 });
 
