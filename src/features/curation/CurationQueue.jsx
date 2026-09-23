@@ -32,9 +32,9 @@ function mergeById(current, incoming) {
   return [...current, ...incoming.filter((row) => !seen.has(String(row.id)))];
 }
 
-/** Sem seleção, abre a primeira vaga. Seleção que saiu da lista não cai na próxima. */
+/** Sem id explícito, não abre detalhe. Id que saiu da lista não cai na próxima vaga. */
 function resolveCurationSelection(visibleJobs, selectedId) {
-  if (!selectedId) return visibleJobs[0] ?? null;
+  if (!selectedId) return null;
   return visibleJobs.find((job) => job.id === selectedId) ?? null;
 }
 
@@ -63,6 +63,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [showReview, setShowReview] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [detailEpoch, setDetailEpoch] = useState(0);
+  const [detailJobId, setDetailJobId] = useState("");
   const [detailStatus, setDetailStatus] = useState("idle");
   const [detailError, setDetailError] = useState("");
   const [detailDescription, setDetailDescription] = useState("");
@@ -135,17 +136,23 @@ export function CurationQueue({ profile, includeRejected = false }) {
 
   const visibleJobs = view === "rejected" ? rejected : queue;
   const selected = resolveCurationSelection(visibleJobs, selectedId);
-  const [detailJobId, setDetailJobId] = useState("");
-  if ((selected?.id ?? "") !== detailJobId) {
-    setDetailJobId(selected?.id ?? "");
-    setDetailStatus(selected?.id ? "loading" : "idle");
-    setDetailError("");
-  }
+  const detailForSelection = Boolean(selected) && detailJobId === selected.id;
+  const detailReady = detailForSelection && detailStatus === "ready";
+  const detailFailed = detailForSelection && detailStatus === "error";
+  const detailLoading = Boolean(selected) && !detailReady && !detailFailed;
+
+  useEffect(() => {
+    if (!selectedId || selected) return;
+    setSelectedId("");
+    setDetailOpen(false);
+    setShowReview(false);
+  }, [selected, selectedId]);
 
   useEffect(() => {
     const jobId = selected?.id;
     if (!jobId) return undefined;
     let cancelled = false;
+    setDetailJobId(jobId);
     setDetailStatus("loading");
     setDetailError("");
     loadCurationJobDetail(jobId, { forceRefresh: detailEpoch > 0 })
@@ -292,15 +299,15 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <div className="form-section">
             <h2>{selected.title}</h2>
             <p className="company-name">{selected.companies?.name}</p>
-            {detailStatus === "loading" ? <p role="status">Carregando detalhes da vaga…</p> : null}
-            {detailStatus === "error" ? <p role="alert">{detailError}</p> : null}
-            {detailStatus === "ready" && detailJobId === selected.id ? <p>{detailDescription}</p> : null}
+            {detailLoading ? <p role="status">Carregando detalhes da vaga…</p> : null}
+            {detailFailed ? <p role="alert">{detailError}</p> : null}
+            {detailReady ? <p>{detailDescription}</p> : null}
             <p>
               {LEVEL_LABEL[selected.level] ?? selected.level} ·{" "}
               {MODEL_LABEL[selected.work_model] ?? selected.work_model}
               {selected.location ? ` · ${selected.location}` : ""}
             </p>
-            {detailStatus === "ready" && detailJobId === selected.id ? (
+            {detailReady ? (
               <div className="tags">
                 {detailStack.map((item) => (
                   <span key={item}>{item}</span>
@@ -308,9 +315,9 @@ export function CurationQueue({ profile, includeRejected = false }) {
               </div>
             ) : null}
             <details className="curation-workspace__history">
-              <summary>Histórico de pareceres{detailStatus === "ready" && detailJobId === selected.id ? ` (${detailReviews.length})` : ""}</summary>
-              {detailStatus === "loading" || detailJobId !== selected.id ? <p role="status">Carregando pareceres…</p> : null}
-              {detailStatus === "ready" && detailJobId === selected.id ? <CurationTimeline reviews={detailReviews} /> : null}
+              <summary>Histórico de pareceres{detailReady ? ` (${detailReviews.length})` : ""}</summary>
+              {detailLoading ? <p role="status">Carregando pareceres…</p> : null}
+              {detailReady ? <CurationTimeline reviews={detailReviews} /> : null}
             </details>
           </div>
           {view === "pending" && !showReview ? <div className="curation-workspace__review-entry">
