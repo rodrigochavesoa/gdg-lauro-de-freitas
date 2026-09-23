@@ -60,7 +60,8 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Entrar ou criar conta" })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Ir para a página inicial" })).toBeInTheDocument();
     expect(screen.getByLabelText("Contexto atual")).toHaveTextContent("Administração");
-    expect(document.querySelector(".topbar-center nav")).toBeNull();
+    expect(document.querySelector(".topbar-center nav")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
     const spacer = document.querySelector(".nav-actions__spacer");
     expect(spacer).toBeTruthy();
     expect(spacer).toHaveAttribute("aria-hidden", "true");
@@ -547,7 +548,7 @@ describe("Header", () => {
       path: "/admin/curadoria",
     });
     expect(screen.getByLabelText("Contexto atual")).toHaveTextContent("Administração");
-    expect(document.querySelector(".topbar-center nav")).toBeNull();
+    expect(document.querySelector(".topbar-center nav")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
   });
@@ -707,7 +708,8 @@ describe("Header", () => {
     expect(actionsSlot).toHaveClass("nav-actions");
     expect(brandSlot).toHaveAttribute("href", "/");
     expect(within(centerSlot).getByLabelText("Contexto atual")).toHaveTextContent("Administração");
-    expect(centerSlot.querySelector("nav")).toBeNull();
+    expect(centerSlot.querySelector("nav")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("link", { name: "Newsletter" })).not.toBeInTheDocument();
     const notifySlot = actionsSlot.querySelector(".nav-actions__notify-slot");
     expect(notifySlot).toHaveAttribute("aria-hidden", "true");
     const adminActionsBox = actionsSlot.getBoundingClientRect();
@@ -720,7 +722,10 @@ describe("Header", () => {
     expect(nextCenter).toHaveClass("topbar-center");
     expect(nextActions).toHaveClass("nav-actions");
     expect(nextActions).toBe(actionsSlot);
+    expect(nextBrand).toBe(brandSlot);
+    expect(nextCenter).toBe(centerSlot);
     expect(screen.queryByLabelText("Contexto atual")).not.toBeInTheDocument();
+    expect(nextCenter.querySelector("nav")).not.toHaveAttribute("aria-hidden");
     expect(within(nextCenter).getByRole("link", { name: "Vagas" })).toBeInTheDocument();
     expect(within(nextCenter).getByRole("link", { name: "Eventos" })).toBeInTheDocument();
     expect(within(nextCenter).getByRole("link", { name: "Newsletter" })).toBeInTheDocument();
@@ -729,7 +734,9 @@ describe("Header", () => {
 
   it("não esconde a marca no admin desktop nem empurra o cluster com flex-end", () => {
     const css = readFileSync(resolve("src/styles.css"), "utf8");
-    expect(css).toMatch(/\.nav\{display:grid;grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(0,1fr\)/);
+    expect(css).toMatch(/\.nav\{display:grid;grid-template-columns:max-content minmax\(0,1fr\) max-content/);
+    expect(css).toMatch(/html\{scrollbar-gutter:stable\}/);
+    expect(css).toMatch(/\.topbar-center--admin nav\{visibility:hidden/);
     expect(css).toMatch(/\.brand\{grid-column:1;/);
     expect(css).toMatch(/\.topbar-center\{grid-column:2;/);
     expect(css).toMatch(/\.nav-actions\{grid-column:3;/);
