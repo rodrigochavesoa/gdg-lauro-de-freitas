@@ -831,8 +831,8 @@ describe("Header crop dialog", () => {
     fireEvent.click(within(document.getElementById("mobile-navigation")).getByRole("button", { name: "Alterar foto" }));
     expect(document.getElementById("mobile-navigation")).toBeNull();
     await pickAvatar();
-    fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => {
+      fireEvent.keyDown(document, { key: "Escape" });
       expect(screen.queryByRole("dialog", { name: "Recortar foto" })).not.toBeInTheDocument();
     });
     expect(document.getElementById("mobile-navigation")).toBeNull();
