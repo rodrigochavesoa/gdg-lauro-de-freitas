@@ -11,6 +11,7 @@ import {
 import { RUBRIC_OPTIONS } from "./rubric.js";
 import { CurationTimeline } from "./CurationTimeline.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
+import { CurationPriorityControls } from "./CurationPriorityControls.jsx";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -151,6 +152,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setSelectedId(job.id);
                 setMessage("");
                 setError("");
+                setPriorityReason("");
               }}
             >
               {job.priority === "urgent" && <span className="featured">Urgente</span>}
@@ -240,47 +242,25 @@ export function CurationQueue({ profile, includeRejected = false }) {
             </div>
           </div>
           {isAdmin && (
-            <div className="form-section">
-              <h2>Prioridade (admin)</h2>
-              <label className="wide">
-                Motivo interno para urgente
-                <input
-                  id="curation-priority-reason"
-                  name="priorityReason"
-                  value={priorityReason}
-                  onChange={(event) => setPriorityReason(event.target.value)}
-                  placeholder="Obrigatório ao marcar urgente"
-                />
-              </label>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={busy}
-                  onClick={() =>
-                    run(
-                      () => setJobCurationPriority(selected.id, "normal", ""),
-                      "Prioridade definida como normal.",
-                    )
-                  }
-                >
-                  Normal
-                </button>
-                <button
-                  type="button"
-                  className="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(
-                      () => setJobCurationPriority(selected.id, "urgent", priorityReason),
-                      "Prioridade urgente registrada.",
-                    )
-                  }
-                >
-                  Marcar urgente
-                </button>
-              </div>
-            </div>
+            <CurationPriorityControls
+              jobId={selected.id}
+              priority={selected.priority}
+              reason={priorityReason}
+              onReasonChange={setPriorityReason}
+              disabled={busy}
+              onPriorityChange={async (jobId, nextPriority, reason) => {
+                await setJobCurationPriority(jobId, nextPriority, reason);
+                setQueue((current) =>
+                  current.map((job) => (job.id === jobId ? { ...job, priority: nextPriority } : job)),
+                );
+                try {
+                  const data = await loadCurationQueue({ includeRejected, forceRefresh: true });
+                  applyPayload(data);
+                } catch (refreshErr) {
+                  setError(refreshErr.message || "Prioridade salva, mas a fila não atualizou.");
+                }
+              }}
+            />
           )}
           <div className="form-actions">
             <button className="primary" type="submit" disabled={busy}>
