@@ -1,18 +1,22 @@
-import React, { useEffect, useId, useRef } from "react";
+import React, { useLayoutEffect, useId, useRef } from "react";
 import { AVATAR_OUTPUT_SIZE } from "../../features/auth/avatar-crop.js";
 
 export function AvatarCropDialog({ image, onCancel, onConfirm, busy, error }) {
   const titleId = useId();
   const confirmRef = useRef(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     confirmRef.current?.focus();
     const onKey = (event) => {
-      if (event.key === "Escape") onCancel();
+      if (event.key !== "Escape") return;
+      event.stopPropagation();
+      onCancelRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onCancel]);
+  }, []);
 
   return (
     <div className="avatar-crop-backdrop">
