@@ -3,6 +3,7 @@ import {
   HOMOLOG_MANUAL_FIXTURE,
   describeIngestionOutcome,
   latestIngestionAttempt,
+  loadJobIngestionDetail,
   loadJobIngestions,
   processJobIngestion,
 } from "./ingest-api.js";
@@ -56,32 +57,76 @@ function expiresAtIso(value) {
   return parsed.toISOString();
 }
 
+function mergeById(current, incoming) {
+  const seen = new Set(current.map((row) => String(row.id)));
+  return [...current, ...incoming.filter((row) => !seen.has(String(row.id)))];
+}
+
+function ingestionListTitle(row) {
+  return row?.jobs?.title || row?.payload_title || row?.canonical_payload?.title || "Origem registrada";
+}
+
+function ingestionListStatus(row) {
+  if (isIngestionExpired(row?.expires_at)) return "Expirada";
+  if (row?.latest_outcome) return describeIngestionOutcome(row.latest_outcome);
+  const attempt = latestIngestionAttempt(row);
+  return attempt ? describeIngestionOutcome(attempt.outcome) : "Registrada";
+}
+
 export function IngestPanel() {
   const [form, setForm] = useState(emptyForm);
   const [rows, setRows] = useState([]);
+  const [page, setPage] = useState(1);
+  const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [view, setView] = useState("list");
   const [selectedId, setSelectedId] = useState(null);
-  const selected = rows.find((row) => row.id === selectedId) ?? null;
+  const [detail, setDetail] = useState(null);
+  const [detailStatus, setDetailStatus] = useState("idle");
+  const listRow = rows.find((row) => row.id === selectedId) ?? null;
 
   const field = (name) => (event) => {
     setForm((current) => ({ ...current, [name]: event.target.value }));
   };
 
-  const refresh = async () => {
-    setLoading(true);
+  const refresh = async ({ append = false, nextPage = 1 } = {}) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
     try {
-      const data = await loadJobIngestions();
-      setRows(data);
+      const result = await loadJobIngestions(undefined, { page: nextPage });
+      setRows((current) => (append ? mergeById(current, result.items) : result.items));
+      setHasNext(Boolean(result.hasNext));
+      setPage(result.page ?? nextPage);
       setError("");
     } catch (err) {
-      setRows([]);
+      if (!append) setRows([]);
+      setHasNext(false);
       setError(err.message || "Não foi possível carregar as ingestões.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+    }
+  };
+
+  const openDetail = async (id) => {
+    setSelectedId(id);
+    setView("detail");
+    setDetail(null);
+    setDetailStatus("loading");
+    setError("");
+    setMessage("");
+    try {
+      const row = await loadJobIngestionDetail(undefined, id);
+      setDetail(row);
+      setDetailStatus(row ? "ready" : "error");
+      if (!row) setError("Registro indisponível. Volte à lista e tente novamente.");
+    } catch (err) {
+      setDetailStatus("error");
+      setError(err.message || "Não foi possível carregar o detalhe da ingestão.");
     }
   };
 
@@ -106,6 +151,7 @@ export function IngestPanel() {
         }${result.failure_detail ? ` — ${result.failure_detail}` : ""}`,
       );
       await refresh();
+      if (returnView === "detail" && selectedId) await openDetail(selectedId);
       setView(returnView);
     } catch (err) {
       setError(err.message || "Falha ao processar a ingestão.");
@@ -132,17 +178,17 @@ export function IngestPanel() {
     }, "list");
   };
 
-  const onReplay = (row) => {
-    const payload = row.canonical_payload;
-    if (!payload) {
+  const onReplay = () => {
+    const payload = detail?.canonical_payload;
+    if (!payload || !detail) {
       setError("Esta ingestão não tem payload canônico para reprocessar.");
       return;
     }
     void runProcess({
-      sourceKind: row.source_kind || SOURCE_KINDS.STAFF_REPLAY,
-      locator: row.normalized_locator,
+      sourceKind: detail.source_kind || SOURCE_KINDS.STAFF_REPLAY,
+      locator: detail.normalized_locator,
       payload,
-      expiresAt: row.expires_at ?? null,
+      expiresAt: detail.expires_at ?? null,
     }, "detail");
   };
 
@@ -299,44 +345,51 @@ export function IngestPanel() {
         {!loading && rows.length === 0 && !error ? (
           <p role="status">Nenhuma ingestão registrada.</p>
         ) : null}
-        {error ? <button type="button" className="outline small" onClick={refresh}>Tentar novamente</button> : null}
-        {rows.map((row) => {
-          const attempt = latestIngestionAttempt(row);
-          const expired = isIngestionExpired(row.expires_at);
-          return (
+        {error ? <button type="button" className="outline small" onClick={() => { void refresh(); }}>Tentar novamente</button> : null}
+        {rows.map((row) => (
             <div key={row.id} className="admin-ingest__row">
               <div>
-                <strong>{row.jobs?.title ?? row.canonical_payload?.title ?? "Origem registrada"}</strong>
+                <strong>{ingestionListTitle(row)}</strong>
                 <p>{row.jobs?.status === "pending" ? "Vaga pendente" : row.jobs?.status ? `Vaga: ${row.jobs.status}` : "Sem vaga vinculada"}</p>
               </div>
-              <span className="admin-job-status">{expired ? "Expirada" : attempt ? describeIngestionOutcome(attempt.outcome) : "Registrada"}</span>
-              <button type="button" className="ghost small" onClick={() => { setSelectedId(row.id); setView("detail"); setError(""); setMessage(""); }}>
+              <span className="admin-job-status">{ingestionListStatus(row)}</span>
+              <button type="button" className="ghost small" onClick={() => { void openDetail(row.id); }}>
                 Ver detalhes
               </button>
             </div>
-          );
-        })}
+        ))}
+        {hasNext ? (
+          <div className="admin-jobs-more">
+            <button type="button" className="outline" onClick={() => { void refresh({ append: true, nextPage: page + 1 }); }} disabled={loadingMore}>
+              {loadingMore ? "Carregando…" : "Carregar mais"}
+            </button>
+          </div>
+        ) : null}
       </section> : null}
-      {view === "detail" && selected ? (
+      {view === "detail" && selectedId ? (
         <section className="admin-ingest__detail" aria-label="Detalhe da ingestão">
-          <h2>{selected.jobs?.title ?? selected.canonical_payload?.title ?? "Origem registrada"}</h2>
-          <p><strong>Estado:</strong> {isIngestionExpired(selected.expires_at) ? "Expirada" : latestIngestionAttempt(selected) ? describeIngestionOutcome(latestIngestionAttempt(selected).outcome) : "Registrada"}</p>
-          <p><strong>Vaga:</strong> {selected.jobs?.status ?? "Não materializada"}</p>
-          <p className="admin-ingest__locator"><strong>Localizador:</strong> {selected.normalized_locator}</p>
-          {selected.expires_at ? <p><strong>Expira em:</strong> {new Date(selected.expires_at).toLocaleString("pt-BR")}</p> : null}
-          <details>
-            <summary>Tentativas e falhas</summary>
-            {(selected.job_ingestion_attempts ?? []).length === 0 ? <p>Nenhuma tentativa registrada.</p> :
-              <ol>{selected.job_ingestion_attempts.map((attempt) => <li key={attempt.id}>
-                {describeIngestionOutcome(attempt.outcome)}{attempt.failure_detail ? ` — ${attempt.failure_detail}` : ""}
-              </li>)}</ol>}
-          </details>
-          <button type="button" className="outline" disabled={busy || !selected.canonical_payload} onClick={() => onReplay(selected)}>
-            {busy ? "Reprocessando…" : "Reprocessar"}
-          </button>
+          <h2>{ingestionListTitle(detail ?? listRow)}</h2>
+          {detailStatus === "loading" ? <p role="status">Carregando detalhes da ingestão…</p> : null}
+          {detail ? (
+            <>
+              <p><strong>Estado:</strong> {ingestionListStatus(detail)}</p>
+              <p><strong>Vaga:</strong> {detail.jobs?.status ?? "Não materializada"}</p>
+              <p className="admin-ingest__locator"><strong>Localizador:</strong> {detail.normalized_locator}</p>
+              {detail.expires_at ? <p><strong>Expira em:</strong> {new Date(detail.expires_at).toLocaleString("pt-BR")}</p> : null}
+              <details>
+                <summary>Tentativas e falhas</summary>
+                {(detail.job_ingestion_attempts ?? []).length === 0 ? <p>Nenhuma tentativa registrada.</p> :
+                  <ol>{detail.job_ingestion_attempts.map((attempt) => <li key={attempt.id}>
+                    {describeIngestionOutcome(attempt.outcome)}{attempt.failure_detail ? ` — ${attempt.failure_detail}` : ""}
+                  </li>)}</ol>}
+              </details>
+              <button type="button" className="outline" disabled={busy || !detail.canonical_payload} onClick={onReplay}>
+                {busy ? "Reprocessando…" : "Reprocessar"}
+              </button>
+            </>
+          ) : null}
         </section>
       ) : null}
-      {view === "detail" && !selected ? <p role="status">Registro indisponível. Volte à lista e tente novamente.</p> : null}
     </div>
   );
 }

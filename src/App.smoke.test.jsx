@@ -92,7 +92,8 @@ vi.mock("./features/ingest/ingest-api.js", async () => {
   const actual = await vi.importActual("./features/ingest/ingest-api.js");
   return {
     ...actual,
-    loadJobIngestions: vi.fn(async () => []),
+    loadJobIngestions: vi.fn(async () => ({ items: [], hasNext: false, page: 1, pageSize: 24 })),
+    loadJobIngestionDetail: vi.fn(async () => null),
     processJobIngestion: vi.fn(),
   };
 });

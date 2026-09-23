@@ -20,6 +20,7 @@
     "qa:job-detail": "node scripts/measure-job-detail.mjs",
     "qa:my-applications": "node scripts/measure-my-applications.mjs",
     "qa:perf-avatar-01": "node scripts/measure-perf-avatar-01.mjs",
+    "qa:staff-lists": "node scripts/measure-staff-lists.mjs",
     "clickup:bootstrap": "node scripts/bootstrap-clickup.mjs",
     "clickup:sprint-handoff": "node scripts/sprint-handoff-clickup.mjs",
     "clickup:sync": "node scripts/bootstrap-clickup.mjs && node scripts/sprint-handoff-clickup.mjs"

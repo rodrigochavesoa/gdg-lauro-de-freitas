@@ -1957,6 +1957,105 @@ async function assertCanSeeIngestion(client, id, label) {
 }
 
 /** Cenário 21 — MVP-013: job_ingestions fora do catálogo; duplicata idempotente; RLS. */
+async function assertIngestionStaffListContract(adminClient) {
+  const listProbe = await queryWithRetry(() =>
+    adminClient.from("job_ingestion_staff_list").select("id").limit(1),
+  );
+  if (isRelationMissing(listProbe.error)) {
+    console.log(
+      "AVISO: view job_ingestion_staff_list não aplicada neste ambiente; contagem server-side não verificada.",
+    );
+    return;
+  }
+  assert(!listProbe.error, `admin AAL2 lê job_ingestion_staff_list (${errorText(listProbe.error) || "ok"})`);
+  const count = await adminClient.rpc("count_job_ingestions_needing_attention");
+  assert(
+    !count.error && Number.isInteger(count.data) && count.data >= 0,
+    `admin AAL2 conta ingestões em atenção (${errorText(count.error) || count.data})`,
+  );
+  const anonList = await anon.from("job_ingestion_staff_list").select("id").limit(1);
+  assert(
+    Boolean(anonList.error) && /permission denied|42501/i.test(errorText(anonList.error)),
+    `anon não lê job_ingestion_staff_list (${errorText(anonList.error) || "sem erro"})`,
+  );
+  const anonCount = await anon.rpc("count_job_ingestions_needing_attention");
+  assert(
+    Boolean(anonCount.error) && isExecuteDenied(anonCount.error),
+    `anon não executa count_job_ingestions_needing_attention (${errorText(anonCount.error) || "sem erro"})`,
+  );
+}
+
+function listRowNeedsAttention(row) {
+  const outcome = row?.latest_outcome ?? null;
+  if (!outcome) return row?.job_id == null;
+  return outcome === "failed" || outcome === "expired";
+}
+
+async function readAttentionCount(client, label) {
+  const count = await queryWithRetry(() => client.rpc("count_job_ingestions_needing_attention"));
+  if (isRelationMissing(count.error) || /could not find the function|PGRST202/i.test(errorText(count.error))) {
+    return null;
+  }
+  assert(
+    !count.error && Number.isInteger(count.data) && count.data >= 0,
+    `${label} conta ingestões em atenção (${errorText(count.error) || count.data})`,
+  );
+  return count.data;
+}
+
+async function assertAttentionDelta(client, before, delta, label) {
+  if (before == null) return null;
+  const after = await readAttentionCount(client, label);
+  assert(after === before + delta, `${label}: ${before} → ${after}, esperado ${before + delta}`);
+  return after;
+}
+
+async function assertStaffListRow(client, id, { needsAttention, outcome }) {
+  const row = await queryWithRetry(() =>
+    client.from("job_ingestion_staff_list").select("*").eq("id", id).maybeSingle(),
+  );
+  assert(!row.error && row.data?.id === id, `admin AAL2 lê a linha da view (${errorText(row.error) || "ok"})`);
+  assert(!("canonical_payload" in row.data), "view não expõe canonical_payload");
+  assert(!("job_ingestion_attempts" in row.data), "view não expõe o histórico de tentativas");
+  if (outcome === null) {
+    assert(row.data.latest_outcome == null, `latest_outcome nulo (${row.data.latest_outcome})`);
+  } else {
+    assert(row.data.latest_outcome === outcome, `latest_outcome ${outcome} (${row.data.latest_outcome})`);
+  }
+  assert(
+    listRowNeedsAttention(row.data) === needsAttention,
+    `predicados da view ${needsAttention ? "contam" : "ignoram"} a linha (${row.data.latest_outcome}, job ${row.data.job_id ?? "nulo"})`,
+  );
+  return row.data;
+}
+
+async function assertStaffListHidden(client, id, label) {
+  const row = await queryWithRetry(() =>
+    client.from("job_ingestion_staff_list").select("id,job_id,latest_outcome,payload_title").eq("id", id).maybeSingle(),
+  );
+  if (isIngestionProbeTransient(row.error)) {
+    assert(false, `${label} falhou por rede ao ler job_ingestion_staff_list (${errorText(row.error)})`);
+    return;
+  }
+  assert(Boolean(row.error) || row.data == null, `${label} não vê a ingestão staff na view`);
+  const count = await client.rpc("count_job_ingestions_needing_attention");
+  if (count.error) {
+    assert(
+      isExecuteDenied(count.error) || isStaffAal2Denied(count.error),
+      `${label} recusado em count_job_ingestions_needing_attention (${errorText(count.error)})`,
+    );
+    return;
+  }
+  assert(count.data === 0, `${label} não conta ingestões staff (${count.data})`);
+}
+
+async function assertStaffListVisible(client, id, label) {
+  const row = await queryWithRetry(() =>
+    client.from("job_ingestion_staff_list").select("id").eq("id", id).maybeSingle(),
+  );
+  assert(!row.error && row.data?.id === id, `${label} AAL2 vê a ingestão na view (${errorText(row.error) || "ok"})`);
+}
+
 async function scenario21_jobIngestions() {
   if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
     skipRequired(21, "falta admin AAL2 em docs-local");
@@ -1992,6 +2091,8 @@ async function scenario21_jobIngestions() {
   const createdIds = [];
 
   try {
+    await assertIngestionStaffListContract(admin);
+    const attentionBefore = await readAttentionCount(admin, "admin AAL2 antes da fixture");
     const first = await registerJobIngestion(admin, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
       locator: `  ${locator.toUpperCase()}  `,
@@ -2002,6 +2103,15 @@ async function scenario21_jobIngestions() {
     if (first?.id) createdIds.push(first.id);
     assert(first.job_id == null, "ingestão Fase A não exige job_id");
     assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
+    if (attentionBefore != null && first?.id) {
+      await assertStaffListRow(admin, first.id, { needsAttention: true, outcome: null });
+      await assertAttentionDelta(admin, attentionBefore, 1, "ingestão sem job_id conta");
+      const anonRow = await anon.from("job_ingestion_staff_list").select("id").eq("id", first.id).maybeSingle();
+      assert(
+        Boolean(anonRow.error) && /permission denied|42501/i.test(errorText(anonRow.error)),
+        `anon não lê a ingestão na view (${errorText(anonRow.error) || "sem erro"})`,
+      );
+    }
 
     await assertCannotSeeIngestion(anon, first.id, "anon");
     const anonRpc = await anon.rpc("register_job_ingestion", {
@@ -2029,6 +2139,7 @@ async function scenario21_jobIngestions() {
     if (!candidateErr && candidate) {
       try {
         await assertCannotSeeIngestion(candidate, first.id, "candidato");
+        if (attentionBefore != null) await assertStaffListHidden(candidate, first.id, "candidato");
         const candidateInsert = await candidate.from("job_ingestions").insert({
           source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
           normalized_locator: `fixture:rls-s21-candidate-${stamp}`,
@@ -2055,6 +2166,7 @@ async function scenario21_jobIngestions() {
     if (!curatorErr && curator) {
       try {
         await assertCanSeeIngestion(curator, first.id, "curator");
+        if (attentionBefore != null) await assertStaffListVisible(curator, first.id, "curator");
       } finally {
         await curator.auth.signOut();
       }
@@ -2065,6 +2177,7 @@ async function scenario21_jobIngestions() {
     if (!moderatorErr && moderator) {
       try {
         await assertCanSeeIngestion(moderator, first.id, "moderator");
+        if (attentionBefore != null) await assertStaffListVisible(moderator, first.id, "moderator");
       } finally {
         await moderator.auth.signOut();
       }
@@ -2074,6 +2187,7 @@ async function scenario21_jobIngestions() {
     if (aal1Admin) {
       try {
         await assertCannotSeeIngestion(aal1Admin, first.id, "admin AAL1");
+        if (attentionBefore != null) await assertStaffListHidden(aal1Admin, first.id, "admin AAL1");
         const aal1Insert = await aal1Admin.from("job_ingestions").insert({
           source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
           normalized_locator: `fixture:rls-s21-aal1-${stamp}`,
@@ -2107,6 +2221,9 @@ async function scenario21_jobIngestions() {
     assert(repeat.idempotent === true, "mesma fonte + mesmo payload é idempotente");
     assert(repeat.id === first.id, "duplicata 013 devolve a mesma linha");
     assert(repeat.expires_at != null, "reprocessamento não apaga o registro anterior");
+    if (attentionBefore != null) {
+      await assertAttentionDelta(admin, attentionBefore, 1, "retry idempotente não soma outra ingestão");
+    }
 
     const distinctLocator = await registerJobIngestion(admin, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
@@ -2199,8 +2316,10 @@ async function scenario22_processJobIngestion() {
   const createdIds = [];
   const createdJobIds = [];
   const svc = createServiceClient();
+  let attention = null;
 
   try {
+    attention = await readAttentionCount(admin, "admin AAL2 antes do processo");
     const first = await processJobIngestion(admin, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
       locator,
@@ -2211,6 +2330,10 @@ async function scenario22_processJobIngestion() {
     assert(first.job?.id, "devolve job_id pending");
     if (first.ingestion?.id) createdIds.push(first.ingestion.id);
     if (first.job?.id) createdJobIds.push(first.job.id);
+    if (attention != null && first.ingestion?.id) {
+      await assertStaffListRow(admin, first.ingestion.id, { needsAttention: false, outcome: "materialized" });
+      attention = await assertAttentionDelta(admin, attention, 0, "materializada com sucesso não conta");
+    }
 
     const publicJob = await anon.from("jobs").select("id,status").eq("id", first.job.id);
     assert((publicJob.data ?? []).length === 0, "pending da ingestão não entra no catálogo público");
@@ -2222,6 +2345,10 @@ async function scenario22_processJobIngestion() {
     });
     assert(repeat.outcome === "idempotent", "reprocessamento idempotente");
     assert(repeat.job?.id === first.job.id, "retry não duplica a vaga");
+    if (attention != null && first.ingestion?.id) {
+      await assertStaffListRow(admin, first.ingestion.id, { needsAttention: false, outcome: "idempotent" });
+      attention = await assertAttentionDelta(admin, attention, 0, "retry idempotente não altera a contagem");
+    }
 
     const failed = await processJobIngestion(admin, {
       sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
@@ -2233,6 +2360,10 @@ async function scenario22_processJobIngestion() {
     assert(!/@|token|secret/i.test(failed.failure_detail ?? ""), "falha redigida sem PII");
     assert(failed.job == null, "falha não publica vaga");
     if (failed.ingestion?.id) createdIds.push(failed.ingestion.id);
+    if (attention != null && failed.ingestion?.id) {
+      await assertStaffListRow(admin, failed.ingestion.id, { needsAttention: true, outcome: "failed" });
+      attention = await assertAttentionDelta(admin, attention, 1, "tentativa failed conta");
+    }
 
     const attempts = await admin
       .from("job_ingestion_attempts")
@@ -2278,6 +2409,15 @@ async function scenario22_processJobIngestion() {
       }).select("id").single();
       if (expiredInsert.data?.id) createdIds.push(expiredInsert.data.id);
       assert(!expiredInsert.error, `service insere ingestão expirada de prova (${expiredInsert.error?.message ?? "ok"})`);
+      if (attention != null && expiredInsert.data?.id) {
+        await assertStaffListRow(admin, expiredInsert.data.id, { needsAttention: false, outcome: null });
+        attention = await assertAttentionDelta(
+          admin,
+          attention,
+          0,
+          "job_id preenchido sem tentativa não conta",
+        );
+      }
       const hidden = await anon.from("jobs").select("id").eq("id", SEED_APPROVED_A);
       assert((hidden.data ?? []).length === 0, "vaga com ingestão expirada some do catálogo público");
       if (expiredInsert.data?.id) {
@@ -2298,6 +2438,10 @@ async function scenario22_processJobIngestion() {
     assert(expiredProcess.outcome === "expired", "processo expirado não materializa");
     assert(expiredProcess.job == null, "expirado não cria vaga");
     if (expiredProcess.ingestion?.id) createdIds.push(expiredProcess.ingestion.id);
+    if (attention != null && expiredProcess.ingestion?.id) {
+      await assertStaffListRow(admin, expiredProcess.ingestion.id, { needsAttention: true, outcome: "expired" });
+      await assertAttentionDelta(admin, attention, 1, "tentativa expired conta");
+    }
   } catch (error) {
     if (/could not find the function|PGRST202/i.test(error.message || "")) {
       skipRequired(22, "RPC process_job_ingestion não aplicada no ambiente");

@@ -6,6 +6,16 @@ export function ingestNeedsAttention(ingestion) {
   return attempt.outcome === "failed" || attempt.outcome === "expired";
 }
 
+/**
+ * WHERE de `count_job_ingestions_needing_attention` / `job_ingestion_staff_list`.
+ * latest_outcome nulo e sem job, ou última tentativa failed/expired.
+ */
+export function staffListRowNeedsAttention(row) {
+  const outcome = row?.latest_outcome ?? null;
+  if (!outcome) return !row?.job_id;
+  return outcome === "failed" || outcome === "expired";
+}
+
 export const ADMIN_DASHBOARD_SKELETON_METRICS = [
   { id: "pending-curation", label: "Aguardando revisão" },
   { id: "approved", label: "Publicadas" },

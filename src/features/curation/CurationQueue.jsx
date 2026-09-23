@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Check, ListChecks } from "lucide-react";
 import {
+  loadCurationJobDetail,
   loadCurationQueue,
   peekCurationQueueCache,
   resubmitJobForCuration,
@@ -26,12 +27,27 @@ const MODEL_LABEL = {
   onsite: "Presencial",
 };
 
+function mergeById(current, incoming) {
+  const seen = new Set(current.map((row) => String(row.id)));
+  return [...current, ...incoming.filter((row) => !seen.has(String(row.id)))];
+}
+
+/** Sem seleção, abre a primeira vaga. Seleção que saiu da lista não cai na próxima. */
+function resolveCurationSelection(visibleJobs, selectedId) {
+  if (!selectedId) return visibleJobs[0] ?? null;
+  return visibleJobs.find((job) => job.id === selectedId) ?? null;
+}
+
 export function CurationQueue({ profile, includeRejected = false }) {
   const isAdmin = profile.role === "admin";
-  const cached = peekCurationQueueCache({ includeRejected });
+  const cached = peekCurationQueueCache({ scope: "pending", page: 1 });
   const [queue, setQueue] = useState(() => cached?.queue ?? []);
-  const [rejected, setRejected] = useState(() => (includeRejected ? cached?.rejected ?? [] : []));
-  const [reviews, setReviews] = useState(() => cached?.reviews ?? []);
+  const [rejected, setRejected] = useState([]);
+  const [pendingHasNext, setPendingHasNext] = useState(() => Boolean(cached?.hasNext));
+  const [rejectedHasNext, setRejectedHasNext] = useState(false);
+  const [pendingPage, setPendingPage] = useState(1);
+  const [rejectedPage, setRejectedPage] = useState(1);
+  const [rejectedStatus, setRejectedStatus] = useState("idle");
   const [selectedId, setSelectedId] = useState("");
   const [decision, setDecision] = useState("approve");
   const [rubricCode, setRubricCode] = useState("");
@@ -41,54 +57,138 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(() => !cached);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [view, setView] = useState("pending");
   const [detailOpen, setDetailOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [detailEpoch, setDetailEpoch] = useState(0);
+  const [detailStatus, setDetailStatus] = useState("idle");
+  const [detailError, setDetailError] = useState("");
+  const [detailDescription, setDetailDescription] = useState("");
+  const [detailStack, setDetailStack] = useState([]);
+  const [detailReviews, setDetailReviews] = useState([]);
 
-  const applyPayload = useCallback((data) => {
-    setQueue(data.queue);
-    setRejected(includeRejected ? data.rejected : []);
-    setReviews(data.reviews);
-  }, [includeRejected]);
+  const applyPending = useCallback((data, { append = false } = {}) => {
+    setQueue((current) => (append ? mergeById(current, data.queue) : data.queue));
+    setPendingHasNext(Boolean(data.hasNext));
+    setPendingPage(data.page ?? 1);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const hadCache = Boolean(peekCurationQueueCache({ includeRejected }));
+    const hadCache = Boolean(peekCurationQueueCache({ scope: "pending", page: 1 }));
     if (!hadCache) setLoading(true);
 
-    const refresh = async ({ background = false } = {}) => {
-      const data = await loadCurationQueue({
-        includeRejected,
-        forceRefresh: background,
-      });
-      if (cancelled) return;
-      applyPayload(data);
-    };
-
-    refresh({ background: hadCache })
+    loadCurationQueue({
+      scope: "pending",
+      page: 1,
+      forceRefresh: hadCache || reloadToken > 0,
+    })
+      .then((data) => {
+        if (!cancelled) applyPending(data);
+      })
       .catch((err) => {
         if (!cancelled) setError(err.message);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    const unsubscribe = subscribeCurationJobs(() => {
-      if (!cancelled) {
-        refresh({ background: true }).catch((err) => setError(err.message));
-      }
-    });
+
     return () => {
       cancelled = true;
-      unsubscribe();
     };
-  }, [includeRejected, applyPayload]);
+  }, [applyPending, reloadToken]);
+
+  useEffect(() => {
+    return subscribeCurationJobs(() => {
+      setReloadToken((value) => value + 1);
+      setDetailEpoch((value) => value + 1);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (view !== "rejected" || !includeRejected) return undefined;
+    let cancelled = false;
+    setRejectedStatus("loading");
+    loadCurationQueue({
+      scope: "rejected",
+      page: 1,
+      forceRefresh: reloadToken > 0,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setRejected(data.rejected);
+        setRejectedHasNext(Boolean(data.hasNext));
+        setRejectedPage(data.page ?? 1);
+        setRejectedStatus("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setRejectedStatus("error");
+        setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [view, includeRejected, reloadToken]);
 
   const visibleJobs = view === "rejected" ? rejected : queue;
-  const selected = visibleJobs.find((job) => job.id === selectedId) ?? visibleJobs[0] ?? null;
-  const selectedReviews = useMemo(() => {
-    if (!selected) return [];
-    return reviews.filter((row) => row.job_id === selected.id);
-  }, [reviews, selected]);
+  const selected = resolveCurationSelection(visibleJobs, selectedId);
+  const [detailJobId, setDetailJobId] = useState("");
+  if ((selected?.id ?? "") !== detailJobId) {
+    setDetailJobId(selected?.id ?? "");
+    setDetailStatus(selected?.id ? "loading" : "idle");
+    setDetailError("");
+  }
+
+  useEffect(() => {
+    const jobId = selected?.id;
+    if (!jobId) return undefined;
+    let cancelled = false;
+    setDetailStatus("loading");
+    setDetailError("");
+    loadCurationJobDetail(jobId, { forceRefresh: detailEpoch > 0 })
+      .then((detail) => {
+        if (cancelled) return;
+        setDetailDescription(detail.description ?? "");
+        setDetailStack(detail.stack ?? []);
+        setDetailReviews(detail.reviews ?? []);
+        setDetailStatus("ready");
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setDetailStatus("error");
+        setDetailError(err.message || "Não foi possível carregar o detalhe da vaga.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected?.id, detailEpoch]);
+
+  const loadMore = async () => {
+    if (loadingMore) return;
+    const scope = view === "rejected" ? "rejected" : "pending";
+    const hasNext = scope === "rejected" ? rejectedHasNext : pendingHasNext;
+    const page = scope === "rejected" ? rejectedPage : pendingPage;
+    if (!hasNext) return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const data = await loadCurationQueue({ scope, page: page + 1, forceRefresh: true });
+      if (scope === "rejected") {
+        setRejected((current) => mergeById(current, data.rejected));
+        setRejectedHasNext(Boolean(data.hasNext));
+        setRejectedPage(data.page ?? page + 1);
+      } else {
+        applyPending(data, { append: true });
+      }
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const run = async (action, successMessage, afterSuccess) => {
     setBusy(true);
@@ -97,8 +197,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
     try {
       await action();
       setMessage(successMessage);
-      const data = await loadCurationQueue({ includeRejected, forceRefresh: true });
-      applyPayload(data);
+      const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
+      applyPending(data);
       afterSuccess?.();
     } catch (err) {
       setError(err.message);
@@ -148,7 +248,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
           Pendentes <span>{queue.length}</span>
         </button>
         {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => { setView("rejected"); setSelectedId(""); setDetailOpen(false); setShowReview(false); }}>
-          Rejeitadas <span>{rejected.length}</span>
+          Rejeitadas{rejectedStatus === "ready" ? <> <span>{rejected.length}</span></> : null}
         </button> : null}
       </div>
       <div className={`curation-workspace${detailOpen ? " curation-workspace--detail-open" : ""}`}>
@@ -177,6 +277,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
             </button>
           </div>
         ))}
+        {(view === "pending" ? pendingHasNext : rejectedHasNext) ? (
+          <div className="admin-jobs-more">
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Carregando…" : "Carregar mais"}
+            </button>
+          </div>
+        ) : null}
       </section>
       {selected && (
         <div className="curation-workspace__detail">
@@ -185,20 +292,25 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <div className="form-section">
             <h2>{selected.title}</h2>
             <p className="company-name">{selected.companies?.name}</p>
-            <p>{selected.description}</p>
+            {detailStatus === "loading" ? <p role="status">Carregando detalhes da vaga…</p> : null}
+            {detailStatus === "error" ? <p role="alert">{detailError}</p> : null}
+            {detailStatus === "ready" && detailJobId === selected.id ? <p>{detailDescription}</p> : null}
             <p>
               {LEVEL_LABEL[selected.level] ?? selected.level} ·{" "}
               {MODEL_LABEL[selected.work_model] ?? selected.work_model}
               {selected.location ? ` · ${selected.location}` : ""}
             </p>
-            <div className="tags">
-              {(selected.stack ?? []).map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
+            {detailStatus === "ready" && detailJobId === selected.id ? (
+              <div className="tags">
+                {detailStack.map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+              </div>
+            ) : null}
             <details className="curation-workspace__history">
-              <summary>Histórico de pareceres ({selectedReviews.length})</summary>
-              <CurationTimeline reviews={selectedReviews} />
+              <summary>Histórico de pareceres{detailStatus === "ready" && detailJobId === selected.id ? ` (${detailReviews.length})` : ""}</summary>
+              {detailStatus === "loading" || detailJobId !== selected.id ? <p role="status">Carregando pareceres…</p> : null}
+              {detailStatus === "ready" && detailJobId === selected.id ? <CurationTimeline reviews={detailReviews} /> : null}
             </details>
           </div>
           {view === "pending" && !showReview ? <div className="curation-workspace__review-entry">
@@ -278,8 +390,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
                   current.map((job) => (job.id === jobId ? { ...job, priority: nextPriority } : job)),
                 );
                 try {
-                  const data = await loadCurationQueue({ includeRejected, forceRefresh: true });
-                  applyPayload(data);
+                  const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
+                  applyPending(data);
                 } catch (refreshErr) {
                   setError(refreshErr.message || "Prioridade salva, mas a fila não atualizou.");
                 }

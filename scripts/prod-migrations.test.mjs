@@ -36,6 +36,7 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260920020100_job_ingestions_register_rpc_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920030000_staff_cannot_apply_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260920040000_job_ingestions_process_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260923140000_job_ingestion_staff_list_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260921120000_sec_db_function_hardening_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20261001000000_job_ingestions_source_contract_prod.sql")).toBe(false);
     expect(isHomologOnlyMigration("20261001000001_job_ingestions_phase_b.sql")).toBe(false);

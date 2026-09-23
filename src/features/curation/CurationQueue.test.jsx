@@ -5,13 +5,28 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const loadCurationQueue = vi.hoisted(() => vi.fn());
+const curationEvents = vi.hoisted(() => ({ notify() {} }));
+const loadCurationJobDetail = vi.hoisted(() =>
+  vi.fn(async () => ({
+    id: "job-1",
+    description: "Vaga fictícia para curadoria.",
+    stack: ["React"],
+    reviews: [],
+  })),
+);
 const peekCurationQueueCache = vi.hoisted(() => vi.fn(() => null));
 const setJobCurationPriority = vi.hoisted(() => vi.fn());
 
 vi.mock("./curation-api.js", () => ({
   loadCurationQueue: (...args) => loadCurationQueue(...args),
+  loadCurationJobDetail: (...args) => loadCurationJobDetail(...args),
   peekCurationQueueCache: (...args) => peekCurationQueueCache(...args),
-  subscribeCurationJobs: () => () => {},
+  subscribeCurationJobs: (listener) => {
+    curationEvents.notify = listener;
+    return () => {
+      curationEvents.notify = () => {};
+    };
+  },
   submitCurationReview: vi.fn(),
   resubmitJobForCuration: vi.fn(),
   setJobCurationPriority: (...args) => setJobCurationPriority(...args),
@@ -66,6 +81,13 @@ describe("CurationQueue", () => {
   beforeEach(() => {
     loadCurationQueue.mockReset();
     loadCurationQueue.mockResolvedValue(queuePayload);
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "job-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
     setJobCurationPriority.mockReset();
@@ -96,7 +118,7 @@ describe("CurationQueue", () => {
 
     expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
     expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
-    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: false });
+    expect(loadCurationQueue).toHaveBeenCalledWith({ scope: "pending", page: 1, forceRefresh: false });
   });
 
   it("reusa o cache no remount e não mostra o gate de loading", async () => {
@@ -111,7 +133,7 @@ describe("CurationQueue", () => {
 
     expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
-    expect(loadCurationQueue).toHaveBeenCalledWith({ includeRejected: false, forceRefresh: true });
+    expect(loadCurationQueue).toHaveBeenCalledWith({ scope: "pending", page: 1, forceRefresh: true });
   });
 
   it("lista a fila e a rubrica sem chamar Supabase no JSX", async () => {
@@ -127,7 +149,7 @@ describe("CurationQueue", () => {
     expect(screen.queryByText("Curador Homolog")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Histórico de pareceres (0)"));
+    fireEvent.click(await screen.findByText("Histórico de pareceres (0)"));
     expect(screen.getByText("Ainda sem parecer nesta vaga.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Iniciar parecer" }));
     expect(screen.getByText("Empresa e oportunidade identificáveis")).toBeInTheDocument();
@@ -139,6 +161,38 @@ describe("CurationQueue", () => {
     const unnamed = [...document.querySelectorAll("input, select, textarea")].filter((el) => !el.id && !el.name);
     expect(unnamed).toEqual([]);
   });
+
+  it("mantém a vaga selecionada no reload e não troca o detalhe se ela sair da página", async () => {
+    const job1 = queuePayload.queue[0];
+    const job2 = {
+      ...job1,
+      id: "job-2",
+      title: "Pessoa QA (fila)",
+      priority: "normal",
+    };
+    loadCurationQueue
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1, job2], hasNext: false, page: 1 })
+      .mockResolvedValueOnce({ ...queuePayload, queue: [job1], hasNext: false, page: 1 });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+
+    expect(await screen.findByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Pessoa QA \(fila\)/ }));
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+
+    curationEvents.notify();
+    expect(await screen.findByRole("heading", { name: "Pessoa QA (fila)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pessoa QA \(fila\)/ })).toHaveAttribute("aria-pressed", "true");
+
+    curationEvents.notify();
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Pessoa QA (fila)" })).not.toBeInTheDocument();
+    });
+    expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
+  });
 });
 
 describe("CurationQueue Sprint 20A", () => {
@@ -148,14 +202,21 @@ describe("CurationQueue Sprint 20A", () => {
       ...queuePayload,
       rejected: [{ ...queuePayload.queue[0], id: "rejected-1", title: "Vaga rejeitada", priority: "normal" }],
     });
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "rejected-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
   });
 
   it("admin encontra rejeitadas em filtro e o reenvio no detalhe, sem formulário de parecer", async () => {
     render(<CurationQueue includeRejected profile={adminProfile} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas 1/ }));
-    expect(screen.getByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
+    expect(await screen.findByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reenviar para curadoria" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
   });
@@ -172,6 +233,13 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
   beforeEach(() => {
     loadCurationQueue.mockReset();
     loadCurationQueue.mockResolvedValue(normalQueuePayload);
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "job-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
     setJobCurationPriority.mockReset();
