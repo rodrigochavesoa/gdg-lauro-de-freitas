@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
 import { CurationTimeline } from "../curation/CurationTimeline.jsx";
 import { loadAdminJob } from "../../lib/admin-api.js";
@@ -7,6 +7,9 @@ import { adminJobStatusLabel } from "./job-form-state.js";
 
 export function AdminJobDetailRoute() {
   const { id } = useParams();
+  const { search } = useLocation();
+  const backQuery = new URLSearchParams(search).get("back");
+  const backTo = `/admin/vagas${backQuery?.startsWith("?") && backQuery.length < 2048 ? backQuery : ""}`;
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
@@ -46,7 +49,7 @@ export function AdminJobDetailRoute() {
           </div>
         ) : null}
         <div className="admin-home-actions">
-          <Link className="ghost" to="/admin/vagas">
+          <Link className="ghost" to={backTo}>
             Voltar às vagas
           </Link>
         </div>
@@ -68,12 +71,8 @@ export function AdminJobDetailRoute() {
           </p>
         </div>
       </div>
-      <div className="form-section">
-        <h2>Detalhe</h2>
-        <p className="ghost admin-job-list-item">
-          <span className="featured">{adminJobStatusLabel(job.status)}</span>
-          <span className="admin-job-list-title">{job.title}</span>
-        </p>
+      <div className="form-section admin-job-detail-body">
+        <h2>Sobre a vaga</h2>
         {job.description ? <p>{job.description}</p> : null}
         <CurationTimeline reviews={job.job_curation_reviews} />
       </div>
@@ -87,11 +86,11 @@ export function AdminJobDetailRoute() {
             Abrir curadoria
           </Link>
         )}
-        <Link className="ghost" to="/admin/vagas">
+        <Link className="ghost" to={backTo}>
           Voltar às vagas
         </Link>
       </div>
-      {pending ? null : <p>Edite via nova rodada na Curadoria.</p>}
+      {pending ? null : <p className="admin-dashboard-quiet">Mudanças de vagas publicadas ou rejeitadas passam por uma nova rodada de curadoria.</p>}
     </>
   );
 }

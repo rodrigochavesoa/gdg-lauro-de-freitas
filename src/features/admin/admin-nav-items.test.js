@@ -7,7 +7,7 @@ describe("admin-nav-items", () => {
       "Painel",
       "Curadoria",
       "Vagas",
-      "Publicar",
+      "Nova vaga",
       "Ingestão",
     ]);
   });
@@ -18,14 +18,14 @@ describe("admin-nav-items", () => {
     }
   });
 
-  it("Vagas ativa na lista e no detalhe, não em Publicar", () => {
+  it("Vagas ativa na lista e no detalhe, não em Nova vaga", () => {
     const jobs = ADMIN_NAV_ITEMS.find((i) => i.id === "jobs");
     expect(isAdminNavItemActive("/admin/vagas", jobs)).toBe(true);
     expect(isAdminNavItemActive("/admin/vagas/j1", jobs)).toBe(true);
     expect(isAdminNavItemActive("/admin/vagas/nova", jobs)).toBe(false);
   });
 
-  it("Publicar ativa só em /admin/vagas/nova", () => {
+  it("Nova vaga ativa só em /admin/vagas/nova", () => {
     const publish = ADMIN_NAV_ITEMS.find((i) => i.id === "publish");
     expect(isAdminNavItemActive("/admin/vagas/nova", publish)).toBe(true);
     expect(isAdminNavItemActive("/admin/vagas", publish)).toBe(false);

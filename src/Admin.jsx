@@ -312,14 +312,13 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   }
 
   return (
-    <main id="conteudo" tabIndex={-1} className="admin-page">
+    <main id="conteudo" tabIndex={-1} className="admin-page admin-workspace">
       <div className="shell admin-shell">
+        <AdminNav profile={profile} />
         <section className="admin-content">
-          <AdminNav profile={profile} />
           <Outlet context={{ profile }} />
         </section>
       </div>
-      <AdminSurfaceCurve />
     </main>
   );
 }

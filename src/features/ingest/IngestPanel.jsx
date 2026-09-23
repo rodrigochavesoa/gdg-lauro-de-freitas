@@ -63,6 +63,9 @@ export function IngestPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [view, setView] = useState("list");
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = rows.find((row) => row.id === selectedId) ?? null;
 
   const field = (name) => (event) => {
     setForm((current) => ({ ...current, [name]: event.target.value }));
@@ -86,7 +89,7 @@ export function IngestPanel() {
     void refresh();
   }, []);
 
-  const runProcess = async (input) => {
+  const runProcess = async (input, returnView = "list") => {
     setBusy(true);
     setError("");
     setMessage("");
@@ -103,6 +106,7 @@ export function IngestPanel() {
         }${result.failure_detail ? ` — ${result.failure_detail}` : ""}`,
       );
       await refresh();
+      setView(returnView);
     } catch (err) {
       setError(err.message || "Falha ao processar a ingestão.");
     } finally {
@@ -125,7 +129,7 @@ export function IngestPanel() {
       locator: form.locator,
       payload,
       expiresAt: expiresAtIso(form.expiresAt),
-    });
+    }, "list");
   };
 
   const onReplay = (row) => {
@@ -139,21 +143,27 @@ export function IngestPanel() {
       locator: row.normalized_locator,
       payload,
       expiresAt: row.expires_at ?? null,
-    });
+    }, "detail");
   };
 
   return (
-    <div>
+    <div className="admin-ingest">
       <div className="admin-title">
         <div>
-          <span className="eyebrow">Ingestão controlada</span>
-          <h1>Entrada manual / fixture</h1>
+          <span className="eyebrow">Área administrativa · homologação</span>
+          <h1>{view === "new" ? "Nova fixture" : view === "detail" ? "Detalhe da ingestão" : "Ingestão"}</h1>
           <p>
-            Homologação: registra a origem, materializa como pendente e encaminha à curadoria. Não publica no
-            catálogo.
+            {view === "new" ? "Registre uma origem de teste. A vaga criada segue pendente para curadoria." :
+              view === "detail" ? "Consulte o resultado e as tentativas antes de reprocessar." :
+              "Acompanhe as entradas controladas. Nenhuma ingestão publica automaticamente."}
           </p>
         </div>
+        {view === "list" ? <button className="primary small" type="button" onClick={() => { setView("new"); setError(""); setMessage(""); }}>Nova fixture</button> :
+          <button className="ghost" type="button" onClick={() => { setView("list"); setError(""); }}>Voltar às ingestões</button>}
       </div>
+      {message ? <div className="success" role="status">{message}</div> : null}
+      {error ? <div className="form-alert" role="alert">{error}</div> : null}
+      {view === "new" ? (
       <form className="job-form" onSubmit={onSubmit}>
         <div className="form-section">
           <h2>Origem fictícia</h2>
@@ -276,45 +286,57 @@ export function IngestPanel() {
             </label>
           </div>
         </div>
-        {message ? <div className="success">{message}</div> : null}
-        {error ? (
-          <div className="form-alert" role="alert">
-            {error}
-          </div>
-        ) : null}
         <div className="form-actions">
           <button className="primary" type="submit" disabled={busy}>
             {busy ? "Processando ingestão…" : "Ingerir fixture (pendente)"}
           </button>
         </div>
       </form>
-      <div className="form-section admin-job-list">
-        <h2>Ingestões registradas</h2>
+      ) : null}
+      {view === "list" ? <section className="admin-ingest__list" aria-label="Ingestões registradas">
+        <h2>Registros <span className="admin-ingest__count">{!loading && !error ? rows.length : ""}</span></h2>
         {loading ? <p role="status">Carregando ingestões…</p> : null}
         {!loading && rows.length === 0 && !error ? (
           <p role="status">Nenhuma ingestão registrada.</p>
         ) : null}
+        {error ? <button type="button" className="outline small" onClick={refresh}>Tentar novamente</button> : null}
         {rows.map((row) => {
           const attempt = latestIngestionAttempt(row);
           const expired = isIngestionExpired(row.expires_at);
           return (
-            <div key={row.id} className="admin-job-list-block">
-              <p className="ghost admin-job-list-item">
-                <span className="featured">
-                  {expired ? "Expirada" : attempt ? describeIngestionOutcome(attempt.outcome) : "Registrada"}
-                </span>
-                <span className="admin-job-list-title">{row.jobs?.title ?? row.canonical_payload?.title ?? row.normalized_locator}</span>
-                <span className="admin-job-list-meta"> · {row.normalized_locator}</span>
-              </p>
-              {attempt?.failure_detail ? <p>{attempt.failure_detail}</p> : null}
-              {row.jobs?.status ? <p>Vaga: {row.jobs.status}</p> : null}
-              <button type="button" className="ghost" disabled={busy || !row.canonical_payload} onClick={() => onReplay(row)}>
-                Reprocessar
+            <div key={row.id} className="admin-ingest__row">
+              <div>
+                <strong>{row.jobs?.title ?? row.canonical_payload?.title ?? "Origem registrada"}</strong>
+                <p>{row.jobs?.status === "pending" ? "Vaga pendente" : row.jobs?.status ? `Vaga: ${row.jobs.status}` : "Sem vaga vinculada"}</p>
+              </div>
+              <span className="admin-job-status">{expired ? "Expirada" : attempt ? describeIngestionOutcome(attempt.outcome) : "Registrada"}</span>
+              <button type="button" className="ghost small" onClick={() => { setSelectedId(row.id); setView("detail"); setError(""); setMessage(""); }}>
+                Ver detalhes
               </button>
             </div>
           );
         })}
-      </div>
+      </section> : null}
+      {view === "detail" && selected ? (
+        <section className="admin-ingest__detail" aria-label="Detalhe da ingestão">
+          <h2>{selected.jobs?.title ?? selected.canonical_payload?.title ?? "Origem registrada"}</h2>
+          <p><strong>Estado:</strong> {isIngestionExpired(selected.expires_at) ? "Expirada" : latestIngestionAttempt(selected) ? describeIngestionOutcome(latestIngestionAttempt(selected).outcome) : "Registrada"}</p>
+          <p><strong>Vaga:</strong> {selected.jobs?.status ?? "Não materializada"}</p>
+          <p className="admin-ingest__locator"><strong>Localizador:</strong> {selected.normalized_locator}</p>
+          {selected.expires_at ? <p><strong>Expira em:</strong> {new Date(selected.expires_at).toLocaleString("pt-BR")}</p> : null}
+          <details>
+            <summary>Tentativas e falhas</summary>
+            {(selected.job_ingestion_attempts ?? []).length === 0 ? <p>Nenhuma tentativa registrada.</p> :
+              <ol>{selected.job_ingestion_attempts.map((attempt) => <li key={attempt.id}>
+                {describeIngestionOutcome(attempt.outcome)}{attempt.failure_detail ? ` — ${attempt.failure_detail}` : ""}
+              </li>)}</ol>}
+          </details>
+          <button type="button" className="outline" disabled={busy || !selected.canonical_payload} onClick={() => onReplay(selected)}>
+            {busy ? "Reprocessando…" : "Reprocessar"}
+          </button>
+        </section>
+      ) : null}
+      {view === "detail" && !selected ? <p role="status">Registro indisponível. Volte à lista e tente novamente.</p> : null}
     </div>
   );
 }

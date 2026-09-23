@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { Filter, Search } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import {
@@ -64,12 +64,12 @@ function SortFilterGroup({ sort, onSelect }) {
   );
 }
 
-function JobListRow({ job }) {
+function JobListRow({ job, returnSearch }) {
   const label = adminJobStatusLabel(job.status);
   const company = job.companies?.name;
   return (
     <article className="admin-job-card">
-      <Link className="admin-job-card__link" to={`/admin/vagas/${job.id}`}>
+      <Link className="admin-job-card__link" to={`/admin/vagas/${job.id}${returnSearch ? `?back=${encodeURIComponent(returnSearch)}` : ""}`}>
         <div className="admin-job-card__body">
           <h3 className="admin-job-list-title">{job.title}</h3>
           {company ? <p className="admin-job-list-meta">{company}</p> : null}
@@ -83,6 +83,7 @@ function JobListRow({ job }) {
 }
 
 export function AdminJobsRoute() {
+  const { search } = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseAdminJobListSearch(searchParams), [searchParams]);
   const [queryInput, setQueryInput] = useState(() => filters.query);
@@ -195,7 +196,7 @@ export function AdminJobsRoute() {
         <div>
           <span className="eyebrow">Área administrativa</span>
           <h1>Gestão de vagas</h1>
-          <p>Busca, filtro de status e paginação no servidor. O histórico de curadoria fica no detalhe da vaga.</p>
+          <p>Encontre uma vaga e abra o detalhe para acompanhar o histórico.</p>
         </div>
       </div>
 
@@ -296,7 +297,7 @@ export function AdminJobsRoute() {
             ))
           : null}
         {items.map((job) => (
-          <JobListRow key={job.id} job={job} />
+          <JobListRow key={job.id} job={job} returnSearch={search} />
         ))}
         {listStatus === "ready" && items.length === 0 && !error ? <p role="status">{adminJobEmptyCopy(filters.status)}</p> : null}
       </div>
