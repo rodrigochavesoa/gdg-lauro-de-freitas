@@ -191,6 +191,42 @@ describe("Home", () => {
     expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ offset: 1 }));
   });
 
+  it("descarta loadMore quando o filtro muda antes da resposta", async () => {
+    let resolveMore;
+    const morePage = new Promise((resolve) => {
+      resolveMore = resolve;
+    });
+    peekApprovedJobsPage.mockImplementation((params) => {
+      if (params?.tech?.length) return null;
+      return { jobs: [cachedJob], count: 25 };
+    });
+    loadApprovedJobs.mockImplementation(async (options = {}) => {
+      if ((options.offset ?? 0) > 0) return morePage;
+      if (options.tech?.includes("Python")) return { jobs: [], count: 0 };
+      return { jobs: [cachedJob], count: 25 };
+    });
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ offset: 1 }));
+    });
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Python" }));
+    expect(await screen.findByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
+
+    resolveMore({ jobs: [cachedJob, extraJob], count: 25 });
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Pessoa Engenheira de Dados" })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "Nenhuma vaga encontrada" })).toBeInTheDocument();
+  });
+
   it("carrega o avatar DS-07 eager com dimensões intrínsecas", () => {
     render(
       <MemoryRouter>
