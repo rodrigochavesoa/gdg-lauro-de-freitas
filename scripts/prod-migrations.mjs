@@ -7,10 +7,33 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Mesmo padrão de `check-rls.mjs` — apply lê HOMOLOG_* de `.env.local` se não estiver no shell. */
+export function loadDotEnvLocal(cwd = ROOT) {
+  const path = resolve(cwd, ".env.local");
+  if (!existsSync(path)) return {};
+  const env = {};
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq < 1) continue;
+    env[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
+  }
+  return env;
+}
+
+export function mergeHomologEnvFromLocal(cwd = ROOT) {
+  const local = loadDotEnvLocal(cwd);
+  for (const key of ["HOMOLOG_DATABASE_URL", "HOMOLOG_SUPABASE_PROJECT_REF", "PROD_SUPABASE_PROJECT_REF"]) {
+    const value = local[key];
+    if (value && !process.env[key]) process.env[key] = value;
+  }
+}
 export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
 /** Subpastas ignoradas pelo `supabase db push` (o CLI só lê `*.sql` na raiz). */
 export const HOMOLOG_SUBDIR = "homolog";
@@ -344,6 +367,7 @@ export function applyHomologChain(dbUrl, options = {}) {
 function main() {
   const { prod, homologOnly, camadaB } = validateProdMigrations();
   if (process.argv.includes("--apply")) {
+    mergeHomologEnvFromLocal();
     const dbUrl = process.env.HOMOLOG_DATABASE_URL;
     const { ran, skipped } = applyHomologChain(dbUrl);
     console.log("Cadeia de homologação (histórico em supabase_migrations.schema_migrations):");

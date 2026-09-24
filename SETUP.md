@@ -124,7 +124,7 @@ pnpm check:bundle  # falha se dist/ tiver service_role / sb_secret / chave priva
 pnpm migrations:prod
 pnpm migrations:homolog         # lista a cadeia; não aplica SQL
 # Apply só se HOMOLOG_SUPABASE_PROJECT_REF bater com a URL (psql). Retoma pelo histórico.
-# pnpm migrations:homolog:apply
+# pnpm migrations:homolog:apply  (lê HOMOLOG_* de .env.local se o shell não exportou)
 ```
 
 ## Gates de release (CI)
