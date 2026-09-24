@@ -204,26 +204,80 @@ export function resolveHomologChain(dir = MIGRATIONS_DIR) {
   });
 }
 
-/** Recusa URL de produção. Não imprime a URL. */
-export function assertHomologDatabaseUrl(dbUrl, { prodProjectRef = process.env.PROD_SUPABASE_PROJECT_REF } = {}) {
+export function migrationVersion(filename) {
+  return filename.match(/^(\d+)/)?.[1] ?? null;
+}
+
+export function supabaseProjectRef(dbUrl) {
+  return dbUrl.match(/postgres\.([a-z0-9]+)/i)?.[1]
+    || dbUrl.match(/db\.([a-z0-9]+)\.supabase\.co/i)?.[1]
+    || "";
+}
+
+/**
+ * Fail-closed: sem allowlist de homologação, ou com ref diferente dela, o apply para.
+ * Não imprime a URL.
+ */
+export function assertHomologDatabaseUrl(dbUrl, options = {}) {
+  const homologProjectRef = "homologProjectRef" in options
+    ? options.homologProjectRef
+    : process.env.HOMOLOG_SUPABASE_PROJECT_REF;
+  const prodProjectRef = "prodProjectRef" in options
+    ? options.prodProjectRef
+    : process.env.PROD_SUPABASE_PROJECT_REF;
   if (typeof dbUrl !== "string" || dbUrl.trim() === "") {
     throw new Error("HOMOLOG_DATABASE_URL ausente. Apply de homologação recusado.");
+  }
+  if (!homologProjectRef || !String(homologProjectRef).trim()) {
+    throw new Error("HOMOLOG_SUPABASE_PROJECT_REF ausente. Apply recusado (fail-closed).");
   }
   if (/gdg-jobs-prod/i.test(dbUrl)) {
     throw new Error("Apply recusado: a URL aponta para produção (gdg-jobs-prod).");
   }
-  const ref = dbUrl.match(/postgres\.([a-z0-9]+)/i)?.[1]
-    || dbUrl.match(/db\.([a-z0-9]+)\.supabase\.co/i)?.[1]
-    || "";
-  if (prodProjectRef && (dbUrl.includes(prodProjectRef) || ref === prodProjectRef)) {
+  const ref = supabaseProjectRef(dbUrl);
+  if (!ref) {
+    throw new Error("Apply recusado: a URL não tem project ref do Supabase.");
+  }
+  if (ref !== homologProjectRef) {
+    throw new Error("Apply recusado: a URL não está na allowlist de homologação.");
+  }
+  if (prodProjectRef && (ref === prodProjectRef || homologProjectRef === prodProjectRef)) {
     throw new Error("Apply recusado: a URL aponta para o project ref de produção.");
   }
 }
 
-export function runPsqlFile(dbUrl, filePath) {
-  const result = spawnSync("psql", [dbUrl, "-v", "ON_ERROR_STOP=1", "-f", filePath], {
-    encoding: "utf8",
-  });
+export function connectionWithoutPassword(dbUrl) {
+  const parsed = new URL(dbUrl);
+  const password = decodeURIComponent(parsed.password);
+  parsed.password = "";
+  return {
+    connectionUrl: parsed.toString(),
+    env: { ...process.env, PGPASSWORD: password },
+  };
+}
+
+export function psqlInvocation(dbUrl, filePath, { version, name }) {
+  if (!version) throw new Error(`Migration sem versão numérica: ${name || filePath}`);
+  const { connectionUrl, env } = connectionWithoutPassword(dbUrl);
+  const include = filePath.replaceAll("\\", "/").replaceAll("'", "''");
+  const safeVersion = String(version).replaceAll("'", "''");
+  const safeName = String(name || "").replaceAll("'", "''");
+  const input = [
+    "BEGIN;",
+    `\\i '${include}'`,
+    "INSERT INTO supabase_migrations.schema_migrations (version, name)",
+    `VALUES ('${safeVersion}', '${safeName}') ON CONFLICT (version) DO NOTHING;`,
+    "COMMIT;",
+    "",
+  ].join("\n");
+  return {
+    args: [connectionUrl, "-v", "ON_ERROR_STOP=1", "-f", "-"],
+    env,
+    input,
+  };
+}
+
+function throwPsqlFailure(result) {
   if (result.error) {
     throw new Error(`psql indisponível (${result.error.message}). Instale o cliente PostgreSQL para aplicar a cadeia.`);
   }
@@ -232,26 +286,70 @@ export function runPsqlFile(dbUrl, filePath) {
   }
 }
 
-export function applyHomologChain(dbUrl, { dir = MIGRATIONS_DIR, runFile = runPsqlFile, appliedVersions = [] } = {}) {
-  assertHomologDatabaseUrl(dbUrl);
+export function runPsqlQuery(dbUrl, sql) {
+  const { connectionUrl, env } = connectionWithoutPassword(dbUrl);
+  const result = spawnSync("psql", [connectionUrl, "-v", "ON_ERROR_STOP=1", "-tA", "-c", sql], {
+    encoding: "utf8",
+    env,
+  });
+  throwPsqlFailure(result);
+  return result.stdout || "";
+}
+
+export function ensureMigrationHistory(dbUrl, runQuery = runPsqlQuery) {
+  runQuery(
+    dbUrl,
+    "CREATE SCHEMA IF NOT EXISTS supabase_migrations; CREATE TABLE IF NOT EXISTS supabase_migrations.schema_migrations (version text PRIMARY KEY, statements text[], name text);",
+  );
+}
+
+export function loadAppliedVersions(dbUrl, runQuery = runPsqlQuery) {
+  const out = runQuery(dbUrl, "SELECT version FROM supabase_migrations.schema_migrations");
+  return out.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+export function runPsqlFile(dbUrl, filePath, meta) {
+  const { args, env, input } = psqlInvocation(dbUrl, filePath, meta);
+  const result = spawnSync("psql", args, { encoding: "utf8", env, input });
+  throwPsqlFailure(result);
+}
+
+export function applyHomologChain(dbUrl, options = {}) {
+  const {
+    dir = MIGRATIONS_DIR,
+    runFile = runPsqlFile,
+    appliedVersions,
+    loadVersions = loadAppliedVersions,
+    ensureHistory = ensureMigrationHistory,
+  } = options;
+  assertHomologDatabaseUrl(dbUrl, options);
+  if (appliedVersions == null) ensureHistory(dbUrl);
+  const applied = new Set(appliedVersions ?? loadVersions(dbUrl));
   const ran = [];
+  const skipped = [];
   for (const item of resolveHomologChain(dir)) {
-    const version = item.name.match(/^(\d+)/)?.[1];
-    if (version && appliedVersions.includes(version)) continue;
-    runFile(dbUrl, item.path);
+    const version = migrationVersion(item.name);
+    if (!version) throw new Error(`Migration sem versão numérica: ${item.name}`);
+    if (applied.has(version)) {
+      skipped.push(item.name);
+      continue;
+    }
+    runFile(dbUrl, item.path, { version, name: item.name });
+    applied.add(version);
     ran.push(item.name);
   }
-  return ran;
+  return { ran, skipped };
 }
 
 function main() {
   const { prod, homologOnly, camadaB } = validateProdMigrations();
   if (process.argv.includes("--apply")) {
     const dbUrl = process.env.HOMOLOG_DATABASE_URL;
-    const ran = applyHomologChain(dbUrl);
-    console.log("Cadeia aplicada em homologação (produção recusada pelo gate de URL):");
+    const { ran, skipped } = applyHomologChain(dbUrl);
+    console.log("Cadeia de homologação (histórico em supabase_migrations.schema_migrations):");
+    for (const name of skipped) console.log(`  skip  ${name}`);
     for (const name of ran) console.log(`  applied ${name}`);
-    console.log(`ok: ${ran.length} arquivo(s) aplicados.`);
+    console.log(`ok: ${ran.length} aplicado(s), ${skipped.length} já no histórico.`);
     return;
   }
   if (process.argv.includes("--homolog-chain")) {

@@ -25,7 +25,7 @@ Copy-Item .env.example .env.local
 
 Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (ou o fallback `VITE_SUPABASE_ANON_KEY`) pelo canal seguro da equipe. **Nunca** commite `.env` / `.env.local` nem `service_role` no frontend, no Git ou nas env vars públicas da Vercel.
 
-A raiz de [`supabase/migrations/`](supabase/migrations/) é o que `supabase db push` aplica, e ela contém **somente** o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json). `pnpm migrations:prod` falha se qualquer outro `.sql` voltar para essa raiz. Homolog-only (`*_homolog.sql`, seed fictício, prefixo `avatars_`) fica em [`supabase/migrations/homolog/`](supabase/migrations/homolog/). Camada B (marker «Produção: não aplicar») fica em [`supabase/migrations/held/`](supabase/migrations/held/), fora do manifesto e fora do CLI. `pnpm migrations:homolog` lista a cadeia. `pnpm migrations:homolog:apply` aplica essa cadeia com `psql` em `HOMOLOG_DATABASE_URL` e recusa URL de produção (`gdg-jobs-prod` ou `PROD_SUPABASE_PROJECT_REF`).
+A raiz de [`supabase/migrations/`](supabase/migrations/) é o que `supabase db push` aplica, e ela contém **somente** o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json). `pnpm migrations:prod` falha se qualquer outro `.sql` voltar para essa raiz. Homolog-only (`*_homolog.sql`, seed fictício, prefixo `avatars_`) fica em [`supabase/migrations/homolog/`](supabase/migrations/homolog/). Camada B (marker «Produção: não aplicar») fica em [`supabase/migrations/held/`](supabase/migrations/held/), fora do manifesto e fora do CLI. `pnpm migrations:homolog` lista a cadeia. `pnpm migrations:homolog:apply` aplica essa cadeia com `psql` em `HOMOLOG_DATABASE_URL` e exige `HOMOLOG_SUPABASE_PROJECT_REF` (allowlist; sem ela o apply para). Cada arquivo roda numa transação e só entra em `supabase_migrations.schema_migrations` se o SQL passar; uma nova execução pula o que já está no histórico. A senha vai em `PGPASSWORD`, não na linha de comando.
 
 ## OAuth (Google via Supabase Auth)
 
@@ -123,7 +123,7 @@ pnpm run build
 pnpm check:bundle  # falha se dist/ tiver service_role / sb_secret / chave privada
 pnpm migrations:prod
 pnpm migrations:homolog         # lista a cadeia; não aplica SQL
-# Apply só no banco de homologação (psql + HOMOLOG_DATABASE_URL). Recusa produção.
+# Apply só se HOMOLOG_SUPABASE_PROJECT_REF bater com a URL (psql). Retoma pelo histórico.
 # pnpm migrations:homolog:apply
 ```
 

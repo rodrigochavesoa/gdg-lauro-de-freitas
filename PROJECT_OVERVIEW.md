@@ -289,7 +289,7 @@ As chaves publishable/anon podem aparecer no browser; isso não torna RLS opcion
 
 A raiz de `supabase/migrations/` é o path que `supabase db push` aplica e só pode conter o manifesto. SQL homolog-only fica em `supabase/migrations/homolog/`. Camada B fica em `supabase/migrations/held/`. O CLI não lê essas subpastas.
 
-`pnpm migrations:prod` valida a raiz contra o manifesto e não aplica SQL. `pnpm migrations:homolog` lista a cadeia completa. `pnpm migrations:homolog:apply` aplica essa cadeia com `psql` somente se `HOMOLOG_DATABASE_URL` não for produção. Arquivos homolog-only ou marcados “Produção: não aplicar” não entram no manifesto.
+`pnpm migrations:prod` valida a raiz contra o manifesto e não aplica SQL. `pnpm migrations:homolog` lista a cadeia completa. `pnpm migrations:homolog:apply` aplica essa cadeia com `psql` só se o project ref da URL for `HOMOLOG_SUPABASE_PROJECT_REF`. Versões já gravadas em `supabase_migrations.schema_migrations` são puladas. Arquivos homolog-only ou marcados “Produção: não aplicar” não entram no manifesto.
 
 A migration `20260915154949_job_submission_staff_dedup.sql` permanece fora do manifesto até aceite da Camada B.
 

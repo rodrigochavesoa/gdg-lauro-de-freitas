@@ -16,6 +16,7 @@ import {
   listHomologChain,
   listHomologOnlyMigrations,
   listProdSafeMigrations,
+  psqlInvocation,
   validateProdMigrations,
 } from "./prod-migrations.mjs";
 
@@ -216,15 +217,28 @@ describe("prod migrations", () => {
   });
 
   it("recusa apply quando a URL aponta para produção", () => {
+    const homolog = { homologProjectRef: "homologref" };
     expect(() => assertHomologDatabaseUrl("")).toThrow(/ausente/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.gdg-jobs-prod:pw@db.example:5432/postgres"),
+      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", {
+        homologProjectRef: "",
+      }),
+    ).toThrow(/fail-closed/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", homolog),
+    ).toThrow(/allowlist/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.gdg-jobs-prod:pw@db.homologref.supabase.co:5432/postgres", homolog),
     ).toThrow(/produção/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.abc123:pw@db.abc123.supabase.co:5432/postgres", {
-        prodProjectRef: "abc123",
+      assertHomologDatabaseUrl("postgresql://postgres.homologref:pw@db.homologref.supabase.co:5432/postgres", {
+        ...homolog,
+        prodProjectRef: "homologref",
       }),
     ).toThrow(/project ref de produção/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres:pw@127.0.0.1:5432/postgres", homolog),
+    ).toThrow(/project ref/);
   });
 
   it("aplica a cadeia de homologação em ordem sem executar SQL de produção", () => {
@@ -236,22 +250,50 @@ describe("prod migrations", () => {
       },
     });
     const calls = [];
-    const ran = applyHomologChain("postgresql://postgres.homologref:pw@db.homologref.supabase.co:5432/postgres", {
+    const homologUrl = "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres";
+    const gate = { homologProjectRef: "homologref", appliedVersions: [] };
+    const { ran, skipped } = applyHomologChain(homologUrl, {
+      ...gate,
       dir,
       runFile: (_url, file) => calls.push(file),
     });
-    expect(ran.map((name) => name.replace(/.*\//, ""))).toEqual([
+    expect(ran).toEqual([
       "202608150001_ok.sql",
       "202608160002_seed_fictitious_catalog.sql",
       "20260816000999_held.sql",
     ]);
+    expect(skipped).toEqual([]);
     expect(calls).toHaveLength(3);
+    const resumed = applyHomologChain(homologUrl, {
+      ...gate,
+      dir,
+      appliedVersions: ["202608150001", "202608160002"],
+      runFile: (_url, file) => calls.push(file),
+    });
+    expect(resumed.skipped).toEqual(["202608150001_ok.sql", "202608160002_seed_fictitious_catalog.sql"]);
+    expect(resumed.ran).toEqual(["20260816000999_held.sql"]);
+    expect(calls).toHaveLength(4);
     expect(() =>
       applyHomologChain("postgresql://postgres.gdg-jobs-prod:pw@db.example:5432/postgres", {
+        ...gate,
         dir,
         runFile: () => calls.push("should-not-run"),
       }),
     ).toThrow(/produção/);
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(4);
+  });
+
+  it("não coloca a senha na linha de comando e grava a versão na mesma transação", () => {
+    const invocation = psqlInvocation(
+      "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres",
+      "C:\\migrations\\202608150001_ok.sql",
+      { version: "202608150001", name: "202608150001_ok.sql" },
+    );
+    expect(invocation.args.join(" ")).not.toContain("secret-pass");
+    expect(invocation.env.PGPASSWORD).toBe("secret-pass");
+    expect(invocation.input).toContain("BEGIN;");
+    expect(invocation.input).toContain("COMMIT;");
+    expect(invocation.input).toContain("supabase_migrations.schema_migrations");
+    expect(invocation.input).toContain("202608150001");
   });
 });
