@@ -371,6 +371,116 @@ describe("CurationQueue", () => {
     expect(screen.queryByRole("button", { name: "Carregando…" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Carregar mais" })).toBeEnabled();
   });
+
+  it("Carregar mais de pendentes não apaga o loading de rejeitadas após trocar de aba", async () => {
+    const pendingJob = queuePayload.queue[0];
+    const pendingExtra = { ...pendingJob, id: "job-pending-2", title: "Pendente página 2" };
+    const rejectedJob = { ...pendingJob, id: "rejected-1", title: "Vaga rejeitada", priority: "normal" };
+    const rejectedExtra = { ...rejectedJob, id: "rejected-2", title: "Rejeitada página 2" };
+    let resolvePendingMore;
+    let resolveRejectedMore;
+    loadCurationQueue.mockImplementation(async (opts = {}) => {
+      const page = opts.page ?? 1;
+      const scope = opts.scope ?? "pending";
+      if (page === 1 && scope === "pending") {
+        return { ...queuePayload, queue: [pendingJob], hasNext: true, page: 1 };
+      }
+      if (page === 1 && scope === "rejected") {
+        return { ...queuePayload, rejected: [rejectedJob], hasNext: true, page: 1 };
+      }
+      if (scope === "pending") {
+        return new Promise((resolve) => { resolvePendingMore = resolve; });
+      }
+      return new Promise((resolve) => { resolveRejectedMore = resolve; });
+    });
+
+    render(<CurationQueue includeRejected profile={adminProfile} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Rejeitadas/ }));
+    expect(await screen.findByRole("button", { name: /Vaga rejeitada/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
+
+    await act(async () => {
+      resolvePendingMore({
+        ...queuePayload,
+        queue: [pendingExtra],
+        hasNext: false,
+        page: 2,
+      });
+    });
+    expect(screen.getByRole("button", { name: "Carregando…" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Pendente página 2/ })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveRejectedMore({
+        ...queuePayload,
+        rejected: [rejectedExtra],
+        hasNext: false,
+        page: 2,
+      });
+    });
+    expect(await screen.findByRole("button", { name: /Rejeitada página 2/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Carregando…" })).not.toBeInTheDocument();
+  });
+
+  it("Carregar mais de rejeitadas não apaga o loading de pendentes após trocar de aba", async () => {
+    const pendingJob = queuePayload.queue[0];
+    const pendingExtra = { ...pendingJob, id: "job-pending-2", title: "Pendente página 2" };
+    const rejectedJob = { ...pendingJob, id: "rejected-1", title: "Vaga rejeitada", priority: "normal" };
+    const rejectedExtra = { ...rejectedJob, id: "rejected-2", title: "Rejeitada página 2" };
+    let resolvePendingMore;
+    let resolveRejectedMore;
+    loadCurationQueue.mockImplementation(async (opts = {}) => {
+      const page = opts.page ?? 1;
+      const scope = opts.scope ?? "pending";
+      if (page === 1 && scope === "pending") {
+        return { ...queuePayload, queue: [pendingJob], hasNext: true, page: 1 };
+      }
+      if (page === 1 && scope === "rejected") {
+        return { ...queuePayload, rejected: [rejectedJob], hasNext: true, page: 1 };
+      }
+      if (scope === "pending") {
+        return new Promise((resolve) => { resolvePendingMore = resolve; });
+      }
+      return new Promise((resolve) => { resolveRejectedMore = resolve; });
+    });
+
+    render(<CurationQueue includeRejected profile={adminProfile} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
+    expect(await screen.findByRole("button", { name: /Vaga rejeitada/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: /Pendentes/ }));
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
+
+    await act(async () => {
+      resolveRejectedMore({
+        ...queuePayload,
+        rejected: [rejectedExtra],
+        hasNext: false,
+        page: 2,
+      });
+    });
+    expect(screen.getByRole("button", { name: "Carregando…" })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Rejeitada página 2/ })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolvePendingMore({
+        ...queuePayload,
+        queue: [pendingExtra],
+        hasNext: false,
+        page: 2,
+      });
+    });
+    expect(await screen.findByRole("button", { name: /Pendente página 2/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Carregando…" })).not.toBeInTheDocument();
+  });
 });
 
 describe("CurationQueue Sprint 20A", () => {
