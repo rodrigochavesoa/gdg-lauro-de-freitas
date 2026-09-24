@@ -237,8 +237,13 @@ export function supabaseProjectRef(dbUrl) {
     || "";
 }
 
+/** Project refs oficiais. A env não pode substituir o de homologação pelo de produção. */
+export const OFFICIAL_HOMOLOG_PROJECT_REF = "pcdfxnfhgdmzmcmlhxuv";
+export const OFFICIAL_PROD_PROJECT_REF = "kezmjqzybdtptpeiytqd";
+
 /**
- * Fail-closed: sem allowlist de homologação, ou com ref diferente dela, o apply para.
+ * Fail-closed: a URL e HOMOLOG_SUPABASE_PROJECT_REF precisam ser o ref oficial de homologação.
+ * O ref oficial de produção é sempre recusado, mesmo se a allowlist for configurada com ele.
  * Não imprime a URL.
  */
 export function assertHomologDatabaseUrl(dbUrl, options = {}) {
@@ -254,6 +259,9 @@ export function assertHomologDatabaseUrl(dbUrl, options = {}) {
   if (!homologProjectRef || !String(homologProjectRef).trim()) {
     throw new Error("HOMOLOG_SUPABASE_PROJECT_REF ausente. Apply recusado (fail-closed).");
   }
+  if (homologProjectRef !== OFFICIAL_HOMOLOG_PROJECT_REF) {
+    throw new Error("Apply recusado: HOMOLOG_SUPABASE_PROJECT_REF não é o project ref oficial de homologação.");
+  }
   if (/gdg-jobs-prod/i.test(dbUrl)) {
     throw new Error("Apply recusado: a URL aponta para produção (gdg-jobs-prod).");
   }
@@ -261,10 +269,13 @@ export function assertHomologDatabaseUrl(dbUrl, options = {}) {
   if (!ref) {
     throw new Error("Apply recusado: a URL não tem project ref do Supabase.");
   }
-  if (ref !== homologProjectRef) {
+  if (ref === OFFICIAL_PROD_PROJECT_REF || homologProjectRef === OFFICIAL_PROD_PROJECT_REF) {
+    throw new Error("Apply recusado: a URL aponta para o project ref de produção.");
+  }
+  if (ref !== OFFICIAL_HOMOLOG_PROJECT_REF) {
     throw new Error("Apply recusado: a URL não está na allowlist de homologação.");
   }
-  if (prodProjectRef && (ref === prodProjectRef || homologProjectRef === prodProjectRef)) {
+  if (prodProjectRef && (prodProjectRef === OFFICIAL_HOMOLOG_PROJECT_REF || ref === prodProjectRef)) {
     throw new Error("Apply recusado: a URL aponta para o project ref de produção.");
   }
 }
@@ -337,6 +348,109 @@ export function runPsqlFile(dbUrl, filePath, meta) {
   throwPsqlFailure(result);
 }
 
+/**
+ * Carimbos locais cujo efeito já está no homolog sob outro version.
+ * blocked-legacy: o SQL referencia public.is_admin() e não pode reexecutar (MVP-022).
+ * register: só inserir o version local; não rodar o arquivo de novo.
+ */
+export const HOMOLOG_HISTORY_REPAIRS = [
+  { version: "20260909003920", name: "apply_rate_limit", remote: "20260909004357", decision: "blocked-legacy" },
+  { version: "20260912010000", name: "data_api_select_grants", remote: "20260912022728", decision: "register" },
+  { version: "20260913013123", name: "rpc_execute_hardening", remote: "20260913013336", decision: "register" },
+  { version: "20260916122300", name: "avatars_storage_homolog", remote: "20260916153242", decision: "register" },
+  { version: "20260916153000", name: "avatars_single_object_homolog", remote: "20260916175534", decision: "register" },
+  { version: "20260916153100", name: "avatars_single_object", remote: "20260916175534", decision: "register" },
+  { version: "20260917140000", name: "staff_rls_aal2", remote: "20260917144653", decision: "register" },
+  { version: "20260919120000", name: "avatars_versioned_path_homolog", remote: "20260919031820", decision: "register" },
+  { version: "20260919120001", name: "avatars_versioned_path", remote: "20260919031820", decision: "register" },
+  { version: "20260920010148", name: "job_ingestions_source_contract_homolog", remote: "20260920010751", decision: "register" },
+  { version: "20260920020100", name: "job_ingestions_register_rpc_homolog", remote: "20260920020834", decision: "register" },
+  { version: "20260920030000", name: "staff_cannot_apply_homolog", remote: "20260920025802", decision: "register" },
+  { version: "20260920040000", name: "job_ingestions_process_homolog", remote: "20260920045915", decision: "register" },
+  { version: "20260921120000", name: "sec_db_function_hardening_homolog", remote: "20260921025124", decision: "register" },
+  { version: "20260922120000", name: "catalog_structured_filters_homolog", remote: "20260922154037", decision: "register" },
+  { version: "20260922180000", name: "catalog_structured_write_homolog", remote: "20260922191630", decision: "register" },
+  { version: "20260923140000", name: "job_ingestion_staff_list_homolog", remote: "20260923203504", decision: "register" },
+];
+
+export function isLegacyBlockedSql(sql) {
+  return /public\.is_admin\s*\(/i.test(sql);
+}
+
+export function planHomologApply(dir = MIGRATIONS_DIR, appliedVersions = []) {
+  const applied = new Set(appliedVersions);
+  const repairs = new Map(HOMOLOG_HISTORY_REPAIRS.map((row) => [row.version, row]));
+  const wouldSkip = [];
+  const blockedLegacy = [];
+  const wouldRegister = [];
+  const wouldApply = [];
+  for (const item of resolveHomologChain(dir)) {
+    const version = migrationVersion(item.name);
+    if (applied.has(version)) {
+      wouldSkip.push(item.name);
+      continue;
+    }
+    const repair = repairs.get(version);
+    const sql = readFileSync(item.path, "utf8");
+    if (repair?.decision === "blocked-legacy" || isLegacyBlockedSql(sql)) {
+      blockedLegacy.push(item.name);
+      continue;
+    }
+    if (repair?.decision === "register") {
+      wouldRegister.push(item.name);
+      continue;
+    }
+    wouldApply.push(item.name);
+  }
+  return { wouldSkip, blockedLegacy, wouldRegister, wouldApply };
+}
+
+export function assertRepairPreconditions(appliedVersions, objectNames) {
+  const applied = new Set(appliedVersions);
+  const missing = [...new Set(HOMOLOG_HISTORY_REPAIRS.map((row) => row.remote))].filter(
+    (version) => !applied.has(version),
+  );
+  if (missing.length > 0) {
+    throw new Error(`Reparo abortado: carimbo remoto ausente (${missing.join(", ")}).`);
+  }
+  const objects = new Set(objectNames);
+  if (!objects.has("private.is_admin") || !objects.has("private.is_admin_aal2")) {
+    throw new Error("Reparo abortado: private.is_admin ou private.is_admin_aal2 ausente.");
+  }
+  if (objects.has("public.is_admin")) {
+    throw new Error("Reparo abortado: public.is_admin ainda existe.");
+  }
+}
+
+export function loadRepairObjects(dbUrl, runQuery = runPsqlQuery) {
+  const out = runQuery(
+    dbUrl,
+    "SELECT n.nspname || '.' || p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.proname IN ('is_admin', 'is_admin_aal2') AND n.nspname IN ('public', 'private')",
+  );
+  return out.split("\n").map((line) => line.trim()).filter(Boolean);
+}
+
+export function repairHomologHistory(dbUrl, options = {}) {
+  const { runQuery = runPsqlQuery, loadVersions = loadAppliedVersions, ensureHistory = ensureMigrationHistory } = options;
+  assertHomologDatabaseUrl(dbUrl, options);
+  ensureHistory(dbUrl);
+  const appliedList = options.appliedVersions ?? loadVersions(dbUrl);
+  const presentObjects = options.presentObjects ?? loadRepairObjects(dbUrl, runQuery);
+  assertRepairPreconditions(appliedList, presentObjects);
+  const applied = new Set(appliedList);
+  const inserted = [];
+  for (const row of HOMOLOG_HISTORY_REPAIRS) {
+    if (!/^\d+$/.test(row.version)) throw new Error(`Versão de reparo inválida: ${row.version}`);
+    if (applied.has(row.version)) continue;
+    runQuery(
+      dbUrl,
+      `INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('${row.version}', '${row.name.replaceAll("'", "")}') ON CONFLICT (version) DO NOTHING`,
+    );
+    inserted.push(row.version);
+  }
+  return inserted;
+}
+
 export function applyHomologChain(dbUrl, options = {}) {
   const {
     dir = MIGRATIONS_DIR,
@@ -357,6 +471,13 @@ export function applyHomologChain(dbUrl, options = {}) {
       skipped.push(item.name);
       continue;
     }
+    const sql = readFileSync(item.path, "utf8");
+    const repair = HOMOLOG_HISTORY_REPAIRS.find((row) => row.version === version);
+    if (repair || isLegacyBlockedSql(sql)) {
+      throw new Error(
+        `Sem reexecução de ${item.name} (${repair?.decision || "blocked-legacy"}). Rode pnpm migrations:homolog:repair antes do apply.`,
+      );
+    }
     runFile(dbUrl, item.path, { version, name: item.name });
     applied.add(version);
     ran.push(item.name);
@@ -366,6 +487,29 @@ export function applyHomologChain(dbUrl, options = {}) {
 
 function main() {
   const { prod, homologOnly, camadaB } = validateProdMigrations();
+  if (process.argv.includes("--plan")) {
+    mergeHomologEnvFromLocal();
+    const dbUrl = process.env.HOMOLOG_DATABASE_URL;
+    assertHomologDatabaseUrl(dbUrl);
+    const applied = loadAppliedVersions(dbUrl);
+    const plan = planHomologApply(MIGRATIONS_DIR, applied);
+    for (const name of plan.wouldSkip) console.log(`  would-skip ${name}`);
+    for (const name of plan.wouldRegister) console.log(`  would-register ${name}`);
+    for (const name of plan.blockedLegacy) console.log(`  blocked-legacy ${name}`);
+    for (const name of plan.wouldApply) console.log(`  would-apply ${name}`);
+    console.log(
+      `ok: skip ${plan.wouldSkip.length}, register ${plan.wouldRegister.length}, blocked ${plan.blockedLegacy.length}, apply ${plan.wouldApply.length}. Sem apply.`,
+    );
+    return;
+  }
+  if (process.argv.includes("--repair-history")) {
+    mergeHomologEnvFromLocal();
+    const inserted = repairHomologHistory(process.env.HOMOLOG_DATABASE_URL);
+    console.log("Reparo de histórico (INSERT de version local; SQL dos arquivos não rodou):");
+    for (const version of inserted) console.log(`  registered ${version}`);
+    console.log(`ok: ${inserted.length} version(s) registrada(s).`);
+    return;
+  }
   if (process.argv.includes("--apply")) {
     mergeHomologEnvFromLocal();
     const dbUrl = process.env.HOMOLOG_DATABASE_URL;
