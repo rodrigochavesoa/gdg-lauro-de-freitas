@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B) e SEC-STAFF-APPLY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01 e SEC-APPLY-RATE-LIMIT-RAISE-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -1138,6 +1138,56 @@ async function scenario14_applyRateLimit() {
   assert(!/already applied/i.test(sixthMsg), "6ª não é só already applied");
 
   await deleteApplication(admin, SEED_APPROVED_A, user.id);
+  await deleteApplyRequestLog(admin, user.id);
+  await candidate.auth.signOut();
+  await admin.auth.signOut();
+}
+
+/** Cenário 23 — F4: 5 RAISE de vaga inexistente contam; a 6ª é rate limit exceeded. */
+async function scenario23_applyRateLimitSurvivesRaise() {
+  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
+    skipRequired(23, "faltam admin e/ou candidate em docs-local");
+    return;
+  }
+  const { client: admin, error: adminErr } = await signInStaff("admin");
+  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
+  if (adminErr || candErr || !user?.id) {
+    skipRequired(23, "admin ou candidato não autenticou");
+    return;
+  }
+
+  const missingJobId = "00000000-0000-4000-8000-000000000099";
+  await deleteApplication(admin, missingJobId, user.id);
+  await deleteApplyRequestLog(admin, user.id);
+  await ensureD01Profile(candidate, user.id);
+
+  const results = [];
+  for (let i = 0; i < 6; i += 1) {
+    results.push(await rpcApply(candidate, missingJobId));
+  }
+
+  if (results[0].error?.message?.includes("Could not find the function")) {
+    skipRequired(23, "RPC apply_to_job não aplicada no ambiente");
+    await candidate.auth.signOut();
+    await admin.auth.signOut();
+    return;
+  }
+
+  for (let i = 0; i < 5; i += 1) {
+    const msg = [results[i].error?.message, results[i].error?.details].filter(Boolean).join(" ");
+    assert(Boolean(results[i].error), `chamada ${i + 1} falha`);
+    assert(/job not found/i.test(msg), `chamada ${i + 1} job not found (${msg || "sem mensagem"})`);
+  }
+
+  const sixthMsg = [results[5].error?.message, results[5].error?.details, results[5].error?.hint]
+    .filter(Boolean)
+    .join(" ");
+  assert(Boolean(results[5].error), "6ª chamada falha");
+  assert(/rate limit exceeded/i.test(sixthMsg), `6ª retorna rate limit exceeded (${sixthMsg || "sem mensagem"})`);
+
+  const leaked = await admin.from("applications").select("id").eq("job_id", missingJobId).eq("candidate_id", user.id);
+  assert(!leaked.error && (leaked.data ?? []).length === 0, "vaga inexistente não cria candidatura");
+
   await deleteApplyRequestLog(admin, user.id);
   await candidate.auth.signOut();
   await admin.auth.signOut();
@@ -2502,6 +2552,9 @@ await scenario13_profileRoleEscalation();
 console.log("\n=== Cenário 14: apply rate limit (F-023) ===");
 await scenario14_applyRateLimit();
 
+console.log("\n=== Cenário 23: apply rate limit sobrevive a RAISE (F4) ===");
+await scenario23_applyRateLimitSurvivesRaise();
+
 console.log("\n=== Cenário 15: RPC EXECUTE hardening (MVP-021) ===");
 await scenario15_rpcExecuteHardening();
 
@@ -2534,6 +2587,7 @@ if (skippedRequired.size > 0) {
     if (n >= 10 && n <= 12) band = "S6-01 exige execução real de 10–12";
     if (n === 13) band = "F-019 exige execução real do cenário 13";
     if (n === 14) band = "F-023 exige execução real do cenário 14";
+    if (n === 23) band = "F4 exige execução real do cenário 23";
     if (n === 15) band = "MVP-021 exige execução real do cenário 15";
     if (n === 16) band = "MVP-003 exige execução real do cenário 16";
     if (n === 17) band = "MVP-005 exige execução real do cenário 17";
@@ -2552,5 +2606,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–22 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–23 executados).`,
 );
