@@ -61,6 +61,7 @@ export function Home({ logged = false }) {
   const [catalogStatus, setCatalogStatus] = useState(() => (initialPage ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
   const loadParams = useMemo(() => toLoadParams(urlFilters, urlQuery), [urlFilters, urlQuery]);
+  const loadGenerationRef = useRef(0);
 
   useEffect(() => {
     setQuery((current) => (current === urlQuery ? current : urlQuery));
@@ -85,6 +86,7 @@ export function Home({ logged = false }) {
   }, [placeDraft, urlFilters.place, setSearchParams]);
 
   useEffect(() => {
+    loadGenerationRef.current += 1;
     let cancelled = false;
     const peeked = peekApprovedJobsPage(loadParams);
     if (peeked) {
@@ -117,18 +119,22 @@ export function Home({ logged = false }) {
   const loadMore = async () => {
     if (loadingMore || catalogStatus !== "ready") return;
     if (resultCount != null && jobs.length >= resultCount) return;
+    const generation = loadGenerationRef.current;
+    const paramsAtClick = loadParams;
+    const offset = jobs.length;
     setLoadingMore(true);
     try {
       const page = await loadApprovedJobs({
-        ...loadParams,
-        offset: jobs.length,
+        ...paramsAtClick,
+        offset,
       });
+      if (generation !== loadGenerationRef.current) return;
       setJobs((current) => mergeJobsById(current, page.jobs));
       setResultCount(page.count);
     } catch {
       /* mantém a lista já carregada */
     } finally {
-      setLoadingMore(false);
+      if (generation === loadGenerationRef.current) setLoadingMore(false);
     }
   };
 
