@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -289,6 +289,52 @@ describe("CurationQueue", () => {
       expect(loadCurationJobDetail).toHaveBeenCalledWith("job-1", { forceRefresh: false });
     });
     expect(loadCurationJobDetail).toHaveBeenCalledTimes(1);
+  });
+
+  it("limpa o erro da fila após um reload bem-sucedido", async () => {
+    loadCurationQueue
+      .mockRejectedValueOnce(new Error("fila indisponível"))
+      .mockResolvedValue(queuePayload);
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("fila indisponível");
+    curationEvents.notify();
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("descarta a resposta antiga quando um reload mais novo já chegou", async () => {
+    let resolveFirst;
+    let resolveSecond;
+    loadCurationQueue
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await waitFor(() => expect(loadCurationQueue).toHaveBeenCalledTimes(1));
+    curationEvents.notify();
+    await waitFor(() => expect(loadCurationQueue).toHaveBeenCalledTimes(2));
+
+    const stale = {
+      ...queuePayload,
+      queue: [{ ...queuePayload.queue[0], id: "job-stale", title: "Vaga obsoleta" }],
+    };
+    const fresh = {
+      ...queuePayload,
+      queue: [{ ...queuePayload.queue[0], id: "job-fresh", title: "Vaga recente" }],
+    };
+
+    await act(async () => {
+      resolveSecond(fresh);
+    });
+    expect(await screen.findByRole("button", { name: /Vaga recente/ })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveFirst(stale);
+    });
+    expect(screen.getByRole("button", { name: /Vaga recente/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Vaga obsoleta/ })).not.toBeInTheDocument();
   });
 });
 
