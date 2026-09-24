@@ -258,7 +258,7 @@ O matching semântico/Gemini não é fundação do MVP. A ordem planejada é:
 3. gate F-020/C-04;
 4. somente então Gemini/embeddings (`MVP-006`/`MVP-016`).
 
-Enquanto isso, `match-jobs` deve permanecer desligada ou inacessível em produção.
+Enquanto isso, `match-jobs` permanece despublicada e o handler responde `403` sem ler perfil nem chamar o provedor, até o gate MVP-005.
 
 ## 8. Ambientes, dados e segredos
 
