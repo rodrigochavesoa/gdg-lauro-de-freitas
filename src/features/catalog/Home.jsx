@@ -60,6 +60,7 @@ export function Home({ logged = false }) {
   const [resultCount, setResultCount] = useState(() => initialPage?.count ?? null);
   const [catalogStatus, setCatalogStatus] = useState(() => (initialPage ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const loadParams = useMemo(() => toLoadParams(urlFilters, urlQuery), [urlFilters, urlQuery]);
   const loadGenerationRef = useRef(0);
 
@@ -109,12 +110,10 @@ export function Home({ logged = false }) {
       })
       .catch(() => {
         if (cancelled) return;
-        setJobs([]);
-        setResultCount(0);
         setCatalogStatus("error");
       });
     return () => { cancelled = true; };
-  }, [loadParams]);
+  }, [loadParams, reloadNonce]);
 
   const loadMore = async () => {
     if (loadingMore || catalogStatus !== "ready") return;
@@ -194,11 +193,12 @@ export function Home({ logged = false }) {
   const catalogAnnouncement =
     catalogStatus === "loading" && jobs.length === 0
       ? "Carregando vagas"
-      : catalogStatus === "error" && jobs.length === 0
+      : catalogStatus === "error"
         ? "Catálogo indisponível"
         : catalogStatus === "ready" && jobs.length === 0
           ? "Nenhuma vaga encontrada"
           : "";
+  const retryCatalog = () => setReloadNonce((n) => n + 1);
 
   const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><form className="searchbox" role="search" aria-label="Buscar vagas no catálogo" onSubmit={(event) => { event.preventDefault(); commitQueryToUrl(query); }}><Search size={21} aria-hidden="true"/><input id="catalog-query" name="q" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Cargo, tecnologia ou empresa"/><button className="primary" type="submit">Buscar vagas <ArrowUpRight size={17}/></button></form><div className="popular">Populares: <button type="button" onClick={() => applyQuery("React")}>React</button><button type="button" onClick={() => applyQuery("Node")}>Node.js</button><button type="button" onClick={() => applyQuery("Python")}>Python</button><button type="button" onClick={() => applyQuery("Designer")}>Product Design</button></div>    </div></section>;
 
@@ -247,7 +247,20 @@ export function Home({ logged = false }) {
           {catalogAnnouncement ? <p className="sr-only" role="status">{catalogAnnouncement}</p> : null}
           {catalogStatus === "loading" && jobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
           {jobs.map(job => <JobCard key={job.id} job={job} />)}
-          {catalogStatus === "error" && jobs.length === 0 && <div className="empty"><Search size={32} aria-hidden="true"/><h3>Catálogo indisponível</h3><p>Configure o projeto Supabase de teste em .env.local para listar vagas aprovadas.</p></div>}
+          {catalogStatus === "error" && jobs.length === 0 && (
+            <div className="empty">
+              <Search size={32} aria-hidden="true"/>
+              <h3>Catálogo indisponível</h3>
+              <p>Não foi possível carregar as vagas. Tente de novo em instantes.</p>
+              <button className="outline" type="button" onClick={retryCatalog}>Tentar de novo</button>
+            </div>
+          )}
+          {catalogStatus === "error" && jobs.length > 0 && (
+            <p className="tiny" role="alert">
+              Não foi possível atualizar o catálogo.{" "}
+              <button className="outline" type="button" onClick={retryCatalog}>Tentar de novo</button>
+            </p>
+          )}
           {catalogStatus === "ready" && jobs.length === 0 && <div className="empty"><Search size={32} aria-hidden="true"/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" type="button" onClick={reset}>Limpar filtros</button></div>}
         </div>
         {hasMore ? (

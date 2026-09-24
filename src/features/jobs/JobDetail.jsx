@@ -62,6 +62,8 @@ function ContentSkeleton() {
 export function JobDetail({
   job,
   isPartial = false,
+  loadError = false,
+  onRetryLoad,
   goBack,
   backLabel = "Voltar para vagas",
   logged,
@@ -102,6 +104,14 @@ export function JobDetail({
     <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy={isPartial || undefined}>
       <div className="shell">
         <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
+        {loadError ? (
+          <p className="tiny" role="alert">
+            Não foi possível atualizar os detalhes desta vaga.{" "}
+            <button className="outline" type="button" onClick={() => onRetryLoad?.()}>
+              Tentar de novo
+            </button>
+          </p>
+        ) : null}
         <div className="detail-grid">
           <article className="detail-main">
             <div className="detail-top">

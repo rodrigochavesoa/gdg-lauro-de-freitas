@@ -98,6 +98,8 @@ vi.mock("./features/ingest/ingest-api.js", async () => {
   };
 });
 
+const loadApprovedJobMock = vi.hoisted(() => vi.fn());
+
 vi.mock("./features/catalog/jobs-api.js", () => {
   const catalogJobs = [
     {
@@ -219,23 +221,7 @@ vi.mock("./features/catalog/jobs-api.js", () => {
       return { jobs: catalogJobs, count: catalogJobs.length };
     },
     loadApprovedJobs: async (opts = {}) => filterCatalog(opts),
-    loadApprovedJob: async (id) => ({
-      id,
-      title: "Pessoa Desenvolvedora Front-end",
-      company: "Nuvem Lauro Demo",
-      logo: "NL",
-      color: "#1e40af",
-      level: "Pleno",
-      place: "Brasil · Remoto",
-      type: "Remoto",
-      posted: "há 2 dias",
-      stack: ["React", "TypeScript", "Next.js"],
-      salary: "A combinar",
-      featured: false,
-      description: "Fictícia",
-      about: "Empresa fictícia",
-      responsibilities: ["Construir interfaces"],
-    }),
+    loadApprovedJob: (...args) => loadApprovedJobMock(...args),
     CATALOG_PAGE_SIZE: 24,
   };
 });
@@ -273,6 +259,24 @@ beforeEach(() => {
   loadMyApplicationsMock.mockResolvedValue([]);
   loadPrivacyPreferencesMock.mockReset();
   loadPrivacyPreferencesMock.mockResolvedValue({ purposes: [], events: [], source: "fallback" });
+  loadApprovedJobMock.mockReset();
+  loadApprovedJobMock.mockImplementation(async (id) => ({
+    id,
+    title: "Pessoa Desenvolvedora Front-end",
+    company: "Nuvem Lauro Demo",
+    logo: "NL",
+    color: "#1e40af",
+    level: "Pleno",
+    place: "Brasil · Remoto",
+    type: "Remoto",
+    posted: "há 2 dias",
+    stack: ["React", "TypeScript", "Next.js"],
+    salary: "A combinar",
+    featured: false,
+    description: "Fictícia",
+    about: "Empresa fictícia",
+    responsibilities: ["Construir interfaces"],
+  }));
 });
 
 async function renderAt(path = "/") {
@@ -514,6 +518,32 @@ describe("ARQ-01 — caracterização do shell", () => {
     fireEvent.click(screen.getByRole("button", { name: /Voltar para vagas/i }));
     expect(await screen.findByRole("heading", { name: "Vagas em destaque" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Seu futuro em tech tem endereço/i })).not.toBeInTheDocument();
+  });
+
+  it("com cache parcial, falha de rede mantém a vaga e retry; não parece 404", async () => {
+    loadApprovedJobMock.mockRejectedValue(new Error("network"));
+    await renderAt("/jobs/1");
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Não foi possível atualizar os detalhes/i);
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+    expect(screen.queryByText("Vaga não encontrada.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/não encontrada ou indisponível/i)).not.toBeInTheDocument();
+  });
+
+  it("fetch sem vaga mostra missing, distinto de erro de rede", async () => {
+    loadApprovedJobMock.mockResolvedValue(null);
+    await renderAt("/jobs/missing");
+    expect(await screen.findByRole("status")).toHaveTextContent("Vaga não encontrada.");
+    expect(screen.queryByRole("button", { name: "Tentar de novo" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível carregar esta vaga/i)).not.toBeInTheDocument();
+  });
+
+  it("falha de rede sem cache mostra erro com retry, não 404", async () => {
+    loadApprovedJobMock.mockRejectedValue(new Error("network"));
+    await renderAt("/jobs/missing");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Não foi possível carregar esta vaga/i);
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+    expect(screen.queryByText("Vaga não encontrada.")).not.toBeInTheDocument();
   });
 
   it("renderiza o Login diretamente em /login sem CTAs de auth no Header", async () => {

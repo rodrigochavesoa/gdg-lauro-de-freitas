@@ -345,6 +345,8 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
   const goBack = () => navigate(from);
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
+  const [loadError, setLoadError] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [applicationStatus, setApplicationStatus] = useState(null);
   const [applicationLoading, setApplicationLoading] = useState(false);
   const [applicationCheckFailed, setApplicationCheckFailed] = useState(false);
@@ -368,6 +370,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
     setApplicationLoading(loadOwnApplication);
     setApplicationCheckFailed(false);
     setApplyError("");
+    setLoadError(false);
 
     const jobPromise = loadApprovedJob(id);
     const applicationPromise = loadOwnApplication
@@ -377,11 +380,20 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
     jobPromise
       .then((row) => {
         if (cancelled) return;
+        setLoadError(false);
         setJob(row);
         setStatus(row ? "ready" : "missing");
       })
       .catch(() => {
-        if (!cancelled) setStatus("error");
+        if (cancelled) return;
+        setLoadError(true);
+        if (cached) {
+          setJob(cached);
+          setStatus("partial");
+          return;
+        }
+        setJob(null);
+        setStatus("error");
       });
 
     applicationPromise
@@ -399,7 +411,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
       });
 
     return () => { cancelled = true; };
-  }, [id, logged, userId, loadOwnApplication]);
+  }, [id, logged, userId, loadOwnApplication, reloadNonce]);
 
   const runApplyAction = async (action) => {
     if (!logged || !candidateApply) return;
@@ -432,14 +444,36 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
   if (status === "loading") {
     return <JobDetailSkeleton goBack={goBack} backLabel={backLabel} />;
   }
-  if (status === "missing" || status === "error") {
-    return <main id="conteudo" tabIndex={-1} className="detail-page"><div className="shell"><p role="status">Vaga não encontrada ou indisponível.</p><button className="back" type="button" onClick={goBack}>{backLabel}</button></div></main>;
+  if (status === "missing") {
+    return (
+      <main id="conteudo" tabIndex={-1} className="detail-page">
+        <div className="shell">
+          <p role="status">Vaga não encontrada.</p>
+          <button className="back" type="button" onClick={goBack}>{backLabel}</button>
+        </div>
+      </main>
+    );
+  }
+  if (status === "error") {
+    return (
+      <main id="conteudo" tabIndex={-1} className="detail-page">
+        <div className="shell">
+          <p role="alert">Não foi possível carregar esta vaga. Tente de novo em instantes.</p>
+          <button className="outline" type="button" onClick={() => setReloadNonce((n) => n + 1)}>
+            Tentar de novo
+          </button>
+          <button className="back" type="button" onClick={goBack}>{backLabel}</button>
+        </div>
+      </main>
+    );
   }
   if (status === "partial" || status === "ready") {
     return (
       <JobDetail
         job={job}
         isPartial={status === "partial"}
+        loadError={loadError}
+        onRetryLoad={() => setReloadNonce((n) => n + 1)}
         goBack={goBack}
         backLabel={backLabel}
         logged={logged}
