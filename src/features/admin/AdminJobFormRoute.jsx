@@ -91,8 +91,6 @@ export function AdminJobFormRoute() {
         setEditingId(created.id);
         setMessage("Vaga cadastrada como pendente de curadoria.");
       }
-      setForm(emptyJobForm);
-      setEditingId("");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -102,7 +100,7 @@ export function AdminJobFormRoute() {
 
   const onSubmit = (event) => {
     event.preventDefault();
-    persist(false);
+    persist(Boolean(editingId));
   };
 
   const structuredErrors = formErrors.filter((item) => STRUCTURED_ERROR.test(item));
