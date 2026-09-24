@@ -1,7 +1,7 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 
 const authState = {
   session: null,
@@ -68,13 +68,15 @@ vi.mock("./features/admin/admin-jobs-api.js", async () => {
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
 const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));
+const applyToJobMock = vi.hoisted(() => vi.fn());
+const withdrawApplicationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./features/jobs/apply-api.js", async () => {
   const actual = await vi.importActual("./features/jobs/apply-api.js");
   return {
     ...actual,
-    applyToJob: vi.fn(),
-    withdrawApplication: vi.fn(),
+    applyToJob: (...args) => applyToJobMock(...args),
+    withdrawApplication: (...args) => withdrawApplicationMock(...args),
     loadMyApplication: (...args) => loadMyApplicationMock(...args),
     loadMyApplications: (...args) => loadMyApplicationsMock(...args),
   };
@@ -277,10 +279,17 @@ beforeEach(() => {
     about: "Empresa fictícia",
     responsibilities: ["Construir interfaces"],
   }));
+  applyToJobMock.mockReset();
+  withdrawApplicationMock.mockReset();
 });
 
 async function renderAt(path = "/") {
   render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
+}
+
+function CatalogJump({ to }) {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(to)}>Ir para outra vaga</button>;
 }
 
 async function renderHome() {
@@ -964,6 +973,76 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Verificando candidatura/i })).toBeInTheDocument();
     resolveApplication({ status: "submitted" });
+    expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("apply lento na vaga A não grava status na vaga B após navegar", async () => {
+    const complete = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = complete;
+    authState.needsOnboarding = false;
+    loadApprovedJobMock.mockImplementation(async (id) => ({
+      id,
+      title: id === "2" ? "Desenvolvedor(a) Back-end Node.js" : "Pessoa Desenvolvedora Front-end",
+      company: id === "2" ? "Baía Code Exemplo" : "Nuvem Lauro Demo",
+      logo: id === "2" ? "BC" : "NL",
+      color: "#1e40af",
+      level: "Pleno",
+      place: "Brasil · Remoto",
+      type: "Remoto",
+      posted: "há 2 dias",
+      stack: ["React"],
+      salary: "A combinar",
+      featured: false,
+      description: "Fictícia",
+      about: "Empresa fictícia",
+      responsibilities: ["Construir interfaces"],
+    }));
+    let resolveApply;
+    applyToJobMock.mockImplementation(
+      () => new Promise((resolve) => { resolveApply = resolve; }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/jobs/1"]}>
+        <CatalogJump to="/jobs/2" />
+        <App />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
+    await waitFor(() => expect(applyToJobMock).toHaveBeenCalledWith("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ir para outra vaga" }));
+    expect(await screen.findByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveApply({ status: "submitted" });
+    });
+    expect(screen.getByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(screen.queryByText("Candidatura enviada!")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+  });
+
+  it("apply na mesma vaga ainda atualiza o status da candidatura", async () => {
+    authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+    authState.profile = {
+      full_name: "Ana Demo",
+      role: "candidate",
+      skills: ["React"],
+      preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+    };
+    authState.needsOnboarding = false;
+    applyToJobMock.mockResolvedValue({ status: "submitted" });
+    await renderAt("/jobs/1");
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
     expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
   });

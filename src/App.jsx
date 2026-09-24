@@ -355,6 +355,8 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
   const applySurfaceReady = isCandidateApplySurfaceReady({ authReady, logged, profile });
   const candidateApply = canUseCandidateApply({ authReady, logged, profile });
   const loadOwnApplication = shouldLoadMyApplication({ authReady, logged, profile });
+  const routeIdRef = useRef(id);
+  routeIdRef.current = id;
 
   useEffect(() => {
     let cancelled = false;
@@ -370,6 +372,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
     setApplicationLoading(loadOwnApplication);
     setApplicationCheckFailed(false);
     setApplyError("");
+    setApplyBusy(false);
     setLoadError(false);
 
     const jobPromise = loadApprovedJob(id);
@@ -415,14 +418,18 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
 
   const runApplyAction = async (action) => {
     if (!logged || !candidateApply) return;
+    const clickedId = id;
     setApplyBusy(true);
     setApplyError("");
     try {
       const row = await action();
+      if (routeIdRef.current !== clickedId) return;
       setApplicationStatus(row?.status ?? null);
     } catch (error) {
+      if (routeIdRef.current !== clickedId) return;
       if (error.code === "already applied") {
-        const existing = await loadMyApplication(id, userId).catch(() => null);
+        const existing = await loadMyApplication(clickedId, userId).catch(() => null);
+        if (routeIdRef.current !== clickedId) return;
         setApplicationStatus(existing?.status ?? "submitted");
         setApplyError("");
         return;
@@ -437,7 +444,7 @@ function JobDetailRoute({ logged, userId, needsOnboarding, authReady, profile })
       }
       setApplyError(error.message || "Não foi possível concluir a candidatura.");
     } finally {
-      setApplyBusy(false);
+      if (routeIdRef.current === clickedId) setApplyBusy(false);
     }
   };
 
