@@ -37,6 +37,15 @@ function loadAdminUser() {
   };
 }
 
+function deltaY(a, b) {
+  if (!a || !b || typeof a.y !== "number" || typeof b.y !== "number") return null;
+  return Math.abs(a.y - b.y);
+}
+
+function withinThreshold(delta, max) {
+  return delta !== null && delta <= max;
+}
+
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = env.BASE_URL || "http://127.0.0.1:5173";
 const { email, password } = loadAdminUser();
@@ -45,88 +54,94 @@ const outFile = resolve(outDir, "ux-curation-priority-layout-shift.json");
 
 if (!email || !password) {
   console.error("Defina credenciais admin (docs-local/admin-test-user.md ou ADMIN_EMAIL/PASSWORD).");
-  process.exit(1);
-}
+  process.exitCode = 1;
+} else {
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 
-async function box(page, selector) {
-  const el = page.locator(selector).first();
-  await el.waitFor({ state: "visible", timeout: 20000 });
-  return el.boundingBox();
-}
+  try {
+    async function box(pageRef, selector) {
+      const el = pageRef.locator(selector).first();
+      await el.waitFor({ state: "visible", timeout: 20000 });
+      return el.boundingBox();
+    }
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
+    await page.getByLabel("E-mail").fill(email);
+    await page.getByLabel("Senha").fill(password);
+    await page.getByRole("button", { name: "Entrar" }).click();
+    await page.waitForURL(/\/admin/, { timeout: 30000 });
 
-try {
-  await page.goto(`${baseUrl}/admin`, { waitUntil: "networkidle" });
-  await page.getByLabel("E-mail").fill(email);
-  await page.getByLabel("Senha").fill(password);
-  await page.getByRole("button", { name: "Entrar" }).click();
-  await page.waitForURL(/\/admin/, { timeout: 30000 });
+    await page.goto(`${baseUrl}/admin/curadoria`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Pessoa Dev|\(fila\)/ }).first().click();
+    await page.getByRole("heading", { name: "Prioridade (admin)" }).waitFor();
 
-  await page.goto(`${baseUrl}/admin/curadoria`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Pessoa Dev|\(fila\)/ }).first().click();
-  await page.getByRole("heading", { name: "Prioridade (admin)" }).waitFor();
+    const queueRow = ".curation-workspace__queue-item:first-child .curation-workspace__select";
+    const feedback = ".curation-priority-feedback__slot";
+    const detail = ".curation-workspace__detail";
 
-  const queueRow = ".curation-workspace__queue-item:first-child .curation-workspace__select";
-  const feedback = ".curation-priority-feedback__slot";
-  const detail = ".curation-workspace__detail";
+    const before = {
+      queue: await box(page, queueRow),
+      feedback: await box(page, feedback),
+      detail: await box(page, detail),
+    };
 
-  const before = {
-    queue: await box(page, queueRow),
-    feedback: await box(page, feedback),
-    detail: await box(page, detail),
-  };
+    await page.getByLabel("Motivo interno para urgente").fill("layout shift check");
+    await page.getByRole("button", { name: "Urgente", exact: true }).click();
+    await page.getByText("Prioridade urgente registrada.").waitFor({ timeout: 15000 });
 
-  await page.getByLabel("Motivo interno para urgente").fill("layout shift check");
-  await page.getByRole("button", { name: "Urgente", exact: true }).click();
-  await page.getByText("Prioridade urgente registrada.").waitFor({ timeout: 15000 });
+    const urgent = {
+      queue: await box(page, queueRow),
+      feedback: await box(page, feedback),
+      detail: await box(page, detail),
+    };
 
-  const urgent = {
-    queue: await box(page, queueRow),
-    feedback: await box(page, feedback),
-    detail: await box(page, detail),
-  };
+    await page.getByRole("button", { name: "Normal", exact: true }).click();
+    await page.getByText("Prioridade definida como normal.").waitFor({ timeout: 15000 });
 
-  await page.getByRole("button", { name: "Normal", exact: true }).click();
-  await page.getByText("Prioridade definida como normal.").waitFor({ timeout: 15000 });
+    const normal = {
+      queue: await box(page, queueRow),
+      feedback: await box(page, feedback),
+      detail: await box(page, detail),
+    };
 
-  const normal = {
-    queue: await box(page, queueRow),
-    feedback: await box(page, feedback),
-    detail: await box(page, detail),
-  };
+    const deltas = {
+      queueRowY_urgent: deltaY(before.queue, urgent.queue),
+      queueRowY_normal: deltaY(urgent.queue, normal.queue),
+      feedbackY_urgent: deltaY(before.feedback, urgent.feedback),
+      feedbackY_normal: deltaY(urgent.feedback, normal.feedback),
+      detailY_urgent: deltaY(before.detail, urgent.detail),
+      detailY_normal: deltaY(urgent.detail, normal.detail),
+    };
 
-  const delta = (a, b) => (a && b ? Math.abs(a.y - b.y) : null);
+    const boxesValid = [before, urgent, normal].every(
+      (snap) => snap.queue && snap.feedback && snap.detail,
+    );
 
-  const report = {
-    capturedAt: new Date().toISOString(),
-    baseUrl,
-    thresholdsPx: { queueRowY: 2, feedbackY: 2, detailY: 4 },
-    deltas: {
-      queueRowY_urgent: delta(before.queue, urgent.queue),
-      queueRowY_normal: delta(urgent.queue, normal.queue),
-      feedbackY_urgent: delta(before.feedback, urgent.feedback),
-      feedbackY_normal: delta(urgent.feedback, normal.feedback),
-      detailY_urgent: delta(before.detail, urgent.detail),
-      detailY_normal: delta(urgent.detail, normal.detail),
-    },
-    pass:
-      delta(before.queue, urgent.queue) <= 2 &&
-      delta(urgent.queue, normal.queue) <= 2 &&
-      delta(before.feedback, urgent.feedback) <= 2 &&
-      delta(urgent.feedback, normal.feedback) <= 2 &&
-      delta(before.detail, urgent.detail) <= 4 &&
-      delta(urgent.detail, normal.detail) <= 4,
-  };
+    const report = {
+      capturedAt: new Date().toISOString(),
+      baseUrl,
+      boxesValid,
+      thresholdsPx: { queueRowY: 2, feedbackY: 2, detailY: 4 },
+      deltas,
+      pass:
+        boxesValid &&
+        withinThreshold(deltas.queueRowY_urgent, 2) &&
+        withinThreshold(deltas.queueRowY_normal, 2) &&
+        withinThreshold(deltas.feedbackY_urgent, 2) &&
+        withinThreshold(deltas.feedbackY_normal, 2) &&
+        withinThreshold(deltas.detailY_urgent, 4) &&
+        withinThreshold(deltas.detailY_normal, 4),
+    };
 
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(outFile, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  console.log(JSON.stringify(report, null, 2));
-  process.exit(report.pass ? 0 : 1);
-} catch (err) {
-  console.error(err);
-  process.exit(1);
-} finally {
-  await browser.close();
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(outFile, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+    console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.pass ? 0 : 1;
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    await browser.close();
+  }
 }

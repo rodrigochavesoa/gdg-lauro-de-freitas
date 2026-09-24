@@ -9,6 +9,7 @@ import {
   submitCurationReview,
   subscribeCurationJobs,
 } from "./curation-api.js";
+import { mergeCurationQueue } from "./curation-queue.js";
 import { RUBRIC_OPTIONS } from "./rubric.js";
 import { CurationTimeline } from "./CurationTimeline.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
@@ -395,9 +396,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
               disabled={busy}
               onPriorityChange={async (jobId, nextPriority, reason) => {
                 await setJobCurationPriority(jobId, nextPriority, reason);
-                setQueue((current) =>
-                  current.map((job) => (job.id === jobId ? { ...job, priority: nextPriority } : job)),
-                );
+                setQueue((current) => {
+                  const moderationIds = current.filter((job) => job.needsModeration).map((job) => job.id);
+                  const updated = current.map((job) =>
+                    job.id === jobId ? { ...job, priority: nextPriority } : job,
+                  );
+                  return mergeCurationQueue(updated, moderationIds);
+                });
               }}
             />
           )}

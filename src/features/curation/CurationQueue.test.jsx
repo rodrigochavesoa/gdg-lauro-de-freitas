@@ -33,6 +33,7 @@ vi.mock("./curation-api.js", () => ({
 }));
 
 import { CurationQueue } from "./CurationQueue.jsx";
+import { mergeCurationQueue } from "./curation-queue.js";
 
 const queuePayload = {
   queue: [
@@ -468,6 +469,39 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     const feedback = document.querySelector(".curation-priority-feedback");
     expect(within(feedback).getByRole("status")).toHaveTextContent("Prioridade urgente registrada.");
     expect(setJobCurationPriority).toHaveBeenCalledWith("job-1", "urgent", "SLA interno");
+  });
+
+  it("reordena a fila localmente ao marcar urgente (urgentes primeiro)", async () => {
+    const jobs = [
+      {
+        ...normalQueuePayload.queue[0],
+        id: "job-a",
+        title: "Vaga normal antiga",
+        priority: "normal",
+        created_at: "2026-08-16T10:00:00Z",
+      },
+      {
+        ...normalQueuePayload.queue[0],
+        id: "job-b",
+        title: "Vaga normal recente",
+        priority: "normal",
+        created_at: "2026-08-16T12:00:00Z",
+      },
+    ];
+    loadCurationQueue.mockResolvedValue({
+      ...normalQueuePayload,
+      queue: mergeCurationQueue(jobs, []),
+    });
+
+    render(<CurationQueue includeRejected={false} profile={adminProfile} />);
+    await selectQueueJob(/Vaga normal antiga/);
+    await markUrgent();
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole("button", { name: /Vaga normal/ });
+      expect(rows[0]).toHaveAccessibleName(/Vaga normal antiga/);
+      expect(within(rows[0].closest(".curation-workspace__queue-item")).getByText("Urgente")).toBeInTheDocument();
+    });
   });
 
   it("o botão é nativo, focável e dispara a ação com o controle focado", async () => {
