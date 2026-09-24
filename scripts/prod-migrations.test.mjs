@@ -1,22 +1,38 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   FICTITIOUS_SEED_UUIDS,
   PROD_MANIFEST_FILENAME,
+  applyHomologChain,
+  assertHomologDatabaseUrl,
   assertProdSafeSql,
   classifyNonManifestSql,
+  heldMigrationsDir,
+  homologMigrationsDir,
   isHomologOnlyMigration,
   isProdSafeMigration,
+  listHomologChain,
   listHomologOnlyMigrations,
   listProdSafeMigrations,
+  psqlInvocation,
   validateProdMigrations,
 } from "./prod-migrations.mjs";
 
-function writeTempMigrations({ manifest, files = {} }) {
+function writeTempMigrations({ manifest, files = {}, homologFiles = {}, heldFiles = {} }) {
   const dir = mkdtempSync(join(tmpdir(), "gdg-mig-"));
-  writeFileSync(join(dir, "202608160002_seed_fictitious_catalog.sql"), "-- homolog seed\n");
+  const homologDir = homologMigrationsDir(dir);
+  const heldDir = heldMigrationsDir(dir);
+  mkdirSync(homologDir);
+  mkdirSync(heldDir);
+  writeFileSync(join(homologDir, "202608160002_seed_fictitious_catalog.sql"), "-- homolog seed\n");
+  for (const [name, body] of Object.entries(homologFiles)) {
+    writeFileSync(join(homologDir, name), body);
+  }
+  for (const [name, body] of Object.entries(heldFiles)) {
+    writeFileSync(join(heldDir, name), body);
+  }
   for (const [name, body] of Object.entries(files)) {
     writeFileSync(join(dir, name), body);
   }
@@ -71,6 +87,12 @@ describe("prod migrations", () => {
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);
     expect(classifyNonManifestSql().unclassified).toEqual([]);
+    const chain = listHomologChain();
+    expect(prod.every((name) => chain.includes(name))).toBe(true);
+    expect(chain.some((name) => name.includes("seed_fictitious"))).toBe(true);
+    expect(chain.indexOf("202608160002_seed_fictitious_catalog.sql")).toBeGreaterThan(
+      chain.indexOf("202608150001_ai_matching.sql"),
+    );
   });
 
   it("registra dívida GOV-AVATAR-MIG-CLASS-01: avatars_ ainda pega Camada B sem _homolog", () => {
@@ -91,7 +113,7 @@ describe("prod migrations", () => {
         [prodName]: "select 1;\n",
       },
     });
-    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
     expect(() => validateProdMigrations(dir)).toThrow(/job_ingestions_source_contract_prod/);
   });
 
@@ -137,6 +159,28 @@ describe("prod migrations", () => {
     expect(() => validateProdMigrations(dir)).toThrow(/não existe/);
   });
 
+  it("falha se homolog-only permanecer na raiz que o CLI aplica", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: {
+        "ok.sql": "select 1;\n",
+        "20260920030000_staff_cannot_apply_homolog.sql": "select 1;\n",
+      },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
+    expect(() => validateProdMigrations(dir)).toThrow(/staff_cannot_apply_homolog/);
+  });
+
+  it("falha se a subpasta homolog tiver SQL sem marcador homolog-only", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: { "ok.sql": "select 1;\n" },
+      homologFiles: { "plain.sql": "select 1;\n" },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem marcador homolog-only/);
+    expect(() => validateProdMigrations(dir)).toThrow(/plain\.sql/);
+  });
+
   it("falha se houver migration sem classificação", () => {
     const dir = writeTempMigrations({
       manifest: ["ok.sql"],
@@ -145,20 +189,111 @@ describe("prod migrations", () => {
         "orphan.sql": "select 1;\n",
       },
     });
-    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
     expect(() => validateProdMigrations(dir)).toThrow(/orphan\.sql/);
+  });
+
+  it("falha se held/ tiver SQL sem marker de Camada B", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: { "ok.sql": "select 1;\n" },
+      heldFiles: { "plain.sql": "select 1;\n" },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/plain\.sql/);
   });
 
   it("aceita migration fora do manifesto só quando marcada para não aplicar", () => {
     const dir = writeTempMigrations({
       manifest: ["ok.sql"],
-      files: {
-        "ok.sql": "select 1;\n",
+      files: { "ok.sql": "select 1;\n" },
+      heldFiles: {
         "pending.sql": "-- Produção: não aplicar (Camada B / PO).\nselect 1;\n",
       },
     });
     const { prod, camadaB } = validateProdMigrations(dir);
     expect(prod).toEqual(["ok.sql"]);
     expect(camadaB).toEqual(["pending.sql"]);
+  });
+
+  it("recusa apply quando a URL aponta para produção", () => {
+    const homolog = { homologProjectRef: "homologref" };
+    expect(() => assertHomologDatabaseUrl("")).toThrow(/ausente/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", {
+        homologProjectRef: "",
+      }),
+    ).toThrow(/fail-closed/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", homolog),
+    ).toThrow(/allowlist/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.gdg-jobs-prod:pw@db.homologref.supabase.co:5432/postgres", homolog),
+    ).toThrow(/produção/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.homologref:pw@db.homologref.supabase.co:5432/postgres", {
+        ...homolog,
+        prodProjectRef: "homologref",
+      }),
+    ).toThrow(/project ref de produção/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres:pw@127.0.0.1:5432/postgres", homolog),
+    ).toThrow(/project ref/);
+  });
+
+  it("aplica a cadeia de homologação em ordem sem executar SQL de produção", () => {
+    const dir = writeTempMigrations({
+      manifest: ["202608150001_ok.sql"],
+      files: { "202608150001_ok.sql": "select 1;\n" },
+      heldFiles: {
+        "20260816000999_held.sql": "-- Produção: não aplicar (Camada B / PO).\nselect 1;\n",
+      },
+    });
+    const calls = [];
+    const homologUrl = "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres";
+    const gate = { homologProjectRef: "homologref", appliedVersions: [] };
+    const { ran, skipped } = applyHomologChain(homologUrl, {
+      ...gate,
+      dir,
+      runFile: (_url, file) => calls.push(file),
+    });
+    expect(ran).toEqual([
+      "202608150001_ok.sql",
+      "202608160002_seed_fictitious_catalog.sql",
+      "20260816000999_held.sql",
+    ]);
+    expect(skipped).toEqual([]);
+    expect(calls).toHaveLength(3);
+    const resumed = applyHomologChain(homologUrl, {
+      ...gate,
+      dir,
+      appliedVersions: ["202608150001", "202608160002"],
+      runFile: (_url, file) => calls.push(file),
+    });
+    expect(resumed.skipped).toEqual(["202608150001_ok.sql", "202608160002_seed_fictitious_catalog.sql"]);
+    expect(resumed.ran).toEqual(["20260816000999_held.sql"]);
+    expect(calls).toHaveLength(4);
+    expect(() =>
+      applyHomologChain("postgresql://postgres.gdg-jobs-prod:pw@db.example:5432/postgres", {
+        ...gate,
+        dir,
+        runFile: () => calls.push("should-not-run"),
+      }),
+    ).toThrow(/produção/);
+    expect(calls).toHaveLength(4);
+  });
+
+  it("não coloca a senha na linha de comando e grava a versão na mesma transação", () => {
+    const invocation = psqlInvocation(
+      "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres",
+      "C:\\migrations\\202608150001_ok.sql",
+      { version: "202608150001", name: "202608150001_ok.sql" },
+    );
+    expect(invocation.args.join(" ")).not.toContain("secret-pass");
+    expect(invocation.env.PGPASSWORD).toBe("secret-pass");
+    expect(invocation.input).toContain("BEGIN;");
+    expect(invocation.input).toContain("COMMIT;");
+    expect(invocation.input).toContain("supabase_migrations.schema_migrations");
+    expect(invocation.input).toContain("202608150001");
   });
 });

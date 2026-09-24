@@ -287,9 +287,9 @@ As chaves publishable/anon podem aparecer no browser; isso não torna RLS opcion
 
 ## 9. Banco, migrations e operação
 
-As migrations ficam em `supabase/migrations/`. O arquivo `supabase/migrations/prod.manifest.json` é a fonte de verdade da lista autorizada para produção.
+A raiz de `supabase/migrations/` é o path que `supabase db push` aplica e só pode conter o manifesto. SQL homolog-only fica em `supabase/migrations/homolog/`. Camada B fica em `supabase/migrations/held/`. O CLI não lê essas subpastas.
 
-`pnpm migrations:prod` valida e lista migrations; ele não aplica automaticamente mudanças em produção. Uma migration nova deve ser classificada explicitamente. Arquivos homolog-only ou marcados “Produção: não aplicar” não entram no manifesto.
+`pnpm migrations:prod` valida a raiz contra o manifesto e não aplica SQL. `pnpm migrations:homolog` lista a cadeia completa. `pnpm migrations:homolog:apply` aplica essa cadeia com `psql` só se o project ref da URL for `HOMOLOG_SUPABASE_PROJECT_REF`. Versões já gravadas em `supabase_migrations.schema_migrations` são puladas. Arquivos homolog-only ou marcados “Produção: não aplicar” não entram no manifesto.
 
 A migration `20260915154949_job_submission_staff_dedup.sql` permanece fora do manifesto até aceite da Camada B.
 
