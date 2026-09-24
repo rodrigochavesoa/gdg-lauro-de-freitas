@@ -214,11 +214,37 @@ describe("Home", () => {
     );
 
     expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("Python");
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "Python", offset: 0 }));
+    });
     fireEvent.click(screen.getByRole("button", { name: "React" }));
     expect(screen.getByLabelText("Cargo, tecnologia ou empresa")).toHaveValue("React");
     await waitFor(() => {
       expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "React", offset: 0 }));
     });
+  });
+
+  it("digitar no campo não busca até Buscar vagas commitar o termo na URL", async () => {
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(loadApprovedJobs).toHaveBeenCalled());
+    const callsBeforeType = loadApprovedJobs.mock.calls.length;
+    const search = screen.getByLabelText("Cargo, tecnologia ou empresa");
+    fireEvent.change(search, { target: { value: "Node" } });
+    expect(search).toHaveValue("Node");
+    expect(loadApprovedJobs).toHaveBeenCalledTimes(callsBeforeType);
+    expect(loadApprovedJobs).not.toHaveBeenCalledWith(expect.objectContaining({ query: "Node" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Buscar vagas/i }));
+    expect(search).toHaveValue("Node");
+    await waitFor(() => {
+      expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "Node", offset: 0 }));
+    });
+    expect(loadApprovedJobs.mock.calls.filter((call) => call[0]?.query === "Node")).toHaveLength(1);
   });
 
   it("sincroniza o param query com voltar e avançar do histórico", async () => {
