@@ -5,8 +5,11 @@ import { describe, expect, it } from "vitest";
 import {
   FICTITIOUS_SEED_UUIDS,
   PROD_MANIFEST_FILENAME,
+  applyHomologChain,
+  assertHomologDatabaseUrl,
   assertProdSafeSql,
   classifyNonManifestSql,
+  heldMigrationsDir,
   homologMigrationsDir,
   isHomologOnlyMigration,
   isProdSafeMigration,
@@ -16,13 +19,18 @@ import {
   validateProdMigrations,
 } from "./prod-migrations.mjs";
 
-function writeTempMigrations({ manifest, files = {}, homologFiles = {} }) {
+function writeTempMigrations({ manifest, files = {}, homologFiles = {}, heldFiles = {} }) {
   const dir = mkdtempSync(join(tmpdir(), "gdg-mig-"));
   const homologDir = homologMigrationsDir(dir);
+  const heldDir = heldMigrationsDir(dir);
   mkdirSync(homologDir);
+  mkdirSync(heldDir);
   writeFileSync(join(homologDir, "202608160002_seed_fictitious_catalog.sql"), "-- homolog seed\n");
   for (const [name, body] of Object.entries(homologFiles)) {
     writeFileSync(join(homologDir, name), body);
+  }
+  for (const [name, body] of Object.entries(heldFiles)) {
+    writeFileSync(join(heldDir, name), body);
   }
   for (const [name, body] of Object.entries(files)) {
     writeFileSync(join(dir, name), body);
@@ -104,7 +112,7 @@ describe("prod migrations", () => {
         [prodName]: "select 1;\n",
       },
     });
-    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
     expect(() => validateProdMigrations(dir)).toThrow(/job_ingestions_source_contract_prod/);
   });
 
@@ -180,20 +188,70 @@ describe("prod migrations", () => {
         "orphan.sql": "select 1;\n",
       },
     });
-    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
     expect(() => validateProdMigrations(dir)).toThrow(/orphan\.sql/);
+  });
+
+  it("falha se held/ tiver SQL sem marker de Camada B", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: { "ok.sql": "select 1;\n" },
+      heldFiles: { "plain.sql": "select 1;\n" },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem classificação/);
+    expect(() => validateProdMigrations(dir)).toThrow(/plain\.sql/);
   });
 
   it("aceita migration fora do manifesto só quando marcada para não aplicar", () => {
     const dir = writeTempMigrations({
       manifest: ["ok.sql"],
-      files: {
-        "ok.sql": "select 1;\n",
+      files: { "ok.sql": "select 1;\n" },
+      heldFiles: {
         "pending.sql": "-- Produção: não aplicar (Camada B / PO).\nselect 1;\n",
       },
     });
     const { prod, camadaB } = validateProdMigrations(dir);
     expect(prod).toEqual(["ok.sql"]);
     expect(camadaB).toEqual(["pending.sql"]);
+  });
+
+  it("recusa apply quando a URL aponta para produção", () => {
+    expect(() => assertHomologDatabaseUrl("")).toThrow(/ausente/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.gdg-jobs-prod:pw@db.example:5432/postgres"),
+    ).toThrow(/produção/);
+    expect(() =>
+      assertHomologDatabaseUrl("postgresql://postgres.abc123:pw@db.abc123.supabase.co:5432/postgres", {
+        prodProjectRef: "abc123",
+      }),
+    ).toThrow(/project ref de produção/);
+  });
+
+  it("aplica a cadeia de homologação em ordem sem executar SQL de produção", () => {
+    const dir = writeTempMigrations({
+      manifest: ["202608150001_ok.sql"],
+      files: { "202608150001_ok.sql": "select 1;\n" },
+      heldFiles: {
+        "20260816000999_held.sql": "-- Produção: não aplicar (Camada B / PO).\nselect 1;\n",
+      },
+    });
+    const calls = [];
+    const ran = applyHomologChain("postgresql://postgres.homologref:pw@db.homologref.supabase.co:5432/postgres", {
+      dir,
+      runFile: (_url, file) => calls.push(file),
+    });
+    expect(ran.map((name) => name.replace(/.*\//, ""))).toEqual([
+      "202608150001_ok.sql",
+      "202608160002_seed_fictitious_catalog.sql",
+      "20260816000999_held.sql",
+    ]);
+    expect(calls).toHaveLength(3);
+    expect(() =>
+      applyHomologChain("postgresql://postgres.gdg-jobs-prod:pw@db.example:5432/postgres", {
+        dir,
+        runFile: () => calls.push("should-not-run"),
+      }),
+    ).toThrow(/produção/);
+    expect(calls).toHaveLength(3);
   });
 });

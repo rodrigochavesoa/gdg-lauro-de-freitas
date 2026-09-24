@@ -5,14 +5,16 @@
  *
  * pwsh: pnpm migrations:prod
  */
+import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
-/** Subpasta ignorada pelo `supabase db push` (o CLI só lê `*.sql` na raiz). */
+/** Subpastas ignoradas pelo `supabase db push` (o CLI só lê `*.sql` na raiz). */
 export const HOMOLOG_SUBDIR = "homolog";
+export const HELD_SUBDIR = "held";
 export const PROD_MANIFEST_FILENAME = "prod.manifest.json";
 
 /**
@@ -49,6 +51,10 @@ export function prodManifestPath(dir = MIGRATIONS_DIR) {
 
 export function homologMigrationsDir(cliDir = MIGRATIONS_DIR) {
   return join(cliDir, HOMOLOG_SUBDIR);
+}
+
+export function heldMigrationsDir(cliDir = MIGRATIONS_DIR) {
+  return join(cliDir, HELD_SUBDIR);
 }
 
 export function isHomologOnlyMigration(filename) {
@@ -108,17 +114,15 @@ export function listHomologOnlyMigrations(cliDir = MIGRATIONS_DIR) {
 }
 
 /**
- * `.sql` fora do manifesto e fora do pattern homolog-only.
- * Marker «Produção: não aplicar» = Camada B (classificado, sem apply).
+ * Camada B vive em `held/` (fora do path do CLI).
+ * Marker «Produção: não aplicar» = classificado, sem apply em produção.
  * Sem marker = não classificado (deve falhar).
  */
-export function classifyNonManifestSql(dir = MIGRATIONS_DIR, prodFilenames = loadProdManifest(dir)) {
-  const prodSet = new Set(prodFilenames);
+export function classifyNonManifestSql(dir = MIGRATIONS_DIR) {
   const camadaB = [];
   const unclassified = [];
-  for (const filename of listMigrationFiles(dir)) {
-    if (prodSet.has(filename) || isHomologOnlyMigration(filename)) continue;
-    const sql = readFileSync(join(dir, filename), "utf8");
+  for (const filename of listMigrationFiles(heldMigrationsDir(dir))) {
+    const sql = readFileSync(join(heldMigrationsDir(dir), filename), "utf8");
     if (PROD_DO_NOT_APPLY_MARKER.test(sql)) {
       camadaB.push(filename);
     } else {
@@ -144,10 +148,12 @@ export function assertProdSafeSql(sql, filename) {
 }
 
 export function validateProdMigrations(dir = MIGRATIONS_DIR) {
-  const leaked = listMigrationFiles(dir).filter(isHomologOnlyMigration);
+  const prodNames = loadProdManifest(dir);
+  const prodSet = new Set(prodNames);
+  const leaked = listMigrationFiles(dir).filter((name) => !prodSet.has(name));
   if (leaked.length > 0) {
     throw new Error(
-      `Migration(s) homolog-only ainda no path do CLI (supabase db push as aplicaria): ${leaked.join(", ")}. Mova para ${HOMOLOG_SUBDIR}/.`,
+      `Migration(s) fora do manifesto ainda no path do CLI (supabase db push as aplicaria): ${leaked.join(", ")}. Homolog-only vai para ${HOMOLOG_SUBDIR}/; Camada B vai para ${HELD_SUBDIR}/.`,
     );
   }
   const homologDir = homologMigrationsDir(dir);
@@ -189,12 +195,68 @@ export function listHomologChain(dir = MIGRATIONS_DIR) {
   return [...prod, ...camadaB, ...homologOnly].sort();
 }
 
+export function resolveHomologChain(dir = MIGRATIONS_DIR) {
+  return listHomologChain(dir).map((name) => {
+    const candidates = [dir, heldMigrationsDir(dir), homologMigrationsDir(dir)];
+    const path = candidates.map((folder) => join(folder, name)).find((file) => existsSync(file));
+    if (!path) throw new Error(`Arquivo da cadeia de homologação não encontrado: ${name}`);
+    return { name, path };
+  });
+}
+
+/** Recusa URL de produção. Não imprime a URL. */
+export function assertHomologDatabaseUrl(dbUrl, { prodProjectRef = process.env.PROD_SUPABASE_PROJECT_REF } = {}) {
+  if (typeof dbUrl !== "string" || dbUrl.trim() === "") {
+    throw new Error("HOMOLOG_DATABASE_URL ausente. Apply de homologação recusado.");
+  }
+  if (/gdg-jobs-prod/i.test(dbUrl)) {
+    throw new Error("Apply recusado: a URL aponta para produção (gdg-jobs-prod).");
+  }
+  const ref = dbUrl.match(/postgres\.([a-z0-9]+)/i)?.[1]
+    || dbUrl.match(/db\.([a-z0-9]+)\.supabase\.co/i)?.[1]
+    || "";
+  if (prodProjectRef && (dbUrl.includes(prodProjectRef) || ref === prodProjectRef)) {
+    throw new Error("Apply recusado: a URL aponta para o project ref de produção.");
+  }
+}
+
+export function runPsqlFile(dbUrl, filePath) {
+  const result = spawnSync("psql", [dbUrl, "-v", "ON_ERROR_STOP=1", "-f", filePath], {
+    encoding: "utf8",
+  });
+  if (result.error) {
+    throw new Error(`psql indisponível (${result.error.message}). Instale o cliente PostgreSQL para aplicar a cadeia.`);
+  }
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || "psql falhou").trim());
+  }
+}
+
+export function applyHomologChain(dbUrl, { dir = MIGRATIONS_DIR, runFile = runPsqlFile, appliedVersions = [] } = {}) {
+  assertHomologDatabaseUrl(dbUrl);
+  const ran = [];
+  for (const item of resolveHomologChain(dir)) {
+    const version = item.name.match(/^(\d+)/)?.[1];
+    if (version && appliedVersions.includes(version)) continue;
+    runFile(dbUrl, item.path);
+    ran.push(item.name);
+  }
+  return ran;
+}
+
 function main() {
-  const homologChain = process.argv.includes("--homolog-chain");
   const { prod, homologOnly, camadaB } = validateProdMigrations();
-  if (homologChain) {
-    console.log("Cadeia de homologação (ordem de timestamp; não aplica em produção):");
-    for (const name of listHomologChain()) console.log(`  homolog ${name}`);
+  if (process.argv.includes("--apply")) {
+    const dbUrl = process.env.HOMOLOG_DATABASE_URL;
+    const ran = applyHomologChain(dbUrl);
+    console.log("Cadeia aplicada em homologação (produção recusada pelo gate de URL):");
+    for (const name of ran) console.log(`  applied ${name}`);
+    console.log(`ok: ${ran.length} arquivo(s) aplicados.`);
+    return;
+  }
+  if (process.argv.includes("--homolog-chain")) {
+    console.log("Cadeia de homologação (ordem de timestamp). Apply: pnpm migrations:homolog:apply");
+    for (const item of resolveHomologChain()) console.log(`  homolog ${item.name}`);
     console.log(
       `ok: ${prod.length} produção + ${camadaB.length} Camada B + ${homologOnly.length} homolog-only. Sem apply.`,
     );
@@ -202,11 +264,9 @@ function main() {
   }
   console.log(`Homologação apenas (supabase/migrations/${HOMOLOG_SUBDIR}/; o CLI não aplica):`);
   for (const name of homologOnly) console.log(`  skip  ${name}`);
-  if (camadaB.length > 0) {
-    console.log("Camada B (marker «Produção: não aplicar»; ainda na raiz — não promover sem PO):");
-    for (const name of camadaB) console.log(`  hold  ${name}`);
-  }
-  console.log("Produção (schema + grants; sem seed):");
+  console.log(`Camada B (supabase/migrations/${HELD_SUBDIR}/; o CLI não aplica; não promover sem PO):`);
+  for (const name of camadaB) console.log(`  hold  ${name}`);
+  console.log("Produção (raiz = manifesto; supabase db push só vê estes arquivos):");
   for (const name of prod) console.log(`  apply ${name}`);
   console.log(`ok: ${prod.length} migrações de produção validadas.`);
 }
