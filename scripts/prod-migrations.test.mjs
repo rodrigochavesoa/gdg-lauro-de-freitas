@@ -13,10 +13,15 @@ import {
   homologMigrationsDir,
   isHomologOnlyMigration,
   isProdSafeMigration,
+  HOMOLOG_HISTORY_REPAIRS,
   listHomologChain,
   listHomologOnlyMigrations,
   listProdSafeMigrations,
+  migrationVersion,
+  planHomologApply,
   psqlInvocation,
+  repairHomologHistory,
+  resolveHomologChain,
   validateProdMigrations,
 } from "./prod-migrations.mjs";
 
@@ -281,6 +286,55 @@ describe("prod migrations", () => {
       }),
     ).toThrow(/produção/);
     expect(calls).toHaveLength(4);
+  });
+
+  it("plano separa skip, registro de carimbo e SQL legado sem would-apply", () => {
+    const repairVersions = new Set(HOMOLOG_HISTORY_REPAIRS.map((row) => row.version));
+    const applied = resolveHomologChain()
+      .map((item) => migrationVersion(item.name))
+      .filter((version) => !repairVersions.has(version));
+    const plan = planHomologApply(undefined, applied);
+    expect(plan.wouldApply).toEqual([]);
+    expect(plan.blockedLegacy).toEqual(["20260909003920_apply_rate_limit.sql"]);
+    expect(plan.wouldRegister).toHaveLength(HOMOLOG_HISTORY_REPAIRS.length - 1);
+    expect(plan.wouldSkip).toContain("202608150001_ai_matching.sql");
+  });
+
+  it("apply não reexecuta SQL com public.is_admin()", () => {
+    const dir = writeTempMigrations({
+      manifest: ["202608150001_ok.sql"],
+      files: { "202608150001_ok.sql": "select 1;\n" },
+      homologFiles: {
+        "20260815000000_legacy_homolog.sql": "select public.is_admin();\n",
+      },
+    });
+    const calls = [];
+    expect(() =>
+      applyHomologChain("postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres", {
+        homologProjectRef: "homologref",
+        appliedVersions: [],
+        dir,
+        runFile: () => calls.push("ran"),
+      }),
+    ).toThrow(/Sem reexecução/);
+    expect(calls).toEqual([]);
+  });
+
+  it("reparo só insere version e não reenvia o SQL legado", () => {
+    const queries = [];
+    const inserted = repairHomologHistory(
+      "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres",
+      {
+        homologProjectRef: "homologref",
+        appliedVersions: ["20260909003920"],
+        ensureHistory: () => {},
+        runQuery: (_url, sql) => queries.push(sql),
+      },
+    );
+    expect(inserted).not.toContain("20260909003920");
+    expect(queries.length).toBe(HOMOLOG_HISTORY_REPAIRS.length - 1);
+    expect(queries.every((sql) => sql.startsWith("INSERT INTO supabase_migrations.schema_migrations"))).toBe(true);
+    expect(queries.some((sql) => sql.includes("public.is_admin"))).toBe(false);
   });
 
   it("não coloca a senha na linha de comando e grava a versão na mesma transação", () => {

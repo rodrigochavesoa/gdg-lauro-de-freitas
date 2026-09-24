@@ -11,6 +11,8 @@
     "check:bundle": "node scripts/check-bundle-secrets.mjs",
     "migrations:prod": "node scripts/prod-migrations.mjs",
     "migrations:homolog": "node scripts/prod-migrations.mjs --homolog-chain",
+    "migrations:homolog:plan": "node scripts/prod-migrations.mjs --plan",
+    "migrations:homolog:repair": "node scripts/prod-migrations.mjs --repair-history",
     "migrations:homolog:apply": "node scripts/prod-migrations.mjs --apply",
     "lint": "eslint .",
     "test": "vitest run",
