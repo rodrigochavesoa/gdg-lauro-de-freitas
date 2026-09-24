@@ -277,8 +277,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setPriorityReason("");
               }}
             >
-              {job.priority === "urgent" && <span className="featured">Urgente</span>}
-              {job.needsModeration && <span className="featured">Moderação</span>}
+              <span className="curation-workspace__badges">
+                {job.priority === "urgent" ? <span className="featured">Urgente</span> : null}
+                {job.needsModeration ? <span className="featured">Moderação</span> : null}
+              </span>
               <strong>{job.title}</strong>
               <span>{job.companies?.name ?? "Empresa"} · rodada {job.curation_round}</span>
             </button>
@@ -396,12 +398,6 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setQueue((current) =>
                   current.map((job) => (job.id === jobId ? { ...job, priority: nextPriority } : job)),
                 );
-                try {
-                  const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
-                  applyPending(data);
-                } catch (refreshErr) {
-                  setError(refreshErr.message || "Prioridade salva, mas a fila não atualizou.");
-                }
               }}
             />
           )}

@@ -78,7 +78,7 @@ async function markUrgent(reason = "SLA interno") {
   fireEvent.change(screen.getByLabelText("Motivo interno para urgente"), {
     target: { value: reason },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Marcar urgente" }));
+  fireEvent.click(screen.getByRole("button", { name: "Urgente" }));
 }
 
 describe("CurationQueue", () => {
@@ -324,7 +324,7 @@ describe("CurationQueue Sprint 20A", () => {
     expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
     expect(loadCurationJobDetail).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /Rejeitadas/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Marcar urgente" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Urgente" })).not.toBeInTheDocument();
   });
 });
 
@@ -342,13 +342,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     peekCurationQueueCache.mockReset();
     peekCurationQueueCache.mockReturnValue(null);
     setJobCurationPriority.mockReset();
-    setJobCurationPriority.mockImplementation(async (_jobId, nextPriority) => {
-      loadCurationQueue.mockResolvedValue({
-        ...normalQueuePayload,
-        queue: [{ ...normalQueuePayload.queue[0], priority: nextPriority }],
-      });
-      return { ok: true };
-    });
+    setJobCurationPriority.mockResolvedValue({ ok: true });
   });
 
   it("mostra salvando e, após o servidor, atualiza o controle para Urgente com status ao lado", async () => {
@@ -356,34 +350,29 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     setJobCurationPriority.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveSave = () => {
-            loadCurationQueue.mockResolvedValue({
-              ...normalQueuePayload,
-              queue: [{ ...normalQueuePayload.queue[0], priority: "urgent" }],
-            });
-            resolve({ ok: true });
-          };
+          resolveSave = () => resolve({ ok: true });
         }),
     );
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    expect(await screen.findByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
 
     await markUrgent();
 
     const control = document.querySelector(".curation-priority-control");
+    const feedback = control.querySelector(".curation-priority-feedback");
     expect(within(control).getByRole("status")).toHaveTextContent("Salvando prioridade…");
-    expect(within(control).getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(feedback).toHaveAttribute("aria-live", "polite");
     expect(screen.getByRole("button", { name: "Salvando…" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Marcar urgente" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Urgente" })).not.toBeInTheDocument();
 
     resolveSave();
 
     expect(await screen.findByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "true");
-    const feedback = document.querySelector(".curation-priority-feedback");
-    expect(within(feedback).getByRole("status")).toHaveTextContent("Prioridade urgente registrada.");
-    expect(within(feedback).getByRole("status")).toHaveAttribute("aria-live", "polite");
+    const feedbackAfter = document.querySelector(".curation-priority-feedback");
+    expect(within(feedbackAfter).getByRole("status")).toHaveTextContent("Prioridade urgente registrada.");
+    expect(feedbackAfter).toHaveAttribute("aria-live", "polite");
     expect(setJobCurationPriority).toHaveBeenCalledWith("job-1", "urgent", "SLA interno");
     expect(document.querySelector(".success")?.closest(".curation-priority-feedback")).toBeTruthy();
   });
@@ -393,14 +382,14 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    expect(await screen.findByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(await screen.findByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
 
     await markUrgent();
 
     const control = document.querySelector(".curation-priority-control");
     expect(await within(control).findByRole("alert")).toHaveTextContent("cannot review own submission");
-    expect(screen.getByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
-    expect(screen.queryByRole("button", { name: "Urgente" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "Urgente", pressed: true })).not.toBeInTheDocument();
     expect(document.querySelector(".success")).toBeNull();
     expect(screen.getByLabelText("Motivo interno para urgente")).not.toHaveAttribute("aria-invalid");
   });
@@ -408,7 +397,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
   it("associa o erro de motivo obrigatório ao campo", async () => {
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    fireEvent.click(await screen.findByRole("button", { name: "Marcar urgente" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Urgente" }));
 
     const input = screen.getByLabelText("Motivo interno para urgente");
     const alert = await screen.findByRole("alert");
@@ -417,7 +406,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-describedby", "curation-priority-reason-error");
     expect(setJobCurationPriority).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("ignora a resposta atrasada depois de trocar de vaga", async () => {
@@ -455,7 +444,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     fireEvent.click(screen.getByRole("button", { name: /Vaga Beta/ }));
 
     expect(await screen.findByRole("heading", { name: "Vaga Beta" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByText("Prioridade urgente registrada.")).not.toBeInTheDocument();
 
     resolveSave();
@@ -464,32 +453,27 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     });
     expect(screen.getByRole("heading", { name: "Vaga Beta" })).toBeInTheDocument();
     expect(screen.queryByText("Prioridade urgente registrada.")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Marcar urgente" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("não trata falha ao atualizar a fila como falha ao salvar", async () => {
-    setJobCurationPriority.mockImplementation(async () => {
-      loadCurationQueue.mockRejectedValue(new Error("fila indisponível"));
-      return { ok: true };
-    });
-
+  it("atualiza prioridade na fila local sem recarregar a lista após salvar", async () => {
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    expect(await screen.findByRole("button", { name: "Marcar urgente" })).toBeInTheDocument();
+    const callsBeforeSave = loadCurationQueue.mock.calls.length;
     await markUrgent();
 
     expect(await screen.findByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationQueue.mock.calls.length).toBe(callsBeforeSave);
     const feedback = document.querySelector(".curation-priority-feedback");
     expect(within(feedback).getByRole("status")).toHaveTextContent("Prioridade urgente registrada.");
-    expect(feedback.querySelector(".form-alert")).toBeNull();
-    expect(screen.getByRole("alert")).toHaveTextContent("fila indisponível");
     expect(setJobCurationPriority).toHaveBeenCalledWith("job-1", "urgent", "SLA interno");
   });
 
   it("o botão é nativo, focável e dispara a ação com o controle focado", async () => {
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    const btn = await screen.findByRole("button", { name: "Marcar urgente" });
+    const btn = await screen.findByRole("button", { name: "Urgente" });
     expect(btn.tagName).toBe("BUTTON");
     expect(btn).toHaveAttribute("type", "button");
     btn.focus();
@@ -513,7 +497,7 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
 
     render(<CurationQueue includeRejected={false} profile={adminProfile} />);
     await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
-    expect(await screen.findByRole("button", { name: "Marcar urgente" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Urgente" })).toBeInTheDocument();
     await markUrgent("Fila da semana");
     await waitFor(() => {
       expect(screen.getByText("Prioridade urgente registrada.")).toBeInTheDocument();

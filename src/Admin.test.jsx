@@ -361,6 +361,7 @@ describe("Admin", () => {
     );
     expect(within(pendingSection).getByText("Pendente")).toHaveClass("admin-job-status");
     expect(within(pendingSection).queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument();
+    expect(pendingSection.querySelector(".admin-jobs-list-panel")).toBeTruthy();
   });
 
   it("reproduz status da URL e troca o filtro sem carregar a lista completa", async () => {
@@ -655,7 +656,8 @@ describe("Admin", () => {
     );
     expect(await screen.findByText("Mostrando 1 de 25 vagas")).toBeInTheDocument();
     expect(screen.queryByText("Destaque")).not.toBeInTheDocument();
-    expect(document.querySelector(".admin-job-card")).toBeTruthy();
+    expect(document.querySelector(".admin-jobs-list-panel")).toBeTruthy();
+    expect(document.querySelector(".admin-jobs-list-panel .admin-job-card")).toBeTruthy();
     expect(document.querySelector("details")).toBeNull();
     expect(screen.queryByText(/Ainda sem parecer/)).not.toBeInTheDocument();
 
