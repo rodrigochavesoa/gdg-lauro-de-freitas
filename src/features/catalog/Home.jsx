@@ -60,7 +60,7 @@ export function Home({ logged = false }) {
   const [resultCount, setResultCount] = useState(() => initialPage?.count ?? null);
   const [catalogStatus, setCatalogStatus] = useState(() => (initialPage ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
-  const loadParams = useMemo(() => toLoadParams(urlFilters, query), [urlFilters, query]);
+  const loadParams = useMemo(() => toLoadParams(urlFilters, urlQuery), [urlFilters, urlQuery]);
 
   useEffect(() => {
     setQuery((current) => (current === urlQuery ? current : urlQuery));
