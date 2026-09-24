@@ -1,7 +1,7 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 
 const authState = {
   session: null,
@@ -68,13 +68,15 @@ vi.mock("./features/admin/admin-jobs-api.js", async () => {
 const loadMyApplicationMock = vi.fn(async () => null);
 const loadMyApplicationsMock = vi.fn(async () => []);
 const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));
+const applyToJobMock = vi.hoisted(() => vi.fn());
+const withdrawApplicationMock = vi.hoisted(() => vi.fn());
 
 vi.mock("./features/jobs/apply-api.js", async () => {
   const actual = await vi.importActual("./features/jobs/apply-api.js");
   return {
     ...actual,
-    applyToJob: vi.fn(),
-    withdrawApplication: vi.fn(),
+    applyToJob: (...args) => applyToJobMock(...args),
+    withdrawApplication: (...args) => withdrawApplicationMock(...args),
     loadMyApplication: (...args) => loadMyApplicationMock(...args),
     loadMyApplications: (...args) => loadMyApplicationsMock(...args),
   };
@@ -277,10 +279,59 @@ beforeEach(() => {
     about: "Empresa fictícia",
     responsibilities: ["Construir interfaces"],
   }));
+  applyToJobMock.mockReset();
+  withdrawApplicationMock.mockReset();
 });
 
 async function renderAt(path = "/") {
   render(<MemoryRouter initialEntries={[path]}><App /></MemoryRouter>);
+}
+
+function CatalogJump({ to }) {
+  const navigate = useNavigate();
+  return <button type="button" onClick={() => navigate(to)}>Ir para outra vaga</button>;
+}
+
+const COMPLETE_CANDIDATE = {
+  full_name: "Ana Demo",
+  role: "candidate",
+  skills: ["React"],
+  preferences: { experience_level: "mid", work_model: "remote", location: "Brasil" },
+};
+
+function signInCompleteCandidate() {
+  authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
+  authState.profile = COMPLETE_CANDIDATE;
+  authState.needsOnboarding = false;
+}
+
+function mockApprovedJobByRouteId() {
+  loadApprovedJobMock.mockImplementation(async (id) => ({
+    id,
+    title: id === "2" ? "Desenvolvedor(a) Back-end Node.js" : "Pessoa Desenvolvedora Front-end",
+    company: id === "2" ? "Baía Code Exemplo" : "Nuvem Lauro Demo",
+    logo: id === "2" ? "BC" : "NL",
+    color: "#1e40af",
+    level: "Pleno",
+    place: "Brasil · Remoto",
+    type: "Remoto",
+    posted: "há 2 dias",
+    stack: ["React"],
+    salary: "A combinar",
+    featured: false,
+    description: "Fictícia",
+    about: "Empresa fictícia",
+    responsibilities: ["Construir interfaces"],
+  }));
+}
+
+function renderJobWithJump(from = "/jobs/1", to = "/jobs/2") {
+  return render(
+    <MemoryRouter initialEntries={[from]}>
+      <CatalogJump to={to} />
+      <App />
+    </MemoryRouter>,
+  );
 }
 
 async function renderHome() {
@@ -966,6 +1017,124 @@ describe("ARQ-01 — caracterização do shell", () => {
     resolveApplication({ status: "submitted" });
     expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("apply lento na vaga A não grava status na vaga B após navegar", async () => {
+    signInCompleteCandidate();
+    mockApprovedJobByRouteId();
+    let resolveApply;
+    applyToJobMock.mockImplementation(
+      () => new Promise((resolve) => { resolveApply = resolve; }),
+    );
+
+    renderJobWithJump();
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
+    await waitFor(() => expect(applyToJobMock).toHaveBeenCalledWith("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ir para outra vaga" }));
+    expect(await screen.findByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveApply({ status: "submitted" });
+    });
+    expect(screen.getByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(screen.queryByText("Candidatura enviada!")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+  });
+
+  it("apply na mesma vaga ainda atualiza o status da candidatura", async () => {
+    signInCompleteCandidate();
+    applyToJobMock.mockResolvedValue({ status: "submitted" });
+    await renderAt("/jobs/1");
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
+    expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("withdraw lento na vaga A não grava status na vaga B após navegar", async () => {
+    signInCompleteCandidate();
+    mockApprovedJobByRouteId();
+    loadMyApplicationMock.mockImplementation(async (id) => (
+      String(id) === "1" ? { status: "submitted" } : null
+    ));
+    let resolveWithdraw;
+    withdrawApplicationMock.mockImplementation(
+      () => new Promise((resolve) => { resolveWithdraw = resolve; }),
+    );
+
+    renderJobWithJump();
+    expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Retirar candidatura/i }));
+    await waitFor(() => expect(withdrawApplicationMock).toHaveBeenCalledWith("1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ir para outra vaga" }));
+    expect(await screen.findByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveWithdraw({ status: "withdrawn" });
+    });
+    expect(screen.queryByText("Candidatura retirada")).not.toBeInTheDocument();
+    expect(screen.queryByText("Candidatura enviada!")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+  });
+
+  it("already applied na mesma vaga consulta loadMyApplication e mostra o status", async () => {
+    signInCompleteCandidate();
+    applyToJobMock.mockImplementation(async () => {
+      const error = new Error("already applied");
+      error.code = "already applied";
+      throw error;
+    });
+    loadMyApplicationMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ status: "submitted" });
+
+    await renderAt("/jobs/1");
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
+    expect(await screen.findByText("Candidatura enviada!")).toBeInTheDocument();
+    expect(loadMyApplicationMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("button", { name: /Candidatar-se com 1 clique/i })).not.toBeInTheDocument();
+  });
+
+  it("already applied lento não grava o status na vaga B após navegar", async () => {
+    signInCompleteCandidate();
+    mockApprovedJobByRouteId();
+    applyToJobMock.mockImplementation(async () => {
+      const error = new Error("already applied");
+      error.code = "already applied";
+      throw error;
+    });
+    let resolveExisting;
+    loadMyApplicationMock.mockImplementation((id) => {
+      if (String(id) === "1" && resolveExisting == null) {
+        return new Promise((resolve) => { resolveExisting = resolve; });
+      }
+      return Promise.resolve(null);
+    });
+
+    renderJobWithJump();
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    const firstLoad = resolveExisting;
+    resolveExisting = undefined;
+    await act(async () => {
+      firstLoad(null);
+    });
+    fireEvent.click(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i }));
+    await waitFor(() => expect(applyToJobMock).toHaveBeenCalledWith("1"));
+    await waitFor(() => expect(typeof resolveExisting).toBe("function"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Ir para outra vaga" }));
+    expect(await screen.findByRole("heading", { name: "Desenvolvedor(a) Back-end Node.js" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveExisting({ status: "submitted" });
+    });
+    expect(screen.queryByText("Candidatura enviada!")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Candidatar-se com 1 clique/i })).toBeInTheDocument();
   });
 
   it("com perfil incompleto permanece em /onboarding ao clicar Vagas", async () => {
