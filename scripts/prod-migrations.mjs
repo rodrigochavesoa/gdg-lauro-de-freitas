@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const MIGRATIONS_DIR = join(ROOT, "supabase", "migrations");
+/** Subpasta ignorada pelo `supabase db push` (o CLI só lê `*.sql` na raiz). */
+export const HOMOLOG_SUBDIR = "homolog";
 export const PROD_MANIFEST_FILENAME = "prod.manifest.json";
 
 /**
@@ -43,6 +45,10 @@ export const FICTITIOUS_SEED_UUIDS = [
 
 export function prodManifestPath(dir = MIGRATIONS_DIR) {
   return join(dir, PROD_MANIFEST_FILENAME);
+}
+
+export function homologMigrationsDir(cliDir = MIGRATIONS_DIR) {
+  return join(cliDir, HOMOLOG_SUBDIR);
 }
 
 export function isHomologOnlyMigration(filename) {
@@ -81,6 +87,7 @@ export function isProdSafeMigration(filename, dir = MIGRATIONS_DIR) {
 }
 
 export function listMigrationFiles(dir = MIGRATIONS_DIR) {
+  if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((name) => name.endsWith(".sql"))
     .sort();
@@ -96,8 +103,8 @@ export function listProdSafeMigrations(dir = MIGRATIONS_DIR) {
   return prod;
 }
 
-export function listHomologOnlyMigrations(dir = MIGRATIONS_DIR) {
-  return listMigrationFiles(dir).filter(isHomologOnlyMigration);
+export function listHomologOnlyMigrations(cliDir = MIGRATIONS_DIR) {
+  return listMigrationFiles(homologMigrationsDir(cliDir)).filter(isHomologOnlyMigration);
 }
 
 /**
@@ -137,8 +144,22 @@ export function assertProdSafeSql(sql, filename) {
 }
 
 export function validateProdMigrations(dir = MIGRATIONS_DIR) {
+  const leaked = listMigrationFiles(dir).filter(isHomologOnlyMigration);
+  if (leaked.length > 0) {
+    throw new Error(
+      `Migration(s) homolog-only ainda no path do CLI (supabase db push as aplicaria): ${leaked.join(", ")}. Mova para ${HOMOLOG_SUBDIR}/.`,
+    );
+  }
+  const homologDir = homologMigrationsDir(dir);
+  const homologFiles = listMigrationFiles(homologDir);
+  const misfiled = homologFiles.filter((name) => !isHomologOnlyMigration(name));
+  if (misfiled.length > 0) {
+    throw new Error(
+      `Arquivo(s) em ${HOMOLOG_SUBDIR}/ sem marcador homolog-only: ${misfiled.join(", ")}`,
+    );
+  }
   const homologOnly = listHomologOnlyMigrations(dir);
-  if (homologOnly.length < 1) {
+  if (!homologOnly.some((name) => /seed_fictitious/i.test(name))) {
     throw new Error("Esperado ao menos um arquivo de seed fictício marcado como homolog-only.");
   }
   const prod = listProdSafeMigrations(dir);
@@ -163,10 +184,28 @@ export function validateProdMigrations(dir = MIGRATIONS_DIR) {
   return { prod, homologOnly, camadaB };
 }
 
+export function listHomologChain(dir = MIGRATIONS_DIR) {
+  const { prod, homologOnly, camadaB } = validateProdMigrations(dir);
+  return [...prod, ...camadaB, ...homologOnly].sort();
+}
+
 function main() {
-  const { prod, homologOnly } = validateProdMigrations();
-  console.log("Homologação apenas (não aplicar em produção):");
+  const homologChain = process.argv.includes("--homolog-chain");
+  const { prod, homologOnly, camadaB } = validateProdMigrations();
+  if (homologChain) {
+    console.log("Cadeia de homologação (ordem de timestamp; não aplica em produção):");
+    for (const name of listHomologChain()) console.log(`  homolog ${name}`);
+    console.log(
+      `ok: ${prod.length} produção + ${camadaB.length} Camada B + ${homologOnly.length} homolog-only. Sem apply.`,
+    );
+    return;
+  }
+  console.log(`Homologação apenas (supabase/migrations/${HOMOLOG_SUBDIR}/; o CLI não aplica):`);
   for (const name of homologOnly) console.log(`  skip  ${name}`);
+  if (camadaB.length > 0) {
+    console.log("Camada B (marker «Produção: não aplicar»; ainda na raiz — não promover sem PO):");
+    for (const name of camadaB) console.log(`  hold  ${name}`);
+  }
   console.log("Produção (schema + grants; sem seed):");
   for (const name of prod) console.log(`  apply ${name}`);
   console.log(`ok: ${prod.length} migrações de produção validadas.`);

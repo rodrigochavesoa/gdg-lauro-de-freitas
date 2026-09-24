@@ -25,7 +25,7 @@ Copy-Item .env.example .env.local
 
 Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (ou o fallback `VITE_SUPABASE_ANON_KEY`) pelo canal seguro da equipe. **Nunca** commite `.env` / `.env.local` nem `service_role` no frontend, no Git ou nas env vars públicas da Vercel.
 
-Migrations: pasta [`supabase/migrations/`](supabase/migrations/). Homologação aplica a cadeia completa (inclui seed). Produção aplica só o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json) (`pnpm migrations:prod`) — **sem** seed fictício; todo `.sql` precisa estar no manifesto, ser homolog-only, ou ter o marker «Produção: não aplicar»; senão o comando **falha** (não ignora).
+Migrations de **produção** ficam na raiz de [`supabase/migrations/`](supabase/migrations/) (o que `supabase db push` aplica em bloco) e só entram no manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json). `pnpm migrations:prod` valida essa lista — **sem** seed fictício; todo `.sql` da raiz precisa estar no manifesto ou ter o marker «Produção: não aplicar»; senão o comando **falha**. SQL homolog-only (`*_homolog.sql`, `seed_fictitious`, prefixo legado `avatars_`) vive em [`supabase/migrations/homolog/`](supabase/migrations/homolog/), fora desse path. Homologação aplica a cadeia completa em ordem de timestamp (`pnpm migrations:homolog` só lista; não conecta em banco). **Não** rode `supabase db push` no projeto de produção: a raiz ainda contém Camada B (marker), que não está no manifesto.
 
 ## OAuth (Google via Supabase Auth)
 
@@ -122,6 +122,7 @@ pnpm test         # inclui smoke P0 em src/App.smoke.test.jsx (sem Playwright)
 pnpm run build
 pnpm check:bundle  # falha se dist/ tiver service_role / sb_secret / chave privada
 pnpm migrations:prod
+pnpm migrations:homolog   # lista a cadeia de homologação; não aplica SQL
 ```
 
 ## Gates de release (CI)

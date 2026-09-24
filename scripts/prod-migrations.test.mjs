@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,16 +7,23 @@ import {
   PROD_MANIFEST_FILENAME,
   assertProdSafeSql,
   classifyNonManifestSql,
+  homologMigrationsDir,
   isHomologOnlyMigration,
   isProdSafeMigration,
+  listHomologChain,
   listHomologOnlyMigrations,
   listProdSafeMigrations,
   validateProdMigrations,
 } from "./prod-migrations.mjs";
 
-function writeTempMigrations({ manifest, files = {} }) {
+function writeTempMigrations({ manifest, files = {}, homologFiles = {} }) {
   const dir = mkdtempSync(join(tmpdir(), "gdg-mig-"));
-  writeFileSync(join(dir, "202608160002_seed_fictitious_catalog.sql"), "-- homolog seed\n");
+  const homologDir = homologMigrationsDir(dir);
+  mkdirSync(homologDir);
+  writeFileSync(join(homologDir, "202608160002_seed_fictitious_catalog.sql"), "-- homolog seed\n");
+  for (const [name, body] of Object.entries(homologFiles)) {
+    writeFileSync(join(homologDir, name), body);
+  }
   for (const [name, body] of Object.entries(files)) {
     writeFileSync(join(dir, name), body);
   }
@@ -71,6 +78,12 @@ describe("prod migrations", () => {
     expect(listProdSafeMigrations()).toEqual(prod);
     expect(listHomologOnlyMigrations()).toEqual(homologOnly);
     expect(classifyNonManifestSql().unclassified).toEqual([]);
+    const chain = listHomologChain();
+    expect(prod.every((name) => chain.includes(name))).toBe(true);
+    expect(chain.some((name) => name.includes("seed_fictitious"))).toBe(true);
+    expect(chain.indexOf("202608160002_seed_fictitious_catalog.sql")).toBeGreaterThan(
+      chain.indexOf("202608150001_ai_matching.sql"),
+    );
   });
 
   it("registra dívida GOV-AVATAR-MIG-CLASS-01: avatars_ ainda pega Camada B sem _homolog", () => {
@@ -135,6 +148,28 @@ describe("prod migrations", () => {
       manifest: ["ghost.sql"],
     });
     expect(() => validateProdMigrations(dir)).toThrow(/não existe/);
+  });
+
+  it("falha se homolog-only permanecer na raiz que o CLI aplica", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: {
+        "ok.sql": "select 1;\n",
+        "20260920030000_staff_cannot_apply_homolog.sql": "select 1;\n",
+      },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/path do CLI/);
+    expect(() => validateProdMigrations(dir)).toThrow(/staff_cannot_apply_homolog/);
+  });
+
+  it("falha se a subpasta homolog tiver SQL sem marcador homolog-only", () => {
+    const dir = writeTempMigrations({
+      manifest: ["ok.sql"],
+      files: { "ok.sql": "select 1;\n" },
+      homologFiles: { "plain.sql": "select 1;\n" },
+    });
+    expect(() => validateProdMigrations(dir)).toThrow(/sem marcador homolog-only/);
+    expect(() => validateProdMigrations(dir)).toThrow(/plain\.sql/);
   });
 
   it("falha se houver migration sem classificação", () => {
