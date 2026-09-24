@@ -287,19 +287,25 @@ export function AdminJobsRoute() {
             {loadingAnnouncement}
           </p>
         ) : null}
-        {listStatus === "loading" && items.length === 0
-          ? [1, 2, 3, 4].map((slot) => (
-              <div
-                key={slot}
-                className="admin-job-card admin-jobs-skeleton job-card--skeleton job-card--skeleton-static"
-                aria-hidden="true"
-              />
-            ))
-          : null}
-        {items.map((job) => (
-          <JobListRow key={job.id} job={job} returnSearch={search} />
-        ))}
-        {listStatus === "ready" && items.length === 0 && !error ? <p role="status">{adminJobEmptyCopy(filters.status)}</p> : null}
+        <div className="admin-jobs-list-panel">
+          {listStatus === "loading" && items.length === 0
+            ? [1, 2, 3, 4].map((slot) => (
+                <div
+                  key={slot}
+                  className="admin-job-card admin-jobs-skeleton job-card--skeleton job-card--skeleton-static"
+                  aria-hidden="true"
+                />
+              ))
+            : null}
+          {items.map((job) => (
+            <JobListRow key={job.id} job={job} returnSearch={search} />
+          ))}
+          {listStatus === "ready" && items.length === 0 && !error ? (
+            <p className="admin-jobs-list-panel__empty" role="status">
+              {adminJobEmptyCopy(filters.status)}
+            </p>
+          ) : null}
+        </div>
       </div>
 
       {hasNext && listStatus === "ready" ? (

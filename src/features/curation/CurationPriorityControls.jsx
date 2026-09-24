@@ -84,7 +84,7 @@ export function CurationPriorityControls({
       <div className="curation-priority-actions">
         <button
           type="button"
-          className="ghost"
+          className="ghost curation-priority-option curation-priority-option--normal"
           disabled={busy}
           aria-pressed={!isUrgent}
           onClick={() => save("normal")}
@@ -93,41 +93,38 @@ export function CurationPriorityControls({
         </button>
         <button
           type="button"
-          className={isUrgent ? "primary curation-priority-urgent" : "outline"}
+          className="ghost curation-priority-option curation-priority-option--urgent"
           disabled={busy}
           aria-pressed={isUrgent}
-          aria-label={isUrgent ? "Urgente" : undefined}
           onClick={() => save("urgent")}
         >
-          {savingTarget === "urgent" ? (
-            "Salvando…"
-          ) : isUrgent ? (
-            <span className="featured">Urgente</span>
-          ) : (
-            "Marcar urgente"
-          )}
+          {savingTarget === "urgent" ? "Salvando…" : "Urgente"}
         </button>
       </div>
-      <div className="curation-priority-feedback">
-        {saving ? (
-          <p className="tiny" role="status" aria-live="polite">
-            {SAVING_STATUS}
-          </p>
-        ) : null}
-        {status && !saving ? (
-          <div className="success" role="status" aria-live="polite">
-            <Check size={18} aria-hidden="true" /> {status}
-          </div>
-        ) : null}
-        {error ? (
-          <div
-            id={reasonInvalid ? reasonErrorId : undefined}
-            className="form-alert"
-            role="alert"
-          >
-            {error}
-          </div>
-        ) : null}
+      <div className="curation-priority-feedback" aria-live="polite">
+        <div className="curation-priority-feedback__slot">
+          {saving ? (
+            <p className="tiny" role="status">
+              {SAVING_STATUS}
+            </p>
+          ) : status ? (
+            <div className="success" role="status">
+              <Check size={18} aria-hidden="true" /> {status}
+            </div>
+          ) : error ? (
+            <div
+              id={reasonInvalid ? reasonErrorId : undefined}
+              className="form-alert"
+              role="alert"
+            >
+              {error}
+            </div>
+          ) : (
+            <span className="sr-only" role="status">
+              {"\u00a0"}
+            </span>
+          )}
+        </div>
       </div>
     </section>
   );

@@ -9,6 +9,7 @@ import {
   submitCurationReview,
   subscribeCurationJobs,
 } from "./curation-api.js";
+import { mergeCurationQueue } from "./curation-queue.js";
 import { RUBRIC_OPTIONS } from "./rubric.js";
 import { CurationTimeline } from "./CurationTimeline.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
@@ -277,8 +278,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setPriorityReason("");
               }}
             >
-              {job.priority === "urgent" && <span className="featured">Urgente</span>}
-              {job.needsModeration && <span className="featured">Moderação</span>}
+              <span className="curation-workspace__badges">
+                {job.priority === "urgent" ? <span className="featured">Urgente</span> : null}
+                {job.needsModeration ? <span className="featured">Moderação</span> : null}
+              </span>
               <strong>{job.title}</strong>
               <span>{job.companies?.name ?? "Empresa"} · rodada {job.curation_round}</span>
             </button>
@@ -393,15 +396,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
               disabled={busy}
               onPriorityChange={async (jobId, nextPriority, reason) => {
                 await setJobCurationPriority(jobId, nextPriority, reason);
-                setQueue((current) =>
-                  current.map((job) => (job.id === jobId ? { ...job, priority: nextPriority } : job)),
-                );
-                try {
-                  const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
-                  applyPending(data);
-                } catch (refreshErr) {
-                  setError(refreshErr.message || "Prioridade salva, mas a fila não atualizou.");
-                }
+                setQueue((current) => {
+                  const moderationIds = current.filter((job) => job.needsModeration).map((job) => job.id);
+                  const updated = current.map((job) =>
+                    job.id === jobId ? { ...job, priority: nextPriority } : job,
+                  );
+                  return mergeCurationQueue(updated, moderationIds);
+                });
               }}
             />
           )}
