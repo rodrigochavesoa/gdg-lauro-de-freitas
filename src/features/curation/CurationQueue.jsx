@@ -84,6 +84,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     let cancelled = false;
     const hadCache = Boolean(peekCurationQueueCache({ scope: "pending", page: 1 }));
     if (!hadCache) setLoading(true);
+    setLoadingMore(false);
 
     loadCurationQueue({
       scope: "pending",
@@ -120,6 +121,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     let cancelled = false;
     const generation = ++rejectedGenerationRef.current;
     setRejectedStatus("loading");
+    setLoadingMore(false);
     loadCurationQueue({
       scope: "rejected",
       page: 1,

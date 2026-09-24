@@ -336,6 +336,41 @@ describe("CurationQueue", () => {
     expect(screen.getByRole("button", { name: /Vaga recente/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Vaga obsoleta/ })).not.toBeInTheDocument();
   });
+
+  it("loadMore lento + reload não deixa o botão em Carregando…", async () => {
+    const job1 = queuePayload.queue[0];
+    const extra = { ...job1, id: "job-old-page", title: "Página antiga" };
+    const fresh = { ...job1, id: "job-fresh", title: "Vaga recente" };
+    let resolveMore;
+    loadCurationQueue.mockImplementation(async (opts = {}) => {
+      if ((opts.page ?? 1) > 1) {
+        return new Promise((resolve) => { resolveMore = resolve; });
+      }
+      const firstPageCalls = loadCurationQueue.mock.calls.filter(
+        ([arg]) => (arg?.scope ?? "pending") === "pending" && (arg?.page ?? 1) === 1,
+      ).length;
+      if (firstPageCalls > 1) {
+        return { ...queuePayload, queue: [fresh], hasNext: true, page: 1 };
+      }
+      return { ...queuePayload, queue: [job1], hasNext: true, page: 1 };
+    });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
+
+    curationEvents.notify();
+    expect(await screen.findByRole("button", { name: /Vaga recente/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Carregando…" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Carregar mais" })).toBeEnabled();
+
+    await act(async () => {
+      resolveMore({ ...queuePayload, queue: [extra], rejected: [], hasNext: false, page: 2 });
+    });
+    expect(screen.queryByRole("button", { name: /Página antiga/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Carregando…" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Carregar mais" })).toBeEnabled();
+  });
 });
 
 describe("CurationQueue Sprint 20A", () => {
