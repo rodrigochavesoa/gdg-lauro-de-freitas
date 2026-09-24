@@ -6,6 +6,8 @@ import {
   FICTITIOUS_SEED_UUIDS,
   PROD_MANIFEST_FILENAME,
   applyHomologChain,
+  OFFICIAL_HOMOLOG_PROJECT_REF,
+  OFFICIAL_PROD_PROJECT_REF,
   assertHomologDatabaseUrl,
   assertProdSafeSql,
   classifyNonManifestSql,
@@ -222,28 +224,27 @@ describe("prod migrations", () => {
   });
 
   it("recusa apply quando a URL aponta para produção", () => {
-    const homolog = { homologProjectRef: "homologref" };
+    const homolog = { homologProjectRef: OFFICIAL_HOMOLOG_PROJECT_REF };
+    const homologUrl = `postgresql://postgres.${OFFICIAL_HOMOLOG_PROJECT_REF}:pw@db.${OFFICIAL_HOMOLOG_PROJECT_REF}.supabase.co:5432/postgres`;
+    const prodUrl = `postgresql://postgres.${OFFICIAL_PROD_PROJECT_REF}:pw@db.${OFFICIAL_PROD_PROJECT_REF}.supabase.co:5432/postgres`;
     expect(() => assertHomologDatabaseUrl("")).toThrow(/ausente/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", {
-        homologProjectRef: "",
-      }),
+      assertHomologDatabaseUrl(prodUrl, { homologProjectRef: "" }),
     ).toThrow(/fail-closed/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.prodref:pw@db.prodref.supabase.co:5432/postgres", homolog),
-    ).toThrow(/allowlist/);
+      assertHomologDatabaseUrl(prodUrl, { homologProjectRef: OFFICIAL_PROD_PROJECT_REF }),
+    ).toThrow(/não é o project ref oficial/);
+    expect(() => assertHomologDatabaseUrl(prodUrl, homolog)).toThrow(/produção/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.gdg-jobs-prod:pw@db.homologref.supabase.co:5432/postgres", homolog),
+      assertHomologDatabaseUrl(`postgresql://postgres.gdg-jobs-prod:pw@db.${OFFICIAL_HOMOLOG_PROJECT_REF}.supabase.co:5432/postgres`, homolog),
     ).toThrow(/produção/);
     expect(() =>
-      assertHomologDatabaseUrl("postgresql://postgres.homologref:pw@db.homologref.supabase.co:5432/postgres", {
-        ...homolog,
-        prodProjectRef: "homologref",
-      }),
+      assertHomologDatabaseUrl(homologUrl, { ...homolog, prodProjectRef: OFFICIAL_HOMOLOG_PROJECT_REF }),
     ).toThrow(/project ref de produção/);
     expect(() =>
       assertHomologDatabaseUrl("postgresql://postgres:pw@127.0.0.1:5432/postgres", homolog),
     ).toThrow(/project ref/);
+    expect(() => assertHomologDatabaseUrl(homologUrl, homolog)).not.toThrow();
   });
 
   it("aplica a cadeia de homologação em ordem sem executar SQL de produção", () => {
@@ -255,8 +256,8 @@ describe("prod migrations", () => {
       },
     });
     const calls = [];
-    const homologUrl = "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres";
-    const gate = { homologProjectRef: "homologref", appliedVersions: [] };
+    const homologUrl = "postgresql://postgres.pcdfxnfhgdmzmcmlhxuv:secret-pass@db.pcdfxnfhgdmzmcmlhxuv.supabase.co:5432/postgres";
+    const gate = { homologProjectRef: "pcdfxnfhgdmzmcmlhxuv", appliedVersions: [] };
     const { ran, skipped } = applyHomologChain(homologUrl, {
       ...gate,
       dir,
@@ -310,8 +311,8 @@ describe("prod migrations", () => {
     });
     const calls = [];
     expect(() =>
-      applyHomologChain("postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres", {
-        homologProjectRef: "homologref",
+      applyHomologChain("postgresql://postgres.pcdfxnfhgdmzmcmlhxuv:secret-pass@db.pcdfxnfhgdmzmcmlhxuv.supabase.co:5432/postgres", {
+        homologProjectRef: "pcdfxnfhgdmzmcmlhxuv",
         appliedVersions: [],
         dir,
         runFile: () => calls.push("ran"),
@@ -323,10 +324,11 @@ describe("prod migrations", () => {
   it("reparo só insere version e não reenvia o SQL legado", () => {
     const queries = [];
     const inserted = repairHomologHistory(
-      "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres",
+      "postgresql://postgres.pcdfxnfhgdmzmcmlhxuv:secret-pass@db.pcdfxnfhgdmzmcmlhxuv.supabase.co:5432/postgres",
       {
-        homologProjectRef: "homologref",
-        appliedVersions: ["20260909003920"],
+        homologProjectRef: "pcdfxnfhgdmzmcmlhxuv",
+        appliedVersions: ["20260909003920", ...HOMOLOG_HISTORY_REPAIRS.map((row) => row.remote)],
+        presentObjects: ["private.is_admin", "private.is_admin_aal2"],
         ensureHistory: () => {},
         runQuery: (_url, sql) => queries.push(sql),
       },
@@ -337,9 +339,30 @@ describe("prod migrations", () => {
     expect(queries.some((sql) => sql.includes("public.is_admin"))).toBe(false);
   });
 
+  it("reparo aborta se o carimbo remoto ou o helper private não existe", () => {
+    const queries = [];
+    const url = "postgresql://postgres.pcdfxnfhgdmzmcmlhxuv:secret-pass@db.pcdfxnfhgdmzmcmlhxuv.supabase.co:5432/postgres";
+    const base = {
+      homologProjectRef: "pcdfxnfhgdmzmcmlhxuv",
+      ensureHistory: () => {},
+      runQuery: (_url, sql) => queries.push(sql),
+    };
+    expect(() =>
+      repairHomologHistory(url, { ...base, appliedVersions: [], presentObjects: ["private.is_admin", "private.is_admin_aal2"] }),
+    ).toThrow(/carimbo remoto ausente/);
+    expect(() =>
+      repairHomologHistory(url, {
+        ...base,
+        appliedVersions: HOMOLOG_HISTORY_REPAIRS.map((row) => row.remote),
+        presentObjects: ["private.is_admin", "private.is_admin_aal2", "public.is_admin"],
+      }),
+    ).toThrow(/public\.is_admin ainda existe/);
+    expect(queries).toEqual([]);
+  });
+
   it("não coloca a senha na linha de comando e grava a versão na mesma transação", () => {
     const invocation = psqlInvocation(
-      "postgresql://postgres.homologref:secret-pass@db.homologref.supabase.co:5432/postgres",
+      "postgresql://postgres.pcdfxnfhgdmzmcmlhxuv:secret-pass@db.pcdfxnfhgdmzmcmlhxuv.supabase.co:5432/postgres",
       "C:\\migrations\\202608150001_ok.sql",
       { version: "202608150001", name: "202608150001_ok.sql" },
     );
