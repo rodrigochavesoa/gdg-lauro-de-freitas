@@ -96,6 +96,28 @@ describe("JobDetail apply", () => {
     expect(screen.getByRole("main")).toHaveAttribute("aria-busy", "true");
   });
 
+  it("com cache e erro de rede mantém o título e oferece retry", () => {
+    const onRetryLoad = vi.fn();
+    render(
+      <JobDetail
+        job={job}
+        isPartial
+        loadError
+        onRetryLoad={onRetryLoad}
+        goBack={() => {}}
+        logged={false}
+        canUseCandidateApply
+        applySurfaceReady
+        applicationStatus={null}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: job.title })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(/Não foi possível atualizar os detalhes/i);
+    fireEvent.click(screen.getByRole("button", { name: "Tentar de novo" }));
+    expect(onRetryLoad).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Vaga não encontrada")).not.toBeInTheDocument();
+  });
+
   it("partial logado mantém Verificando e não flasha CTA azul", () => {
     render(
       <JobDetail

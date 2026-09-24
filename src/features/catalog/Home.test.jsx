@@ -403,6 +403,38 @@ describe("Home", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("O mínimo não pode ser maior que o máximo.");
   });
 
+  it("empty de erro do catálogo é genérico, tem retry e não cita .env.local", async () => {
+    peekApprovedJobsPage.mockReturnValue(null);
+    loadApprovedJobs.mockRejectedValue(new Error("network"));
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Catálogo indisponível" })).toBeInTheDocument();
+    expect(screen.getByText(/Não foi possível carregar as vagas/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\.env\.local/);
+  });
+
+  it("erro de rede não apaga vagas já no cache", async () => {
+    peekApprovedJobsPage.mockReturnValue({ jobs: [cachedJob], count: 1 });
+    loadApprovedJobs.mockRejectedValue(new Error("network"));
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/Não foi possível atualizar o catálogo/i);
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/\.env\.local/);
+  });
+
   it("mostra o salário mapeado no card", async () => {
     render(
       <MemoryRouter>
