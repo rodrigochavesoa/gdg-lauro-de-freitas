@@ -455,6 +455,51 @@ describe("Admin", () => {
     expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ status: "rejected" }));
   });
 
+  it("em edição, Enviar à curadoria atualiza a vaga e mantém Salvar rascunho", async () => {
+    const { createPendingJob, updatePendingJob } = await import("./lib/admin-api.js");
+    createPendingJob.mockReset();
+    updatePendingJob.mockReset();
+    updatePendingJob.mockResolvedValue({ id: "j2", title: "Pessoa Estagiária (rascunho)", status: "pending" });
+    loadAdminJob.mockResolvedValue({
+      id: "j2",
+      title: "Pessoa Estagiária (rascunho)",
+      status: "pending",
+      company_id: "c1",
+      companies: { name: "Nuvem Lauro Demo" },
+      description: "Rascunho fictício.",
+      level: "intern",
+      work_model: "remote",
+      stack: ["JavaScript"],
+      location: "Salvador",
+      job_curation_reviews: [],
+    });
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={adminProfile} />,
+      { path: "/admin/vagas/j2" },
+    );
+    fireEvent.click(await screen.findByRole("link", { name: "Editar rascunho" }));
+    expect(await screen.findByDisplayValue("Pessoa Estagiária (rascunho)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Salvar rascunho" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Enviar à curadoria" }));
+    await waitFor(() => expect(updatePendingJob).toHaveBeenCalledTimes(1));
+    expect(createPendingJob).not.toHaveBeenCalled();
+    expect(updatePendingJob).toHaveBeenCalledWith(
+      "j2",
+      expect.objectContaining({
+        title: "Pessoa Estagiária (rascunho)",
+        description: "Rascunho fictício.",
+        level: "Estágio",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Salvar rascunho" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar rascunho" }));
+    await waitFor(() => expect(updatePendingJob).toHaveBeenCalledTimes(2));
+    expect(createPendingJob).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Salvar rascunho" })).toBeEnabled();
+  });
+
   it("mostra erros de validação visíveis ao cadastrar sem campos obrigatórios", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "a1",
