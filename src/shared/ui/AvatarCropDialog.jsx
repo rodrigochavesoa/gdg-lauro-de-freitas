@@ -1,14 +1,17 @@
 import React, { useEffect, useId, useRef } from "react";
 import { AVATAR_OUTPUT_SIZE } from "../../features/auth/avatar-crop.js";
+import { useDialogFocusTrap } from "./useDialogFocusTrap.js";
 
 export function AvatarCropDialog({ image, onCancel, onConfirm, busy, error }) {
   const titleId = useId();
+  const containerRef = useRef(null);
   const confirmRef = useRef(null);
   const onCancelRef = useRef(onCancel);
   onCancelRef.current = onCancel;
 
+  useDialogFocusTrap({ active: true, containerRef, initialFocusRef: confirmRef });
+
   useEffect(() => {
-    confirmRef.current?.focus();
     const onKey = (event) => {
       if (event.key === "Escape") onCancelRef.current();
     };
@@ -17,7 +20,7 @@ export function AvatarCropDialog({ image, onCancel, onConfirm, busy, error }) {
   }, []);
 
   return (
-    <div className="avatar-crop-backdrop">
+    <div className="avatar-crop-backdrop" ref={containerRef}>
       <div
         className="avatar-crop"
         role="dialog"

@@ -1,10 +1,15 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
+import { useDialogFocusTrap } from "./useDialogFocusTrap.js";
 
 function filterResultsCta(count) {
   return count === 1 ? "Ver 1 resultado" : `Ver ${count} resultados`;
 }
 
 export function FilterSheet({ open, onClose, resultCount, titleId, children }) {
+  const containerRef = useRef(null);
+
+  useDialogFocusTrap({ active: open, containerRef });
+
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (event) => {
@@ -15,7 +20,7 @@ export function FilterSheet({ open, onClose, resultCount, titleId, children }) {
   }, [open, onClose]);
 
   return (
-    <div className="filters-slot">
+    <div className="filters-slot" ref={containerRef}>
       {open ? (
         <button
           type="button"

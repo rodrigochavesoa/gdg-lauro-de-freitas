@@ -53,4 +53,54 @@ describe("FilterSheet", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("React ativo")).toBeInTheDocument();
   });
+
+  it("prende Tab no painel e marca o conteúdo atrás como inert", () => {
+    const onClose = vi.fn();
+    render(
+      <main id="conteudo">
+        <button type="button">Fora do diálogo</button>
+        <FilterSheet open onClose={onClose} resultCount={2} titleId="filters-title">
+          <h2 id="filters-title">Filtros</h2>
+          <button type="button">React</button>
+        </FilterSheet>
+      </main>,
+    );
+
+    const outside = screen.getByRole("button", { name: "Fora do diálogo" });
+    expect(outside.hasAttribute("inert") || outside.closest("[inert]")).toBeTruthy();
+
+    const first = screen.getByRole("button", { name: "Fechar filtros" });
+    const last = screen.getByRole("button", { name: "Ver 2 resultados" });
+    expect(document.activeElement).toBe(first);
+
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+  });
+
+  it("devolve o foco ao botão que abriu o sheet ao fechar", () => {
+    const onClose = vi.fn();
+    const opener = document.createElement("button");
+    opener.textContent = "Filtros";
+    document.body.append(opener);
+    opener.focus();
+
+    const { rerender } = render(
+      <FilterSheet open onClose={onClose} resultCount={1} titleId="filters-title">
+        <h2 id="filters-title">Filtros</h2>
+      </FilterSheet>,
+    );
+    expect(document.activeElement).not.toBe(opener);
+
+    rerender(
+      <FilterSheet open={false} onClose={onClose} resultCount={1} titleId="filters-title">
+        <h2 id="filters-title">Filtros</h2>
+      </FilterSheet>,
+    );
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
 });
