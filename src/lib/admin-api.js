@@ -152,24 +152,31 @@ export async function loadIsAdmin() {
   return true;
 }
 
-/** Teto do select de empresa no formulário de vaga. Sem count e sem página extra. */
+/** Teto de cada busca de empresa. A página pede um a mais para saber se há resto. */
 export const COMPANY_LIST_LIMIT = 100;
 
 /**
- * Empresas para o select de AdminJobFormRoute.
- * Ordena por nome e corta em COMPANY_LIST_LIMIT. Não baixa a tabela inteira.
- * Acima do teto, o restante não entra no select até uma busca dedicada.
+ * Empresas do formulário de vaga, com busca e teto.
+ * `truncated` avisa que há mais além desta página. `includeId` devolve a empresa
+ * da vaga em edição mesmo quando ela fica fora do corte.
+ * @returns {Promise<{ companies: {id: string, name: string}[], truncated: boolean }>}
  */
-export async function loadCompanies() {
+export async function loadCompanies({ query = "", includeId = "" } = {}) {
   const client = clientOrThrow();
-  const { data, error } = await client
-    .from("companies")
-    .select("id,name")
-    .order("name", { ascending: true })
-    .order("id", { ascending: true })
-    .limit(COMPANY_LIST_LIMIT);
+  const term = String(query ?? "").trim();
+  let request = client.from("companies").select("id,name").order("name", { ascending: true }).order("id", { ascending: true });
+  if (term) request = request.ilike("name", `%${ilikeExact(term)}%`);
+  const { data, error } = await request.limit(COMPANY_LIST_LIMIT + 1);
   throwIfError(error);
-  return data ?? [];
+  const rows = data ?? [];
+  const truncated = rows.length > COMPANY_LIST_LIMIT;
+  const companies = truncated ? rows.slice(0, COMPANY_LIST_LIMIT) : [...rows];
+  if (includeId && !companies.some((row) => row.id === includeId)) {
+    const extra = await client.from("companies").select("id,name").eq("id", includeId).maybeSingle();
+    throwIfError(extra.error);
+    if (extra.data) companies.unshift(extra.data);
+  }
+  return { companies, truncated };
 }
 
 const ADMIN_JOB_SELECT =
@@ -191,12 +198,11 @@ export async function loadAdminJob(id) {
   return data ?? null;
 }
 
-const DUPLICATE_TITLE_PROBE_LIMIT = 5;
-
-/** ILIKE exato: % e _ do título não viram curinga. */
 function ilikeExact(value) {
   return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
 }
+
+const DUPLICATE_TITLE_PROBE_LIMIT = 5;
 
 /**
  * Uma sonda por company_id + título (lower/btrim no índice único).

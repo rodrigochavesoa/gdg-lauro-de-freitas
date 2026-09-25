@@ -133,15 +133,36 @@ describe("listas staff com teto", () => {
     fromMock.mockReset();
   });
 
-  it("loadCompanies corta o select em COMPANY_LIST_LIMIT", async () => {
-    const builder = chain({ data: [{ id: "c1", name: "Nuvem" }], error: null });
+  it("loadCompanies corta a busca e avisa quando há mais empresas", async () => {
+    const page = Array.from({ length: COMPANY_LIST_LIMIT + 1 }, (_, index) => ({
+      id: `c${index}`,
+      name: `Empresa ${index}`,
+    }));
+    const builder = chain({ data: page, error: null });
     fromMock.mockReturnValue(builder);
 
-    await expect(loadCompanies()).resolves.toEqual([{ id: "c1", name: "Nuvem" }]);
-    expect(fromMock).toHaveBeenCalledWith("companies");
-    expect(builder.select).toHaveBeenCalledWith("id,name");
-    expect(builder.limit).toHaveBeenCalledWith(COMPANY_LIST_LIMIT);
-    expect(builder.select).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ count: "exact" }));
+    await expect(loadCompanies({ query: "100%_lab" })).resolves.toEqual({
+      companies: page.slice(0, COMPANY_LIST_LIMIT),
+      truncated: true,
+    });
+    expect(builder.ilike).toHaveBeenCalledWith("name", "%100\\%\\_lab%");
+    expect(builder.limit).toHaveBeenCalledWith(COMPANY_LIST_LIMIT + 1);
+  });
+
+  it("loadCompanies inclui a empresa da vaga quando ela fica fora da página", async () => {
+    const page = chain({ data: [{ id: "c1", name: "Nuvem" }], error: null });
+    const current = chain({ data: { id: "c-late", name: "Fora do corte" }, error: null });
+    fromMock.mockReturnValueOnce(page).mockReturnValueOnce(current);
+
+    await expect(loadCompanies({ includeId: "c-late" })).resolves.toEqual({
+      companies: [
+        { id: "c-late", name: "Fora do corte" },
+        { id: "c1", name: "Nuvem" },
+      ],
+      truncated: false,
+    });
+    expect(current.eq).toHaveBeenCalledWith("id", "c-late");
+    expect(current.maybeSingle).toHaveBeenCalled();
   });
 
   it("loadAdminJobs não baixa a tabela de jobs", async () => {
