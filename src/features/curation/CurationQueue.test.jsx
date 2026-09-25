@@ -82,6 +82,29 @@ async function markUrgent(reason = "SLA interno") {
   fireEvent.click(screen.getByRole("button", { name: "Urgente" }));
 }
 
+function stubConcurrentLoadMorePages() {
+  const pendingJob = queuePayload.queue[0];
+  const pendingExtra = { ...pendingJob, id: "job-pending-2", title: "Pendente página 2" };
+  const rejectedJob = { ...pendingJob, id: "rejected-1", title: "Vaga rejeitada", priority: "normal" };
+  const rejectedExtra = { ...rejectedJob, id: "rejected-2", title: "Rejeitada página 2" };
+  const more = { pending: null, rejected: null };
+  loadCurationQueue.mockImplementation(async (opts = {}) => {
+    const page = opts.page ?? 1;
+    const scope = opts.scope ?? "pending";
+    if (page === 1 && scope === "pending") {
+      return { ...queuePayload, queue: [pendingJob], hasNext: true, page: 1 };
+    }
+    if (page === 1 && scope === "rejected") {
+      return { ...queuePayload, rejected: [rejectedJob], hasNext: true, page: 1 };
+    }
+    if (scope === "pending") {
+      return new Promise((resolve) => { more.pending = resolve; });
+    }
+    return new Promise((resolve) => { more.rejected = resolve; });
+  });
+  return { pendingJob, pendingExtra, rejectedJob, rejectedExtra, more };
+}
+
 describe("CurationQueue", () => {
   beforeEach(() => {
     loadCurationQueue.mockReset();
@@ -372,27 +395,44 @@ describe("CurationQueue", () => {
     expect(screen.getByRole("button", { name: "Carregar mais" })).toBeEnabled();
   });
 
-  it("Carregar mais de pendentes não apaga o loading de rejeitadas após trocar de aba", async () => {
-    const pendingJob = queuePayload.queue[0];
-    const pendingExtra = { ...pendingJob, id: "job-pending-2", title: "Pendente página 2" };
-    const rejectedJob = { ...pendingJob, id: "rejected-1", title: "Vaga rejeitada", priority: "normal" };
-    const rejectedExtra = { ...rejectedJob, id: "rejected-2", title: "Rejeitada página 2" };
-    let resolvePendingMore;
-    let resolveRejectedMore;
-    loadCurationQueue.mockImplementation(async (opts = {}) => {
-      const page = opts.page ?? 1;
-      const scope = opts.scope ?? "pending";
-      if (page === 1 && scope === "pending") {
-        return { ...queuePayload, queue: [pendingJob], hasNext: true, page: 1 };
-      }
-      if (page === 1 && scope === "rejected") {
-        return { ...queuePayload, rejected: [rejectedJob], hasNext: true, page: 1 };
-      }
-      if (scope === "pending") {
-        return new Promise((resolve) => { resolvePendingMore = resolve; });
-      }
-      return new Promise((resolve) => { resolveRejectedMore = resolve; });
+  it("refresh atrasado da página 1 em cache não apaga o Carregar mais", async () => {
+    const job1 = queuePayload.queue[0];
+    const page2 = { ...job1, id: "job-page-2", title: "Página 2" };
+    const refreshedPage1 = { ...job1, id: "job-refreshed", title: "Página 1 atualizada" };
+    let resolveRefresh;
+    peekCurationQueueCache.mockReturnValue({
+      ...queuePayload,
+      queue: [job1],
+      hasNext: true,
+      page: 1,
     });
+    loadCurationQueue.mockImplementation(async (opts = {}) => {
+      if ((opts.page ?? 1) === 1) {
+        return new Promise((resolve) => { resolveRefresh = resolve; });
+      }
+      return { ...queuePayload, queue: [page2], hasNext: false, page: 2 };
+    });
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("button", { name: /Página 2/ })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh({
+        ...queuePayload,
+        queue: [refreshedPage1],
+        hasNext: true,
+        page: 1,
+      });
+    });
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Página 2/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Página 1 atualizada/ })).not.toBeInTheDocument();
+  });
+
+  it("Carregar mais de pendentes não apaga o loading de rejeitadas após trocar de aba", async () => {
+    const { pendingExtra, rejectedExtra, more } = stubConcurrentLoadMorePages();
 
     render(<CurationQueue includeRejected profile={adminProfile} />);
     fireEvent.click(await screen.findByRole("button", { name: "Carregar mais" }));
@@ -404,7 +444,7 @@ describe("CurationQueue", () => {
     expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
 
     await act(async () => {
-      resolvePendingMore({
+      more.pending({
         ...queuePayload,
         queue: [pendingExtra],
         hasNext: false,
@@ -415,7 +455,7 @@ describe("CurationQueue", () => {
     expect(screen.queryByRole("button", { name: /Pendente página 2/ })).not.toBeInTheDocument();
 
     await act(async () => {
-      resolveRejectedMore({
+      more.rejected({
         ...queuePayload,
         rejected: [rejectedExtra],
         hasNext: false,
@@ -427,26 +467,7 @@ describe("CurationQueue", () => {
   });
 
   it("Carregar mais de rejeitadas não apaga o loading de pendentes após trocar de aba", async () => {
-    const pendingJob = queuePayload.queue[0];
-    const pendingExtra = { ...pendingJob, id: "job-pending-2", title: "Pendente página 2" };
-    const rejectedJob = { ...pendingJob, id: "rejected-1", title: "Vaga rejeitada", priority: "normal" };
-    const rejectedExtra = { ...rejectedJob, id: "rejected-2", title: "Rejeitada página 2" };
-    let resolvePendingMore;
-    let resolveRejectedMore;
-    loadCurationQueue.mockImplementation(async (opts = {}) => {
-      const page = opts.page ?? 1;
-      const scope = opts.scope ?? "pending";
-      if (page === 1 && scope === "pending") {
-        return { ...queuePayload, queue: [pendingJob], hasNext: true, page: 1 };
-      }
-      if (page === 1 && scope === "rejected") {
-        return { ...queuePayload, rejected: [rejectedJob], hasNext: true, page: 1 };
-      }
-      if (scope === "pending") {
-        return new Promise((resolve) => { resolvePendingMore = resolve; });
-      }
-      return new Promise((resolve) => { resolveRejectedMore = resolve; });
-    });
+    const { pendingExtra, rejectedExtra, more } = stubConcurrentLoadMorePages();
 
     render(<CurationQueue includeRejected profile={adminProfile} />);
     fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
@@ -460,7 +481,7 @@ describe("CurationQueue", () => {
     expect(await screen.findByRole("button", { name: "Carregando…" })).toBeDisabled();
 
     await act(async () => {
-      resolveRejectedMore({
+      more.rejected({
         ...queuePayload,
         rejected: [rejectedExtra],
         hasNext: false,
@@ -471,7 +492,7 @@ describe("CurationQueue", () => {
     expect(screen.queryByRole("button", { name: /Rejeitada página 2/ })).not.toBeInTheDocument();
 
     await act(async () => {
-      resolvePendingMore({
+      more.pending({
         ...queuePayload,
         queue: [pendingExtra],
         hasNext: false,

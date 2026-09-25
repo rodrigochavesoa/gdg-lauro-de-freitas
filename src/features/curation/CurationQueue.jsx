@@ -195,10 +195,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
     const page = isRejected ? rejectedPage : pendingPage;
     if (!hasNext) return;
     const setScopeLoadingMore = isRejected ? setRejectedLoadingMore : setPendingLoadingMore;
+    const generationRef = isRejected ? rejectedGenerationRef : pendingGenerationRef;
+    const generation = ++generationRef.current;
     setScopeLoadingMore(true);
     setError("");
-    const generationRef = isRejected ? rejectedGenerationRef : pendingGenerationRef;
-    const generation = generationRef.current;
     try {
       const data = await loadCurationQueue({ scope, page: page + 1, forceRefresh: true });
       if (generation !== generationRef.current) return;
