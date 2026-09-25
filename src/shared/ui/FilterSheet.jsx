@@ -6,9 +6,14 @@ function filterResultsCta(count) {
 }
 
 export function FilterSheet({ open, onClose, resultCount, titleId, children }) {
-  const containerRef = useRef(null);
+  const slotRef = useRef(null);
+  const dialogRef = useRef(null);
 
-  useDialogFocusTrap({ active: open, containerRef });
+  useDialogFocusTrap({
+    active: open,
+    containerRef: dialogRef,
+    inertRootRef: slotRef,
+  });
 
   useEffect(() => {
     if (!open) return undefined;
@@ -20,20 +25,23 @@ export function FilterSheet({ open, onClose, resultCount, titleId, children }) {
   }, [open, onClose]);
 
   return (
-    <div className="filters-slot" ref={containerRef}>
+    <div className="filters-slot" ref={slotRef}>
       {open ? (
         <button
           type="button"
           className="filters-backdrop"
+          tabIndex={-1}
           aria-label="Fechar filtros"
           onClick={onClose}
         />
       ) : null}
       <aside
+        ref={dialogRef}
         className={open ? "filters open" : "filters"}
         role={open ? "dialog" : undefined}
         aria-modal={open ? "true" : undefined}
         aria-labelledby={titleId}
+        tabIndex={open ? -1 : undefined}
       >
         {children}
         <div className="filters__footer">

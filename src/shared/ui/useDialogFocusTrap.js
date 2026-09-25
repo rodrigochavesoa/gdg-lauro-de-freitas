@@ -30,14 +30,14 @@ function inertSiblingsOutside(dialogRoot) {
  * Prende Tab no diálogo, marca o fundo com inert e devolve o foco ao fechar.
  * Escape, backdrop e CTA ficam a cargo do componente.
  */
-export function useDialogFocusTrap({ active, containerRef, initialFocusRef }) {
+export function useDialogFocusTrap({ active, containerRef, initialFocusRef, inertRootRef }) {
   useEffect(() => {
     if (!active) return undefined;
     const root = containerRef.current;
     if (!root) return undefined;
 
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const releaseInert = inertSiblingsOutside(root);
+    const releaseInert = inertSiblingsOutside(inertRootRef?.current ?? root);
     const focusTarget = initialFocusRef?.current ?? getDialogTabbables(root)[0] ?? root;
     if (typeof focusTarget.focus === "function") focusTarget.focus();
 
@@ -70,5 +70,5 @@ export function useDialogFocusTrap({ active, containerRef, initialFocusRef }) {
       releaseInert();
       if (previous?.isConnected) previous.focus();
     };
-  }, [active, containerRef, initialFocusRef]);
+  }, [active, containerRef, initialFocusRef, inertRootRef]);
 }

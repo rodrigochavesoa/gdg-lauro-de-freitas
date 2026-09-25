@@ -24,6 +24,7 @@ describe("AvatarCropDialog", () => {
 
     fireEvent.keyDown(document, { key: "Tab" });
     expect(document.activeElement).toBe(cancel);
+    expect(screen.getByRole("dialog", { name: "Recortar foto" }).contains(document.activeElement)).toBe(true);
 
     fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(confirm);

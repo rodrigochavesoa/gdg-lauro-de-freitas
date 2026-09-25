@@ -20,12 +20,14 @@ export function AvatarCropDialog({ image, onCancel, onConfirm, busy, error }) {
   }, []);
 
   return (
-    <div className="avatar-crop-backdrop" ref={containerRef}>
+    <div className="avatar-crop-backdrop">
       <div
+        ref={containerRef}
         className="avatar-crop"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
       >
         <h2 id={titleId}>Recortar foto</h2>
         <div className="avatar-crop__preview" style={{ width: AVATAR_OUTPUT_SIZE, height: AVATAR_OUTPUT_SIZE }}>
