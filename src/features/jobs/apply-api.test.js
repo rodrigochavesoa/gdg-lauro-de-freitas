@@ -29,7 +29,7 @@ import {
 } from "./apply-api.js";
 
 function mockApplicationsList(data, pending) {
-  const limit = vi.fn(() => {
+  const range = vi.fn(() => {
     if (pending) {
       return new Promise((resolve) => {
         pending.resolveLimit = () => resolve({ data, error: null });
@@ -37,11 +37,23 @@ function mockApplicationsList(data, pending) {
     }
     return Promise.resolve({ data, error: null });
   });
-  const order = vi.fn().mockReturnValue({ limit });
-  const eq = vi.fn().mockReturnValue({ order });
+  const order = vi.fn();
+  const chain = { order, range };
+  order.mockReturnValue(chain);
+  const eq = vi.fn().mockReturnValue(chain);
   const select = vi.fn().mockReturnValue({ eq });
   fromMock.mockReturnValue({ select });
-  return { limit, order, eq, select };
+  return { range, order, eq, select };
+}
+
+function applicationRow(id, jobId = `job-${id}`) {
+  return {
+    id,
+    job_id: jobId,
+    candidate_id: "u1",
+    status: "submitted",
+    jobs: { title: "Pessoa Dev", companies: { name: "Nuvem Lauro Demo" } },
+  };
 }
 
 describe("mapeamento de erros RPC", () => {
@@ -221,7 +233,7 @@ describe("RPCs", () => {
 
   it("loadMyApplications filtra o candidato e ordena por updated_at", async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
-    const { eq, order, limit, select } = mockApplicationsList([
+    const { eq, order, range, select } = mockApplicationsList([
       {
         id: "a1",
         job_id: "job-1",
@@ -231,14 +243,20 @@ describe("RPCs", () => {
       },
     ]);
 
-    const rows = await loadMyApplications();
+    const page = await loadMyApplications();
     expect(fromMock).toHaveBeenCalledWith("applications");
     expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
     expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
-    expect(limit).toHaveBeenCalledWith(APPLICATION_LIST_LIMIT);
+    expect(order).toHaveBeenCalledWith("id", { ascending: false });
+    expect(order.mock.calls).toEqual([
+      ["updated_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
+    expect(range).toHaveBeenCalledWith(0, APPLICATION_LIST_LIMIT);
     expect(select.mock.calls[0][0]).not.toMatch(/snapshot/);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].jobTitle).toBe("Pessoa Dev");
+    expect(page.applications).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
+    expect(page.applications[0].jobTitle).toBe("Pessoa Dev");
   });
 
   it("loadMyApplications com userId não chama getUser", async () => {
@@ -252,10 +270,11 @@ describe("RPCs", () => {
       },
     ]);
 
-    const rows = await loadMyApplications("u1");
+    const page = await loadMyApplications("u1");
     expect(getUserMock).not.toHaveBeenCalled();
-    expect(rows).toHaveLength(1);
-    expect(rows[0].jobTitle).toBe("Pessoa Dev");
+    expect(page.applications).toHaveLength(1);
+    expect(page.hasMore).toBe(false);
+    expect(page.applications[0].jobTitle).toBe("Pessoa Dev");
   });
 
   it("reusa o cache na segunda chamada dentro do TTL", async () => {
@@ -303,8 +322,8 @@ describe("RPCs", () => {
     const second = loadMyApplications({ userId: "u1" });
     expect(fromMock).toHaveBeenCalledTimes(1);
     pending.resolveLimit();
-    expect(await first).toHaveLength(1);
-    expect(await second).toHaveLength(1);
+    expect((await first).applications).toHaveLength(1);
+    expect((await second).applications).toHaveLength(1);
     expect(fromMock).toHaveBeenCalledTimes(1);
   });
 
@@ -332,5 +351,40 @@ describe("RPCs", () => {
     });
     await withdrawApplication("job-1");
     expect(peekMyApplicationsCache("u1")).toBeNull();
+  });
+
+  it("marca hasMore quando a página volta uma linha além do limite", async () => {
+    const rows = Array.from({ length: APPLICATION_LIST_LIMIT + 1 }, (_, index) =>
+      applicationRow(`a${index}`),
+    );
+    mockApplicationsList(rows);
+    const page = await loadMyApplications({ userId: "u1" });
+    expect(page.applications).toHaveLength(APPLICATION_LIST_LIMIT);
+    expect(page.hasMore).toBe(true);
+    expect(page.applications.at(-1).id).toBe(`a${APPLICATION_LIST_LIMIT - 1}`);
+  });
+
+  it("página 2 usa range 100–200 e não substitui o cache da primeira página", async () => {
+    mockApplicationsList([applicationRow("a1")]);
+    const first = await loadMyApplications({ userId: "u1" });
+    const { range } = mockApplicationsList([applicationRow("a101", "job-101")]);
+    const second = await loadMyApplications({ userId: "u1", page: 2 });
+    expect(range).toHaveBeenCalledWith(APPLICATION_LIST_LIMIT, APPLICATION_LIST_LIMIT * 2);
+    expect(second.applications).toHaveLength(1);
+    expect(second.applications[0].id).toBe("a101");
+    expect(peekMyApplicationsCache("u1")).toBe(first);
+  });
+
+  it("desempata páginas com o mesmo updated_at por id", async () => {
+    const sameTime = "2026-09-07T00:00:00.000Z";
+    const { order } = mockApplicationsList([
+      { ...applicationRow("a2"), updated_at: sameTime },
+      { ...applicationRow("a1"), updated_at: sameTime },
+    ]);
+    await loadMyApplications({ userId: "u1" });
+    expect(order.mock.calls).toEqual([
+      ["updated_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
   });
 });
