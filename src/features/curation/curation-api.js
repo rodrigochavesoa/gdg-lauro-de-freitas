@@ -1,5 +1,6 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import { runObserved } from "../../lib/ops-observability.js";
+import { throwStaffApiError } from "../auth/staff-mfa.js";
 import { mergeCurationQueue } from "./curation-queue.js";
 import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 
@@ -24,23 +25,21 @@ function clientOrThrow() {
 }
 
 function throwIfError(error) {
-  if (error) {
-    throw new Error(error.message || "Falha na API do Supabase.");
-  }
+  throwStaffApiError(error);
 }
 
 export async function loadCurationProfile() {
   const client = getSupabaseBrowserClient();
   if (!client) return null;
   const { data: sessionData, error: sessionError } = await client.auth.getUser();
-  if (sessionError) throw new Error(sessionError.message || "Falha na API do Supabase.");
+  if (sessionError) throwStaffApiError(sessionError);
   if (!sessionData?.user) return null;
   const { data, error } = await client
     .from("profiles")
     .select("id,full_name,role")
     .eq("id", sessionData.user.id)
     .maybeSingle();
-  if (error) throw new Error(error.message || "Falha na API do Supabase.");
+  if (error) throwStaffApiError(error);
   if (!STAFF_ROLES.has(data?.role)) return null;
   return { ...data, email: sessionData.user.email };
 }

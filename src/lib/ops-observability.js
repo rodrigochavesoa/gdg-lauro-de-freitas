@@ -39,7 +39,15 @@ const APPLY_BLOCKED = Object.freeze({
 });
 
 function errorText(error) {
-  return [error?.code, error?.status, error?.message, error?.details, error?.hint]
+  return [
+    error?.code,
+    error?.status,
+    error?.message,
+    error?.details,
+    error?.hint,
+    error?.cause?.code,
+    error?.cause?.message,
+  ]
     .filter((part) => part != null && part !== "")
     .join(" ")
     .toLowerCase();

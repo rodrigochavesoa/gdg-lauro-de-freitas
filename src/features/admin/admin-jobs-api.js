@@ -1,4 +1,4 @@
-import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../auth/staff-mfa.js";
 import { buildCatalogSearchPattern, quotePostgrestValue } from "../../lib/jobs-api.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
@@ -20,10 +20,7 @@ function clientOrThrow() {
 }
 
 function throwIfError(error) {
-  if (!error) return;
-  throw new Error(
-    formatStaffPrivilegedApiError(error.message) || error.message || "Falha ao carregar as vagas da área administrativa.",
-  );
+  throwStaffApiError(error);
 }
 
 function normalizePage(page) {

@@ -197,4 +197,13 @@ describe("loadAdminJobPage", () => {
     });
     await expect(loadAdminJobPage()).rejects.toThrow(/Confirme o segundo fator/);
   });
+
+  it("não ecoa PostgREST cru na lista staff", async () => {
+    mockListQuery({
+      data: null,
+      count: null,
+      error: { message: "permission denied for table jobs" },
+    });
+    await expect(loadAdminJobPage()).rejects.toThrow("Não foi possível completar a operação. Tente de novo ou contate a equipe.");
+  });
 });

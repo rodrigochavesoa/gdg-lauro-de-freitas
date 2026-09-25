@@ -28,7 +28,7 @@ export function AdminJobDetailRoute() {
         if (cancelled) return;
         setJob(null);
         setStatus("error");
-        setError(formatStaffPrivilegedApiError(err.message) || "Não foi possível carregar a vaga.");
+        setError(formatStaffPrivilegedApiError(err.message));
       });
     return () => {
       cancelled = true;
