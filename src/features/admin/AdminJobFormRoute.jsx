@@ -24,6 +24,10 @@ export function AdminJobFormRoute() {
   const [form, setForm] = useState(emptyJobForm);
   const [editingId, setEditingId] = useState("");
   const [companies, setCompanies] = useState([]);
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+  const [companyTruncated, setCompanyTruncated] = useState(false);
+  const [companyLoadError, setCompanyLoadError] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState([]);
@@ -33,17 +37,23 @@ export function AdminJobFormRoute() {
 
   useEffect(() => {
     let cancelled = false;
-    loadCompanies()
-      .then((rows) => {
-        if (!cancelled) setCompanies(rows);
+    loadCompanies({ query: companySearch, includeId: form.companyId })
+      .then((result) => {
+        if (cancelled) return;
+        const page = Array.isArray(result)
+          ? { companies: result, truncated: false }
+          : { companies: result?.companies ?? [], truncated: Boolean(result?.truncated) };
+        setCompanies(page.companies);
+        setCompanyTruncated(page.truncated);
+        setCompanyLoadError("");
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) setCompanyLoadError(err.message || "Não foi possível carregar as empresas.");
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [companySearch, form.companyId]);
 
   useEffect(() => {
     if (!editingFromQuery) {
@@ -125,6 +135,30 @@ export function AdminJobFormRoute() {
               Título da vaga
               <input id="admin-job-title" name="title" required value={form.title} onChange={field("title")} placeholder="Ex.: Pessoa Desenvolvedora Front-end" />
             </label>
+            <label>
+              Buscar empresa
+              <input
+                id="admin-job-company-search"
+                name="companySearch"
+                value={companyQuery}
+                onChange={(event) => setCompanyQuery(event.target.value)}
+                placeholder="Nome da empresa"
+              />
+            </label>
+            <button
+              type="button"
+              className="ghost small"
+              onClick={() => setCompanySearch(companyQuery.trim())}
+            >
+              Buscar
+            </button>
+            {companyLoadError ? <p className="wide" role="alert">{companyLoadError}</p> : null}
+            {companyTruncated ? (
+              <p className="wide" role="status">Há mais empresas. Refine a busca para ver o restante.</p>
+            ) : null}
+            {!companyLoadError && companySearch && companies.length === 0 ? (
+              <p className="wide" role="status">Nenhuma empresa encontrada para esta busca.</p>
+            ) : null}
             <label>
               Empresa
               <select id="admin-job-company" name="companyId" value={form.companyId} onChange={field("companyId")}>

@@ -152,26 +152,42 @@ export async function loadIsAdmin() {
   return true;
 }
 
-export async function loadCompanies() {
+/** Teto de cada busca de empresa. A página pede um a mais para saber se há resto. */
+export const COMPANY_LIST_LIMIT = 100;
+
+/**
+ * Empresas do formulário de vaga, com busca e teto.
+ * `truncated` avisa que há mais além desta página. `includeId` devolve a empresa
+ * da vaga em edição mesmo quando ela fica fora do corte.
+ * @returns {Promise<{ companies: {id: string, name: string}[], truncated: boolean }>}
+ */
+export async function loadCompanies({ query = "", includeId = "" } = {}) {
   const client = clientOrThrow();
-  const { data, error } = await client.from("companies").select("id,name").order("name");
+  const term = String(query ?? "").trim();
+  let request = client.from("companies").select("id,name").order("name", { ascending: true }).order("id", { ascending: true });
+  if (term) request = request.ilike("name", `%${ilikeExact(term)}%`);
+  const { data, error } = await request.limit(COMPANY_LIST_LIMIT + 1);
   throwIfError(error);
-  return data ?? [];
+  const rows = data ?? [];
+  const truncated = rows.length > COMPANY_LIST_LIMIT;
+  const companies = truncated ? rows.slice(0, COMPANY_LIST_LIMIT) : [...rows];
+  if (includeId && !companies.some((row) => row.id === includeId)) {
+    const extra = await client.from("companies").select("id,name").eq("id", includeId).maybeSingle();
+    throwIfError(extra.error);
+    if (extra.data) companies.unshift(extra.data);
+  }
+  return { companies, truncated };
 }
 
 const ADMIN_JOB_SELECT =
   "id,title,status,company_id,level,work_model,location,country_code,salary_min,salary_max,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
 
-/** Lista completa (description + reviews). Não usar em /admin/vagas — ver loadAdminJobPage. */
+/**
+ * Fora da listagem staff. /admin/vagas usa loadAdminJobPage (pageSize, count exact, range).
+ * Não baixa jobs. Mantida só para o mock das rotas não chamarem a lista legada.
+ */
 export async function loadAdminJobs() {
-  const client = clientOrThrow();
-  const { data, error } = await client
-    .from("jobs")
-    .select(ADMIN_JOB_SELECT)
-    .in("status", ["pending", "approved", "rejected"])
-    .order("created_at", { ascending: false });
-  throwIfError(error);
-  return data ?? [];
+  throw new Error("loadAdminJobs saiu da listagem. Use loadAdminJobPage.");
 }
 
 export async function loadAdminJob(id) {
@@ -182,9 +198,27 @@ export async function loadAdminJob(id) {
   return data ?? null;
 }
 
+function ilikeExact(value) {
+  return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+const DUPLICATE_TITLE_PROBE_LIMIT = 5;
+
+/**
+ * Uma sonda por company_id + título (lower/btrim no índice único).
+ * Não seleciona os jobs da empresa. O insert ainda rejeita 23505.
+ */
 async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
   if (!companyId) return;
-  const { data, error } = await client.from("jobs").select("id,title,company_id").eq("company_id", companyId);
+  const trimmed = String(title ?? "").trim();
+  if (!trimmed) return;
+  let request = client
+    .from("jobs")
+    .select("id,title,company_id")
+    .eq("company_id", companyId)
+    .ilike("title", ilikeExact(trimmed));
+  if (excludeId) request = request.neq("id", excludeId);
+  const { data, error } = await request.limit(DUPLICATE_TITLE_PROBE_LIMIT);
   throwIfError(error);
   if (findDuplicateJob(data, { companyId, title, excludeId })) {
     throw new Error(DUPLICATE_JOB_MESSAGE);

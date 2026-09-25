@@ -1,5 +1,25 @@
-import { describe, expect, it } from "vitest";
-import { parseStack, structuredJobColumns, validateAdminJob, normalizeJobTitle, findDuplicateJob } from "./admin-api.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const fromMock = vi.fn();
+
+vi.mock("./supabase-client.js", () => ({
+  getSupabaseBrowserClient: () => ({ from: fromMock }),
+}));
+
+import {
+  COMPANY_LIST_LIMIT,
+  createPendingJob,
+  findDuplicateJob,
+  loadAdminJobs,
+  loadCompanies,
+  normalizeJobTitle,
+  parseStack,
+  structuredJobColumns,
+  updatePendingJob,
+  validateAdminJob,
+} from "./admin-api.js";
 
 describe("validateAdminJob", () => {
   const valid = {
@@ -86,5 +106,114 @@ describe("normalizeJobTitle e duplicidade", () => {
     expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV" })?.id).toBe("a");
     expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV", excludeId: "a" })).toBeNull();
     expect(findDuplicateJob(jobs, { companyId: "c2", title: "Outra" })).toBeNull();
+  });
+});
+
+function chain(terminal) {
+  const builder = {};
+  for (const name of ["select", "order", "eq", "ilike", "neq", "insert", "update"]) {
+    builder[name] = vi.fn(() => builder);
+  }
+  builder.limit = vi.fn(() => Promise.resolve(terminal));
+  builder.single = vi.fn(() => Promise.resolve(terminal));
+  builder.maybeSingle = vi.fn(() => Promise.resolve(terminal));
+  return builder;
+}
+
+const jobInput = {
+  title: "Pessoa Dev",
+  description: "Vaga fictícia de teste.",
+  companyId: "a1a1a1a1-0001-4000-8000-000000000001",
+  level: "Pleno",
+  workModel: "Remoto",
+};
+
+describe("listas staff com teto", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+  });
+
+  it("loadCompanies corta a busca e avisa quando há mais empresas", async () => {
+    const page = Array.from({ length: COMPANY_LIST_LIMIT + 1 }, (_, index) => ({
+      id: `c${index}`,
+      name: `Empresa ${index}`,
+    }));
+    const builder = chain({ data: page, error: null });
+    fromMock.mockReturnValue(builder);
+
+    await expect(loadCompanies({ query: "100%_lab" })).resolves.toEqual({
+      companies: page.slice(0, COMPANY_LIST_LIMIT),
+      truncated: true,
+    });
+    expect(builder.ilike).toHaveBeenCalledWith("name", "%100\\%\\_lab%");
+    expect(builder.limit).toHaveBeenCalledWith(COMPANY_LIST_LIMIT + 1);
+  });
+
+  it("loadCompanies inclui a empresa da vaga quando ela fica fora da página", async () => {
+    const page = chain({ data: [{ id: "c1", name: "Nuvem" }], error: null });
+    const current = chain({ data: { id: "c-late", name: "Fora do corte" }, error: null });
+    fromMock.mockReturnValueOnce(page).mockReturnValueOnce(current);
+
+    await expect(loadCompanies({ includeId: "c-late" })).resolves.toEqual({
+      companies: [
+        { id: "c-late", name: "Fora do corte" },
+        { id: "c1", name: "Nuvem" },
+      ],
+      truncated: false,
+    });
+    expect(current.eq).toHaveBeenCalledWith("id", "c-late");
+    expect(current.maybeSingle).toHaveBeenCalled();
+  });
+
+  it("loadAdminJobs não baixa a tabela de jobs", async () => {
+    await expect(loadAdminJobs()).rejects.toThrow(/loadAdminJobPage/);
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("rotas de lista e formulário não importam loadAdminJobs", () => {
+    const root = resolve(import.meta.dirname, "..");
+    const jobsRoute = readFileSync(resolve(root, "features/admin/AdminJobsRoute.jsx"), "utf8");
+    const formRoute = readFileSync(resolve(root, "features/admin/AdminJobFormRoute.jsx"), "utf8");
+    expect(jobsRoute).not.toContain("loadAdminJobs");
+    expect(formRoute).not.toContain("loadAdminJobs");
+    expect(jobsRoute).toContain("loadAdminJobPage");
+    expect(formRoute).toContain("loadCompanies");
+  });
+
+  it("createPendingJob sonda o título com ilike e limite, sem varrer a empresa", async () => {
+    const probe = chain({ data: [], error: null });
+    const insert = chain({ data: { id: "j1", title: "Pessoa Dev", status: "pending" }, error: null });
+    fromMock.mockReturnValueOnce(probe).mockReturnValueOnce(insert);
+
+    await createPendingJob(jobInput);
+
+    expect(probe.select).toHaveBeenCalledWith("id,title,company_id");
+    expect(probe.eq).toHaveBeenCalledWith("company_id", jobInput.companyId);
+    expect(probe.ilike).toHaveBeenCalledWith("title", "Pessoa Dev");
+    expect(probe.limit).toHaveBeenCalledWith(5);
+    expect(insert.insert).toHaveBeenCalled();
+  });
+
+  it("updatePendingJob exclui a própria vaga na sonda", async () => {
+    const probe = chain({ data: [], error: null });
+    const update = chain({ data: { id: "j1", title: "Pessoa Dev", status: "pending" }, error: null });
+    fromMock.mockReturnValueOnce(probe).mockReturnValueOnce(update);
+
+    await updatePendingJob("j1", jobInput);
+
+    expect(probe.ilike).toHaveBeenCalledWith("title", "Pessoa Dev");
+    expect(probe.neq).toHaveBeenCalledWith("id", "j1");
+    expect(probe.limit).toHaveBeenCalledWith(5);
+  });
+
+  it("recusa título duplicado sem insert", async () => {
+    const probe = chain({
+      data: [{ id: "other", company_id: jobInput.companyId, title: "pessoa dev" }],
+      error: null,
+    });
+    fromMock.mockReturnValue(probe);
+
+    await expect(createPendingJob(jobInput)).rejects.toThrow(/Já existe vaga/);
+    expect(probe.limit).toHaveBeenCalledWith(5);
   });
 });
