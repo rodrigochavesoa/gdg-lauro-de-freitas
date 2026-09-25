@@ -86,4 +86,12 @@ describe("AdminJobFormRoute empresas", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Nenhuma empresa encontrada para esta busca.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  it("não mostra tipo de contrato porque o schema não persiste o campo", async () => {
+    loadCompanies.mockResolvedValue({ companies: [], truncated: false });
+    renderForm();
+    expect(await screen.findByLabelText("Título da vaga")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Tipo de contrato")).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "Tipo de contrato" })).not.toBeInTheDocument();
+  });
 });
