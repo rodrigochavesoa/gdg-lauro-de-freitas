@@ -278,14 +278,6 @@ export function AdminJobFormRoute() {
                 <option>Presencial</option>
               </select>
             </label>
-            <label>
-              Tipo de contrato
-              <select id="admin-job-contract" name="contractType" defaultValue="CLT">
-                <option>CLT</option>
-                <option>PJ</option>
-                <option>Estágio</option>
-              </select>
-            </label>
           </div>
         </div>
         {message && (

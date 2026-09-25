@@ -45,6 +45,13 @@ describe("job-form-state", () => {
     });
   });
 
+  it("não inclui tipo de contrato no estado do formulário", () => {
+    expect(emptyJobForm).not.toHaveProperty("contractType");
+    expect(
+      jobToForm({ title: "Pessoa Dev", company_id: "c1", level: "intern" }),
+    ).not.toHaveProperty("contractType");
+  });
+
   it("rótula status sem expor pending/approved crus", () => {
     expect(adminJobStatusLabel("pending")).toBe("Pendente");
     expect(adminJobStatusLabel("approved")).toBe("Publicada");
