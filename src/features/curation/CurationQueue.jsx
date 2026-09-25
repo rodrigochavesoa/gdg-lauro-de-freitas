@@ -74,6 +74,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const pendingGenerationRef = useRef(0);
   const rejectedGenerationRef = useRef(0);
   const pendingLoadingEpochRef = useRef(0);
+  const rejectedLoadingEpochRef = useRef(0);
 
   const applyPending = useCallback((data, { append = false } = {}) => {
     setQueue((current) => (append ? mergeById(current, data.queue) : data.queue));
@@ -123,6 +124,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     if (view !== "rejected" || !includeRejected) return undefined;
     let cancelled = false;
     const generation = ++rejectedGenerationRef.current;
+    const loadingEpoch = ++rejectedLoadingEpochRef.current;
     setRejectedStatus("loading");
     setRejectedLoadingMore(false);
     loadCurationQueue({
@@ -142,6 +144,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
         if (cancelled || generation !== rejectedGenerationRef.current) return;
         setRejectedStatus("error");
         setError(err.message);
+      })
+      .finally(() => {
+        if (cancelled || loadingEpoch !== rejectedLoadingEpochRef.current) return;
+        setRejectedStatus((current) => (current === "loading" ? "ready" : current));
       });
     return () => {
       cancelled = true;
@@ -193,7 +199,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     const scope = view === "rejected" ? "rejected" : "pending";
     const isRejected = scope === "rejected";
     if (isRejected ? rejectedLoadingMore : pendingLoadingMore) return;
-    if (!isRejected && loading) return;
+    if (isRejected ? rejectedStatus === "loading" : loading) return;
     const hasNext = isRejected ? rejectedHasNext : pendingHasNext;
     const page = isRejected ? rejectedPage : pendingPage;
     if (!hasNext) return;
@@ -315,7 +321,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         ))}
         {(view === "pending" ? pendingHasNext : rejectedHasNext) ? (
           <div className="admin-jobs-more">
-            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || (view === "pending" && loading)}>
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || (view === "pending" ? loading : rejectedStatus === "loading")}>
               {loadingMore ? "Carregando…" : "Carregar mais"}
             </button>
           </div>
