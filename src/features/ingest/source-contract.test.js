@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { STAFF_API_ERROR_FALLBACK } from "../../lib/staff-api-errors.js";
 import {
   REGISTER_JOB_INGESTION_RPC,
   SOURCE_KINDS,
@@ -246,20 +247,25 @@ describe("registerJobIngestion é idempotente na camada 013", () => {
     expect(result.id).toBe(existing.id);
   });
 
-  it("propaga erro da RPC e não trata 23505 de outra constraint como duplicata 013", async () => {
+  it("propaga erro da RPC sem ecoar constraint e não trata 23505 de outra tabela como duplicata 013", async () => {
     const client = createRpcClient({
       error: {
         code: "23505",
         message: 'duplicate key value violates unique constraint "jobs_company_normalized_title_uidx"',
       },
     });
-    await expect(
-      registerJobIngestion(client, {
+    try {
+      await registerJobIngestion(client, {
         sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
         locator: "fixture:acme-front",
         payload: BASE_PAYLOAD,
-      }),
-    ).rejects.toThrow(/jobs_company_normalized_title_uidx/);
+      });
+      throw new Error("esperava falha da RPC");
+    } catch (error) {
+      expect(error.message).toBe(STAFF_API_ERROR_FALLBACK);
+      expect(error.message).not.toMatch(/jobs_company_normalized_title_uidx/);
+      expect(error.cause?.message).toMatch(/jobs_company_normalized_title_uidx/);
+    }
     expect(
       isIngestionUniqueViolation({
         code: "23505",

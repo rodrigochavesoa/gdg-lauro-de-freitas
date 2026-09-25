@@ -11,7 +11,7 @@ import {
   isIngestionExpired,
 } from "./source-contract.js";
 import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
-import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const PROCESS_JOB_INGESTION_RPC = "process_job_ingestion";
@@ -96,10 +96,7 @@ function clientOrThrow(client) {
 }
 
 function throwIfError(error) {
-  if (error) {
-    const mapped = formatStaffPrivilegedApiError(error.message);
-    throw new Error(mapped || error.message || "Falha na API de ingestão.");
-  }
+  throwStaffApiError(error);
 }
 
 export async function processJobIngestion(client, { sourceKind, locator, payload, expiresAt } = {}) {

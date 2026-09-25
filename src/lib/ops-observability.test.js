@@ -128,6 +128,15 @@ describe("contrato operacional MVP-014", () => {
       outcome: "failure",
       error_class: "auth_unavailable",
     });
+    expect(
+      classifyOpsFailure("login", {
+        message: "Não foi possível completar a operação. Tente de novo ou contate a equipe.",
+        cause: { message: "Failed to fetch" },
+      }),
+    ).toEqual({
+      outcome: "failure",
+      error_class: "auth_unavailable",
+    });
     expect(classifyOpsFailure("search", { message: "Failed to fetch" })).toEqual({
       outcome: "failure",
       error_class: "search_unavailable",

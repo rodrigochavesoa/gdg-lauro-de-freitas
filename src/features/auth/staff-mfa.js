@@ -48,18 +48,11 @@ export function formatStaffMfaUserMessage(message) {
   return text;
 }
 
-/** Erros de API staff quando o JWT ainda está em AAL1 (sessão sem TOTP confirmado). */
-export function formatStaffPrivilegedApiError(message) {
-  const text = String(message ?? "").trim();
-  if (!text) return text;
-  if (/aal2|authenticator assurance|mfa challenge|insufficient.*aal/i.test(text)) {
-    return "Confirme o segundo fator na tela anterior (código do autenticador) e tente de novo.";
-  }
-  if (/jwt expired|refresh token/i.test(text)) {
-    return "Sessão expirada. Saia, entre de novo com e-mail e senha e confirme o autenticador.";
-  }
-  return text;
-}
+export {
+  STAFF_API_ERROR_FALLBACK,
+  formatStaffPrivilegedApiError,
+  throwStaffApiError,
+} from "../../lib/staff-api-errors.js";
 
 export async function getStaffMfaAssurance() {
   const client = clientOrThrow();

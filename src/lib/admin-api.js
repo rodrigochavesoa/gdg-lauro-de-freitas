@@ -1,5 +1,6 @@
 import { centsFromReaisInput, normalizeCountryCode, normalizeSalaryCents } from "./catalog-url.js";
 import { runObserved } from "./ops-observability.js";
+import { throwStaffApiError } from "./staff-api-errors.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
 export const LEVEL_TO_DB = {
@@ -116,7 +117,7 @@ function throwIfError(error) {
   if (isUniqueViolation(error)) {
     throw new Error(DUPLICATE_JOB_MESSAGE);
   }
-  throw new Error(error.message || "Falha na API do Supabase.");
+  throwStaffApiError(error);
 }
 
 export async function signInAdmin(email, password) {
@@ -144,10 +145,10 @@ export async function loadIsAdmin() {
   const client = getSupabaseBrowserClient();
   if (!client) return false;
   const { data: sessionData, error: sessionError } = await client.auth.getUser();
-  if (sessionError) throw new Error(sessionError.message || "Falha na API do Supabase.");
+  if (sessionError) throwStaffApiError(sessionError);
   if (!sessionData?.user) return false;
   const { data, error } = await client.from("profiles").select("role").eq("id", sessionData.user.id).maybeSingle();
-  if (error) throw new Error(error.message || "Falha na API do Supabase.");
+  if (error) throwStaffApiError(error);
   if (data?.role !== "admin") return false;
   return true;
 }

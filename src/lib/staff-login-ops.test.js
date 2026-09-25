@@ -99,7 +99,7 @@ describe("login staff — papel e rede", () => {
     mockSignedInUser();
     mockProfile({ data: null, error: { message: "Failed to fetch" } });
     const { thrown, events } = await captureOps(() => signInCuration(STAFF_EMAIL, STAFF_PASSWORD));
-    expect(thrown?.message).toBe("Failed to fetch");
+    expect(thrown?.message).toBe("Não foi possível completar a operação. Tente de novo ou contate a equipe.");
     expect(client.auth.signOut).not.toHaveBeenCalled();
     expect(events[0]).toMatchObject({
       event_name: "ops.login",
@@ -118,7 +118,7 @@ describe("login staff — papel e rede", () => {
       error: { message: "Failed to fetch" },
     });
     const { thrown, events } = await captureOps(() => signInAdmin(STAFF_EMAIL, STAFF_PASSWORD));
-    expect(thrown?.message).toBe("Failed to fetch");
+    expect(thrown?.message).toBe("Não foi possível completar a operação. Tente de novo ou contate a equipe.");
     expect(client.auth.signOut).not.toHaveBeenCalled();
     expect(events[0]).toMatchObject({
       event_name: "ops.login",

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
-import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
+import { formatStaffPrivilegedApiError } from "../../lib/staff-api-errors.js";
 import { CurationTimeline } from "../curation/CurationTimeline.jsx";
 import { loadAdminJob } from "../../lib/admin-api.js";
 import { adminJobStatusLabel } from "./job-form-state.js";
@@ -28,7 +28,7 @@ export function AdminJobDetailRoute() {
         if (cancelled) return;
         setJob(null);
         setStatus("error");
-        setError(formatStaffPrivilegedApiError(err.message) || "Não foi possível carregar a vaga.");
+        setError(formatStaffPrivilegedApiError(err.message));
       });
     return () => {
       cancelled = true;

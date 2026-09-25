@@ -5,6 +5,7 @@
  */
 
 import { runObserved } from "../../lib/ops-observability.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 
 export const SOURCE_KINDS = Object.freeze({
   MANUAL_FIXTURE: "manual_fixture",
@@ -269,7 +270,7 @@ export async function registerJobIngestion(client, { sourceKind, locator, payloa
         p_job_id: jobId ?? null,
       });
       if (error) {
-        throw new Error(error.message || "Falha ao registrar ingestão.");
+        throwStaffApiError(error);
       }
       const row = data && typeof data === "object" && !Array.isArray(data) ? data : {};
       if (!row.id) {

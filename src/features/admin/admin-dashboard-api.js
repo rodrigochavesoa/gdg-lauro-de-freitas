@@ -1,5 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
-import { formatStaffPrivilegedApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -10,9 +10,7 @@ function clientOrThrow() {
 }
 
 function throwIfError(error) {
-  if (error) {
-    throw new Error(formatStaffPrivilegedApiError(error.message) || error.message || "Falha ao carregar o painel.");
-  }
+  throwStaffApiError(error);
 }
 
 async function countJobsByStatus(status) {

@@ -29,7 +29,6 @@ vi.mock("../../lib/supabase-client.js", () => ({
 import {
   enrollStaffTotp,
   formatStaffMfaUserMessage,
-  formatStaffPrivilegedApiError,
   getStaffMfaAssurance,
   isStaffMfaRequired,
   needsStaffMfaStep,
@@ -134,8 +133,7 @@ describe("staff-mfa", () => {
     await expect(getStaffMfaAssurance()).rejects.toThrow(/não configuradas/);
   });
 
-  it("traduz mensagens comuns de TOTP e AAL2 para o operador", () => {
+  it("traduz mensagens comuns de TOTP para o operador", () => {
     expect(formatStaffMfaUserMessage("Invalid TOTP code entered")).toMatch(/Código inválido ou expirado/);
-    expect(formatStaffPrivilegedApiError("JWT does not contain aal2 claim")).toMatch(/Confirme o segundo fator/);
   });
 });
