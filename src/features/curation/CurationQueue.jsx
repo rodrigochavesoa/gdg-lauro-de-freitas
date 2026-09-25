@@ -73,6 +73,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [detailReviews, setDetailReviews] = useState([]);
   const pendingGenerationRef = useRef(0);
   const rejectedGenerationRef = useRef(0);
+  const pendingLoadingEpochRef = useRef(0);
 
   const applyPending = useCallback((data, { append = false } = {}) => {
     setQueue((current) => (append ? mergeById(current, data.queue) : data.queue));
@@ -82,6 +83,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
 
   useEffect(() => {
     const generation = ++pendingGenerationRef.current;
+    const loadingEpoch = ++pendingLoadingEpochRef.current;
     let cancelled = false;
     const hadCache = Boolean(peekCurationQueueCache({ scope: "pending", page: 1 }));
     if (!hadCache) setLoading(true);
@@ -102,7 +104,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         setError(err.message);
       })
       .finally(() => {
-        if (!cancelled && generation === pendingGenerationRef.current) setLoading(false);
+        if (!cancelled && loadingEpoch === pendingLoadingEpochRef.current) setLoading(false);
       });
 
     return () => {
@@ -191,6 +193,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     const scope = view === "rejected" ? "rejected" : "pending";
     const isRejected = scope === "rejected";
     if (isRejected ? rejectedLoadingMore : pendingLoadingMore) return;
+    if (!isRejected && loading) return;
     const hasNext = isRejected ? rejectedHasNext : pendingHasNext;
     const page = isRejected ? rejectedPage : pendingPage;
     if (!hasNext) return;
@@ -312,7 +315,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         ))}
         {(view === "pending" ? pendingHasNext : rejectedHasNext) ? (
           <div className="admin-jobs-more">
-            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || (view === "pending" && loading)}>
               {loadingMore ? "Carregando…" : "Carregar mais"}
             </button>
           </div>

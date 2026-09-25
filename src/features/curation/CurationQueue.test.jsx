@@ -431,6 +431,47 @@ describe("CurationQueue", () => {
     expect(screen.queryByRole("button", { name: /Página 1 atualizada/ })).not.toBeInTheDocument();
   });
 
+  it("refresh sem cache desabilita Carregar mais e não trava o loading", async () => {
+    const job1 = queuePayload.queue[0];
+    let resolveRefresh;
+    loadCurationQueue.mockImplementation(async () => new Promise((resolve) => { resolveRefresh = resolve; }));
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
+    expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh({
+        ...queuePayload,
+        queue: [job1],
+        hasNext: true,
+        page: 1,
+      });
+    });
+    expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Carregar mais" })).toBeEnabled();
+
+    peekCurationQueueCache.mockReturnValue(null);
+    let resolveReload;
+    loadCurationQueue.mockImplementation(async () => new Promise((resolve) => { resolveReload = resolve; }));
+    curationEvents.notify();
+    expect(await screen.findByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Carregar mais" })).toBeDisabled();
+
+    await act(async () => {
+      resolveReload({
+        ...queuePayload,
+        queue: [{ ...job1, id: "job-fresh", title: "Vaga recente" }],
+        hasNext: true,
+        page: 1,
+      });
+    });
+    expect(screen.queryByText("Carregando fila de curadoria…")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Vaga recente/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Carregar mais" })).toBeEnabled();
+  });
+
   it("Carregar mais de pendentes não apaga o loading de rejeitadas após trocar de aba", async () => {
     const { pendingExtra, rejectedExtra, more } = stubConcurrentLoadMorePages();
 
