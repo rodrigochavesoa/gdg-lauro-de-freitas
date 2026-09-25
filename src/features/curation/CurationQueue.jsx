@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ListChecks } from "lucide-react";
 import {
   loadCurationJobDetail,
@@ -58,7 +58,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(() => !cached);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [pendingLoadingMore, setPendingLoadingMore] = useState(false);
+  const [rejectedLoadingMore, setRejectedLoadingMore] = useState(false);
   const [view, setView] = useState("pending");
   const [detailOpen, setDetailOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
@@ -70,6 +71,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [detailDescription, setDetailDescription] = useState("");
   const [detailStack, setDetailStack] = useState([]);
   const [detailReviews, setDetailReviews] = useState([]);
+  const pendingGenerationRef = useRef(0);
+  const rejectedGenerationRef = useRef(0);
+  const pendingLoadingEpochRef = useRef(0);
+  const rejectedLoadingEpochRef = useRef(0);
 
   const applyPending = useCallback((data, { append = false } = {}) => {
     setQueue((current) => (append ? mergeById(current, data.queue) : data.queue));
@@ -78,9 +83,12 @@ export function CurationQueue({ profile, includeRejected = false }) {
   }, []);
 
   useEffect(() => {
+    const generation = ++pendingGenerationRef.current;
+    const loadingEpoch = ++pendingLoadingEpochRef.current;
     let cancelled = false;
     const hadCache = Boolean(peekCurationQueueCache({ scope: "pending", page: 1 }));
     if (!hadCache) setLoading(true);
+    setPendingLoadingMore(false);
 
     loadCurationQueue({
       scope: "pending",
@@ -88,13 +96,16 @@ export function CurationQueue({ profile, includeRejected = false }) {
       forceRefresh: hadCache || reloadToken > 0,
     })
       .then((data) => {
-        if (!cancelled) applyPending(data);
+        if (cancelled || generation !== pendingGenerationRef.current) return;
+        setError("");
+        applyPending(data);
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (cancelled || generation !== pendingGenerationRef.current) return;
+        setError(err.message);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && loadingEpoch === pendingLoadingEpochRef.current) setLoading(false);
       });
 
     return () => {
@@ -112,23 +123,31 @@ export function CurationQueue({ profile, includeRejected = false }) {
   useEffect(() => {
     if (view !== "rejected" || !includeRejected) return undefined;
     let cancelled = false;
+    const generation = ++rejectedGenerationRef.current;
+    const loadingEpoch = ++rejectedLoadingEpochRef.current;
     setRejectedStatus("loading");
+    setRejectedLoadingMore(false);
     loadCurationQueue({
       scope: "rejected",
       page: 1,
       forceRefresh: reloadToken > 0,
     })
       .then((data) => {
-        if (cancelled) return;
+        if (cancelled || generation !== rejectedGenerationRef.current) return;
+        setError("");
         setRejected(data.rejected);
         setRejectedHasNext(Boolean(data.hasNext));
         setRejectedPage(data.page ?? 1);
         setRejectedStatus("ready");
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (cancelled || generation !== rejectedGenerationRef.current) return;
         setRejectedStatus("error");
         setError(err.message);
+      })
+      .finally(() => {
+        if (cancelled || loadingEpoch !== rejectedLoadingEpochRef.current) return;
+        setRejectedStatus((current) => (current === "loading" ? "ready" : current));
       });
     return () => {
       cancelled = true;
@@ -174,17 +193,26 @@ export function CurationQueue({ profile, includeRejected = false }) {
     };
   }, [selected?.id, detailEpoch]);
 
+  const loadingMore = view === "rejected" ? rejectedLoadingMore : pendingLoadingMore;
+
   const loadMore = async () => {
-    if (loadingMore) return;
     const scope = view === "rejected" ? "rejected" : "pending";
-    const hasNext = scope === "rejected" ? rejectedHasNext : pendingHasNext;
-    const page = scope === "rejected" ? rejectedPage : pendingPage;
+    const isRejected = scope === "rejected";
+    if (isRejected ? rejectedLoadingMore : pendingLoadingMore) return;
+    if (isRejected ? rejectedStatus === "loading" : loading) return;
+    const hasNext = isRejected ? rejectedHasNext : pendingHasNext;
+    const page = isRejected ? rejectedPage : pendingPage;
     if (!hasNext) return;
-    setLoadingMore(true);
+    const setScopeLoadingMore = isRejected ? setRejectedLoadingMore : setPendingLoadingMore;
+    const generationRef = isRejected ? rejectedGenerationRef : pendingGenerationRef;
+    const generation = ++generationRef.current;
+    setScopeLoadingMore(true);
     setError("");
     try {
       const data = await loadCurationQueue({ scope, page: page + 1, forceRefresh: true });
-      if (scope === "rejected") {
+      if (generation !== generationRef.current) return;
+      setError("");
+      if (isRejected) {
         setRejected((current) => mergeById(current, data.rejected));
         setRejectedHasNext(Boolean(data.hasNext));
         setRejectedPage(data.page ?? page + 1);
@@ -192,9 +220,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
         applyPending(data, { append: true });
       }
     } catch (err) {
+      if (generation !== generationRef.current) return;
       setError(err.message);
     } finally {
-      setLoadingMore(false);
+      if (generation === generationRef.current) setScopeLoadingMore(false);
     }
   };
 
@@ -205,7 +234,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
     try {
       await action();
       setMessage(successMessage);
+      const generation = pendingGenerationRef.current;
       const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
+      if (generation !== pendingGenerationRef.current) return;
+      setError("");
       applyPending(data);
       afterSuccess?.();
     } catch (err) {
@@ -289,7 +321,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         ))}
         {(view === "pending" ? pendingHasNext : rejectedHasNext) ? (
           <div className="admin-jobs-more">
-            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || (view === "pending" ? loading : rejectedStatus === "loading")}>
               {loadingMore ? "Carregando…" : "Carregar mais"}
             </button>
           </div>
