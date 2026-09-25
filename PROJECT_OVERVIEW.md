@@ -181,8 +181,16 @@ erDiagram
 | `/login` | Visitante | Google OAuth para candidato |
 | `/onboarding` | Candidato incompleto | Perfil mínimo antes de candidatar |
 | `/minhas-candidaturas` | Candidato | Histórico próprio e retirada permitida no V1 |
+| `/perfil` | Candidato autenticado | Edição de perfil (identidade e avatar, quando o flag está ligado); staff é redirecionado |
 | `/preferencias` | Candidato | Preferências e histórico de privacidade |
-| `/admin` | Staff | Login staff, administração e curadoria; não provisiona contas staff |
+| `/admin` | Staff | Shell: login e-mail/senha e MFA TOTP (quando o flag está ligado); index = painel (`AdminHome`) |
+| `/admin/curadoria` | Staff | Fila de curadoria |
+| `/admin/ingestao` | Admin (`AdminJobsGate`) | Ingestão de vagas |
+| `/admin/vagas` | Admin (`AdminJobsGate`) | Lista de vagas admin |
+| `/admin/vagas/nova` | Admin (`AdminJobsGate`) | Formulário de nova vaga |
+| `/admin/vagas/:id` | Admin (`AdminJobsGate`) | Detalhe e edição de vaga admin |
+
+Login staff e o desafio MFA não têm rota própria: vivem no shell `Admin` em `/admin`. O produto não provisiona contas staff por esta UI. Curadores e moderadores autenticados usam o painel e a curadoria; ingestão e gestão de vagas permanecem restritas ao papel `admin`. Catch-all desconhecido em `/admin/*` volta para `/admin`.
 
 ### Fluxo P0
 
