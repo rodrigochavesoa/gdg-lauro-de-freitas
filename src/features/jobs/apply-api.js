@@ -98,14 +98,29 @@ export const MY_APPLICATIONS_CACHE_TTL_MS = 30_000;
 const myApplicationsCache = new Map();
 const myApplicationsInflight = new Map();
 
+function normalizeApplicationsPage(page) {
+  const n = Number.parseInt(page, 10);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
+function emptyApplicationsPage() {
+  return { applications: [], hasMore: false };
+}
+
+function sliceApplicationsPage(rows, pageSize) {
+  const hasMore = rows.length > pageSize;
+  return { applications: hasMore ? rows.slice(0, pageSize) : rows, hasMore };
+}
+
 function parseLoadMyApplicationsOptions(userIdOrOptions) {
   if (userIdOrOptions && typeof userIdOrOptions === "object" && !Array.isArray(userIdOrOptions)) {
     return {
       userId: userIdOrOptions.userId,
       forceRefresh: Boolean(userIdOrOptions.forceRefresh),
+      page: normalizeApplicationsPage(userIdOrOptions.page),
     };
   }
-  return { userId: userIdOrOptions, forceRefresh: false };
+  return { userId: userIdOrOptions, forceRefresh: false, page: 1 };
 }
 
 export function invalidateMyApplicationsCache(userId) {
@@ -187,31 +202,39 @@ export async function loadMyApplication(jobId, userId) {
 }
 
 export async function loadMyApplications(userIdOrOptions) {
-  const { userId, forceRefresh } = parseLoadMyApplicationsOptions(userIdOrOptions);
+  const { userId, forceRefresh, page } = parseLoadMyApplicationsOptions(userIdOrOptions);
   const client = getSupabaseBrowserClient();
-  if (!client) return [];
+  if (!client) return emptyApplicationsPage();
   const candidateId = userId ?? (await resolveCandidateId(client, userId));
-  if (!candidateId) return [];
+  if (!candidateId) return emptyApplicationsPage();
 
-  if (!forceRefresh) {
+  const useCache = page === 1;
+  if (useCache && !forceRefresh) {
     const cached = peekMyApplicationsCache(candidateId);
     if (cached) return cached;
     const inflight = myApplicationsInflight.get(candidateId);
     if (inflight) return inflight;
   }
 
+  const from = (page - 1) * APPLICATION_LIST_LIMIT;
+  const to = from + APPLICATION_LIST_LIMIT;
   const request = (async () => {
     const { data, error } = await client
       .from("applications")
       .select(APPLICATION_LIST_SELECT)
       .eq("candidate_id", candidateId)
       .order("updated_at", { ascending: false })
-      .limit(APPLICATION_LIST_LIMIT);
+      .range(from, to);
     if (error) throw createApplyError(error);
     const rows = (data ?? []).map(parseApplication).filter(Boolean);
-    myApplicationsCache.set(candidateId, { data: rows, fetchedAt: Date.now() });
-    return rows;
+    const result = sliceApplicationsPage(rows, APPLICATION_LIST_LIMIT);
+    if (useCache) {
+      myApplicationsCache.set(candidateId, { data: result, fetchedAt: Date.now() });
+    }
+    return result;
   })();
+
+  if (!useCache) return request;
 
   myApplicationsInflight.set(candidateId, request);
   try {

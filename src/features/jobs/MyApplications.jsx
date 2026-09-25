@@ -20,10 +20,17 @@ function ApplicationSkeletons() {
   );
 }
 
+function applicationsFromPage(page) {
+  return page?.applications ?? [];
+}
+
 export function MyApplications({ userId }) {
   const cached = peekMyApplicationsCache(userId);
-  const [rows, setRows] = useState(() => cached ?? []);
+  const [rows, setRows] = useState(() => applicationsFromPage(cached));
+  const [hasMore, setHasMore] = useState(() => Boolean(cached?.hasMore));
+  const [page, setPage] = useState(1);
   const [status, setStatus] = useState(() => (cached ? "ready" : "loading"));
+  const [loadingMore, setLoadingMore] = useState(false);
   const [busyJobId, setBusyJobId] = useState(null);
   const [error, setError] = useState("");
 
@@ -34,17 +41,23 @@ export function MyApplications({ userId }) {
     if (!hadCache) {
       setStatus("loading");
       setError("");
+      setHasMore(false);
+      setPage(1);
     }
 
     loadMyApplications({ userId, forceRefresh: hadCache })
-      .then((list) => {
+      .then((result) => {
         if (cancelled) return;
-        setRows(list);
+        setRows(applicationsFromPage(result));
+        setHasMore(Boolean(result.hasMore));
+        setPage(1);
         setStatus("ready");
       })
       .catch((err) => {
         if (cancelled) return;
         setRows([]);
+        setHasMore(false);
+        setPage(1);
         setError(err.message || "Não foi possível carregar suas candidaturas.");
         setStatus("error");
       });
@@ -60,13 +73,31 @@ export function MyApplications({ userId }) {
         current.map((row) => (row.jobId === jobId ? { ...row, status: updated?.status ?? "withdrawn" } : row)),
       );
       if (userId) {
-        const list = await loadMyApplications({ userId, forceRefresh: true });
-        setRows(list);
+        const result = await loadMyApplications({ userId, forceRefresh: true });
+        setRows(applicationsFromPage(result));
+        setHasMore(Boolean(result.hasMore));
+        setPage(1);
       }
     } catch (err) {
       setError(err.message || "Não é possível retirar esta candidatura.");
     } finally {
       setBusyJobId(null);
+    }
+  };
+
+  const loadMore = async () => {
+    if (!userId || loadingMore || !hasMore || status !== "ready") return;
+    setLoadingMore(true);
+    setError("");
+    try {
+      const result = await loadMyApplications({ userId, page: page + 1 });
+      setRows((current) => [...current, ...applicationsFromPage(result)]);
+      setHasMore(Boolean(result.hasMore));
+      setPage((current) => current + 1);
+    } catch (err) {
+      setError(err.message || "Não foi possível carregar mais candidaturas.");
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -116,6 +147,13 @@ export function MyApplications({ userId }) {
                 </div>
               </article>
             ))}
+          </div>
+        ) : null}
+        {hasMore && status === "ready" ? (
+          <div className="catalog-more">
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
+              {loadingMore ? "Carregando…" : "Carregar mais"}
+            </button>
           </div>
         ) : null}
       </div>

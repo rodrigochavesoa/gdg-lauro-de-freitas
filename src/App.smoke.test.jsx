@@ -66,7 +66,7 @@ vi.mock("./features/admin/admin-jobs-api.js", async () => {
 });
 
 const loadMyApplicationMock = vi.fn(async () => null);
-const loadMyApplicationsMock = vi.fn(async () => []);
+const loadMyApplicationsMock = vi.fn(async () => ({ applications: [], hasMore: false }));
 const loadPrivacyPreferencesMock = vi.fn(async () => ({ purposes: [], events: [], source: "fallback" }));
 const applyToJobMock = vi.hoisted(() => vi.fn());
 const withdrawApplicationMock = vi.hoisted(() => vi.fn());
@@ -258,7 +258,7 @@ beforeEach(() => {
   loadMyApplicationMock.mockReset();
   loadMyApplicationMock.mockResolvedValue(null);
   loadMyApplicationsMock.mockReset();
-  loadMyApplicationsMock.mockResolvedValue([]);
+  loadMyApplicationsMock.mockResolvedValue({ applications: [], hasMore: false });
   loadPrivacyPreferencesMock.mockReset();
   loadPrivacyPreferencesMock.mockResolvedValue({ purposes: [], events: [], source: "fallback" });
   loadApprovedJobMock.mockReset();
@@ -975,7 +975,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     authState.session = { user: { id: "u1", email: "ana@example.invalid" } };
     authState.profile = { full_name: "Ana Demo", role: "candidate" };
     authState.needsOnboarding = false;
-    loadMyApplicationsMock.mockResolvedValue([
+    loadMyApplicationsMock.mockResolvedValue({
+      applications: [
       {
         id: "a1",
         jobId: "1",
@@ -984,7 +985,9 @@ describe("ARQ-01 — caracterização do shell", () => {
         companyName: "Nuvem Lauro Demo",
         updatedAt: "2026-09-07T00:00:00.000Z",
       },
-    ]);
+      ],
+      hasMore: false,
+    });
     await renderAt("/minhas-candidaturas");
     expect(await screen.findByRole("link", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Pessoa Desenvolvedora Front-end" }));
