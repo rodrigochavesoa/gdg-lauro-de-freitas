@@ -152,9 +152,22 @@ export async function loadIsAdmin() {
   return true;
 }
 
+/** Teto do select de empresa no formulário de vaga. Sem count e sem página extra. */
+export const COMPANY_LIST_LIMIT = 100;
+
+/**
+ * Empresas para o select de AdminJobFormRoute.
+ * Ordena por nome e corta em COMPANY_LIST_LIMIT. Não baixa a tabela inteira.
+ * Acima do teto, o restante não entra no select até uma busca dedicada.
+ */
 export async function loadCompanies() {
   const client = clientOrThrow();
-  const { data, error } = await client.from("companies").select("id,name").order("name");
+  const { data, error } = await client
+    .from("companies")
+    .select("id,name")
+    .order("name", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(COMPANY_LIST_LIMIT);
   throwIfError(error);
   return data ?? [];
 }
@@ -162,16 +175,12 @@ export async function loadCompanies() {
 const ADMIN_JOB_SELECT =
   "id,title,status,company_id,level,work_model,location,country_code,salary_min,salary_max,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
 
-/** Lista completa (description + reviews). Não usar em /admin/vagas — ver loadAdminJobPage. */
+/**
+ * Fora da listagem staff. /admin/vagas usa loadAdminJobPage (pageSize, count exact, range).
+ * Não baixa jobs. Mantida só para o mock das rotas não chamarem a lista legada.
+ */
 export async function loadAdminJobs() {
-  const client = clientOrThrow();
-  const { data, error } = await client
-    .from("jobs")
-    .select(ADMIN_JOB_SELECT)
-    .in("status", ["pending", "approved", "rejected"])
-    .order("created_at", { ascending: false });
-  throwIfError(error);
-  return data ?? [];
+  throw new Error("loadAdminJobs saiu da listagem. Use loadAdminJobPage.");
 }
 
 export async function loadAdminJob(id) {
@@ -182,9 +191,28 @@ export async function loadAdminJob(id) {
   return data ?? null;
 }
 
+const DUPLICATE_TITLE_PROBE_LIMIT = 5;
+
+/** ILIKE exato: % e _ do título não viram curinga. */
+function ilikeExact(value) {
+  return String(value).replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/**
+ * Uma sonda por company_id + título (lower/btrim no índice único).
+ * Não seleciona os jobs da empresa. O insert ainda rejeita 23505.
+ */
 async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
   if (!companyId) return;
-  const { data, error } = await client.from("jobs").select("id,title,company_id").eq("company_id", companyId);
+  const trimmed = String(title ?? "").trim();
+  if (!trimmed) return;
+  let request = client
+    .from("jobs")
+    .select("id,title,company_id")
+    .eq("company_id", companyId)
+    .ilike("title", ilikeExact(trimmed));
+  if (excludeId) request = request.neq("id", excludeId);
+  const { data, error } = await request.limit(DUPLICATE_TITLE_PROBE_LIMIT);
   throwIfError(error);
   if (findDuplicateJob(data, { companyId, title, excludeId })) {
     throw new Error(DUPLICATE_JOB_MESSAGE);
