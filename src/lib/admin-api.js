@@ -1,6 +1,6 @@
 import { centsFromReaisInput, normalizeCountryCode, normalizeSalaryCents } from "./catalog-url.js";
 import { runObserved } from "./ops-observability.js";
-import { throwStaffApiError } from "../features/auth/staff-mfa.js";
+import { throwStaffApiError } from "./staff-api-errors.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
 export const LEVEL_TO_DB = {

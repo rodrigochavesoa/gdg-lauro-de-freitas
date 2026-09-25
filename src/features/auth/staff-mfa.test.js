@@ -29,13 +29,10 @@ vi.mock("../../lib/supabase-client.js", () => ({
 import {
   enrollStaffTotp,
   formatStaffMfaUserMessage,
-  formatStaffPrivilegedApiError,
   getStaffMfaAssurance,
   isStaffMfaRequired,
   needsStaffMfaStep,
   staffMfaQrSrc,
-  STAFF_API_ERROR_FALLBACK,
-  throwStaffApiError,
   verifyStaffTotp,
 } from "./staff-mfa.js";
 
@@ -136,24 +133,7 @@ describe("staff-mfa", () => {
     await expect(getStaffMfaAssurance()).rejects.toThrow(/não configuradas/);
   });
 
-  it("traduz mensagens comuns de TOTP e AAL2 para o operador", () => {
+  it("traduz mensagens comuns de TOTP para o operador", () => {
     expect(formatStaffMfaUserMessage("Invalid TOTP code entered")).toMatch(/Código inválido ou expirado/);
-    expect(formatStaffPrivilegedApiError("JWT does not contain aal2 claim")).toMatch(/Confirme o segundo fator/);
-    expect(formatStaffPrivilegedApiError("JWT expired")).toMatch(/Sessão expirada/);
-  });
-
-  it("não ecoa PostgREST nem SQL desconhecidos", () => {
-    const raw = "permission denied for table jobs";
-    expect(formatStaffPrivilegedApiError(raw)).toBe(STAFF_API_ERROR_FALLBACK);
-    expect(formatStaffPrivilegedApiError(raw)).not.toContain("permission denied");
-    expect(formatStaffPrivilegedApiError("PGRST116")).toBe(STAFF_API_ERROR_FALLBACK);
-    expect(formatStaffPrivilegedApiError("PGRST116")).not.toMatch(/PGRST116/);
-    expect(() => throwStaffApiError({ message: raw })).toThrow(STAFF_API_ERROR_FALLBACK);
-    try {
-      throwStaffApiError({ message: raw });
-    } catch (error) {
-      expect(error.cause).toEqual({ message: raw });
-    }
-    expect(formatStaffPrivilegedApiError(STAFF_API_ERROR_FALLBACK)).toBe(STAFF_API_ERROR_FALLBACK);
   });
 });

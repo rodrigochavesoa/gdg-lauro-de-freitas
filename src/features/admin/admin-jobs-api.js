@@ -1,4 +1,4 @@
-import { throwStaffApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { buildCatalogSearchPattern, quotePostgrestValue } from "../../lib/jobs-api.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 

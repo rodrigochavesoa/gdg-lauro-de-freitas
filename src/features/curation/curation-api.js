@@ -1,6 +1,6 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import { runObserved } from "../../lib/ops-observability.js";
-import { throwStaffApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { mergeCurationQueue } from "./curation-queue.js";
 import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 

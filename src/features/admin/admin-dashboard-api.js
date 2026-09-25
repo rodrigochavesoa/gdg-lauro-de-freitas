@@ -1,5 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
-import { throwStaffApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();

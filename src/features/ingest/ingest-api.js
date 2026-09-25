@@ -11,7 +11,7 @@ import {
   isIngestionExpired,
 } from "./source-contract.js";
 import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
-import { throwStaffApiError } from "../auth/staff-mfa.js";
+import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const PROCESS_JOB_INGESTION_RPC = "process_job_ingestion";
