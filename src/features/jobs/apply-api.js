@@ -224,6 +224,7 @@ export async function loadMyApplications(userIdOrOptions) {
       .select(APPLICATION_LIST_SELECT)
       .eq("candidate_id", candidateId)
       .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, to);
     if (error) throw createApplyError(error);
     const rows = (data ?? []).map(parseApplication).filter(Boolean);

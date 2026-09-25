@@ -37,8 +37,10 @@ function mockApplicationsList(data, pending) {
     }
     return Promise.resolve({ data, error: null });
   });
-  const order = vi.fn().mockReturnValue({ range });
-  const eq = vi.fn().mockReturnValue({ order });
+  const order = vi.fn();
+  const chain = { order, range };
+  order.mockReturnValue(chain);
+  const eq = vi.fn().mockReturnValue(chain);
   const select = vi.fn().mockReturnValue({ eq });
   fromMock.mockReturnValue({ select });
   return { range, order, eq, select };
@@ -245,6 +247,11 @@ describe("RPCs", () => {
     expect(fromMock).toHaveBeenCalledWith("applications");
     expect(eq).toHaveBeenCalledWith("candidate_id", "u1");
     expect(order).toHaveBeenCalledWith("updated_at", { ascending: false });
+    expect(order).toHaveBeenCalledWith("id", { ascending: false });
+    expect(order.mock.calls).toEqual([
+      ["updated_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
     expect(range).toHaveBeenCalledWith(0, APPLICATION_LIST_LIMIT);
     expect(select.mock.calls[0][0]).not.toMatch(/snapshot/);
     expect(page.applications).toHaveLength(1);
@@ -366,5 +373,18 @@ describe("RPCs", () => {
     expect(second.applications).toHaveLength(1);
     expect(second.applications[0].id).toBe("a101");
     expect(peekMyApplicationsCache("u1")).toBe(first);
+  });
+
+  it("desempata páginas com o mesmo updated_at por id", async () => {
+    const sameTime = "2026-09-07T00:00:00.000Z";
+    const { order } = mockApplicationsList([
+      { ...applicationRow("a2"), updated_at: sameTime },
+      { ...applicationRow("a1"), updated_at: sameTime },
+    ]);
+    await loadMyApplications({ userId: "u1" });
+    expect(order.mock.calls).toEqual([
+      ["updated_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
   });
 });

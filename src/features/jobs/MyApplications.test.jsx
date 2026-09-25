@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -157,4 +157,36 @@ describe("MyApplications", () => {
     expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
   }, 15_000);
+
+  it("refresh atrasado da página 1 em cache não apaga a página 2", async () => {
+    const cached = applicationItem(0);
+    const page2 = applicationItem(1);
+    const refreshed = { ...applicationItem(0), jobTitle: "Página 1 atualizada" };
+    let resolveRefresh;
+    peekMyApplicationsCache.mockReturnValue(applicationsPage([cached], true));
+    loadMyApplications.mockImplementation(async (opts = {}) => {
+      if ((opts.page ?? 1) === 1) {
+        return new Promise((resolve) => {
+          resolveRefresh = resolve;
+        });
+      }
+      return applicationsPage([page2], false);
+    });
+
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("heading", { name: "Vaga 1" })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRefresh(applicationsPage([refreshed], true));
+    });
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vaga 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Página 1 atualizada" })).not.toBeInTheDocument();
+  });
 });
