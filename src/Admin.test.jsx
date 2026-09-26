@@ -238,6 +238,53 @@ describe("Admin", () => {
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
+  it("logout e novo login staff não buscam o perfil de curadoria de novo", async () => {
+    const staff = {
+      id: "c1",
+      role: "curator",
+      full_name: "Cora Curadora",
+      email: "cora@example.invalid",
+    };
+    signInCuration.mockResolvedValue(staff);
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    const session = { user: { id: "c1", email: staff.email } };
+    const { rerender } = renderAdmin(
+      <Admin authReady session={session} authProfile={staff} profileHydrated />,
+    );
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin authReady session={null} profileHydrated />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: staff.email } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route
+            path="/admin"
+            element={<Admin authReady session={session} authProfile={null} profileHydrated={false} />}
+          >
+            {adminChildRoutes}
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
   it("área logada não renderiza sidebar nem card de perfil", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "c1",

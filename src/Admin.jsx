@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import {
@@ -21,7 +21,7 @@ function StaffMfaQr({ qrCode }) {
 }
 
 export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true }) {
-  const snapshotStaff = toCurationProfile(authProfile, session);
+  const snapshotStaff = useMemo(() => toCurationProfile(authProfile, session), [authProfile, session]);
   const mfaRequiredAtBoot = isStaffMfaRequired();
   const waitingForShellProfile = Boolean(session) && !profileHydrated && !snapshotStaff;
   const [ready, setReady] = useState(
@@ -92,14 +92,14 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       }
     };
 
-    const fromSnapshot = toCurationProfile(authProfile, session);
-    if (!profileHydrated && !fromSnapshot) {
+    if (!profileHydrated && !snapshotStaff) {
+      if (staffBootId.current !== session.user.id) setReady(false);
       return () => {
         cancelled = true;
       };
     }
-    if (fromSnapshot) {
-      if (staffBootId.current !== fromSnapshot.id) void admitStaff(fromSnapshot);
+    if (snapshotStaff) {
+      if (staffBootId.current !== snapshotStaff.id) void admitStaff(snapshotStaff);
       return () => {
         cancelled = true;
       };
@@ -127,7 +127,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     return () => {
       cancelled = true;
     };
-  }, [authReady, authProfile, profileHydrated, session, setLogged]);
+  }, [authReady, authProfile, profileHydrated, session, setLogged, snapshotStaff]);
 
   const onLogin = async (event) => {
     event.preventDefault();
@@ -148,6 +148,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       staffBootId.current = current.id;
       setProfile(current);
       setLogged?.(true);
+      setReady(true);
     } catch (err) {
       setError(formatStaffMfaUserMessage(err.message));
     } finally {

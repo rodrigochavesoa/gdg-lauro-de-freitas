@@ -21,8 +21,8 @@ vi.mock("./features/auth/auth-api.js", async () => {
     ...actual,
     loadAuthSnapshot: async () => authState,
     subscribeAuth: (onChange) => {
-      authListener = onChange;
-      onChange(authState);
+      authListener = (snapshot, meta) => onChange(snapshot, meta ?? { hydrated: true });
+      onChange(authState, { hydrated: true });
       return () => {
         if (authListener === onChange) authListener = null;
       };

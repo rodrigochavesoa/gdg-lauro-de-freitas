@@ -21,7 +21,6 @@ import {
   avatarPublicUrl,
   invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
-  loadAuthSnapshot,
   mergeAuthSnapshot,
   resolveHeaderIdentity,
   saveProfileAvatar,
@@ -41,7 +40,7 @@ const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
-  const [profileHydrated, setProfileHydrated] = useState(false);
+  const [hydratedUserId, setHydratedUserId] = useState(undefined);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarPath, setAvatarPath] = useState(null);
   const [avatarStatus, setAvatarStatus] = useState("idle");
@@ -56,7 +55,6 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const bootEpoch = authGeneration.current;
     const applySnapshot = (snapshot, requestEpoch = authGeneration.current) => {
       if (cancelled) return;
       setAuth((current) => {
@@ -65,16 +63,11 @@ export function App() {
       });
       if (requestEpoch === authGeneration.current) setAuthReady(true);
     };
-    loadAuthSnapshot()
-      .then((snapshot) => {
-        applySnapshot(snapshot, bootEpoch);
-        if (!cancelled && bootEpoch === authGeneration.current) setProfileHydrated(true);
-      })
-      .catch(() => {
-        applySnapshot(EMPTY_AUTH, bootEpoch);
-        if (!cancelled && bootEpoch === authGeneration.current) setProfileHydrated(true);
-      });
-    const unsubscribe = subscribeAuth((snapshot) => applySnapshot(snapshot));
+    const unsubscribe = subscribeAuth((snapshot, meta) => {
+      applySnapshot(snapshot);
+      if (cancelled || !meta?.hydrated) return;
+      setHydratedUserId(snapshot.session?.user?.id ?? null);
+    });
     return () => {
       cancelled = true;
       unsubscribe();
@@ -143,6 +136,7 @@ export function App() {
     avatarRequestKey.current = null;
     invalidateAvatarSignedUrl();
     setAuth(EMPTY_AUTH);
+    setHydratedUserId(null);
     setAvatarUrl(null);
     setAvatarPath(null);
     setAvatarStatus("idle");
@@ -238,7 +232,7 @@ export function App() {
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={profileHydrated} />}>
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={hydratedUserId === (auth.session?.user?.id ?? null)} />}>
           {adminChildRoutes}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

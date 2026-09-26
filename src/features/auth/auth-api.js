@@ -224,6 +224,15 @@ async function provisionProfileRow(user) {
   return fetchProfile(client, user.id);
 }
 
+/** Perfil da sessão já entregue pelo listener. Não chama `getSession` de novo. */
+export async function hydrateAuthSession(session) {
+  if (!session?.user) return emptyAuthSnapshot();
+  const profile = await ensureProfileRow(session.user);
+  const needsOnboarding =
+    isCandidateProfile(profile) && !isD01Complete(profile, session.user.email);
+  return { session, profile, needsOnboarding };
+}
+
 export async function loadAuthSnapshot() {
   const client = getSupabaseBrowserClient();
   if (!client) {
@@ -231,20 +240,13 @@ export async function loadAuthSnapshot() {
   }
   const { data, error } = await client.auth.getSession();
   throwIfError(error);
-  const session = data.session;
-  if (!session?.user) {
-    return emptyAuthSnapshot();
-  }
-  const profile = await ensureProfileRow(session.user);
-  const needsOnboarding =
-    isCandidateProfile(profile) && !isD01Complete(profile, session.user.email);
-  return { session, profile, needsOnboarding };
+  return hydrateAuthSession(data.session);
 }
 
 export function subscribeAuth(onChange) {
   const client = getSupabaseBrowserClient();
   if (!client) {
-    onChange(emptyAuthSnapshot());
+    onChange(emptyAuthSnapshot(), { hydrated: true });
     return () => {};
   }
 
@@ -258,7 +260,7 @@ export function subscribeAuth(onChange) {
     lastUserId = null;
     lastProfile = null;
     lastNeedsOnboarding = false;
-    onChange(emptyAuthSnapshot());
+    onChange(emptyAuthSnapshot(), { hydrated: true });
   };
 
   const { data } = client.auth.onAuthStateChange((event, session) => {
@@ -275,10 +277,10 @@ export function subscribeAuth(onChange) {
       lastNeedsOnboarding = false;
     }
     lastUserId = session.user.id;
-    onChange(snapshotFromSession(session, profile, needsOnboarding));
+    onChange(snapshotFromSession(session, profile, needsOnboarding), { hydrated: false });
 
     const gen = ++hydrateGen;
-    loadAuthSnapshot()
+    hydrateAuthSession(session)
       .then((snapshot) => {
         if (gen !== hydrateGen) return;
         if (!snapshot.session?.user) {
@@ -288,7 +290,7 @@ export function subscribeAuth(onChange) {
         lastUserId = snapshot.session.user.id;
         lastProfile = snapshot.profile;
         lastNeedsOnboarding = snapshot.needsOnboarding;
-        onChange(snapshot);
+        onChange(snapshot, { hydrated: true });
       })
       .catch((error) => {
         if (gen !== hydrateGen) return;
@@ -298,6 +300,7 @@ export function subscribeAuth(onChange) {
           route: technicalRoute(globalThis.location?.pathname),
           ...classifyOpsFailure("login", error),
         });
+        onChange(snapshotFromSession(session, null, false), { hydrated: true });
       });
   });
 
