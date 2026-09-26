@@ -599,6 +599,7 @@ body:has(.detail-page) .footer-inner{color:var(--color-text-subtle)}
   outline-color:var(--color-focus);
   color:var(--color-text);
   background:var(--color-surface);
+  font-size:var(--font-size-body-1);
 }
 .admin-auth-form .form-grid{grid-template-columns:1fr}
 .admin-auth-form .form-grid .wide{grid-column:auto}
