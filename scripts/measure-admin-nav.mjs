@@ -21,6 +21,7 @@
  */
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { generateTotp } from "./totp.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -64,6 +65,21 @@ const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = env.BASE_URL || "http://127.0.0.1:5173";
 const { email, password } = loadAdminUser();
 
+function loadAdminTotpSecret() {
+  const fromEnv = env.ADMIN_TEST_TOTP_SECRET;
+  if (fromEnv) return fromEnv.replace(/\s+/g, "");
+  const file = resolve(process.cwd(), "docs-local/staff-mfa-totp-secrets.md");
+  if (!existsSync(file)) return "";
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const match = line.match(/^\|\s*admin\s*\|[^|]*\|\s*([^|]+)\|/i);
+    if (!match) continue;
+    const secret = match[1].trim().replace(/`/g, "").replace(/\s+/g, "");
+    if (!secret || /colar|placeholder|^_+$/i.test(secret)) continue;
+    return secret;
+  }
+  return "";
+}
+
 if (!email || !password) {
   console.error("Defina ADMIN_EMAIL/ADMIN_PASSWORD ou docs-local/admin-test-user.md");
   process.exit(1);
@@ -93,7 +109,23 @@ await page.getByRole("link", { name: "Área admin" }).click();
 await page.getByLabel("E-mail").fill(email);
 await page.getByLabel("Senha").fill(password);
 await page.getByRole("button", { name: "Entrar" }).click();
-await page.getByRole("link", { name: "Publicar vaga" }).waitFor({ state: "visible", timeout: 30_000 });
+const mfaHeading = page.getByRole("heading", { name: "Confirmar segundo fator" });
+const navLink = page.getByRole("link", { name: "Nova vaga" });
+const landed = await Promise.race([
+  navLink.waitFor({ state: "visible", timeout: 30_000 }).then(() => "nav"),
+  mfaHeading.waitFor({ state: "visible", timeout: 30_000 }).then(() => "mfa"),
+]).catch(() => "timeout");
+if (landed === "mfa") {
+  const totpSecret = loadAdminTotpSecret();
+  if (!totpSecret) {
+    console.error("O login pediu TOTP e não há segredo admin local.");
+    await browser.close();
+    process.exit(1);
+  }
+  await page.getByLabel("Código do autenticador").fill(generateTotp(totpSecret));
+  await page.getByRole("button", { name: "Confirmar código" }).click();
+}
+await navLink.waitFor({ state: "visible", timeout: 30_000 });
 
 const t1 = [];
 const t2 = [];
@@ -101,7 +133,7 @@ const t3 = [];
 let spinnerHits = 0;
 
 for (let run = 1; run <= 5; run += 1) {
-  await page.getByRole("link", { name: "Vagas" }).click();
+  await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
   await page.waitForTimeout(300);
 
@@ -112,7 +144,7 @@ for (let run = 1; run <= 5; run += 1) {
   await page.locator(".admin-tabs").waitFor({ state: "visible" });
   t1.push(Date.now() - started);
 
-  await page.getByRole("link", { name: "Publicar vaga" }).waitFor({ state: "visible" });
+  await page.getByRole("link", { name: "Nova vaga" }).waitFor({ state: "visible" });
   t2.push(Date.now() - started);
 
   await page.getByRole("heading", { name: "Painel" }).waitFor({ state: "visible" });
@@ -126,7 +158,7 @@ for (let run = 1; run <= 5; run += 1) {
 }
 
 console.log(summarize("T1 .admin-tabs", t1));
-console.log(summarize("T2 Publicar vaga (nav)", t2));
+console.log(summarize("T2 Nova vaga (nav)", t2));
 console.log(summarize("T3 h1 Painel", t3));
 console.log(`spinner "Carregando área administrativa…": ${spinnerHits}/5`);
 
@@ -134,13 +166,13 @@ console.log(`spinner "Carregando área administrativa…": ${spinnerHits}/5`);
 await page.getByRole("link", { name: "Curadoria", exact: true }).click();
 await page.getByRole("heading", { name: "Fila de revisão" }).waitFor({ state: "visible", timeout: 30_000 });
 await page.getByText("Carregando fila de curadoria…").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
-await page.getByRole("heading", { name: "Vagas pending" }).waitFor({ state: "visible", timeout: 30_000 });
+await page.getByRole("heading", { name: "Pendentes" }).waitFor({ state: "visible", timeout: 30_000 });
 
 const t3Curation = [];
 let queueLoadingHits = 0;
 
 for (let run = 1; run <= 5; run += 1) {
-  await page.getByRole("link", { name: "Vagas" }).click();
+  await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
   await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
   await page.waitForTimeout(300);
 
@@ -159,7 +191,7 @@ for (let run = 1; run <= 5; run += 1) {
   if (loadingVisible) queueLoadingHits += 1;
 
   await page.getByText("Carregando fila de curadoria…").waitFor({ state: "hidden", timeout: 30_000 }).catch(() => {});
-  await page.getByRole("heading", { name: "Vagas pending" }).waitFor({ state: "visible" });
+  await page.getByRole("heading", { name: "Pendentes" }).waitFor({ state: "visible" });
   t3Curation.push(Date.now() - started);
 
   const restThisNav = restLog.slice(beforeRest).map((row) => row.path);

@@ -984,6 +984,7 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 .admin-workspace .admin-dashboard-stat-hint{display:none}
 .admin-workspace .admin-dashboard-cta{margin-top:4px}
 .admin-dashboard-focus .admin-dashboard-skeleton-value{display:block;width:min(230px,60vw);height:18px;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--color-grey-100) 25%,var(--color-grey-50) 50%,var(--color-grey-100) 75%);background-size:200% 100%;animation:admin-dashboard-shimmer 1.2s ease-in-out infinite}
+.admin-dashboard-focus .admin-dashboard-skeleton-action{width:9.5rem;height:44px;flex:none}
 .curation-workspace:not(:has(.curation-workspace__detail)){grid-template-columns:minmax(0,1fr)}
 @media(max-width:900px){
   .curation-workspace{grid-template-columns:1fr}

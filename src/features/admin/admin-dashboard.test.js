@@ -79,4 +79,10 @@ describe("admin-dashboard", () => {
     expect(summary.metrics.some((m) => m.id === "ingest-attention" && m.value === 1)).toBe(true);
     expect(summary.ctas.some((c) => c.to === "/admin/ingestao")).toBe(true);
   });
+
+  it("não trata métrica pendente como zero", () => {
+    const summary = summarizeAdminDashboard({ isAdmin: true });
+    expect(summary.metrics.map((metric) => metric.value)).toEqual([null, null, null, null, null]);
+    expect(summary.ctas).toEqual([]);
+  });
 });

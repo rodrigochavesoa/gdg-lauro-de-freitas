@@ -24,66 +24,77 @@ export const ADMIN_DASHBOARD_SKELETON_METRICS = [
   { id: "ingest-attention", label: "Ingestões pendentes" },
 ];
 
+function confirmedCount(value) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 export function summarizeAdminDashboard({
   isAdmin,
-  pendingCuration = 0,
-  approved = 0,
-  rejectedJobs = 0,
-  rejectedQueue = 0,
-  pendingJobs = 0,
-  ingestAttention = 0,
-}) {
+  pendingCuration = null,
+  approved = null,
+  rejectedJobs = null,
+  rejectedQueue = null,
+  pendingJobs = null,
+  ingestAttention = null,
+} = {}) {
+  const pending = confirmedCount(pendingCuration);
+  const approvedCount = confirmedCount(approved);
+  const rejected = confirmedCount(rejectedJobs);
+  const queue = confirmedCount(rejectedQueue);
+  const jobsPending = confirmedCount(pendingJobs);
+  const ingest = confirmedCount(ingestAttention);
+
   const metrics = [
     {
       id: "pending-curation",
       label: "Aguardando revisão",
       hint: "Vagas pendentes na fila de curadoria.",
-      value: pendingCuration,
+      value: pending,
     },
   ];
 
   if (isAdmin) {
     metrics.push(
-      { id: "approved", label: "Publicadas", hint: "Vagas aprovadas e visíveis no catálogo público.", value: approved },
+      { id: "approved", label: "Publicadas", hint: "Vagas aprovadas e visíveis no catálogo público.", value: approvedCount },
       {
         id: "rejected-jobs",
         label: "Rejeitadas",
         hint: "Vagas com status rejeitado (histórico administrativo).",
-        value: rejectedJobs,
+        value: rejected,
       },
       {
         id: "rejected-queue",
         label: "Na fila",
         hint: "Rejeitadas ainda listadas na curadoria para reenvio ou revisão.",
-        value: rejectedQueue,
+        value: queue,
       },
       {
         id: "ingest-attention",
         label: "Ingestões pendentes",
         hint: "Ingestões sem materializar ou com falha/expiração recente.",
-        value: ingestAttention,
+        value: ingest,
       },
     );
   }
 
   const ctas = [];
-  if (pendingCuration > 0) {
+  if (pending != null && pending > 0) {
     ctas.push({
       to: "/admin/curadoria",
-      label: `Revisar curadoria (${pendingCuration})`,
+      label: `Revisar curadoria (${pending})`,
     });
   }
   if (isAdmin) {
-    if (ingestAttention > 0) {
+    if (ingest != null && ingest > 0) {
       ctas.push({
         to: "/admin/ingestao",
-        label: `Ver ingestões (${ingestAttention})`,
+        label: `Ver ingestões (${ingest})`,
       });
     }
-    if (pendingJobs > 0 && pendingCuration === 0) {
+    if (jobsPending != null && jobsPending > 0 && pending === 0) {
       ctas.push({
         to: "/admin/vagas",
-        label: `Ver vagas (${pendingJobs} pendentes)`,
+        label: `Ver vagas (${jobsPending} pendentes)`,
       });
     }
   }
