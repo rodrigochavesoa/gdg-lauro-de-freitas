@@ -329,7 +329,7 @@ describe("subscribeAuth", () => {
     supabaseState.enabled = false;
     const onChange = vi.fn();
     const unsubscribe = subscribeAuth(onChange);
-    expect(onChange).toHaveBeenCalledWith(emptyAuthSnapshot());
+    expect(onChange).toHaveBeenCalledWith(emptyAuthSnapshot(), { hydrated: true });
     unsubscribe();
   });
 
@@ -343,20 +343,53 @@ describe("subscribeAuth", () => {
     emitAuth("SIGNED_IN", session);
 
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(onChange).toHaveBeenLastCalledWith({
-      session,
-      profile: null,
-      needsOnboarding: false,
-    });
+    expect(onChange).toHaveBeenLastCalledWith(
+      {
+        session,
+        profile: null,
+        needsOnboarding: false,
+      },
+      { hydrated: false },
+    );
 
     pending.resolve(profile);
     await vi.waitFor(() => {
-      expect(onChange).toHaveBeenLastCalledWith({
-        session,
-        profile,
-        needsOnboarding: false,
-      });
+      expect(onChange).toHaveBeenLastCalledWith(
+        {
+          session,
+          profile,
+          needsOnboarding: false,
+        },
+        { hydrated: true },
+      );
     });
+    expect(supabaseState.getSession).not.toHaveBeenCalled();
+  });
+
+  it("falha de hidratação não marca a sessão como pronta", async () => {
+    supabaseState.from.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn(async () => ({ data: null, error: { message: "timeout" } })),
+        }),
+      }),
+    });
+    const onChange = vi.fn();
+    subscribeAuth(onChange);
+    emitAuth("SIGNED_IN", session);
+
+    await vi.waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith(
+        {
+          session,
+          profile: null,
+          needsOnboarding: false,
+        },
+        { hydrated: false, failed: true },
+      );
+    });
+    expect(onChange.mock.calls.some((call) => call[1]?.hydrated === true)).toBe(false);
+    expect(supabaseState.getSession).not.toHaveBeenCalled();
   });
 
   it("SIGNED_OUT esvazia na hora e ignora hidratação atrasada", async () => {
@@ -369,14 +402,14 @@ describe("subscribeAuth", () => {
     emitAuth("SIGNED_IN", session);
     emitAuth("SIGNED_OUT", null);
 
-    expect(onChange).toHaveBeenLastCalledWith(emptyAuthSnapshot());
+    expect(onChange).toHaveBeenLastCalledWith(emptyAuthSnapshot(), { hydrated: true });
     const callsAfterSignOut = onChange.mock.calls.length;
 
     pending.resolve(profile);
     await Promise.resolve();
     await Promise.resolve();
     expect(onChange.mock.calls.length).toBe(callsAfterSignOut);
-    expect(onChange).toHaveBeenLastCalledWith(emptyAuthSnapshot());
+    expect(onChange).toHaveBeenLastCalledWith(emptyAuthSnapshot(), { hydrated: true });
   });
 
   it("TOKEN_REFRESHED do mesmo userId não derruba o perfil", async () => {

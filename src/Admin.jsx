@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import {
@@ -14,16 +14,21 @@ import { AdminNav } from "./features/admin/AdminNav.jsx";
 import { AdminSurfaceCurve } from "./features/admin/AdminSurfaceCurve.jsx";
 import { toCurationProfile } from "./features/admin/staff-access.js";
 
+const SHELL_HYDRATE_ERROR = "Não foi possível confirmar a sessão. Entre novamente.";
+
 function StaffMfaQr({ qrCode }) {
   const src = staffMfaQrSrc(qrCode);
   if (!src) return null;
   return <img className="admin-mfa-qr" alt="QR code do autenticador" src={src} />;
 }
 
-export function Admin({ setLogged, session, authReady = true, authProfile = null }) {
-  const snapshotStaff = toCurationProfile(authProfile, session);
+export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true, profileHydrateFailed = false }) {
+  const snapshotStaff = useMemo(() => toCurationProfile(authProfile, session), [authProfile, session]);
   const mfaRequiredAtBoot = isStaffMfaRequired();
-  const [ready, setReady] = useState(() => Boolean(authReady) && !(mfaRequiredAtBoot && session));
+  const waitingForShellProfile = Boolean(session) && !profileHydrated && !snapshotStaff;
+  const [ready, setReady] = useState(
+    () => Boolean(authReady) && !waitingForShellProfile && !(mfaRequiredAtBoot && session),
+  );
   const [profile, setProfile] = useState(() => (authReady && !mfaRequiredAtBoot ? snapshotStaff : null));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,9 +94,38 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       }
     };
 
-    const fromSnapshot = toCurationProfile(authProfile, session);
-    if (fromSnapshot) {
-      void admitStaff(fromSnapshot);
+    if (!profileHydrated && !snapshotStaff) {
+      if (profileHydrateFailed) {
+        if (staffBootId.current === session.user.id) {
+          return () => {
+            cancelled = true;
+          };
+        }
+        setProfile(null);
+        setLogged?.(false);
+        setError(SHELL_HYDRATE_ERROR);
+        setReady(true);
+        return () => {
+          cancelled = true;
+        };
+      }
+      if (staffBootId.current !== session.user.id) setReady(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (snapshotStaff) {
+      if (staffBootId.current !== snapshotStaff.id) void admitStaff(snapshotStaff);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (authProfile) {
+      staffBootId.current = null;
+      setProfile(null);
+      setLogged?.(false);
+      setReady(true);
       return () => {
         cancelled = true;
       };
@@ -109,7 +143,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     return () => {
       cancelled = true;
     };
-  }, [authReady, authProfile, session, setLogged]);
+  }, [authReady, authProfile, profileHydrated, profileHydrateFailed, session, setLogged, snapshotStaff]);
 
   const onLogin = async (event) => {
     event.preventDefault();
@@ -127,8 +161,10 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       }
       setMfaPending(null);
       setMfaEnroll(null);
+      staffBootId.current = current.id;
       setProfile(current);
       setLogged?.(true);
+      setReady(true);
     } catch (err) {
       setError(formatStaffMfaUserMessage(err.message));
     } finally {

@@ -21,7 +21,6 @@ import {
   avatarPublicUrl,
   invalidateAvatarSignedUrl,
   isAvatarUploadEnabled,
-  loadAuthSnapshot,
   mergeAuthSnapshot,
   resolveHeaderIdentity,
   saveProfileAvatar,
@@ -31,6 +30,7 @@ import {
 import { isCandidateProfile, isD01Complete, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
+import { isAdminAreaPath } from "./features/admin/staff-access.js";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
 
@@ -40,6 +40,8 @@ const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
+  const [hydratedUserId, setHydratedUserId] = useState(undefined);
+  const [hydrateFailedUserId, setHydrateFailedUserId] = useState(undefined);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarPath, setAvatarPath] = useState(null);
   const [avatarStatus, setAvatarStatus] = useState("idle");
@@ -54,7 +56,6 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    const bootEpoch = authGeneration.current;
     const applySnapshot = (snapshot, requestEpoch = authGeneration.current) => {
       if (cancelled) return;
       setAuth((current) => {
@@ -63,12 +64,18 @@ export function App() {
       });
       if (requestEpoch === authGeneration.current) setAuthReady(true);
     };
-    loadAuthSnapshot()
-      .then((snapshot) => applySnapshot(snapshot, bootEpoch))
-      .catch(() => {
-        applySnapshot(EMPTY_AUTH, bootEpoch);
-      });
-    const unsubscribe = subscribeAuth((snapshot) => applySnapshot(snapshot));
+    const unsubscribe = subscribeAuth((snapshot, meta) => {
+      applySnapshot(snapshot);
+      if (cancelled) return;
+      const userId = snapshot.session?.user?.id ?? null;
+      if (meta?.failed) {
+        setHydrateFailedUserId(userId);
+        return;
+      }
+      if (!meta?.hydrated) return;
+      setHydrateFailedUserId(undefined);
+      setHydratedUserId(userId);
+    });
     return () => {
       cancelled = true;
       unsubscribe();
@@ -137,6 +144,8 @@ export function App() {
     avatarRequestKey.current = null;
     invalidateAvatarSignedUrl();
     setAuth(EMPTY_AUTH);
+    setHydratedUserId(null);
+    setHydrateFailedUserId(undefined);
     setAvatarUrl(null);
     setAvatarPath(null);
     setAvatarStatus("idle");
@@ -155,10 +164,15 @@ export function App() {
     avatarStatus,
   });
 
-  // UX-PERF-05 — warm catalog on shell mount so /login → / avoids cold skeleton scroll jank
+  // UX-PERF-05 — warm catalog outside /admin so /login → / avoids cold skeleton scroll jank
+  const catalogWarmed = useRef(false);
+  const { pathname } = useLocation();
   useEffect(() => {
+    if (isAdminAreaPath(pathname) || catalogWarmed.current) return undefined;
+    catalogWarmed.current = true;
     loadApprovedJobs().catch(() => {});
-  }, []);
+    return undefined;
+  }, [pathname]);
 
   // UX-PERF-06 / UX-PERF-07 — warm minhas candidaturas e privacidade (dedupe via inflight/TTL)
   useEffect(() => {
@@ -227,7 +241,7 @@ export function App() {
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />}>
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={hydratedUserId === (auth.session?.user?.id ?? null)} profileHydrateFailed={Boolean(auth.session?.user?.id) && hydrateFailedUserId === auth.session.user.id} />}>
           {adminChildRoutes}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

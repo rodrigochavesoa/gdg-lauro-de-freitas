@@ -200,6 +200,101 @@ describe("Admin", () => {
     expect(screen.getByTestId("ingest-panel")).toBeInTheDocument();
   });
 
+  it("espera o snapshot do shell e não busca perfil de curadoria de novo", async () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    const { rerender } = renderAdmin(
+      <Admin authReady session={adminSession} authProfile={null} profileHydrated={false} />,
+    );
+    expect(screen.queryByRole("heading", { name: "Painel" })).not.toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+
+    rerender(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route
+            path="/admin"
+            element={<Admin authReady session={adminSession} authProfile={adminProfile} profileHydrated />}
+          >
+            {adminChildRoutes}
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Painel" })).toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
+  it("candidato com perfil do shell vê o login staff sem segundo select", async () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    renderAdmin(
+      <Admin
+        authReady
+        profileHydrated
+        session={{ user: { id: "u1", email: "ana@example.invalid" } }}
+        authProfile={{ id: "u1", role: "candidate", full_name: "Ana Demo" }}
+      />,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
+  it("logout e novo login staff não buscam o perfil de curadoria de novo", async () => {
+    const staff = {
+      id: "c1",
+      role: "curator",
+      full_name: "Cora Curadora",
+      email: "cora@example.invalid",
+    };
+    signInCuration.mockResolvedValue(staff);
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    const session = { user: { id: "c1", email: staff.email } };
+    const { rerender } = renderAdmin(
+      <Admin authReady session={session} authProfile={staff} profileHydrated />,
+    );
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route path="/admin" element={<Admin authReady session={null} profileHydrated />}>
+            {adminChildRoutes}
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("E-mail"), { target: { value: staff.email } });
+    fireEvent.change(screen.getByLabelText("Senha"), { target: { value: "staff-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Entrar" }));
+    expect(await screen.findByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+
+    rerender(
+      <MemoryRouter initialEntries={["/admin"]}>
+        <Routes>
+          <Route
+            path="/admin"
+            element={<Admin authReady session={session} authProfile={null} profileHydrated={false} />}
+          >
+            {adminChildRoutes}
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Curadoria" })).toBeInTheDocument();
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
+  it("falha do shell não dispara loadCurationProfile", async () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={null} profileHydrated={false} profileHydrateFailed />,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível confirmar a sessão. Entre novamente.");
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
   it("área logada não renderiza sidebar nem card de perfil", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "c1",
