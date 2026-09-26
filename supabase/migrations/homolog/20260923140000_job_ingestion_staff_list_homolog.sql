@@ -2,6 +2,7 @@
 -- Homologação: aplicar nesta história.
 -- Produção: não aplicar (Camada B / PO). Fora de prod.manifest.json.
 -- Não cria índice. Não altera policies, RPCs de processo nem grants das tabelas base.
+-- Predicado “precisa atenção”: docs-local/tech/INGEST-ATTENTION-CONTRACT.md
 -- Rollback:
 --   drop function if exists public.count_job_ingestions_needing_attention();
 --   drop view if exists public.job_ingestion_staff_list;
@@ -30,7 +31,7 @@ left join lateral (
 ) latest on true;
 
 comment on view public.job_ingestion_staff_list is
-  'Lista staff sem canonical_payload e sem o histórico de tentativas. payload_title e latest_outcome bastam para a listagem.';
+  'Lista staff sem canonical_payload e sem o histórico de tentativas. payload_title e latest_outcome bastam para a listagem. Contrato de atenção: docs-local/tech/INGEST-ATTENTION-CONTRACT.md.';
 
 revoke all on table public.job_ingestion_staff_list from public, anon, authenticated;
 grant select on table public.job_ingestion_staff_list to authenticated;
@@ -52,4 +53,4 @@ revoke all on function public.count_job_ingestions_needing_attention() from publ
 grant execute on function public.count_job_ingestions_needing_attention() to authenticated;
 
 comment on function public.count_job_ingestions_needing_attention() is
-  'Contagem server-side: sem tentativa e sem job, ou última tentativa failed/expired. RLS via security invoker.';
+  'Contagem server-side: sem tentativa e sem job, ou última tentativa failed/expired. RLS via security invoker. Contrato: docs-local/tech/INGEST-ATTENTION-CONTRACT.md.';

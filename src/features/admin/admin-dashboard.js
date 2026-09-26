@@ -1,20 +1,4 @@
-import { latestIngestionAttempt } from "../ingest/ingest-api.js";
-
-export function ingestNeedsAttention(ingestion) {
-  const attempt = latestIngestionAttempt(ingestion);
-  if (!attempt) return !ingestion?.job_id;
-  return attempt.outcome === "failed" || attempt.outcome === "expired";
-}
-
-/**
- * WHERE de `count_job_ingestions_needing_attention` / `job_ingestion_staff_list`.
- * latest_outcome nulo e sem job, ou última tentativa failed/expired.
- */
-export function staffListRowNeedsAttention(row) {
-  const outcome = row?.latest_outcome ?? null;
-  if (!outcome) return !row?.job_id;
-  return outcome === "failed" || outcome === "expired";
-}
+export { ingestNeedsAttention, staffListRowNeedsAttention } from "../ingest/ingest-attention.js";
 
 export const ADMIN_DASHBOARD_SKELETON_METRICS = [
   { id: "pending-curation", label: "Aguardando revisão" },
