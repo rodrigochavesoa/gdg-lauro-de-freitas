@@ -14,6 +14,7 @@ import {
   registerJobIngestion,
 } from "../src/features/ingest/source-contract.js";
 import { processJobIngestion } from "../src/features/ingest/ingest-api.js";
+import { staffListRowNeedsAttention } from "../src/features/ingest/ingest-attention.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -2006,7 +2007,7 @@ async function assertCanSeeIngestion(client, id, label) {
   assert((byId.data ?? []).some((row) => row.id === id), `${label} AAL2 lê a ingestão existente`);
 }
 
-/** Cenário 21 — MVP-013: job_ingestions fora do catálogo; duplicata idempotente; RLS. */
+/** Cenário 21 — MVP-013. Predicado de atenção: docs-local/tech/INGEST-ATTENTION-CONTRACT.md */
 async function assertIngestionStaffListContract(adminClient) {
   const listProbe = await queryWithRetry(() =>
     adminClient.from("job_ingestion_staff_list").select("id").limit(1),
@@ -2033,12 +2034,6 @@ async function assertIngestionStaffListContract(adminClient) {
     Boolean(anonCount.error) && isExecuteDenied(anonCount.error),
     `anon não executa count_job_ingestions_needing_attention (${errorText(anonCount.error) || "sem erro"})`,
   );
-}
-
-function listRowNeedsAttention(row) {
-  const outcome = row?.latest_outcome ?? null;
-  if (!outcome) return row?.job_id == null;
-  return outcome === "failed" || outcome === "expired";
 }
 
 async function readAttentionCount(client, label) {
@@ -2073,7 +2068,7 @@ async function assertStaffListRow(client, id, { needsAttention, outcome }) {
     assert(row.data.latest_outcome === outcome, `latest_outcome ${outcome} (${row.data.latest_outcome})`);
   }
   assert(
-    listRowNeedsAttention(row.data) === needsAttention,
+    staffListRowNeedsAttention(row.data) === needsAttention,
     `predicados da view ${needsAttention ? "contam" : "ignoram"} a linha (${row.data.latest_outcome}, job ${row.data.job_id ?? "nulo"})`,
   );
   return row.data;

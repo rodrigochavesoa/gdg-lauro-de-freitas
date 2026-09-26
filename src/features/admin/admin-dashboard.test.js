@@ -19,6 +19,7 @@ describe("admin-dashboard", () => {
     ).toBe(false);
   });
 
+  // Paridade view/RPC/JS: docs-local/tech/INGEST-ATTENTION-CONTRACT.md
   it("casa o predicado da view com ingestNeedsAttention, inclusive retry idempotente", () => {
     expect(staffListRowNeedsAttention({ job_id: null, latest_outcome: null })).toBe(true);
     expect(staffListRowNeedsAttention({ job_id: null, latest_outcome: "failed" })).toBe(true);
