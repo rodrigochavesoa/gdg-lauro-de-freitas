@@ -366,6 +366,32 @@ describe("subscribeAuth", () => {
     expect(supabaseState.getSession).not.toHaveBeenCalled();
   });
 
+  it("falha de hidratação não marca a sessão como pronta", async () => {
+    supabaseState.from.mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn(async () => ({ data: null, error: { message: "timeout" } })),
+        }),
+      }),
+    });
+    const onChange = vi.fn();
+    subscribeAuth(onChange);
+    emitAuth("SIGNED_IN", session);
+
+    await vi.waitFor(() => {
+      expect(onChange).toHaveBeenLastCalledWith(
+        {
+          session,
+          profile: null,
+          needsOnboarding: false,
+        },
+        { hydrated: false, failed: true },
+      );
+    });
+    expect(onChange.mock.calls.some((call) => call[1]?.hydrated === true)).toBe(false);
+    expect(supabaseState.getSession).not.toHaveBeenCalled();
+  });
+
   it("SIGNED_OUT esvazia na hora e ignora hidratação atrasada", async () => {
     const pending = deferred();
     mockProfileFetch(profile, pending.promise);

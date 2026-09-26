@@ -41,6 +41,7 @@ export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
   const [hydratedUserId, setHydratedUserId] = useState(undefined);
+  const [hydrateFailedUserId, setHydrateFailedUserId] = useState(undefined);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarPath, setAvatarPath] = useState(null);
   const [avatarStatus, setAvatarStatus] = useState("idle");
@@ -65,8 +66,15 @@ export function App() {
     };
     const unsubscribe = subscribeAuth((snapshot, meta) => {
       applySnapshot(snapshot);
-      if (cancelled || !meta?.hydrated) return;
-      setHydratedUserId(snapshot.session?.user?.id ?? null);
+      if (cancelled) return;
+      const userId = snapshot.session?.user?.id ?? null;
+      if (meta?.failed) {
+        setHydrateFailedUserId(userId);
+        return;
+      }
+      if (!meta?.hydrated) return;
+      setHydrateFailedUserId(undefined);
+      setHydratedUserId(userId);
     });
     return () => {
       cancelled = true;
@@ -137,6 +145,7 @@ export function App() {
     invalidateAvatarSignedUrl();
     setAuth(EMPTY_AUTH);
     setHydratedUserId(null);
+    setHydrateFailedUserId(undefined);
     setAvatarUrl(null);
     setAvatarPath(null);
     setAvatarStatus("idle");
@@ -232,7 +241,7 @@ export function App() {
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={hydratedUserId === (auth.session?.user?.id ?? null)} />}>
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={hydratedUserId === (auth.session?.user?.id ?? null)} profileHydrateFailed={Boolean(auth.session?.user?.id) && hydrateFailedUserId === auth.session.user.id} />}>
           {adminChildRoutes}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

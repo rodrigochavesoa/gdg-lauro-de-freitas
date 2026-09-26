@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
@@ -52,12 +52,17 @@ describe("AdminJobFormRoute empresas", () => {
   });
 
   it("mantém a empresa da vaga quando ela não vem na página", async () => {
-    loadCompanies.mockImplementation(async ({ includeId } = {}) => ({
-      companies: includeId
-        ? [{ id: includeId, name: "Fora do corte" }, { id: "c1", name: "Nuvem" }]
-        : [{ id: "c1", name: "Nuvem" }],
-      truncated: true,
-    }));
+    let releasePage;
+    const page = new Promise((resolve) => {
+      releasePage = resolve;
+    });
+    loadCompanies.mockImplementation(async ({ includeId } = {}) => {
+      if (!includeId) return page;
+      return {
+        companies: [{ id: includeId, name: "Fora do corte" }, { id: "c1", name: "Nuvem" }],
+        truncated: true,
+      };
+    });
     loadAdminJob.mockResolvedValue({
       id: "job-1",
       status: "pending",
@@ -71,7 +76,14 @@ describe("AdminJobFormRoute empresas", () => {
 
     renderForm("/admin/vagas/nova?editar=job-1");
 
-    expect(await screen.findByRole("option", { name: "Fora do corte" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Fora do corte" }, { timeout: 5_000 })).toBeInTheDocument();
+    expect(screen.getByLabelText("Empresa")).toHaveValue("c-late");
+
+    await act(async () => {
+      releasePage({ companies: [{ id: "c1", name: "Nuvem" }], truncated: true });
+      await page;
+    });
+    expect(screen.getByRole("option", { name: "Fora do corte" })).toBeInTheDocument();
     expect(screen.getByLabelText("Empresa")).toHaveValue("c-late");
   });
 

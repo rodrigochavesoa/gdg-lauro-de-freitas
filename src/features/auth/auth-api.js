@@ -300,7 +300,7 @@ export function subscribeAuth(onChange) {
           route: technicalRoute(globalThis.location?.pathname),
           ...classifyOpsFailure("login", error),
         });
-        onChange(snapshotFromSession(session, null, false), { hydrated: true });
+        onChange(snapshotFromSession(session, null, false), { hydrated: false, failed: true });
       });
   });
 

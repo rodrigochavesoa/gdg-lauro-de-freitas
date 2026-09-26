@@ -285,6 +285,16 @@ describe("Admin", () => {
     expect(loadCurationProfile).not.toHaveBeenCalled();
   });
 
+  it("falha do shell não dispara loadCurationProfile", async () => {
+    loadCurationProfile.mockImplementation(() => new Promise(() => {}));
+    renderAdmin(
+      <Admin authReady session={adminSession} authProfile={null} profileHydrated={false} profileHydrateFailed />,
+    );
+    expect(await screen.findByRole("heading", { name: "Entrar para curadoria ou admin" })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Não foi possível confirmar a sessão. Entre novamente.");
+    expect(loadCurationProfile).not.toHaveBeenCalled();
+  });
+
   it("área logada não renderiza sidebar nem card de perfil", async () => {
     loadCurationProfile.mockResolvedValue({
       id: "c1",

@@ -14,13 +14,15 @@ import { AdminNav } from "./features/admin/AdminNav.jsx";
 import { AdminSurfaceCurve } from "./features/admin/AdminSurfaceCurve.jsx";
 import { toCurationProfile } from "./features/admin/staff-access.js";
 
+const SHELL_HYDRATE_ERROR = "Não foi possível confirmar a sessão. Entre novamente.";
+
 function StaffMfaQr({ qrCode }) {
   const src = staffMfaQrSrc(qrCode);
   if (!src) return null;
   return <img className="admin-mfa-qr" alt="QR code do autenticador" src={src} />;
 }
 
-export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true }) {
+export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true, profileHydrateFailed = false }) {
   const snapshotStaff = useMemo(() => toCurationProfile(authProfile, session), [authProfile, session]);
   const mfaRequiredAtBoot = isStaffMfaRequired();
   const waitingForShellProfile = Boolean(session) && !profileHydrated && !snapshotStaff;
@@ -93,6 +95,20 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     };
 
     if (!profileHydrated && !snapshotStaff) {
+      if (profileHydrateFailed) {
+        if (staffBootId.current === session.user.id) {
+          return () => {
+            cancelled = true;
+          };
+        }
+        setProfile(null);
+        setLogged?.(false);
+        setError(SHELL_HYDRATE_ERROR);
+        setReady(true);
+        return () => {
+          cancelled = true;
+        };
+      }
       if (staffBootId.current !== session.user.id) setReady(false);
       return () => {
         cancelled = true;
@@ -127,7 +143,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     return () => {
       cancelled = true;
     };
-  }, [authReady, authProfile, profileHydrated, session, setLogged, snapshotStaff]);
+  }, [authReady, authProfile, profileHydrated, profileHydrateFailed, session, setLogged, snapshotStaff]);
 
   const onLogin = async (event) => {
     event.preventDefault();
