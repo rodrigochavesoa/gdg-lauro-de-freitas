@@ -102,6 +102,8 @@ vi.mock("./features/ingest/ingest-api.js", async () => {
 
 const loadApprovedJobMock = vi.hoisted(() => vi.fn());
 
+const loadApprovedJobsMock = vi.hoisted(() => vi.fn());
+
 vi.mock("./features/catalog/jobs-api.js", () => {
   const catalogJobs = [
     {
@@ -209,6 +211,8 @@ vi.mock("./features/catalog/jobs-api.js", () => {
     return { jobs: rows.slice(offset, offset + limit), count: rows.length };
   }
 
+  loadApprovedJobsMock.mockImplementation(async (opts = {}) => filterCatalog(opts));
+
   return {
     findApprovedJobInCache: (id) => catalogJobs.find((job) => String(job.id) === String(id)) ?? null,
     peekApprovedJobsCache: () => catalogJobs,
@@ -222,7 +226,7 @@ vi.mock("./features/catalog/jobs-api.js", () => {
       }
       return { jobs: catalogJobs, count: catalogJobs.length };
     },
-    loadApprovedJobs: async (opts = {}) => filterCatalog(opts),
+    loadApprovedJobs: (...args) => loadApprovedJobsMock(...args),
     loadApprovedJob: (...args) => loadApprovedJobMock(...args),
     CATALOG_PAGE_SIZE: 24,
   };
@@ -262,6 +266,7 @@ beforeEach(() => {
   loadPrivacyPreferencesMock.mockReset();
   loadPrivacyPreferencesMock.mockResolvedValue({ purposes: [], events: [], source: "fallback" });
   loadApprovedJobMock.mockReset();
+  loadApprovedJobsMock.mockClear();
   loadApprovedJobMock.mockImplementation(async (id) => ({
     id,
     title: "Pessoa Desenvolvedora Front-end",
@@ -390,6 +395,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("heading", { name: /carreira em tech/i })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Cargo, tecnologia ou empresa")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(loadApprovedJobsMock).toHaveBeenCalled();
   });
 
   it("abre o menu de ordenação e lista as vagas mais antigas", async () => {
@@ -696,6 +702,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("button", { name: "Ingerir fixture (pendente)" })).not.toBeInTheDocument();
     fireEvent.click(within(tabs).getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
+    expect(loadApprovedJobsMock).not.toHaveBeenCalled();
   });
 
   it("staff abre /admin/curadoria por deep link e candidato permanece fora", async () => {

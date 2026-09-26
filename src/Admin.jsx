@@ -20,10 +20,13 @@ function StaffMfaQr({ qrCode }) {
   return <img className="admin-mfa-qr" alt="QR code do autenticador" src={src} />;
 }
 
-export function Admin({ setLogged, session, authReady = true, authProfile = null }) {
+export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true }) {
   const snapshotStaff = toCurationProfile(authProfile, session);
   const mfaRequiredAtBoot = isStaffMfaRequired();
-  const [ready, setReady] = useState(() => Boolean(authReady) && !(mfaRequiredAtBoot && session));
+  const waitingForShellProfile = Boolean(session) && !profileHydrated && !snapshotStaff;
+  const [ready, setReady] = useState(
+    () => Boolean(authReady) && !waitingForShellProfile && !(mfaRequiredAtBoot && session),
+  );
   const [profile, setProfile] = useState(() => (authReady && !mfaRequiredAtBoot ? snapshotStaff : null));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -90,8 +93,23 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     };
 
     const fromSnapshot = toCurationProfile(authProfile, session);
+    if (!profileHydrated && !fromSnapshot) {
+      return () => {
+        cancelled = true;
+      };
+    }
     if (fromSnapshot) {
-      void admitStaff(fromSnapshot);
+      if (staffBootId.current !== fromSnapshot.id) void admitStaff(fromSnapshot);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (authProfile) {
+      staffBootId.current = null;
+      setProfile(null);
+      setLogged?.(false);
+      setReady(true);
       return () => {
         cancelled = true;
       };
@@ -109,7 +127,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     return () => {
       cancelled = true;
     };
-  }, [authReady, authProfile, session, setLogged]);
+  }, [authReady, authProfile, profileHydrated, session, setLogged]);
 
   const onLogin = async (event) => {
     event.preventDefault();
@@ -127,6 +145,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       }
       setMfaPending(null);
       setMfaEnroll(null);
+      staffBootId.current = current.id;
       setProfile(current);
       setLogged?.(true);
     } catch (err) {

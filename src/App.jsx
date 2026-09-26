@@ -31,6 +31,7 @@ import {
 import { isCandidateProfile, isD01Complete, canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "./features/auth/profile-completeness.js";
 import { Admin } from "./Admin.jsx";
 import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
+import { isAdminAreaPath } from "./features/admin/staff-access.js";
 import { PrivacyPreferences } from "./features/privacy/PrivacyPreferences.jsx";
 import { loadPrivacyPreferences } from "./features/privacy/privacy-api.js";
 
@@ -40,6 +41,7 @@ const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 export function App() {
   const [auth, setAuth] = useState(EMPTY_AUTH);
   const [authReady, setAuthReady] = useState(false);
+  const [profileHydrated, setProfileHydrated] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [avatarPath, setAvatarPath] = useState(null);
   const [avatarStatus, setAvatarStatus] = useState("idle");
@@ -64,9 +66,13 @@ export function App() {
       if (requestEpoch === authGeneration.current) setAuthReady(true);
     };
     loadAuthSnapshot()
-      .then((snapshot) => applySnapshot(snapshot, bootEpoch))
+      .then((snapshot) => {
+        applySnapshot(snapshot, bootEpoch);
+        if (!cancelled && bootEpoch === authGeneration.current) setProfileHydrated(true);
+      })
       .catch(() => {
         applySnapshot(EMPTY_AUTH, bootEpoch);
+        if (!cancelled && bootEpoch === authGeneration.current) setProfileHydrated(true);
       });
     const unsubscribe = subscribeAuth((snapshot) => applySnapshot(snapshot));
     return () => {
@@ -155,10 +161,15 @@ export function App() {
     avatarStatus,
   });
 
-  // UX-PERF-05 — warm catalog on shell mount so /login → / avoids cold skeleton scroll jank
+  // UX-PERF-05 — warm catalog outside /admin so /login → / avoids cold skeleton scroll jank
+  const catalogWarmed = useRef(false);
+  const { pathname } = useLocation();
   useEffect(() => {
+    if (isAdminAreaPath(pathname) || catalogWarmed.current) return undefined;
+    catalogWarmed.current = true;
     loadApprovedJobs().catch(() => {});
-  }, []);
+    return undefined;
+  }, [pathname]);
 
   // UX-PERF-06 / UX-PERF-07 — warm minhas candidaturas e privacidade (dedupe via inflight/TTL)
   useEffect(() => {
@@ -227,7 +238,7 @@ export function App() {
         <Route path="/perfil" element={<ProfileEditRoute auth={auth} authReady={authReady} setAuth={setAuth} />} />
         <Route path="/onboarding" element={auth.needsOnboarding ? <OnboardingRoute auth={auth} setAuth={setAuth} sessionUserId={sessionUserId} /> : <Navigate to="/" replace />} />
         <Route path="/login" element={<LoginRoute auth={auth} />} />
-        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} />}>
+        <Route path="/admin" element={<Admin session={auth.session} authProfile={auth.profile} authReady={authReady} profileHydrated={profileHydrated} />}>
           {adminChildRoutes}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
