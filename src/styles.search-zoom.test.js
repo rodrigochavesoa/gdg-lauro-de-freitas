@@ -20,4 +20,8 @@ describe("UX-MOBILE-SEARCH-ZOOM-01 — iOS auto-zoom", () => {
     expect(css).not.toMatch(/\.prototype-search input\{[^}]*font-size:\s*\.9375rem/);
     expect(html).not.toMatch(/maximum-scale\s*=\s*1|user-scalable\s*=\s*no/i);
   });
+
+  it("UX-ADMIN-AUTH-MOBILE-ZOOM-01 — usa body-1 nos inputs do login staff", () => {
+    expect(firstRule(".admin-auth-form input")).toMatch(/font-size:\s*var\(--font-size-body-1\)/);
+  });
 });
