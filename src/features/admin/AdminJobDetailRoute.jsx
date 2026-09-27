@@ -4,6 +4,7 @@ import { formatStaffPrivilegedApiError } from "../../lib/staff-api-errors.js";
 import { CurationTimeline } from "../curation/CurationTimeline.jsx";
 import { loadAdminJob } from "../../lib/admin-api.js";
 import { adminJobStatusLabel } from "./job-form-state.js";
+import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
 
 export function AdminJobDetailRoute() {
   const { id } = useParams();
@@ -36,7 +37,12 @@ export function AdminJobDetailRoute() {
   }, [id]);
 
   if (status === "loading") {
-    return <p role="status">Carregando vaga…</p>;
+    return (
+      <>
+        <p className="sr-only" role="status">Carregando vaga…</p>
+        <AdminPanelShimmer variant="detail" />
+      </>
+    );
   }
 
   if (status === "missing" || status === "error") {

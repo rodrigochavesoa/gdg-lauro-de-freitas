@@ -175,21 +175,17 @@ export function AdminJobsRoute() {
   };
 
   const heading = adminJobListHeading(filters.status);
+  const initialListLoading = listStatus === "loading" && items.length === 0;
   const countLabel =
-    listStatus === "ready"
-      ? formatAdminJobTotalLabel(total, items.length)
-      : listStatus === "loading" && items.length === 0
-        ? "Carregando…"
-        : "\u00a0";
+    listStatus === "ready" ? formatAdminJobTotalLabel(total, items.length) : null;
   const activeFilterCount = countAdminJobActiveFilters(filters);
   const sheetCount = total ?? items.length;
-  const busy = (listStatus === "loading" && items.length === 0) || loadingMore;
-  const loadingAnnouncement =
-    listStatus === "loading" && items.length === 0
-      ? "Carregando vagas da área administrativa…"
-      : loadingMore
-        ? "Carregando mais vagas…"
-        : "";
+  const busy = initialListLoading || loadingMore;
+  const loadingAnnouncement = initialListLoading
+    ? "Carregando vagas da área administrativa…"
+    : loadingMore
+      ? "Carregando mais vagas…"
+      : "";
 
   return (
     <div className="admin-jobs-layout">
@@ -256,7 +252,14 @@ export function AdminJobsRoute() {
           <div>
             <h2>{heading}</h2>
             <p className="admin-jobs-count" aria-live="polite">
-              {countLabel}
+              {initialListLoading ? (
+                <span
+                  className="admin-dashboard-skeleton-value admin-jobs-count-skeleton"
+                  aria-hidden="true"
+                />
+              ) : (
+                countLabel
+              )}
             </p>
           </div>
           <button
@@ -289,7 +292,7 @@ export function AdminJobsRoute() {
           </p>
         ) : null}
         <div className="admin-jobs-list-panel">
-          {listStatus === "loading" && items.length === 0 ? <AdminPanelShimmer variant="list" /> : null}
+          {initialListLoading ? <AdminPanelShimmer variant="list" /> : null}
           {items.map((job) => (
             <JobListRow key={job.id} job={job} returnSearch={search} />
           ))}

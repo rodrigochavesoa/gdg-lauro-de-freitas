@@ -79,6 +79,32 @@ describe("Home", () => {
     loadApprovedJobs.mockImplementation(async (options = {}) => pageFor(options));
   });
 
+  it("mostra shimmer no contador no cold miss sem 0 oportunidades", async () => {
+    peekApprovedJobsPage.mockReturnValue(null);
+    let resolveJobs;
+    loadApprovedJobs.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveJobs = resolve;
+        }),
+    );
+
+    render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(document.querySelector(".job-card--skeleton")).toBeTruthy();
+    expect(document.querySelector(".catalog-result-count-skeleton")).toBeTruthy();
+    expect(screen.queryByText(/0 oportunidades encontradas/)).not.toBeInTheDocument();
+    expect(screen.getByText("Carregando vagas").className).toContain("sr-only");
+
+    await resolveJobs(pageFor());
+    expect(await screen.findByText("1 oportunidades encontradas")).toBeInTheDocument();
+    expect(document.querySelector(".catalog-result-count-skeleton")).toBeNull();
+  });
+
   it("não mostra skeleton quando o cache do catálogo já está preenchido", async () => {
     render(
       <MemoryRouter>

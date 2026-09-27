@@ -206,6 +206,8 @@ describe("Admin", () => {
       <Admin authReady session={adminSession} authProfile={null} profileHydrated={false} />,
     );
     expect(screen.queryByRole("heading", { name: "Painel" })).not.toBeInTheDocument();
+    expect(document.querySelector(".admin-ingest__loading")).toBeTruthy();
+    expect(screen.getByText("Carregando área administrativa…").className).toContain("sr-only");
     expect(loadCurationProfile).not.toHaveBeenCalled();
 
     rerender(
@@ -364,7 +366,7 @@ describe("Admin", () => {
     expect(screen.queryByText("Pessoa Estagiária (rascunho)")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
-    expect(screen.getByText("Carregando vagas da área administrativa…")).toBeInTheDocument();
+    expect(screen.getByText("Carregando vagas da área administrativa…").className).toContain("sr-only");
     resolveJobs({
       items: [
         {
