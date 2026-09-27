@@ -1,22 +1,28 @@
-import { latestIngestionAttempt } from "./ingest-api.js";
+import { latestIngestionAttempt } from "./ingestion-attempt.js";
 
 /**
- * Predicado “ingestão precisa atenção”.
+ * Predicado único “ingestão precisa atenção”.
  * Contrato: docs-local/tech/INGEST-ATTENTION-CONTRACT.md
- * Igual ao WHERE de count_job_ingestions_needing_attention. Não alterar sem o checklist.
+ * Igual ao WHERE de count_job_ingestions_needing_attention.
  */
-export function ingestNeedsAttention(ingestion) {
-  const attempt = latestIngestionAttempt(ingestion);
-  if (!attempt) return !ingestion?.job_id;
-  return attempt.outcome === "failed" || attempt.outcome === "expired";
+export function needsAttention({ jobId = null, latestOutcome = null } = {}) {
+  if (!latestOutcome) return !jobId;
+  return latestOutcome === "failed" || latestOutcome === "expired";
 }
 
-/**
- * Mesmo predicado sobre uma linha de job_ingestion_staff_list.
- * Contrato: docs-local/tech/INGEST-ATTENTION-CONTRACT.md
- */
+/** Adapta o objeto de ingestão (tentativas) ao predicado. */
+export function ingestNeedsAttention(ingestion) {
+  const attempt = latestIngestionAttempt(ingestion);
+  return needsAttention({
+    jobId: ingestion?.job_id ?? null,
+    latestOutcome: attempt?.outcome ?? null,
+  });
+}
+
+/** Adapta uma linha de job_ingestion_staff_list ao predicado. */
 export function staffListRowNeedsAttention(row) {
-  const outcome = row?.latest_outcome ?? null;
-  if (!outcome) return !row?.job_id;
-  return outcome === "failed" || outcome === "expired";
+  return needsAttention({
+    jobId: row?.job_id ?? null,
+    latestOutcome: row?.latest_outcome ?? null,
+  });
 }

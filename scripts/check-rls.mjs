@@ -14,7 +14,8 @@ import {
   registerJobIngestion,
 } from "../src/features/ingest/source-contract.js";
 import { processJobIngestion } from "../src/features/ingest/ingest-api.js";
-import { staffListRowNeedsAttention } from "../src/features/ingest/ingest-attention.js";
+import { latestIngestionAttempt } from "../src/features/ingest/ingestion-attempt.js";
+import { ingestNeedsAttention, staffListRowNeedsAttention } from "../src/features/ingest/ingest-attention.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -2329,6 +2330,41 @@ async function scenario21_jobIngestions() {
   }
 }
 
+async function assertSameTimestampAttemptTie(admin, svc, stamp, createdIds) {
+  const createdAt = "2026-09-26T12:00:00.000Z";
+  const lowId = "00000000-0000-4000-8000-0000000000a1";
+  const highId = "ffffffff-ffff-4fff-8fff-0000000000a1";
+  const inserted = await svc.from("job_ingestions").insert({
+    source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+    normalized_locator: `fixture:rls-tie-${stamp}`,
+    payload_hash: "d".repeat(64),
+  }).select("id").single();
+  assert(!inserted.error && inserted.data?.id, `service insere ingestão de desempate (${inserted.error?.message ?? "ok"})`);
+  const ingestionId = inserted.data.id;
+  createdIds.push(ingestionId);
+  const attempts = await svc.from("job_ingestion_attempts").insert([
+    { id: lowId, ingestion_id: ingestionId, outcome: "failed", created_at: createdAt },
+    { id: highId, ingestion_id: ingestionId, outcome: "materialized", created_at: createdAt },
+  ]);
+  assert(!attempts.error, `service insere tentativas com o mesmo timestamp (${attempts.error?.message ?? "ok"})`);
+  const row = await assertStaffListRow(admin, ingestionId, { needsAttention: false, outcome: "materialized" });
+  const payload = [
+    { id: lowId, outcome: "failed", created_at: createdAt },
+    { id: highId, outcome: "materialized", created_at: createdAt },
+  ];
+  for (const job_ingestion_attempts of [payload, [...payload].reverse()]) {
+    const ingestion = { job_id: row.job_id, job_ingestion_attempts };
+    assert(latestIngestionAttempt(ingestion)?.id === highId, "JS desempata created_at igual por id desc");
+    assert(
+      ingestNeedsAttention(ingestion) === staffListRowNeedsAttention(row),
+      "paridade view/JS quando duas tentativas compartilham o timestamp",
+    );
+  }
+  await deleteIngestions([ingestionId]);
+  const idx = createdIds.indexOf(ingestionId);
+  if (idx >= 0) createdIds.splice(idx, 1);
+}
+
 /** Cenário 22 — MVP-013 Fase B: processa fixture, retry idempotente, expiração fora do catálogo, falha redigida. */
 async function scenario22_processJobIngestion() {
   if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
@@ -2445,6 +2481,7 @@ async function scenario22_processJobIngestion() {
     }
 
     if (svc) {
+      await assertSameTimestampAttemptTie(admin, svc, stamp, createdIds);
       const expiredInsert = await svc.from("job_ingestions").insert({
         source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
         normalized_locator: `fixture:rls-s22-expired-${stamp}`,

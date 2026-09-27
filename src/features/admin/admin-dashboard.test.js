@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { latestIngestionAttempt } from "../ingest/ingest-api.js";
+import { latestIngestionAttempt } from "../ingest/ingestion-attempt.js";
 import { ingestNeedsAttention, staffListRowNeedsAttention, summarizeAdminDashboard } from "./admin-dashboard.js";
 
 describe("admin-dashboard", () => {
@@ -57,6 +57,44 @@ describe("admin-dashboard", () => {
       const attempt = latestIngestionAttempt(ingestion);
       const row = { job_id: ingestion.job_id ?? null, latest_outcome: attempt?.outcome ?? null };
       expect(staffListRowNeedsAttention(row)).toBe(ingestNeedsAttention(ingestion));
+    }
+  });
+
+  it("desempata tentativas com o mesmo created_at por id desc, como a view", () => {
+    const same = "2026-09-26T12:00:00.000Z";
+    const lowId = "00000000-0000-4000-8000-0000000000a1";
+    const highId = "ffffffff-ffff-4fff-8fff-0000000000a1";
+    const orders = [
+      [
+        { id: lowId, outcome: "failed", created_at: same },
+        { id: highId, outcome: "materialized", created_at: same },
+      ],
+      [
+        { id: highId, outcome: "materialized", created_at: same },
+        { id: lowId, outcome: "failed", created_at: same },
+      ],
+    ];
+    for (const job_ingestion_attempts of orders) {
+      const ingestion = { job_id: "j1", job_ingestion_attempts };
+      const attempt = latestIngestionAttempt(ingestion);
+      expect(attempt.id).toBe(highId);
+      expect(attempt.outcome).toBe("materialized");
+      expect(ingestNeedsAttention(ingestion)).toBe(false);
+      expect(staffListRowNeedsAttention({ job_id: "j1", latest_outcome: attempt.outcome })).toBe(false);
+    }
+
+    const failedWins = orders.map((attempts) => attempts.map((attempt) => ({
+      ...attempt,
+      outcome: attempt.id === highId ? "failed" : "materialized",
+    })));
+    for (const job_ingestion_attempts of failedWins) {
+      const ingestion = { job_id: null, job_ingestion_attempts };
+      expect(latestIngestionAttempt(ingestion).id).toBe(highId);
+      expect(ingestNeedsAttention(ingestion)).toBe(true);
+      expect(staffListRowNeedsAttention({
+        job_id: null,
+        latest_outcome: "failed",
+      })).toBe(ingestNeedsAttention(ingestion));
     }
   });
 

@@ -130,6 +130,14 @@ describe("latestIngestionAttempt e copy", () => {
     });
     expect(latest.id).toBe("b");
   });
+
+  it("desempata o mesmo created_at por id desc, nas duas ordens de entrada", () => {
+    const same = "2026-09-26T12:00:00.000Z";
+    const low = { id: "00000000-0000-4000-8000-0000000000a1", created_at: same, outcome: "failed" };
+    const high = { id: "ffffffff-ffff-4fff-8fff-0000000000a1", created_at: same, outcome: "materialized" };
+    expect(latestIngestionAttempt({ job_ingestion_attempts: [low, high] }).id).toBe(high.id);
+    expect(latestIngestionAttempt({ job_ingestion_attempts: [high, low] }).id).toBe(high.id);
+  });
 });
 
 describe("loadJobIngestions", () => {
