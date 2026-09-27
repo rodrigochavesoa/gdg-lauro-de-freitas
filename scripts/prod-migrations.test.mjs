@@ -61,13 +61,14 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260920040000_job_ingestions_process_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260923140000_job_ingestion_staff_list_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260921120000_sec_db_function_hardening_homolog.sql")).toBe(true);
+    expect(isHomologOnlyMigration("20260927080200_apply_rate_limit_preserve_homolog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20261001000000_job_ingestions_source_contract_prod.sql")).toBe(false);
     expect(isHomologOnlyMigration("20261001000001_job_ingestions_phase_b.sql")).toBe(false);
     expect(isHomologOnlyMigration("202608150001_ai_matching.sql")).toBe(false);
     expect(isHomologOnlyMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
   });
 
-  it("usa o manifesto como fonte de verdade — 15 arquivos, sem staff_dedup", () => {
+  it("usa o manifesto como fonte de verdade — 17 arquivos, sem staff_dedup", () => {
     expect(isProdSafeMigration("202608160002_seed_fictitious_catalog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916122300_avatars_storage_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(false);
@@ -81,9 +82,12 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
     expect(isProdSafeMigration("202608150001_ai_matching.sql")).toBe(true);
     expect(isProdSafeMigration("20260912010000_data_api_select_grants.sql")).toBe(true);
+    expect(isProdSafeMigration("20260927080000_sec_data_authority_staff_apply.sql")).toBe(true);
+    expect(isProdSafeMigration("20260927080100_sec_data_authority_revoke_match_jobs.sql")).toBe(true);
+    expect(isProdSafeMigration("20260927080200_apply_rate_limit_preserve_homolog.sql")).toBe(false);
 
     const { prod, homologOnly, camadaB } = validateProdMigrations();
-    expect(prod).toHaveLength(15);
+    expect(prod).toHaveLength(17);
     expect(prod.some((name) => name.includes("job_submission_staff_dedup"))).toBe(false);
     expect(camadaB.some((name) => name.includes("job_submission_staff_dedup"))).toBe(true);
     expect(camadaB.some((name) => name.includes("staff_rls_aal2"))).toBe(true);
@@ -99,6 +103,12 @@ describe("prod migrations", () => {
     expect(chain.some((name) => name.includes("seed_fictitious"))).toBe(true);
     expect(chain.indexOf("202608160002_seed_fictitious_catalog.sql")).toBeGreaterThan(
       chain.indexOf("202608150001_ai_matching.sql"),
+    );
+    expect(chain.indexOf("20260927080100_sec_data_authority_revoke_match_jobs.sql")).toBeGreaterThan(
+      chain.indexOf("20260927080000_sec_data_authority_staff_apply.sql"),
+    );
+    expect(chain.indexOf("20260927080200_apply_rate_limit_preserve_homolog.sql")).toBeGreaterThan(
+      chain.indexOf("20260927080000_sec_data_authority_staff_apply.sql"),
     );
   });
 
