@@ -16,6 +16,8 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 
+**Agent skills (Matt Pocock):** rastreador e domínio para `code-review` e afins em [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) e [`docs/agents/domain.md`](docs/agents/domain.md). Bootstrap em clone antigo: `/setup-matt-pocock-skills`.
+
 **ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **contrato fixo** de registro (custom fields + descrição com Problema, DoD, Entrega ao concluir) em [`docs-local.example/clickup/task-description-template.md`](docs-local.example/clickup/task-description-template.md) — **não alterar o formato** sem decisão Plan. Metadados (assignee, tags, datas, `fields.História ID`) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Campo **História ID** + título para o código (`SEC-*`, `UX-*`); **ID da URL** no PR (`ClickUp: 86a…`). Sync: `pnpm clickup:sync` · configs em `docs-local/clickup/`. Execução: ONE-LINER + Cursor + GitHub.
 
 ## Trabalho não programado (mid-sprint)

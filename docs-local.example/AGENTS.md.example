@@ -21,6 +21,18 @@ Evidências visuais: `docs-local/assets/<id>/`. DS-06/DS-07: `docs-local/design-
 
 Fluxo Git e Conventional Commits: [`CONTRIBUTING.md`](../CONTRIBUTING.md). Setup: [`SETUP.md`](../SETUP.md).
 
+## Agent skills (Matt Pocock / Cursor)
+
+Skills como `code-review` leem config versionada em `docs/agents/`. Se faltar arquivo, rodar **`/setup-matt-pocock-skills`** uma vez por clone (ou copiar de `docs/agents/` após pull).
+
+### Issue tracker
+
+ClickUp (squad) + GitHub Issues (lab); PRs com `ClickUp: <id>`. Ver [`docs/agents/issue-tracker.md`](../docs/agents/issue-tracker.md).
+
+### Domain
+
+Onboarding público + `src/` + `docs-local/` para operação. Ver [`docs/agents/domain.md`](../docs/agents/domain.md).
+
 ## Secret hygiene e bootstrap (copiar guidelines completas para `docs-local/`)
 
 Modelos: [`security-project-bootstrap.example.md`](security-project-bootstrap.example.md), [`guideline-credentials-lifecycle.example.md`](guideline-credentials-lifecycle.example.md). Na cópia local, use `security-project-bootstrap.md`, `guideline-credentials-lifecycle.md` e `guideline-agents-secret-hygiene.md`. RLS verde **não** prova histórico Git limpo.
