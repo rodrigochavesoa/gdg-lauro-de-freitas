@@ -13,6 +13,36 @@ import {
 import { AdminNav } from "./features/admin/AdminNav.jsx";
 import { AdminSurfaceCurve } from "./features/admin/AdminSurfaceCurve.jsx";
 import { toCurationProfile } from "./features/admin/staff-access.js";
+import { AdminPanelShimmer } from "./shared/ui/AdminPanelShimmer.jsx";
+
+function AdminBootLoading({ showWorkspaceShell }) {
+  const content = (
+    <>
+      <p className="sr-only" role="status">Carregando área administrativa…</p>
+      <AdminPanelShimmer variant="list" />
+    </>
+  );
+
+  if (showWorkspaceShell) {
+    return (
+      <main id="conteudo" tabIndex={-1} className="admin-page admin-workspace" aria-busy="true">
+        <div className="shell admin-shell">
+          <AdminNav profile={null} />
+          <section className="admin-content">{content}</section>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main id="conteudo" tabIndex={-1} className="admin-page" aria-busy="true">
+      <div className="shell admin-auth-shell">
+        <section className="admin-content">{content}</section>
+      </div>
+      <AdminSurfaceCurve />
+    </main>
+  );
+}
 
 const SHELL_HYDRATE_ERROR = "Não foi possível confirmar a sessão. Entre novamente.";
 
@@ -214,16 +244,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   };
 
   if (!ready) {
-    return (
-      <main id="conteudo" tabIndex={-1} className="admin-page">
-        <div className="shell admin-auth-shell">
-          <section className="admin-content">
-            <p role="status">Carregando área administrativa…</p>
-          </section>
-        </div>
-        <AdminSurfaceCurve />
-      </main>
-    );
+    return <AdminBootLoading showWorkspaceShell={Boolean(session)} />;
   }
 
   if (!profile) {
