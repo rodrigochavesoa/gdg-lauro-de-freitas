@@ -138,8 +138,8 @@ describe("CurationQueue", () => {
       />,
     );
 
-    expect(screen.getByText("Carregando fila de curadoria…")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
+    expect(screen.getByText("Carregando fila de curadoria…").className).toContain("sr-only");
+    expect(document.querySelector(".admin-ingest__loading")).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Pessoa Dev Front-end (fila)" })).not.toBeInTheDocument();
 
     resolveQueue(queuePayload);
@@ -437,7 +437,7 @@ describe("CurationQueue", () => {
     loadCurationQueue.mockImplementation(async () => new Promise((resolve) => { resolveRefresh = resolve; }));
 
     render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
+    expect(screen.getByText("Carregando fila de curadoria…").className).toContain("sr-only");
     expect(screen.queryByRole("button", { name: "Carregar mais" })).not.toBeInTheDocument();
 
     await act(async () => {
@@ -455,7 +455,7 @@ describe("CurationQueue", () => {
     let resolveReload;
     loadCurationQueue.mockImplementation(async () => new Promise((resolve) => { resolveReload = resolve; }));
     curationEvents.notify();
-    expect(await screen.findByRole("status")).toHaveTextContent("Carregando fila de curadoria…");
+    expect((await screen.findByText("Carregando fila de curadoria…")).className).toContain("sr-only");
     expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Carregar mais" })).toBeDisabled();
 

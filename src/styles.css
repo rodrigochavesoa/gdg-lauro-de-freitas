@@ -271,7 +271,6 @@ a.admin-job-list-item{display:flex;align-items:center;flex-wrap:wrap}
 .admin-job-card__body h3{margin:0;font-size:1rem;line-height:1.35}
 .admin-job-card__badges{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);flex-shrink:0}
 .admin-job-status{display:inline-flex;align-items:center;border-radius:var(--radius-pill);padding:3px 8px;background:var(--color-grey-100);color:var(--color-grey-700);font-size:.6875rem;font-weight:600}
-.admin-jobs-skeleton{min-height:56px;border-radius:var(--radius-md)}
 .admin-jobs-layout .filters .admin-jobs-status,
 .admin-jobs-layout .filters .admin-jobs-sort-options{flex-direction:column;align-items:stretch;overflow:visible}
 .admin-jobs-layout .filters .ghost{justify-content:flex-start;width:100%}
@@ -295,7 +294,6 @@ a.admin-job-list-item{display:flex;align-items:center;flex-wrap:wrap}
   .admin-job-card:hover{border-color:var(--color-primary-100);box-shadow:var(--shadow-card)}
   .admin-job-card__link{flex-direction:column;padding:16px;gap:11px}
   .admin-job-card__link:hover{background:transparent}
-  .admin-jobs-skeleton{min-height:92px;border-radius:var(--radius-lg)}
 }
 .curation-timeline{margin:8px 0 0;padding-left:1.2em;color:var(--color-text-muted);font-size:var(--font-size-body-2);line-height:1.45}
 .form-alert{margin:0 28px 16px;padding:12px 14px;border:1px solid var(--color-danger-700);border-radius:var(--radius-sm);background:var(--color-danger-50);color:var(--color-danger-700);font-size:var(--font-size-body-2)}
@@ -978,6 +976,14 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 .admin-ingest__detail summary{cursor:pointer;font-weight:600;color:var(--color-text-link)}
 .admin-ingest__detail li{margin:9px 0;overflow-wrap:anywhere}
 .admin-ingest__locator{word-break:break-word}
+.admin-ingest__loading{display:grid;gap:0;padding:4px 0 8px}
+.admin-ingest__loading-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:16px;padding:13px 0;border-top:1px solid var(--color-border)}
+.admin-ingest__loading--detail .admin-ingest__loading-row{grid-template-columns:1fr}
+.admin-ingest__loading .admin-dashboard-skeleton-value{display:block;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--color-grey-100) 25%,var(--color-grey-50) 50%,var(--color-grey-100) 75%);background-size:200% 100%;animation:admin-dashboard-shimmer 1.2s ease-in-out infinite}
+.admin-ingest__loading-line--title{width:min(280px,72%);height:18px}
+.admin-ingest__loading-line--meta{width:min(200px,48%);height:14px;grid-column:1}
+.admin-ingest__loading-line--action{width:5.5rem;height:44px;justify-self:end}
+.admin-ingest__loading--detail .admin-ingest__loading-line--meta{width:min(240px,60%)}
 .admin-workspace:has(.admin-dashboard){background-color:var(--color-surface-subtle);background-image:radial-gradient(ellipse 46% 34% at 100% -6%,color-mix(in srgb,var(--color-primary-100) 85%,transparent),transparent 70%),radial-gradient(ellipse 28% 24% at 70% 0%,color-mix(in srgb,var(--color-primary-50) 95%,transparent),transparent 68%)}
 .admin-dashboard{min-width:0}
 .admin-dashboard-focus{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 24px;min-width:0;min-height:148px;margin:0 0 28px;padding:28px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 8px 28px rgb(24 24 27 / 3%)}
@@ -1050,6 +1056,8 @@ html[data-theme="dark"] .admin-dashboard-stat--ingest-attention .admin-dashboard
   .admin-ingest__list,.admin-ingest__detail{padding:16px}
   .admin-ingest__row{grid-template-columns:minmax(0,1fr) auto;gap:9px}
   .admin-ingest__row button{grid-column:1/-1;justify-self:start}
+  .admin-ingest__loading-row{grid-template-columns:minmax(0,1fr) auto;gap:9px}
+  .admin-ingest__loading-line--action{grid-column:1/-1;justify-self:start;width:100%;max-width:8rem}
   .admin-dashboard-focus{align-items:flex-start;padding:22px;gap:16px}
   .admin-dashboard-focus__cta,.admin-dashboard-focus a,.admin-dashboard-steps,.admin-dashboard-steps-skeleton{flex-basis:100%;width:100%;max-width:none;margin-left:0}
   .admin-workspace .admin-dashboard-stats{grid-template-columns:minmax(0,1fr)}

@@ -11,6 +11,7 @@ import { SOURCE_KINDS, isIngestionExpired } from "./source-contract.js";
 import { LEVEL_TO_DB, MODEL_TO_DB, parseStack, structuredJobColumns } from "../../lib/admin-api.js";
 import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 import { mergeById } from "../../lib/merge-by-id.js";
+import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
 
 const emptyForm = {
   locator: HOMOLOG_MANUAL_FIXTURE.locator,
@@ -335,9 +336,19 @@ export function IngestPanel() {
         </div>
       </form>
       ) : null}
-      {view === "list" ? <section className="admin-ingest__list" aria-label="Ingestões registradas">
+      {view === "list" ? (
+        <section
+          className="admin-ingest__list"
+          aria-label="Ingestões registradas"
+          aria-busy={loading || loadingMore ? "true" : undefined}
+        >
         <h2>Registros <span className="admin-ingest__count">{!loading && !error ? rows.length : ""}</span></h2>
-        {loading ? <p role="status">Carregando ingestões…</p> : null}
+        {loading ? (
+          <>
+            <p className="sr-only" role="status">Carregando ingestões…</p>
+            {rows.length === 0 ? <AdminPanelShimmer variant="list" /> : null}
+          </>
+        ) : null}
         {!loading && rows.length === 0 && !error ? (
           <p role="status">Nenhuma ingestão registrada.</p>
         ) : null}
@@ -361,11 +372,21 @@ export function IngestPanel() {
             </button>
           </div>
         ) : null}
-      </section> : null}
+      </section>
+      ) : null}
       {view === "detail" && selectedId ? (
-        <section className="admin-ingest__detail" aria-label="Detalhe da ingestão">
+        <section
+          className="admin-ingest__detail"
+          aria-label="Detalhe da ingestão"
+          aria-busy={detailStatus === "loading" ? "true" : undefined}
+        >
           <h2>{ingestionListTitle(detail ?? listRow)}</h2>
-          {detailStatus === "loading" ? <p role="status">Carregando detalhes da ingestão…</p> : null}
+          {detailStatus === "loading" ? (
+            <>
+              <p className="sr-only" role="status">Carregando detalhes da ingestão…</p>
+              <AdminPanelShimmer variant="detail" />
+            </>
+          ) : null}
           {detail ? (
             <>
               <p><strong>Estado:</strong> {ingestionListStatus(detail)}</p>
