@@ -43,7 +43,9 @@ describe("AdminJobsRoute", () => {
     renderRoute();
     expect(screen.getByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
     expect(document.querySelector(".admin-ingest__loading")).toBeTruthy();
+    expect(document.querySelector(".admin-jobs-count-skeleton")).toBeTruthy();
     expect(document.querySelector(".job-card--skeleton")).toBeNull();
+    expect(screen.queryByText("Carregando…")).not.toBeInTheDocument();
     expect(screen.getByText("Carregando vagas da área administrativa…").className).toContain("sr-only");
 
     resolvePage(emptyPage);
