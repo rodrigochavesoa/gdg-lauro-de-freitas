@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01 e SEC-APPLY-RATE-LIMIT-RAISE-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01 e SEC-DATA-AUTHORITY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -2539,6 +2539,49 @@ async function scenario22_processJobIngestion() {
   }
 }
 
+/** Cenário 24 — SEC-DATA-AUTHORITY-01: match_jobs sem EXECUTE na Data API. */
+async function scenario24_matchJobsExecuteDenied() {
+  const embedding = `[${Array.from({ length: 768 }, () => 0).join(",")}]`;
+  const args = {
+    query_embedding: embedding,
+    requested_stack: [],
+    requested_levels: [],
+    requested_work_model: null,
+    match_limit: 1,
+  };
+
+  const anonMatch = await anon.rpc("match_jobs", args);
+  assert(
+    Boolean(anonMatch.error) && isExecuteDenied(anonMatch.error),
+    `anon sem EXECUTE em match_jobs (${errorText(anonMatch.error) || "sem mensagem"})`,
+  );
+  assert(
+    anonMatch.error != null || !Array.isArray(anonMatch.data),
+    "anon não prova match_jobs com lista (vazia ou não)",
+  );
+
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(24, "candidato: docs-local/candidate-test-user.md ou CANDIDATE_TEST_*");
+    return;
+  }
+  const { client: candidate, error: candErr } = await signIn(testUsers.candidate);
+  assert(!candErr, `candidato autentica para match_jobs (${candErr?.message ?? "ok"})`);
+  if (candErr || !candidate) return;
+  try {
+    const candMatch = await candidate.rpc("match_jobs", args);
+    assert(
+      Boolean(candMatch.error) && isExecuteDenied(candMatch.error),
+      `candidato sem EXECUTE em match_jobs (${errorText(candMatch.error) || "sem mensagem"})`,
+    );
+    assert(
+      candMatch.error != null || !Array.isArray(candMatch.data),
+      "candidato não prova match_jobs com zero rows",
+    );
+  } finally {
+    await candidate.auth.signOut();
+  }
+}
+
 console.log("=== Cenário 1: anon ===");
 await scenario1_anon();
 
@@ -2613,6 +2656,9 @@ await scenario21_jobIngestions();
 console.log("\n=== Cenário 22: MVP-013 Fase B processar ingestão ===");
 await scenario22_processJobIngestion();
 
+console.log("\n=== Cenário 24: match_jobs sem EXECUTE (SEC-DATA-AUTHORITY-01) ===");
+await scenario24_matchJobsExecuteDenied();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -2628,6 +2674,7 @@ if (skippedRequired.size > 0) {
     if (n === 20) band = "SEC-STAFF-MFA-02 exige execução real do cenário 20";
     if (n === 21) band = "MVP-013 exige execução real do cenário 21";
     if (n === 22) band = "MVP-013 Fase B exige execução real do cenário 22";
+    if (n === 24) band = "SEC-DATA-AUTHORITY-01 exige execução real do cenário 24";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -2638,5 +2685,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013: ok (${skipped.length} aviso(s) opcionais; cenários 3–23 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013 + SEC-DATA-AUTHORITY-01: ok (${skipped.length} aviso(s) opcionais; cenários 3–24 executados).`,
 );
