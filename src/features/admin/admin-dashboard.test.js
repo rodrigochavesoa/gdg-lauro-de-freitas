@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { latestIngestionAttempt } from "../ingest/ingestion-attempt.js";
-import { ingestNeedsAttention, staffListRowNeedsAttention, summarizeAdminDashboard } from "./admin-dashboard.js";
+import { describeAdminDashboardFocus, ingestNeedsAttention, staffListRowNeedsAttention, summarizeAdminDashboard } from "./admin-dashboard.js";
 
 describe("admin-dashboard", () => {
   it("marca ingestão sem job e com falha recente como atenção", () => {
@@ -123,5 +123,112 @@ describe("admin-dashboard", () => {
     const summary = summarizeAdminDashboard({ isAdmin: true });
     expect(summary.metrics.map((metric) => metric.value)).toEqual([null, null, null, null, null]);
     expect(summary.ctas).toEqual([]);
+  });
+
+  it("prioriza curadoria e só então outra pendência já prevista no resumo", () => {
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 6,
+      pendingJobs: 6,
+      ingestAttention: 2,
+    })).toMatchObject({
+      state: "attention",
+      title: "Curadoria",
+      detail: "6 vagas aguardam revisão",
+      href: "/admin/curadoria",
+      ctaLabel: "Revisar fila",
+      count: 6,
+    });
+
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 4,
+      ingestAttention: 2,
+    })).toMatchObject({
+      state: "attention",
+      title: "Ingestões pendentes",
+      detail: "2 ingestões pendentes",
+      href: "/admin/ingestao",
+      ctaLabel: "Ver ingestões (2)",
+    });
+
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 4,
+      ingestAttention: 0,
+    })).toMatchObject({
+      state: "attention",
+      title: "Vagas",
+      detail: "4 vagas pendentes",
+      href: "/admin/vagas",
+      ctaLabel: "Ver vagas (4 pendentes)",
+    });
+  });
+
+  it("não confirma fila em dia enquanto uma contagem de atenção ainda não chegou", () => {
+    expect(describeAdminDashboardFocus({ isAdmin: true })).toMatchObject({ state: "loading" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 0,
+      ingestAttention: null,
+    })).toMatchObject({ state: "loading" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 0,
+      ingestAttention: null,
+      ingestFailed: true,
+    })).toMatchObject({ state: "unavailable" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: null,
+      jobsFailed: true,
+    })).toMatchObject({ state: "unavailable" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 0,
+      ingestAttention: 0,
+      jobsFailed: true,
+    })).toMatchObject({ state: "unavailable" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 2,
+      pendingJobs: 2,
+      ingestAttention: 0,
+      jobsFailed: true,
+    })).toMatchObject({ state: "unavailable" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 0,
+      ingestAttention: 0,
+      ingestFailed: true,
+    })).toMatchObject({ state: "unavailable" });
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 2,
+      pendingJobs: 2,
+      ingestAttention: 1,
+      ingestFailed: true,
+    })).toMatchObject({ state: "attention", ctaLabel: "Revisar fila" });
+
+    expect(describeAdminDashboardFocus({
+      isAdmin: true,
+      pendingCuration: 0,
+      pendingJobs: 0,
+      ingestAttention: 0,
+    })).toEqual({
+      state: "clear",
+      title: "Em dia",
+      detail: "Fila de revisão em dia",
+    });
+    expect(describeAdminDashboardFocus({
+      isAdmin: false,
+      pendingCuration: 0,
+    })).toMatchObject({ state: "clear", detail: "Fila de revisão em dia" });
   });
 });
