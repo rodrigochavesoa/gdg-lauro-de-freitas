@@ -14,6 +14,8 @@ pwsh scripts/migrate-docs-to-local.ps1
 
 A pasta `docs-local/` está no `.gitignore` e **não** vai para o GitHub. `AGENTS.md` na raiz e `.cursor/` também estão ignorados — use as cópias em `docs-local/`.
 
+**Skills Matt Pocock** (`code-review`, etc.): config genérica versionada em [`docs/agents/`](../docs/agents/) (`issue-tracker.md`, `domain.md`). Não duplicar em `docs-local/`. Bootstrap: `/setup-matt-pocock-skills` se o clone for anterior a esses arquivos.
+
 ## Estrutura sugerida
 
 ```
