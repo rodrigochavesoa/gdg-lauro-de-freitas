@@ -75,17 +75,7 @@ export function describeIngestionOutcome(outcome) {
   return OUTCOME_LABEL[outcome] ?? "Estado desconhecido";
 }
 
-export function latestIngestionAttempt(ingestion) {
-  const attempts = Array.isArray(ingestion?.job_ingestion_attempts)
-    ? ingestion.job_ingestion_attempts
-    : [];
-  if (attempts.length === 0) return null;
-  return [...attempts].sort((left, right) => {
-    const leftAt = Date.parse(left?.created_at ?? "") || 0;
-    const rightAt = Date.parse(right?.created_at ?? "") || 0;
-    return rightAt - leftAt;
-  })[0];
-}
+export { latestIngestionAttempt } from "./ingestion-attempt.js";
 
 function clientOrThrow(client) {
   const resolved = client ?? getSupabaseBrowserClient();

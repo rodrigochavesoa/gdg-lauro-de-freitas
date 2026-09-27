@@ -14,6 +14,8 @@ import {
   registerJobIngestion,
 } from "../src/features/ingest/source-contract.js";
 import { processJobIngestion } from "../src/features/ingest/ingest-api.js";
+import { latestIngestionAttempt } from "../src/features/ingest/ingestion-attempt.js";
+import { ingestNeedsAttention, staffListRowNeedsAttention } from "../src/features/ingest/ingest-attention.js";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -2006,7 +2008,7 @@ async function assertCanSeeIngestion(client, id, label) {
   assert((byId.data ?? []).some((row) => row.id === id), `${label} AAL2 lê a ingestão existente`);
 }
 
-/** Cenário 21 — MVP-013: job_ingestions fora do catálogo; duplicata idempotente; RLS. */
+/** Cenário 21 — MVP-013. Predicado de atenção: docs-local/tech/INGEST-ATTENTION-CONTRACT.md */
 async function assertIngestionStaffListContract(adminClient) {
   const listProbe = await queryWithRetry(() =>
     adminClient.from("job_ingestion_staff_list").select("id").limit(1),
@@ -2033,12 +2035,6 @@ async function assertIngestionStaffListContract(adminClient) {
     Boolean(anonCount.error) && isExecuteDenied(anonCount.error),
     `anon não executa count_job_ingestions_needing_attention (${errorText(anonCount.error) || "sem erro"})`,
   );
-}
-
-function listRowNeedsAttention(row) {
-  const outcome = row?.latest_outcome ?? null;
-  if (!outcome) return row?.job_id == null;
-  return outcome === "failed" || outcome === "expired";
 }
 
 async function readAttentionCount(client, label) {
@@ -2073,7 +2069,7 @@ async function assertStaffListRow(client, id, { needsAttention, outcome }) {
     assert(row.data.latest_outcome === outcome, `latest_outcome ${outcome} (${row.data.latest_outcome})`);
   }
   assert(
-    listRowNeedsAttention(row.data) === needsAttention,
+    staffListRowNeedsAttention(row.data) === needsAttention,
     `predicados da view ${needsAttention ? "contam" : "ignoram"} a linha (${row.data.latest_outcome}, job ${row.data.job_id ?? "nulo"})`,
   );
   return row.data;
@@ -2334,6 +2330,41 @@ async function scenario21_jobIngestions() {
   }
 }
 
+async function assertSameTimestampAttemptTie(admin, svc, stamp, createdIds) {
+  const createdAt = "2026-09-26T12:00:00.000Z";
+  const lowId = "00000000-0000-4000-8000-0000000000a1";
+  const highId = "ffffffff-ffff-4fff-8fff-0000000000a1";
+  const inserted = await svc.from("job_ingestions").insert({
+    source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+    normalized_locator: `fixture:rls-tie-${stamp}`,
+    payload_hash: "d".repeat(64),
+  }).select("id").single();
+  assert(!inserted.error && inserted.data?.id, `service insere ingestão de desempate (${inserted.error?.message ?? "ok"})`);
+  const ingestionId = inserted.data.id;
+  createdIds.push(ingestionId);
+  const attempts = await svc.from("job_ingestion_attempts").insert([
+    { id: lowId, ingestion_id: ingestionId, outcome: "failed", created_at: createdAt },
+    { id: highId, ingestion_id: ingestionId, outcome: "materialized", created_at: createdAt },
+  ]);
+  assert(!attempts.error, `service insere tentativas com o mesmo timestamp (${attempts.error?.message ?? "ok"})`);
+  const row = await assertStaffListRow(admin, ingestionId, { needsAttention: false, outcome: "materialized" });
+  const payload = [
+    { id: lowId, outcome: "failed", created_at: createdAt },
+    { id: highId, outcome: "materialized", created_at: createdAt },
+  ];
+  for (const job_ingestion_attempts of [payload, [...payload].reverse()]) {
+    const ingestion = { job_id: row.job_id, job_ingestion_attempts };
+    assert(latestIngestionAttempt(ingestion)?.id === highId, "JS desempata created_at igual por id desc");
+    assert(
+      ingestNeedsAttention(ingestion) === staffListRowNeedsAttention(row),
+      "paridade view/JS quando duas tentativas compartilham o timestamp",
+    );
+  }
+  await deleteIngestions([ingestionId]);
+  const idx = createdIds.indexOf(ingestionId);
+  if (idx >= 0) createdIds.splice(idx, 1);
+}
+
 /** Cenário 22 — MVP-013 Fase B: processa fixture, retry idempotente, expiração fora do catálogo, falha redigida. */
 async function scenario22_processJobIngestion() {
   if (!hasCreds(testUsers.admin) || !totpSecrets.admin) {
@@ -2450,6 +2481,7 @@ async function scenario22_processJobIngestion() {
     }
 
     if (svc) {
+      await assertSameTimestampAttemptTie(admin, svc, stamp, createdIds);
       const expiredInsert = await svc.from("job_ingestions").insert({
         source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
         normalized_locator: `fixture:rls-s22-expired-${stamp}`,
