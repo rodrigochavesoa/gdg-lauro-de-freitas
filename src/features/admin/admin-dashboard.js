@@ -85,3 +85,77 @@ export function summarizeAdminDashboard({
 
   return { metrics, ctas };
 }
+
+function attentionDetail(count, singular, plural) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/**
+ * Próxima ação do painel, na ordem já definida por `summarizeAdminDashboard`.
+ * Não cria métrica: curadoria, ingestão e vagas só entram quando o CTA correspondente existe.
+ */
+export function describeAdminDashboardFocus({
+  isAdmin = false,
+  pendingCuration = null,
+  pendingJobs = null,
+  ingestAttention = null,
+  jobsFailed = false,
+  ingestFailed = false,
+} = {}) {
+  const pending = confirmedCount(pendingCuration);
+  const jobsPending = confirmedCount(pendingJobs);
+  const ingest = confirmedCount(ingestAttention);
+
+  if (jobsFailed) return { state: "unavailable" };
+  if (pending == null) return { state: "loading" };
+
+  const priority = summarizeAdminDashboard({
+    isAdmin,
+    pendingCuration: pending,
+    pendingJobs: jobsPending,
+    ingestAttention: ingestFailed ? null : ingest,
+  }).ctas[0] ?? null;
+
+  if (priority?.to === "/admin/curadoria") {
+    return {
+      state: "attention",
+      title: "Curadoria",
+      detail: attentionDetail(pending, "vaga aguarda revisão", "vagas aguardam revisão"),
+      href: priority.to,
+      ctaLabel: "Revisar fila",
+      count: pending,
+    };
+  }
+
+  if (isAdmin && (ingest == null || ingestFailed)) {
+    return { state: ingestFailed ? "unavailable" : "loading" };
+  }
+
+  if (priority?.to === "/admin/ingestao") {
+    return {
+      state: "attention",
+      title: "Ingestões pendentes",
+      detail: attentionDetail(ingest, "ingestão pendente", "ingestões pendentes"),
+      href: priority.to,
+      ctaLabel: priority.label,
+      count: ingest,
+    };
+  }
+
+  if (priority?.to === "/admin/vagas") {
+    return {
+      state: "attention",
+      title: "Vagas",
+      detail: attentionDetail(jobsPending, "vaga pendente", "vagas pendentes"),
+      href: priority.to,
+      ctaLabel: priority.label,
+      count: jobsPending,
+    };
+  }
+
+  return {
+    state: "clear",
+    title: "Em dia",
+    detail: "Fila de revisão em dia",
+  };
+}

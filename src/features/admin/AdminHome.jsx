@@ -1,13 +1,49 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
+import { Check, ChevronRight, Clock, Database, FileText, X } from "lucide-react";
 import { countIngestionsNeedingAttention, loadAdminDashboardJobCounts } from "./admin-dashboard-api.js";
-import { summarizeAdminDashboard } from "./admin-dashboard.js";
+import { describeAdminDashboardFocus, summarizeAdminDashboard } from "./admin-dashboard.js";
 import { canManageAdminJobs } from "./staff-access.js";
 
-function focusCopy(value) {
-  if (typeof value !== "number") return null;
-  if (value > 0) return `${value} ${value === 1 ? "vaga aguarda" : "vagas aguardam"} revisão`;
-  return "Fila de revisão em dia";
+const STAT_ICONS = {
+  approved: FileText,
+  "rejected-jobs": X,
+  "rejected-queue": Clock,
+  "ingest-attention": Database,
+};
+
+function FocusRing({ state, count }) {
+  return (
+    <div className={`admin-dashboard-ring admin-dashboard-ring--${state}`} aria-hidden="true">
+      <svg viewBox="0 0 72 72" focusable="false">
+        <circle cx="36" cy="36" r="28" className="admin-dashboard-ring__track" />
+        {state === "attention" ? <circle cx="36" cy="36" r="28" className="admin-dashboard-ring__arc" /> : null}
+      </svg>
+      <span className="admin-dashboard-ring__value">
+        {state === "attention" ? <strong>{count}</strong> : null}
+        {state === "clear" ? <Check size={22} /> : null}
+        {state === "loading" || state === "unavailable" ? <span className="admin-dashboard-skeleton-value" /> : null}
+      </span>
+    </div>
+  );
+}
+
+function FocusSteps({ state }) {
+  const attention = state === "attention";
+  return (
+    <ol className={`admin-dashboard-steps admin-dashboard-steps--${state}`} aria-label="Situação do painel">
+      <li className="admin-dashboard-steps__item admin-dashboard-steps__item--current" aria-current="step">
+        <span className="admin-dashboard-steps__dot" />
+        <span className="admin-dashboard-steps__label">{attention ? "Atenção" : "Em dia"}</span>
+      </li>
+      <li className="admin-dashboard-steps__item" aria-hidden="true"><span className="admin-dashboard-steps__dot" /></li>
+      <li className="admin-dashboard-steps__item" aria-hidden="true"><span className="admin-dashboard-steps__dot" /></li>
+      <li className="admin-dashboard-steps__item">
+        <span className="admin-dashboard-steps__dot" />
+        <span className="admin-dashboard-steps__label">Visão geral</span>
+      </li>
+    </ol>
+  );
 }
 
 export function AdminHome({ refreshKey = 0 }) {
@@ -80,15 +116,27 @@ export function AdminHome({ refreshKey = 0 }) {
     pendingJobs: jobCounts ? jobCounts.pendingJobs : null,
     ingestAttention,
   });
-  const priorityMetric = summary.metrics[0];
+  const focus = describeAdminDashboardFocus({
+    isAdmin,
+    pendingCuration: jobCounts ? jobCounts.pendingCuration : null,
+    pendingJobs: jobCounts ? jobCounts.pendingJobs : null,
+    ingestAttention,
+    jobsFailed: Boolean(jobsError),
+    ingestFailed: Boolean(ingestError),
+  });
   const secondaryMetrics = summary.metrics.slice(1);
-  const curationCta = summary.ctas.find((cta) => cta.to === "/admin/curadoria");
-  const otherCtas = summary.ctas.filter((cta) => cta.to !== "/admin/curadoria");
-  const priorityText = focusCopy(priorityMetric.value);
+  const otherCtas = summary.ctas.filter((cta) => {
+    if (focus.href && cta.to === focus.href) return false;
+    if (jobsError && cta.to !== "/admin/ingestao") return false;
+    if (ingestError && cta.to === "/admin/ingestao") return false;
+    return true;
+  });
+  const unresolved = focus.state === "loading" || focus.state === "unavailable";
+  const sectionBusy = jobsBusy || (focus.state === "loading" && ingestBusy);
   const retry = () => setReloadToken((value) => value + 1);
 
   return (
-    <>
+    <div className="admin-dashboard">
       <div className="admin-title">
         <div>
           <span className="eyebrow">Área de equipe</span>
@@ -103,22 +151,32 @@ export function AdminHome({ refreshKey = 0 }) {
         </div>
       ) : null}
       <section
-        className="admin-dashboard-focus"
+        className={`admin-dashboard-focus admin-dashboard-focus--${focus.state}`}
         aria-labelledby="admin-dashboard-focus-title"
-        aria-busy={jobsBusy || undefined}
+        aria-busy={sectionBusy || undefined}
       >
-        <div>
+        <FocusRing state={focus.state} count={focus.count} />
+        <div className="admin-dashboard-focus__copy">
           <p className="admin-dashboard-focus__eyebrow">Próxima ação</p>
-          <h2 id="admin-dashboard-focus-title">Curadoria</h2>
-          {priorityText ? <p>{priorityText}</p> : <span className="admin-dashboard-skeleton-value" />}
+          <h2 id="admin-dashboard-focus-title">
+            {unresolved ? <span className="sr-only">Próxima ação</span> : focus.title}
+            {unresolved ? <span className="admin-dashboard-skeleton-value" aria-hidden="true" /> : null}
+          </h2>
+          {focus.detail ? <p aria-live="polite">{focus.detail}</p> : <span className="admin-dashboard-skeleton-value" aria-hidden="true" />}
         </div>
-        {curationCta ? (
-          <Link className="primary small" to={curationCta.to}>Revisar fila</Link>
-        ) : priorityMetric.value === 0 ? (
-          <Link className="outline small" to="/admin/curadoria">Abrir curadoria</Link>
+        {unresolved ? (
+          <span className="admin-dashboard-skeleton-value admin-dashboard-steps-skeleton" aria-hidden="true" />
         ) : (
-          <span className="admin-dashboard-skeleton-value admin-dashboard-skeleton-action" aria-hidden="true" />
+          <FocusSteps state={focus.state} />
         )}
+        {focus.href ? (
+          <Link className="primary small admin-dashboard-focus__cta" to={focus.href}>
+            {focus.ctaLabel}
+            <ChevronRight size={18} aria-hidden="true" />
+          </Link>
+        ) : unresolved ? (
+          <span className="admin-dashboard-skeleton-value admin-dashboard-skeleton-action" aria-hidden="true" />
+        ) : null}
       </section>
       {secondaryMetrics.length ? (
         <>
@@ -128,13 +186,21 @@ export function AdminHome({ refreshKey = 0 }) {
               const isIngest = metric.id === "ingest-attention";
               const busy = isIngest ? ingestBusy : jobsBusy;
               const pending = metric.value == null && !(isIngest && ingestError);
+              const Icon = STAT_ICONS[metric.id];
               return (
                 <div
                   key={metric.id}
-                  className={pending ? "admin-dashboard-stat admin-dashboard-stat--skeleton" : "admin-dashboard-stat"}
+                  className={pending ? `admin-dashboard-stat admin-dashboard-stat--${metric.id} admin-dashboard-stat--skeleton` : `admin-dashboard-stat admin-dashboard-stat--${metric.id}`}
                   aria-busy={busy || undefined}
                 >
-                  <dt>{metric.label}</dt>
+                  <dt>
+                    {Icon ? (
+                      <span className="admin-dashboard-stat__icon" aria-hidden="true">
+                        <Icon size={16} />
+                      </span>
+                    ) : null}
+                    <span>{metric.label}</span>
+                  </dt>
                   <dd aria-describedby={metric.hint ? `admin-metric-${metric.id}-hint` : undefined}>
                     {pending ? <span className="admin-dashboard-skeleton-value" /> : isIngest && ingestError && metric.value == null ? "—" : metric.value}
                   </dd>
@@ -154,7 +220,7 @@ export function AdminHome({ refreshKey = 0 }) {
         </div>
       ) : null}
       {otherCtas.length > 0 ? (
-        <nav className="admin-dashboard-cta" aria-label="Ações pendentes no painel">
+        <nav className="admin-dashboard-cta" aria-label="Outras ações pendentes no painel">
           {otherCtas.map((cta) => (
             <Link key={cta.to} className="outline small" to={cta.to}>
               {cta.label}
@@ -162,6 +228,6 @@ export function AdminHome({ refreshKey = 0 }) {
           ))}
         </nav>
       ) : null}
-    </>
+    </div>
   );
 }
