@@ -1199,33 +1199,91 @@ function applyResultText(result) {
   return [result?.error?.message, result?.error?.details, result?.error?.hint].filter(Boolean).join(" ");
 }
 
+function classifyBurstResult(row) {
+  const text = applyResultText(row);
+  const notFound = /job not found/i.test(text);
+  const limitText = /rate limit exceeded/i.test(text);
+  const pt429 = row.error?.code === "PT429";
+  if (notFound && (limitText || pt429)) return "overlap";
+  if (notFound) return "notFound";
+  if (pt429) return "limited";
+  return "other";
+}
+
+async function cleanupScenario25Probe(svc, userId) {
+  const problems = [];
+  const apps = await svc.from("applications").delete().eq("candidate_id", userId);
+  if (apps.error) problems.push(`applications: ${apps.error.message}`);
+  const hits = await svc.from("apply_request_log").delete().eq("user_id", userId);
+  if (hits.error) problems.push(`apply_request_log: ${hits.error.message}`);
+  const profile = await svc.from("profiles").delete().eq("id", userId);
+  if (profile.error) problems.push(`profiles: ${profile.error.message}`);
+  const removed = await svc.auth.admin.deleteUser(userId);
+  if (removed.error) problems.push(`auth: ${removed.error.message}`);
+
+  const leftHits = await svc.from("apply_request_log").select("id").eq("user_id", userId);
+  if (leftHits.error) problems.push(`apply_request_log readback: ${leftHits.error.message}`);
+  else if ((leftHits.data ?? []).length > 0) problems.push(`apply_request_log restantes: ${leftHits.data.length}`);
+
+  const leftUser = await svc.auth.admin.getUserById(userId);
+  if (leftUser.data?.user) problems.push("auth user ainda existe");
+  else if (leftUser.error && !/not found/i.test(leftUser.error.message ?? "")) {
+    problems.push(`auth readback: ${leftUser.error.message}`);
+  }
+  return problems;
+}
+
 /** Cenário 25 — SEC-APPLY-RATELIMIT-CONCURRENCY-01: lock serializa a janela 5/60s. */
 async function scenario25_applyRateLimitConcurrency() {
-  if (!hasCreds(testUsers.admin) || !hasCreds(testUsers.candidate)) {
-    skipRequired(25, "faltam admin e/ou candidate em docs-local");
+  const svc = createServiceClient();
+  if (!svc) {
+    skipRequired(25, "falta SUPABASE_SERVICE_ROLE_KEY para fixture exclusiva");
     return;
   }
 
   const missingJobId = "00000000-0000-4000-8000-000000000099";
   const burst = 8;
-  let admin = null;
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const probeEmail = `rls-s25-${stamp}@example.com`;
+  const probePass = `RlS-s25-${stamp}-Aa1!`;
   let candidate = null;
-  let user = null;
+  let probeUserId = null;
+
   try {
-    const adminSign = await signInStaff("admin");
-    admin = adminSign.client;
-    const candSign = await signIn(testUsers.candidate);
-    candidate = candSign.client;
-    user = candSign.user ?? null;
-    if (adminSign.error || candSign.error || !user?.id) {
-      skipRequired(25, "admin ou candidato não autenticou");
+    const created = await svc.auth.admin.createUser({
+      email: probeEmail,
+      password: probePass,
+      email_confirm: true,
+    });
+    if (created.error || !created.data.user?.id) {
+      assert(false, `cenário 25 não criou o candidato exclusivo (${created.error?.message ?? "sem id"})`);
+      return;
+    }
+    probeUserId = created.data.user.id;
+
+    const signed = await signInWithRetry(
+      { email: probeEmail, password: probePass },
+      { label: "cenário 25", attempts: 3, pauseMs: 1500 },
+    );
+    candidate = signed.client;
+    if (signed.error || signed.user?.id !== probeUserId) {
+      assert(false, `cenário 25 não autenticou o candidato exclusivo (${signed.error?.message ?? "sem sessão"})`);
       return;
     }
 
-    await deleteApplication(admin, missingJobId, user.id);
-    await deleteApplication(admin, SEED_APPROVED_A, user.id);
-    await deleteApplyRequestLog(admin, user.id);
-    await ensureD01Profile(candidate, user.id);
+    const profile = await candidate.from("profiles").insert({
+      id: probeUserId,
+      full_name: "Candidato Cenário 25",
+      role: "candidate",
+      skills: ["JavaScript"],
+      preferences: {
+        experience_level: "junior",
+        work_model: "remote",
+        location: "Brasil · Remoto",
+      },
+    }).select("id").single();
+    assert(!profile.error && profile.data?.id === probeUserId, `perfil D-01 do probe (${profile.error?.message ?? "ok"})`);
+    if (profile.error) return;
 
     const results = await Promise.all(
       Array.from({ length: burst }, () => rpcApply(candidate, missingJobId)),
@@ -1236,43 +1294,46 @@ async function scenario25_applyRateLimitConcurrency() {
       return;
     }
 
-    const messages = results.map(applyResultText);
-    const notFound = messages.filter((msg) => /job not found/i.test(msg));
-    const limited = results.filter((row) => /rate limit exceeded/i.test(applyResultText(row)));
-    assert(results.every((row) => row.error), "rajada paralela não cria candidatura");
-    assert(notFound.length <= 5, `no máximo 5 job not found na rajada (${notFound.length})`);
-    assert(notFound.length + limited.length === burst, `rajada só job not found ou rate limit (${messages.join(" | ")})`);
-    assert(
-      limited.length === burst - 5 && limited.every((row) => row.error?.code === "PT429"),
-      `excedente paralelo é PT429 (${limited.map((row) => `${row.error?.code || "sem code"}:${applyResultText(row)}`).join(" | ") || "nenhum"})`,
-    );
+    const classes = results.map(classifyBurstResult);
+    const countClass = (name) => classes.filter((item) => item === name).length;
+    const notFound = countClass("notFound");
+    const limited = countClass("limited");
+    const overlap = countClass("overlap");
+    const other = countClass("other");
+    const otherText = results
+      .filter((_, index) => classes[index] === "other")
+      .map(applyResultText)
+      .join(" | ");
+    assert(notFound === 5, `exatamente 5 job not found (${notFound})`);
+    assert(limited === 3, `exatamente 3 PT429 (${limited})`);
+    assert(overlap === 0, `sem sobreposição job not found/PT429 (${overlap})`);
+    assert(other === 0, `sem resposta fora das duas classes (${other}${otherText ? `: ${otherText}` : ""})`);
+    assert(notFound + limited + overlap + other === burst, `as ${burst} respostas foram classificadas uma vez`);
 
-    const hits = await admin.from("apply_request_log").select("id").eq("user_id", user.id);
-    assert(!hits.error, `admin lê apply_request_log (${hits.error?.message ?? "ok"})`);
-    assert((hits.data ?? []).length <= 5, `no máximo 5 hits na janela (${hits.data?.length ?? "erro"})`);
+    const hits = await svc.from("apply_request_log").select("id").eq("user_id", probeUserId);
+    assert(!hits.error, `service lê apply_request_log (${hits.error?.message ?? "ok"})`);
     assert((hits.data ?? []).length === 5, `a rajada deixa 5 hits (${hits.data?.length ?? "erro"})`);
 
-    const leaked = await admin.from("applications").select("id").eq("job_id", missingJobId).eq("candidate_id", user.id);
+    const leaked = await svc.from("applications").select("id").eq("job_id", missingJobId).eq("candidate_id", probeUserId);
     assert(!leaked.error && (leaked.data ?? []).length === 0, "UUID inválido não cria candidatura");
 
-    await deleteApplyRequestLog(admin, user.id);
-    await deleteApplication(admin, SEED_APPROVED_A, user.id);
+    const cleared = await svc.from("apply_request_log").delete().eq("user_id", probeUserId);
+    assert(!cleared.error, `limpa hits do probe antes do par (${cleared.error?.message ?? "ok"})`);
+
     const pair = await Promise.all([
       rpcApply(candidate, SEED_APPROVED_A),
       rpcApply(candidate, SEED_APPROVED_A),
     ]);
     const successes = pair.filter((row) => !row.error);
     assert(successes.length <= 1, `no máximo um sucesso no mesmo par (${successes.length})`);
-    const apps = await admin.from("applications").select("id").eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
+    const apps = await svc.from("applications").select("id").eq("job_id", SEED_APPROVED_A).eq("candidate_id", probeUserId);
     assert(!apps.error && (apps.data ?? []).length <= 1, `UNIQUE segura o par paralelo (${apps.data?.length ?? "erro"})`);
   } finally {
-    if (admin && user?.id) {
-      await deleteApplication(admin, missingJobId, user.id);
-      await deleteApplication(admin, SEED_APPROVED_A, user.id);
-      await deleteApplyRequestLog(admin, user.id);
-    }
     await candidate?.auth.signOut();
-    await admin?.auth.signOut();
+    if (probeUserId) {
+      const problems = await cleanupScenario25Probe(svc, probeUserId);
+      assert(problems.length === 0, `cleanup cenário 25 (${problems.join("; ") || "ok"})`);
+    }
   }
 }
 
