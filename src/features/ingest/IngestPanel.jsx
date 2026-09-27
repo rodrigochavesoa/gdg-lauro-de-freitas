@@ -10,6 +10,7 @@ import {
 import { SOURCE_KINDS, isIngestionExpired } from "./source-contract.js";
 import { LEVEL_TO_DB, MODEL_TO_DB, parseStack, structuredJobColumns } from "../../lib/admin-api.js";
 import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
+import { mergeById } from "../../lib/merge-by-id.js";
 
 const emptyForm = {
   locator: HOMOLOG_MANUAL_FIXTURE.locator,
@@ -55,11 +56,6 @@ function expiresAtIso(value) {
   const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString();
-}
-
-function mergeById(current, incoming) {
-  const seen = new Set(current.map((row) => String(row.id)));
-  return [...current, ...incoming.filter((row) => !seen.has(String(row.id)))];
 }
 
 function ingestionListTitle(row) {

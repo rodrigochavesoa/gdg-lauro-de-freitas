@@ -14,6 +14,7 @@ import { RUBRIC_OPTIONS } from "./rubric.js";
 import { CurationTimeline } from "./CurationTimeline.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
 import { CurationPriorityControls } from "./CurationPriorityControls.jsx";
+import { mergeById } from "../../lib/merge-by-id.js";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -27,11 +28,6 @@ const MODEL_LABEL = {
   hybrid: "Híbrido",
   onsite: "Presencial",
 };
-
-function mergeById(current, incoming) {
-  const seen = new Set(current.map((row) => String(row.id)));
-  return [...current, ...incoming.filter((row) => !seen.has(String(row.id)))];
-}
 
 /** Sem id explícito, não abre detalhe. Id que saiu da lista não cai na próxima vaga. */
 function resolveCurationSelection(visibleJobs, selectedId) {
