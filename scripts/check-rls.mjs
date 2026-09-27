@@ -1205,16 +1205,23 @@ async function scenario25_applyRateLimitConcurrency() {
     skipRequired(25, "faltam admin e/ou candidate em docs-local");
     return;
   }
-  const { client: admin, error: adminErr } = await signInStaff("admin");
-  const { client: candidate, user, error: candErr } = await signIn(testUsers.candidate);
-  if (adminErr || candErr || !user?.id) {
-    skipRequired(25, "admin ou candidato não autenticou");
-    return;
-  }
 
   const missingJobId = "00000000-0000-4000-8000-000000000099";
   const burst = 8;
+  let admin = null;
+  let candidate = null;
+  let user = null;
   try {
+    const adminSign = await signInStaff("admin");
+    admin = adminSign.client;
+    const candSign = await signIn(testUsers.candidate);
+    candidate = candSign.client;
+    user = candSign.user ?? null;
+    if (adminSign.error || candSign.error || !user?.id) {
+      skipRequired(25, "admin ou candidato não autenticou");
+      return;
+    }
+
     await deleteApplication(admin, missingJobId, user.id);
     await deleteApplication(admin, SEED_APPROVED_A, user.id);
     await deleteApplyRequestLog(admin, user.id);
@@ -1259,11 +1266,13 @@ async function scenario25_applyRateLimitConcurrency() {
     const apps = await admin.from("applications").select("id").eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
     assert(!apps.error && (apps.data ?? []).length <= 1, `UNIQUE segura o par paralelo (${apps.data?.length ?? "erro"})`);
   } finally {
-    await deleteApplication(admin, missingJobId, user.id);
-    await deleteApplication(admin, SEED_APPROVED_A, user.id);
-    await deleteApplyRequestLog(admin, user.id);
-    await candidate.auth.signOut();
-    await admin.auth.signOut();
+    if (admin && user?.id) {
+      await deleteApplication(admin, missingJobId, user.id);
+      await deleteApplication(admin, SEED_APPROVED_A, user.id);
+      await deleteApplyRequestLog(admin, user.id);
+    }
+    await candidate?.auth.signOut();
+    await admin?.auth.signOut();
   }
 }
 
