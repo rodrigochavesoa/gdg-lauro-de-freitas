@@ -188,10 +188,11 @@ export function Home({ logged = false }) {
     (urlFilters.country ? 1 : 0) +
     (urlFilters.place ? 1 : 0) +
     (urlFilters.salaryMin != null || urlFilters.salaryMax != null ? 1 : 0);
+  const initialCatalogLoading = catalogStatus === "loading" && jobs.length === 0;
   const displayedCount = resultCount ?? jobs.length;
   const hasMore = catalogStatus === "ready" && resultCount != null && jobs.length < resultCount;
   const catalogAnnouncement =
-    catalogStatus === "loading" && jobs.length === 0
+    initialCatalogLoading
       ? "Carregando vagas"
       : catalogStatus === "error"
         ? "Catálogo indisponível"
@@ -238,14 +239,23 @@ export function Home({ logged = false }) {
         <div className="result-head">
           <div>
             <h2>Vagas em destaque</h2>
-            <p>{displayedCount} oportunidades encontradas</p>
+            <p className="catalog-result-count" aria-live="polite">
+              {initialCatalogLoading ? (
+                <span
+                  className="admin-dashboard-skeleton-value catalog-result-count-skeleton"
+                  aria-hidden="true"
+                />
+              ) : (
+                `${displayedCount} oportunidades encontradas`
+              )}
+            </p>
           </div>
           <button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
           <SortMenu value={urlFilters.sort} onChange={(sort) => replaceFilters({ sort })} />
         </div>
         <div className="cards">
           {catalogAnnouncement ? <p className="sr-only" role="status">{catalogAnnouncement}</p> : null}
-          {catalogStatus === "loading" && jobs.length === 0 ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
+          {initialCatalogLoading ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
           {jobs.map(job => <JobCard key={job.id} job={job} />)}
           {catalogStatus === "error" && jobs.length === 0 && (
             <div className="empty">
