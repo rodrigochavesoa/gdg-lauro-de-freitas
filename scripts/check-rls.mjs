@@ -1221,9 +1221,17 @@ async function cleanupScenario25Probe(svc, userId) {
   const removed = await svc.auth.admin.deleteUser(userId);
   if (removed.error) problems.push(`auth: ${removed.error.message}`);
 
+  const leftApps = await svc.from("applications").select("id").eq("candidate_id", userId);
+  if (leftApps.error) problems.push(`applications readback: ${leftApps.error.message}`);
+  else if ((leftApps.data ?? []).length > 0) problems.push(`applications restantes: ${leftApps.data.length}`);
+
   const leftHits = await svc.from("apply_request_log").select("id").eq("user_id", userId);
   if (leftHits.error) problems.push(`apply_request_log readback: ${leftHits.error.message}`);
   else if ((leftHits.data ?? []).length > 0) problems.push(`apply_request_log restantes: ${leftHits.data.length}`);
+
+  const leftProfile = await svc.from("profiles").select("id").eq("id", userId).maybeSingle();
+  if (leftProfile.error) problems.push(`profiles readback: ${leftProfile.error.message}`);
+  else if (leftProfile.data) problems.push("profile ainda existe");
 
   const leftUser = await svc.auth.admin.getUserById(userId);
   if (leftUser.data?.user) problems.push("auth user ainda existe");
