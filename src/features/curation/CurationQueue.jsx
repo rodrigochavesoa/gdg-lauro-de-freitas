@@ -15,6 +15,7 @@ import { CurationTimeline } from "./CurationTimeline.jsx";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
 import { CurationPriorityControls } from "./CurationPriorityControls.jsx";
 import { mergeById } from "../../lib/merge-by-id.js";
+import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -190,6 +191,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
   }, [selected?.id, detailEpoch]);
 
   const loadingMore = view === "rejected" ? rejectedLoadingMore : pendingLoadingMore;
+  const queueLoading = view === "rejected" ? rejectedStatus === "loading" : loading;
+  const queueLoadingAnnouncement = queueLoading ? "Carregando fila de curadoria…" : "";
 
   const loadMore = async () => {
     const scope = view === "rejected" ? "rejected" : "pending";
@@ -268,7 +271,6 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <p>Selecione uma vaga, confira o contexto e registre seu parecer.</p>
         </div>
       </div>
-      {loading && <p role="status">Carregando fila de curadoria…</p>}
       {message && (
         <div className="success">
           <Check size={18} /> {message}
@@ -288,9 +290,19 @@ export function CurationQueue({ profile, includeRejected = false }) {
         </button> : null}
       </div>
       <div className={`curation-workspace${detailOpen ? " curation-workspace--detail-open" : ""}`}>
-      <section className="curation-workspace__queue" aria-label={view === "pending" ? "Vagas pendentes" : "Vagas rejeitadas"}>
+      <section
+        className="curation-workspace__queue"
+        aria-label={view === "pending" ? "Vagas pendentes" : "Vagas rejeitadas"}
+        aria-busy={queueLoading || loadingMore ? "true" : undefined}
+      >
         <h2>{view === "pending" ? "Pendentes" : "Rejeitadas"}</h2>
-        {visibleJobs.length === 0 && !loading && <p role="status">{view === "pending" ? "Nenhuma vaga pendente nesta fila." : "Nenhuma vaga rejeitada para reenvio."}</p>}
+        {queueLoadingAnnouncement ? (
+          <p className="sr-only" role="status">{queueLoadingAnnouncement}</p>
+        ) : null}
+        {queueLoading && visibleJobs.length === 0 ? <AdminPanelShimmer variant="list" /> : null}
+        {visibleJobs.length === 0 && !queueLoading ? (
+          <p role="status">{view === "pending" ? "Nenhuma vaga pendente nesta fila." : "Nenhuma vaga rejeitada para reenvio."}</p>
+        ) : null}
         {visibleJobs.map((job) => (
           <div key={job.id} className="curation-workspace__queue-item">
             <button
@@ -330,7 +342,12 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <div className="form-section">
             <h2>{selected.title}</h2>
             <p className="company-name">{selected.companies?.name}</p>
-            {detailLoading ? <p role="status">Carregando detalhes da vaga…</p> : null}
+            {detailLoading ? (
+              <>
+                <p className="sr-only" role="status">Carregando detalhes da vaga…</p>
+                <AdminPanelShimmer variant="detail" />
+              </>
+            ) : null}
             {detailFailed ? <p role="alert">{detailError}</p> : null}
             {detailReady ? <p>{detailDescription}</p> : null}
             <p>
@@ -347,7 +364,6 @@ export function CurationQueue({ profile, includeRejected = false }) {
             ) : null}
             <details className="curation-workspace__history">
               <summary>Histórico de pareceres{detailReady ? ` (${detailReviews.length})` : ""}</summary>
-              {detailLoading ? <p role="status">Carregando pareceres…</p> : null}
               {detailReady ? <CurationTimeline reviews={detailReviews} /> : null}
             </details>
           </div>

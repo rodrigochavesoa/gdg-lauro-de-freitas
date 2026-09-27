@@ -38,7 +38,9 @@ describe("IngestPanel", () => {
         }),
     );
     render(<IngestPanel />);
-    expect(screen.getByRole("status")).toHaveTextContent("Carregando ingestões…");
+    expect(screen.getByRole("status", { hidden: true })).toHaveTextContent("Carregando ingestões…");
+    expect(document.querySelector(".admin-ingest__loading")).toBeTruthy();
+    expect(screen.getByText("Carregando ingestões…").className).toContain("sr-only");
     resolveRows(emptyPage);
     expect(await screen.findByText("Nenhuma ingestão registrada.")).toBeInTheDocument();
   });

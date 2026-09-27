@@ -16,6 +16,7 @@ import {
   parseAdminJobListSearch,
 } from "./admin-jobs-api.js";
 import { adminJobStatusLabel } from "./job-form-state.js";
+import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
 
 function mergeJobsById(current, incoming) {
   const seen = new Set(current.map((job) => String(job.id)));
@@ -288,15 +289,7 @@ export function AdminJobsRoute() {
           </p>
         ) : null}
         <div className="admin-jobs-list-panel">
-          {listStatus === "loading" && items.length === 0
-            ? [1, 2, 3, 4].map((slot) => (
-                <div
-                  key={slot}
-                  className="admin-job-card admin-jobs-skeleton job-card--skeleton job-card--skeleton-static"
-                  aria-hidden="true"
-                />
-              ))
-            : null}
+          {listStatus === "loading" && items.length === 0 ? <AdminPanelShimmer variant="list" /> : null}
           {items.map((job) => (
             <JobListRow key={job.id} job={job} returnSearch={search} />
           ))}
