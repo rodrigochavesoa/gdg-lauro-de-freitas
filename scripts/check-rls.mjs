@@ -1214,53 +1214,57 @@ async function scenario25_applyRateLimitConcurrency() {
 
   const missingJobId = "00000000-0000-4000-8000-000000000099";
   const burst = 8;
-  await deleteApplication(admin, missingJobId, user.id);
-  await deleteApplication(admin, SEED_APPROVED_A, user.id);
-  await deleteApplyRequestLog(admin, user.id);
-  await ensureD01Profile(candidate, user.id);
+  try {
+    await deleteApplication(admin, missingJobId, user.id);
+    await deleteApplication(admin, SEED_APPROVED_A, user.id);
+    await deleteApplyRequestLog(admin, user.id);
+    await ensureD01Profile(candidate, user.id);
 
-  const results = await Promise.all(
-    Array.from({ length: burst }, () => rpcApply(candidate, missingJobId)),
-  );
+    const results = await Promise.all(
+      Array.from({ length: burst }, () => rpcApply(candidate, missingJobId)),
+    );
 
-  if (results.some((row) => row.error?.message?.includes("Could not find the function"))) {
-    skipRequired(25, "RPC apply_to_job não aplicada no ambiente");
+    if (results.some((row) => row.error?.message?.includes("Could not find the function"))) {
+      skipRequired(25, "RPC apply_to_job não aplicada no ambiente");
+      return;
+    }
+
+    const messages = results.map(applyResultText);
+    const notFound = messages.filter((msg) => /job not found/i.test(msg));
+    const limited = results.filter((row) => /rate limit exceeded/i.test(applyResultText(row)));
+    assert(results.every((row) => row.error), "rajada paralela não cria candidatura");
+    assert(notFound.length <= 5, `no máximo 5 job not found na rajada (${notFound.length})`);
+    assert(notFound.length + limited.length === burst, `rajada só job not found ou rate limit (${messages.join(" | ")})`);
+    assert(
+      limited.length === burst - 5 && limited.every((row) => row.error?.code === "PT429"),
+      `excedente paralelo é PT429 (${limited.map((row) => `${row.error?.code || "sem code"}:${applyResultText(row)}`).join(" | ") || "nenhum"})`,
+    );
+
+    const hits = await admin.from("apply_request_log").select("id").eq("user_id", user.id);
+    assert(!hits.error, `admin lê apply_request_log (${hits.error?.message ?? "ok"})`);
+    assert((hits.data ?? []).length <= 5, `no máximo 5 hits na janela (${hits.data?.length ?? "erro"})`);
+    assert((hits.data ?? []).length === 5, `a rajada deixa 5 hits (${hits.data?.length ?? "erro"})`);
+
+    const leaked = await admin.from("applications").select("id").eq("job_id", missingJobId).eq("candidate_id", user.id);
+    assert(!leaked.error && (leaked.data ?? []).length === 0, "UUID inválido não cria candidatura");
+
+    await deleteApplyRequestLog(admin, user.id);
+    await deleteApplication(admin, SEED_APPROVED_A, user.id);
+    const pair = await Promise.all([
+      rpcApply(candidate, SEED_APPROVED_A),
+      rpcApply(candidate, SEED_APPROVED_A),
+    ]);
+    const successes = pair.filter((row) => !row.error);
+    assert(successes.length <= 1, `no máximo um sucesso no mesmo par (${successes.length})`);
+    const apps = await admin.from("applications").select("id").eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
+    assert(!apps.error && (apps.data ?? []).length <= 1, `UNIQUE segura o par paralelo (${apps.data?.length ?? "erro"})`);
+  } finally {
+    await deleteApplication(admin, missingJobId, user.id);
+    await deleteApplication(admin, SEED_APPROVED_A, user.id);
+    await deleteApplyRequestLog(admin, user.id);
     await candidate.auth.signOut();
     await admin.auth.signOut();
-    return;
   }
-
-  const messages = results.map(applyResultText);
-  const notFound = messages.filter((msg) => /job not found/i.test(msg));
-  const limited = messages.filter((msg) => /rate limit exceeded/i.test(msg));
-  assert(results.every((row) => row.error), "rajada paralela não cria candidatura");
-  assert(notFound.length <= 5, `no máximo 5 job not found na rajada (${notFound.length})`);
-  assert(notFound.length + limited.length === burst, `rajada só job not found ou rate limit (${messages.join(" | ")})`);
-  assert(limited.length === burst - 5, `excedente paralelo é rate limit (${limited.length}/${burst})`);
-
-  const hits = await admin.from("apply_request_log").select("id").eq("user_id", user.id);
-  assert(!hits.error, `admin lê apply_request_log (${hits.error?.message ?? "ok"})`);
-  assert((hits.data ?? []).length <= 5, `no máximo 5 hits na janela (${hits.data?.length ?? "erro"})`);
-  assert((hits.data ?? []).length === 5, `a rajada deixa 5 hits (${hits.data?.length ?? "erro"})`);
-
-  const leaked = await admin.from("applications").select("id").eq("job_id", missingJobId).eq("candidate_id", user.id);
-  assert(!leaked.error && (leaked.data ?? []).length === 0, "UUID inválido não cria candidatura");
-
-  await deleteApplyRequestLog(admin, user.id);
-  await deleteApplication(admin, SEED_APPROVED_A, user.id);
-  const pair = await Promise.all([
-    rpcApply(candidate, SEED_APPROVED_A),
-    rpcApply(candidate, SEED_APPROVED_A),
-  ]);
-  const successes = pair.filter((row) => !row.error);
-  assert(successes.length <= 1, `no máximo um sucesso no mesmo par (${successes.length})`);
-  const apps = await admin.from("applications").select("id").eq("job_id", SEED_APPROVED_A).eq("candidate_id", user.id);
-  assert(!apps.error && (apps.data ?? []).length <= 1, `UNIQUE segura o par paralelo (${apps.data?.length ?? "erro"})`);
-
-  await deleteApplication(admin, SEED_APPROVED_A, user.id);
-  await deleteApplyRequestLog(admin, user.id);
-  await candidate.auth.signOut();
-  await admin.auth.signOut();
 }
 
 /** Cenário 15 — MVP-021: EXECUTE revogado de PUBLIC/anon nas RPCs administrativas. */
