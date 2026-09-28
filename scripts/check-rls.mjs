@@ -1552,11 +1552,38 @@ async function scenario27_adminDashboardSummary() {
     assert(Number(data.pending_jobs) === pending, "pending_jobs espelha pending_curation");
     assert(Number(data.rejected_queue) === Number(data.rejected_jobs), "rejected_queue espelha rejected_jobs");
     assert(Number.isInteger(Number(data.approved)) && Number(data.approved) >= 0, "approved inteiro");
-    assert(Number.isInteger(Number(data.ingest_attention)) && Number(data.ingest_attention) >= 0, "ingest_attention inteiro");
+    assert(data.ingest_available === true, `homolog marca ingestão disponível (${data.ingest_available})`);
+    assert(
+      Number.isInteger(Number(data.ingest_attention)) && Number(data.ingest_attention) >= 0,
+      `ingest_attention inteiro quando disponível (${data.ingest_attention})`,
+    );
 
     const listed = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("status", "pending");
     assert(!listed.error, `admin conta pending (${listed.error?.message ?? "ok"})`);
     assert(listed.count === pending, `RPC coincide com a contagem de pending (${listed.count} vs ${pending})`);
+
+    const svc = createServiceClient();
+    if (!svc) {
+      assert(false, "service role ausente: ingest_attention > 0 não comprovado no banco");
+    } else {
+      const before = Number(data.ingest_attention);
+      const inserted = await svc.from("job_ingestions").insert({
+        source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+        normalized_locator: `fixture:rls-s27-${Date.now()}`,
+        payload_hash: "a".repeat(64),
+      }).select("id").single();
+      assert(!inserted.error && inserted.data?.id, `service insere ingestão sem job (${inserted.error?.message ?? "ok"})`);
+      if (inserted.data?.id) {
+        const raised = await admin.rpc("get_admin_dashboard_summary");
+        assert(
+          !raised.error && Number(raised.data?.ingest_attention) === before + 1,
+          `admin AAL2 vê ingest_attention aumentar (${before} → ${raised.data?.ingest_attention})`,
+        );
+        assert(raised.data?.ingest_available === true, "contagem positiva continua disponível");
+        assert(Number(raised.data?.pending_curation) === pending, "contagem de vagas permanece junto da ingestão");
+        await deleteIngestions([inserted.data.id]);
+      }
+    }
 
     aal1 = await assertPasswordOnlyNotAal2("admin");
     if (aal1) {
@@ -1577,6 +1604,47 @@ async function scenario27_adminDashboardSummary() {
       await admin.auth.signOut();
     } catch {
       /* idem */
+    }
+  }
+
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(27, "falta candidate em docs-local");
+  } else {
+    const { client: candidate, error: candErr } = await signInWithRetry(testUsers.candidate, { label: "candidato (resumo)" });
+    assert(!candErr && candidate, `candidato autentica (${candErr?.message ?? "ok"})`);
+    if (!candErr && candidate) {
+      const { data: aal } = await candidate.auth.mfa.getAuthenticatorAssuranceLevel();
+      const denied = await candidate.rpc("get_admin_dashboard_summary");
+      assert(
+        /not authorized to review/i.test(errorText(denied.error)),
+        `candidato ${aal?.currentLevel ?? "sem AAL"} não lê o resumo (${errorText(denied.error) || "sem erro"})`,
+      );
+      assert(denied.data == null, "candidato não recebe jsonb");
+      await candidate.auth.signOut();
+    }
+  }
+
+  for (const role of ["curator", "moderator"]) {
+    const client = await signInStaffForScenario(27, role);
+    if (!client) continue;
+    try {
+      const summary = await client.rpc("get_admin_dashboard_summary");
+      assert(!summary.error && summary.data, `${role} AAL2 recebe resumo (${errorText(summary.error) || "ok"})`);
+      const data = summary.data ?? {};
+      const pending = Number(data.pending_curation);
+      assert(Number.isInteger(pending) && pending >= 0, `${role} pending_curation inteiro (${data.pending_curation})`);
+      assert(Number(data.pending_jobs) === pending, `${role} pending_jobs espelha a curadoria`);
+      assert(Number(data.approved) === 0, `${role} approved zerado no banco (${data.approved})`);
+      assert(Number(data.rejected_jobs) === 0, `${role} rejected_jobs zerado no banco (${data.rejected_jobs})`);
+      assert(Number(data.rejected_queue) === 0, `${role} rejected_queue zerado no banco (${data.rejected_queue})`);
+      assert(data.ingest_available === false, `${role} ingest_available falso`);
+      assert(data.ingest_attention == null, `${role} ingest_attention nulo (${JSON.stringify(data.ingest_attention)})`);
+    } finally {
+      try {
+        await client.auth.signOut();
+      } catch {
+        /* idem */
+      }
     }
   }
 }

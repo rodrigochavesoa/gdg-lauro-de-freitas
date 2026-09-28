@@ -18,6 +18,7 @@ const jobCounts = {
   rejectedQueue: 0,
   pendingJobs: 2,
   ingestAttention: 0,
+  ingestAvailable: true,
 };
 
 const clearCounts = {
@@ -27,6 +28,7 @@ const clearCounts = {
   rejectedQueue: 0,
   pendingJobs: 0,
   ingestAttention: 0,
+  ingestAvailable: true,
 };
 
 function homeTree(role, refreshKey = 0) {
@@ -200,6 +202,25 @@ describe("AdminHome", () => {
     expect(screen.queryByText("Publicadas")).not.toBeInTheDocument();
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
+  });
+
+  it("ingestão indisponível não aparece como zero e preserva as vagas", async () => {
+    loadAdminDashboardSummary.mockResolvedValue({
+      ...clearCounts,
+      ingestAttention: null,
+      ingestAvailable: false,
+    });
+    renderHome("admin");
+    expect(await screen.findByText("Indisponível")).toBeInTheDocument();
+    const ingestCard = screen.getByText("Ingestões pendentes").closest(".admin-dashboard-stat");
+    const published = screen.getByText("Publicadas").closest(".admin-dashboard-stat");
+    expect(ingestCard).toHaveTextContent("Indisponível");
+    expect(ingestCard).not.toHaveTextContent("0");
+    expect(published).toHaveTextContent("4");
+    expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
+    expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    await waitFor(() => expect(loadAdminDashboardSummary).toHaveBeenCalledTimes(2));
   });
 
   it("falha da RPC não publica zeros", async () => {

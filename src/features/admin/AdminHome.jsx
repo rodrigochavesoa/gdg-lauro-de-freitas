@@ -51,6 +51,7 @@ export function AdminHome({ refreshKey = 0 }) {
   const isAdmin = canManageAdminJobs(profile?.role);
   const [jobCounts, setJobCounts] = useState(null);
   const [ingestAttention, setIngestAttention] = useState(null);
+  const [ingestUnavailable, setIngestUnavailable] = useState(false);
   const [jobsError, setJobsError] = useState("");
   const [jobsBusy, setJobsBusy] = useState(true);
   const [ingestBusy, setIngestBusy] = useState(isAdmin);
@@ -64,6 +65,7 @@ export function AdminHome({ refreshKey = 0 }) {
     if (adminChanged) {
       setJobCounts(null);
       setIngestAttention(null);
+      setIngestUnavailable(false);
     }
     setJobsBusy(true);
     setIngestBusy(isAdmin);
@@ -74,6 +76,7 @@ export function AdminHome({ refreshKey = 0 }) {
         if (cancelled) return;
         setJobCounts(summary);
         setIngestAttention(summary.ingestAttention);
+        setIngestUnavailable(isAdmin && summary.ingestAvailable !== true);
         setJobsBusy(false);
         setIngestBusy(false);
       })
@@ -104,7 +107,7 @@ export function AdminHome({ refreshKey = 0 }) {
     pendingJobs: jobCounts ? jobCounts.pendingJobs : null,
     ingestAttention,
     jobsFailed: Boolean(jobsError),
-    ingestFailed: false,
+    ingestFailed: isAdmin && ingestUnavailable,
   });
   const secondaryMetrics = summary.metrics.slice(1);
   const otherCtas = summary.ctas.filter((cta) => {
@@ -166,7 +169,8 @@ export function AdminHome({ refreshKey = 0 }) {
             {secondaryMetrics.map((metric) => {
               const isIngest = metric.id === "ingest-attention";
               const busy = isIngest ? ingestBusy : jobsBusy;
-              const pending = metric.value == null;
+              const unavailable = isIngest && ingestUnavailable && !busy;
+              const pending = metric.value == null && !unavailable;
               const Icon = STAT_ICONS[metric.id];
               return (
                 <div
@@ -183,8 +187,11 @@ export function AdminHome({ refreshKey = 0 }) {
                     <span>{metric.label}</span>
                   </dt>
                   <dd aria-describedby={metric.hint ? `admin-metric-${metric.id}-hint` : undefined}>
-                    {pending ? <span className="admin-dashboard-skeleton-value" /> : metric.value}
+                    {unavailable ? "Indisponível" : pending ? <span className="admin-dashboard-skeleton-value" /> : metric.value}
                   </dd>
+                  {unavailable ? (
+                    <button className="outline small" type="button" onClick={retry}>Tentar novamente</button>
+                  ) : null}
                   {metric.hint ? (
                     <p className="admin-dashboard-stat-hint" id={`admin-metric-${metric.id}-hint`}>{metric.hint}</p>
                   ) : null}
