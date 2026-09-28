@@ -1569,11 +1569,12 @@ async function scenario27_adminDashboardSummary() {
       assert(false, "service role ausente: ingest_attention > 0 não comprovado no banco");
     } else {
       const before = Number(data.ingest_attention);
+      const locator = `fixture:rls-s27-${Date.now()}`;
       let ingestionId = null;
       try {
         const inserted = await svc.from("job_ingestions").insert({
           source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-          normalized_locator: `fixture:rls-s27-${Date.now()}`,
+          normalized_locator: locator,
           payload_hash: "a".repeat(64),
         }).select("id").single();
         ingestionId = inserted.data?.id ?? null;
@@ -1590,9 +1591,19 @@ async function scenario27_adminDashboardSummary() {
         }
       } finally {
         if (ingestionId) {
-          const removed = await svc.from("job_ingestions").delete().eq("id", ingestionId);
-          assert(!removed.error, `cleanup ingestão do cenário 27 (${removed.error?.message ?? "ok"})`);
+          const removedById = await svc.from("job_ingestions").delete().eq("id", ingestionId);
+          assert(!removedById.error, `cleanup ingestão do cenário 27 por id (${removedById.error?.message ?? "ok"})`);
         }
+        const removedByLocator = await svc.from("job_ingestions").delete().eq("normalized_locator", locator);
+        assert(!removedByLocator.error, `cleanup ingestão do cenário 27 por locator (${removedByLocator.error?.message ?? "ok"})`);
+        const leftover = await svc
+          .from("job_ingestions")
+          .select("id", { count: "exact", head: true })
+          .like("normalized_locator", "fixture:rls-s27-%");
+        assert(
+          !leftover.error && leftover.count === 0,
+          `marcador fixture:rls-s27 ficou em zero (${leftover.error?.message ?? leftover.count})`,
+        );
       }
     }
 
