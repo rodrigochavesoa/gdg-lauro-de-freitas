@@ -246,6 +246,17 @@ describe("listas staff com teto", () => {
     expect(rpcMock).toHaveBeenCalledOnce();
   });
 
+  it("createPendingJob mapeia aal2 required para o aviso de segundo fator", async () => {
+    const probe = chain({ data: [], error: null });
+    fromMock.mockReturnValueOnce(probe);
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "aal2 required", code: "P0001" },
+    });
+
+    await expect(createPendingJob(jobInput)).rejects.toThrow(/Confirme o segundo fator/);
+  });
+
   it("updatePendingJob exclui a própria vaga na sonda", async () => {
     const probe = chain({ data: [], error: null });
     const update = chain({ data: { id: "j1", title: "Pessoa Dev", status: "pending" }, error: null });
