@@ -22,59 +22,83 @@
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License" />
 </p>
 
-# GDGJobs — MVP de homologação
+# GDGJobs
 
-Laboratório **React/Vite + Supabase** para estudar o motor de vagas da comunidade GDG Lauro de Freitas: catálogo público, auth, curadoria e candidatura, com RLS e LGPD by design. Dados de teste; **não** é o produto oficial.
+Um laboratório de Engenharia de Produto para construir, testar e evoluir uma experiência de vagas curadas pela comunidade.
 
-**Estado atual: homologação**, não produção. O marco **Beta 0.1** (ambiente separado, direitos do titular, backup restaurável) ainda não foi atingido.
-
-Núcleo do recorte: **catálogo curado → perfil → candidatura → curadoria**. IA (Gemini/`pgvector`) é preparação, não fundação.
+O GDGJobs aproxima profissionais de tecnologia de oportunidades relevantes. A experiência começa no catálogo, passa pelo detalhe da vaga e pela candidatura, e termina em uma curadoria responsável antes que uma vaga chegue ao público.
 
 <p align="center">
   <img src="public/readme/gdgjobs-screen.png" alt="GDGJobs — catálogo de vagas em homologação" width="100%" />
 </p>
 
-## Relação com o repositório oficial
+## O problema que estamos resolvendo
 
-| | Comunidade | Este repositório |
-|---|---|---|
-| **Onde** | [**lfdev-gdg/GDGJobs**](https://github.com/lfdev-gdg/GDGJobs) | MVP Vite + Supabase (paralelo) |
-| **Propósito** | Plataforma curada pela GDG (vagas nacionais e internacionais) | Homologação e aprendizado |
-| **Stack** | Next.js, Tailwind, shadcn/ui | React 19, Vite 8, CSS com tokens próprios |
-| **Condução** | **Danielle Teixeira** — visão e entrega do GDG Jobs oficial | Estudo; **não substitui** o oficial |
+Encontrar uma vaga relevante não deveria depender de navegar por fontes dispersas, interpretar informações inconsistentes ou confiar em publicações sem contexto. O projeto explora uma resposta comunitária para esse problema:
 
-Quer contribuir com o **produto da comunidade**? Comece por [lfdev-gdg/GDGJobs](https://github.com/lfdev-gdg/GDGJobs). Issues e PRs aqui são bem-vindos neste laboratório, sempre com o repo oficial como fonte de verdade do produto.
+- reunir oportunidades em um catálogo simples;
+- melhorar a qualidade por meio de curadoria;
+- reduzir atrito entre descobrir uma vaga e candidatar-se;
+- criar uma base segura para personalização futura.
 
-## Stack congelada
+## Como o produto funciona
 
-A stack abaixo é a decisão do MVP paralelo. **Não migrar** neste recorte sem decisão explícita do mantenedor.
+```text
+descobrir → entender → completar perfil → candidatar-se → acompanhar
+                         ↑
+                 curadoria da comunidade
+```
 
-| Camada | Decisão | Regra |
-|---|---|---|
-| Frontend | React 19 + Vite 8, SPA, CSS com tokens em `src/styles.css` | Sem Next.js, Tailwind ou shadcn/ui |
-| Dados e auth | Supabase PostgreSQL + Auth + RLS | Banco é a fonte de verdade; chave publishable/anon no browser |
-| Backend complementar | Supabase Edge Functions (TypeScript) | Segredos e integrações fora do navegador |
-| Qualidade | ESLint 9, Vitest 3, GitHub Actions (`lint` / `test` / `build` / `check:bundle` / `migrations:prod` na PR; `test:rls` só após merge em `main`) | Entrega deixa evidência verificável |
-| Hospedagem | Vercel Hobby servindo `dist/` estático (`*.vercel.app`) | Produção neste recorte; domínio customizado é C-05 (fora) |
+Visitantes exploram vagas aprovadas, filtram o catálogo e consultam os detalhes. Candidatos autenticados completam o perfil, candidatam-se e acompanham o próprio histórico. A equipe staff recebe vagas, revisa o conteúdo e controla o que pode ser publicado.
 
-Auth: **Supabase Auth** (Google OAuth). Sem `service_role` no frontend. Homologação e produção usam **projetos Supabase distintos**; Preview Vercel aponta para homologação, Production para o projeto de produção (sem seed fictício).
+## O que já foi construído
 
-## Não-objetivos
+- catálogo público com busca, filtros, ordenação e paginação;
+- detalhe da vaga e candidatura com estados claros de carregamento, erro e retry;
+- login do candidato, onboarding, perfil e preferências;
+- curadoria com fila, prioridade, pareceres, rodadas e moderação;
+- painel administrativo para empresas, vagas e ingestão controlada;
+- experiência responsiva, tema claro/escuro e acessibilidade em evolução;
+- segurança de dados com RLS, autorização no banco, rate limit e trilha de auditoria;
+- pipeline de qualidade com testes, build e validações antes do merge.
 
-- Reescrever o projeto para copiar o repositório oficial (`lfdev-gdg/GDGJobs`) linha a linha.
-- Trocar a stack (Next.js, Tailwind, shadcn/ui, outro provedor de auth).
-- Tratar IA (Gemini, busca semântica, recomendação colaborativa) como fundação do produto — o catálogo precisa funcionar com filtros determinísticos se a IA estiver desligada.
-- Chamar o estado atual de produção, beta com PII real ou substituto do produto da comunidade.
+## Onde este projeto se encaixa
 
-## Documentação pública
+Este é um projeto paralelo, de homologação, portfólio e aprendizado. Ele não é o produto oficial da comunidade e não substitui o [GDGJobs oficial](https://github.com/lfdev-gdg/GDGJobs), que continua sendo a referência do produto comunitário.
 
-| Arquivo | Conteúdo |
-|---|---|
-| [**PROJECT_OVERVIEW.md**](PROJECT_OVERVIEW.md) | Visão técnica completa para novos desenvolvedores |
-| [**SETUP.md**](SETUP.md) | Node 22, pnpm, `.env.local`, `pnpm dev`, testes, RLS |
-| [**CONTRIBUTING.md**](CONTRIBUTING.md) | Branch, PR, Conventional Commits, papéis Plan / Executor |
-| [**LICENSE**](LICENSE) | MIT — GDG Lauro de Freitas, 2026 |
+O paralelo usa a mesma inspiração de produto, mas mantém seu próprio ritmo, arquitetura e decisões de engenharia. O objetivo é aprender construindo uma experiência coerente, segura e mensurável — não copiar outro repositório linha a linha.
 
-Documentação operacional (backlog, design system, evidências QA, regras de agentes) fica só na máquina do mantenedor, em `docs-local/` — modelo em [`docs-local.example/`](docs-local.example/).
+## Como o produto evolui
 
-Contato da comunidade: [gdglaurodefreitas@gmail.com](mailto:gdglaurodefreitas@gmail.com).
+**V1 — Catálogo curado**
+
+Valor imediato: encontrar vagas, entender oportunidades, candidatar-se e garantir revisão comunitária.
+
+**V2 — Contexto do candidato**
+
+Perfis mais completos, preferências, filtros mais úteis e fluxos graduais para empresas e recrutadores.
+
+**V3 — Recomendação responsável**
+
+Matching determinístico e explicável primeiro; embeddings e IA somente depois de fechar privacidade, consentimento, governança e métricas.
+
+## Comece pela documentação certa
+
+- [**ABOUT.md**](ABOUT.md) — guia completo do produto, funcionalidades, jornadas, estados e limites atuais.
+- [**SETUP.md**](SETUP.md) — como executar localmente, configurar ambientes e validar a instalação.
+- [**PROJECT_OVERVIEW.md**](PROJECT_OVERVIEW.md) — arquitetura, fronteiras, dados, segurança e decisões técnicas.
+- [**CONTRIBUTING.md**](CONTRIBUTING.md) — fluxo de trabalho, branches, PRs e critérios de entrega.
+- [`docs/adr/`](docs/adr/) — decisões arquiteturais versionadas.
+- [`docs/agents/`](docs/agents/) — mapa de contexto para agentes e ferramentas de engenharia.
+
+## Estado atual
+
+O núcleo funciona em homologação com dados de teste. A cadeia de produção e seus controles evoluem por gates separados; isso não significa autorização para operar PII real, ativar integrações externas ou ligar IA no produto.
+
+Antes de propor uma nova camada, consulte o [ABOUT.md](ABOUT.md), confirme a fonte de verdade no [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) e siga o [SETUP.md](SETUP.md). Complexidade só entra quando existe uma necessidade medida, um contrato claro e uma forma segura de reverter.
+
+## Licença e contato
+
+Este repositório usa licença MIT. Consulte o [LICENSE](LICENSE) para o texto completo.
+
+Para o contexto da comunidade GDG Lauro de Freitas, consulte o [repositório oficial GDGJobs](https://github.com/lfdev-gdg/GDGJobs). O contato público informado pelo projeto é [gdglaurodefreitas@gmail.com](mailto:gdglaurodefreitas@gmail.com).

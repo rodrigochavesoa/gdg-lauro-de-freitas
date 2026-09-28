@@ -2,8 +2,8 @@
 
 > Documento de entrada para desenvolvedores. Ele explica o que o projeto é, como funciona, onde estão as responsabilidades e quais limites não podem ser ignorados.
 
-**Data da visão:** 17/09/2026  
-**Status:** MVP paralelo em homologação e portfólio; não aprovado para operar com titulares reais.  
+**Data da visão:** 28/09/2026
+**Status:** MVP paralelo em homologação e portfólio; cadeia produtiva versionada, mas não aprovado para operar com titulares reais.
 **Repositório:** `rodrigochavesoa/gdg-lauro-de-freitas`  
 **Produto oficial de referência:** [`lfdev-gdg/GDGJobs`](https://github.com/lfdev-gdg/GDGJobs)
 
@@ -241,7 +241,7 @@ O browser **não pode conter**:
 
 ### MFA staff
 
-`SEC-STAFF-MFA-01` é o gate TOTP/AAL2 da interface `/admin`, ativado somente por `VITE_STAFF_MFA_REQUIRED="true"`. `SEC-STAFF-MFA-02` exige JWT `aal=aal2` nas policies e RPCs staff (`private.*_aal2()`). A migration é Camada B: homologação na cadeia; produção só com PO (`prod.manifest.json` não a inclui).
+`SEC-STAFF-MFA-01` é o gate TOTP/AAL2 da interface `/admin`, ativado somente por `VITE_STAFF_MFA_REQUIRED="true"`. `SEC-STAFF-MFA-02` exige JWT `aal=aal2` nas policies e RPCs staff (`private.*_aal2()`). `SEC-STAFF-AAL2-PROD-01` está no manifesto versionado; a presença no Git não prova que o SQL já foi aplicado em Production. O apply efetivo continua sujeito ao gate do PO, evidência e plano de reversão.
 
 Candidatos (Google OAuth) não usam MFA staff. O toggle Enhanced MFA Security do Dashboard não substitui o RLS AAL2.
 
@@ -397,7 +397,7 @@ Limites atuais:
 ### Parcial ou com ressalva
 
 - privacidade em produção: fallback fail-closed, mas migration definitiva depende da Camada B;
-- MFA: UI `/admin` gated por flag; RLS AAL2 em homologação (Camada B — produção só com PO);
+- MFA: UI `/admin` gated por flag; RLS AAL2 versionado na cadeia produtiva, com aplicação efetiva condicionada ao gate operacional;
 - avatar: fluxo endurecido em homologação, upload de produção desligado;
 - acessibilidade: meta interna, não certificação;
 - desempenho: paginação e medições pontuais, sem SLO comprometido;
@@ -410,8 +410,7 @@ Limites atuais:
 - `MVP-006`/F-020: Gemini e matching semântico;
 - `MVP-007`: backup, restore e incidentes reais;
 - `MVP-012`: matching determinístico explicável;
-- `MVP-014`: observabilidade e métricas;
-- Apply em produção da migration AAL2 (`staff_rls_aal2`) — Camada B / PO;
+- Aplicação efetiva da cadeia AAL2 em Production — gate operacional, evidência e aprovação do PO;
 - `SEC-STAFF-PROVISIONING-01`: convite e provisionamento staff controlados;
 - `SEC-CI-02`: política para PRs de fork;
 - Resend/domínio/e-mail transacional;
@@ -422,7 +421,7 @@ Limites atuais:
 
 ### Primeiro contato
 
-1. Ler este arquivo, `README.md`, `SETUP.md` e `CONTRIBUTING.md`.
+1. Ler `README.md`, `ABOUT.md`, este arquivo, `SETUP.md` e `CONTRIBUTING.md`.
 2. Ler `docs-local.example/` apenas como modelo; `docs-local/` contém material operacional local e ignorado.
 3. Confirmar que está no repositório paralelo, não no oficial.
 4. Instalar Node 22 e pnpm conforme o setup.
@@ -474,6 +473,7 @@ Não faça:
 
 | Documento | Uso |
 |---|---|
+| `ABOUT.md` | Guia público do produto, jornadas, funcionalidades e status |
 | `SETUP.md` | instalação e configuração pública |
 | `CONTRIBUTING.md` | processo de branch, PR e entrega |
 | `docs-local/system-design-roadmap.md` | critérios de System Design e sequência de sprints |
@@ -484,13 +484,15 @@ Não faça:
 | `docs-local/guideline-agents-project-bootstrap.md` | orientação operacional para agentes |
 | `docs-local/mvp-sprint-plan-and-handoffs.md` | sprints e ONE-LINERs |
 | `docs-local/staff-provisioning-future.md` | decisão e desenho futuro do provisionamento staff |
+| `docs/adr/` | decisões arquiteturais versionadas |
+| `docs/agents/` | mapa de contexto para agentes e ferramentas |
 | `supabase/migrations/prod.manifest.json` | migrations autorizadas para produção |
 
 ## 16. Estado de confiança
 
-A aplicação possui um núcleo técnico consistente para um MVP de portfólio e homologação. Isso não equivale a estar pronta para uma operação pública com dados pessoais reais.
+A aplicação possui um núcleo técnico consistente para um MVP de portfólio e homologação, com autorização staff AAL2 já representada na cadeia versionada. Isso não equivale a estar pronta para uma operação pública com dados pessoais reais.
 
-O próximo nível de maturidade não é trocar a stack. É fechar, nesta ordem, os gates de produção: enforcement de autorização, privacidade e retenção, backup/restore, observabilidade, MFA operacional, revisão de dependências e validação dos fluxos de empresa/recrutador.
+O próximo nível de maturidade não é trocar a stack. É fechar, nesta ordem, os gates de produção: privacidade e retenção, backup/restore, observabilidade operacional, revisão de dependências e validação dos fluxos de empresa/recrutador.
 
 Quando uma decisão parecer grande demais, volte às quatro perguntas:
 

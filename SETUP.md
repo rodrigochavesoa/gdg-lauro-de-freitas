@@ -2,6 +2,8 @@
 
 Ambiente local para clonar, instalar e rodar o laboratório. Use **PowerShell (`pwsh`)** no Windows.
 
+Este arquivo trata apenas de execução, configuração e operação segura. Para entender o produto e suas jornadas, leia [`ABOUT.md`](ABOUT.md); para arquitetura e contratos, leia [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md).
+
 ## Requisitos
 
 | Ferramenta | Versão |
@@ -25,7 +27,7 @@ Copy-Item .env.example .env.local
 
 Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` (ou o fallback `VITE_SUPABASE_ANON_KEY`) pelo canal seguro da equipe. **Nunca** commite `.env` / `.env.local` nem `service_role` no frontend, no Git ou nas env vars públicas da Vercel.
 
-A raiz de [`supabase/migrations/`](supabase/migrations/) é o que `supabase db push` aplica, e ela contém **somente** o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json). `pnpm migrations:prod` falha se qualquer outro `.sql` voltar para essa raiz. Homolog-only (`*_homolog.sql`, seed fictício, prefixo `avatars_`) fica em [`supabase/migrations/homolog/`](supabase/migrations/homolog/). Camada B (marker «Produção: não aplicar») fica em [`supabase/migrations/held/`](supabase/migrations/held/), fora do manifesto e fora do CLI. `pnpm migrations:homolog` lista a cadeia. `pnpm migrations:homolog:plan` mostra `would-skip`, `would-register`, `blocked-legacy` e `would-apply` sem aplicar SQL. `pnpm migrations:homolog:repair` só insere os `version` locais cujo efeito já está no homolog. `pnpm migrations:homolog:apply` recusa reexecutar arquivo com `public.is_admin()` ou carimbo da lista de reparo. `HOMOLOG_SUPABASE_PROJECT_REF` tem de ser o ref oficial de homologação; o ref de produção é sempre recusado. `pnpm migrations:homolog:repair` aborta se o carimbo remoto ou `private.is_admin` / `private.is_admin_aal2` não estiverem presentes. A senha vai em `PGPASSWORD`.
+A raiz de [`supabase/migrations/`](supabase/migrations/) é o que `supabase db push` aplica, e ela contém **somente** o manifesto [`supabase/migrations/prod.manifest.json`](supabase/migrations/prod.manifest.json). `pnpm migrations:prod` falha se qualquer outro `.sql` voltar para essa raiz. Homolog-only (`*_homolog.sql`, seed fictício, prefixo `avatars_`) fica em [`supabase/migrations/homolog/`](supabase/migrations/homolog/). Migrations ainda não promovidas ficam em [`supabase/migrations/held/`](supabase/migrations/held/), fora do manifesto e fora do CLI; a migration de AAL2 staff já foi promovida ao manifesto, mas isso não autoriza aplicar Production sem o gate do PO. `pnpm migrations:homolog` lista a cadeia. `pnpm migrations:homolog:plan` mostra `would-skip`, `would-register`, `blocked-legacy` e `would-apply` sem aplicar SQL. `pnpm migrations:homolog:repair` só insere os `version` locais cujo efeito já está no homolog. `pnpm migrations:homolog:apply` recusa reexecutar arquivo com `public.is_admin()` ou carimbo da lista de reparo. `HOMOLOG_SUPABASE_PROJECT_REF` tem de ser o ref oficial de homologação; o ref de produção é sempre recusado. `pnpm migrations:homolog:repair` aborta se o carimbo remoto ou `private.is_admin` / `private.is_admin_aal2` não estiverem presentes. A senha vai em `PGPASSWORD`.
 
 ## OAuth (Google via Supabase Auth)
 
@@ -38,7 +40,7 @@ Configure as mesmas origens no provedor Google e em Authentication → URL Confi
 
 ## MFA staff (homolog)
 
-**Alcance:** a flag Vite controla só a UI `/admin`. Com a migration `staff_rls_aal2` aplicada em homologação, mutações e leituras privilegiadas staff na Data API exigem JWT `aal=aal2`. Sem a migration em produção (Camada B / PO), AAL1 ainda passa nas policies de prod. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
+**Alcance:** a flag Vite controla só a UI `/admin`. Com a migration `SEC-STAFF-AAL2-PROD-01` aplicada no ambiente, mutações e leituras privilegiadas staff na Data API exigem JWT `aal=aal2`. A presença da migration no manifesto não prova que Production já recebeu o apply. Candidatos (Google OAuth em `/login`) **não** entram neste fluxo.
 
 | `VITE_STAFF_MFA_REQUIRED` | Comportamento |
 |---|---|
@@ -80,7 +82,7 @@ Defina `true` em `.env.local` e nas env vars **Preview** da Vercel para validar 
 
 ## Teste SEC-STAFF-MFA-02 (RLS AAL2)
 
-Após aplicar a migration `staff_rls_aal2` **só em homologação** (Camada B / PO para produção):
+Após aplicar a migration de AAL2 **em um ambiente autorizado** (homologação ou Production com gate formal):
 
 1. Preencha `docs-local/staff-mfa-totp-secrets.md` (gitignored) ou `ADMIN_TEST_TOTP_SECRET` / `CURATOR_TEST_TOTP_SECRET` / `CURATOR2_TEST_TOTP_SECRET` / `CURATOR3_TEST_TOTP_SECRET` / `MODERATOR_TEST_TOTP_SECRET` no `.env.local` e no GitHub Environment `homolog-rls`.
 2. `pnpm test:rls` — logins staff usam TOTP (AAL2). Cenário 20: senha só (AAL1) **não** insere vaga (admin) nem chama `submit_curation_review` (admin, curator, moderator); AAL2 insere pending.
@@ -134,7 +136,7 @@ O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tem dois jobs 
 | Job | Comando | Quando corre | Efeito de falha |
 |---|---|---|---|
 | `Lint, test and build` | `pnpm lint` → `pnpm test` → `pnpm run build` → `pnpm check:bundle` → `pnpm migrations:prod` | PR e push em `main`. É o **único** required check para merge. Sem `service_role` e sem senhas staff. | **Bloqueia** merge na PR e marca o workflow como falho. |
-| `RLS homolog` | `pnpm test:rls` (cenários 1–22, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
+| `RLS homolog` | `pnpm test:rls` (cenários 1–26 e contratos associados, homologação) | Só após merge: `push` ou `workflow_dispatch` em `main`, GitHub Environment `homolog-rls`. Na PR o job aparece como **skipped** (não consome secrets). | **Não** bloqueia merge. Falha em `main` torna o release **não confiável** e exige rollback — ver abaixo. |
 
 Na **PR**, apenas `Lint, test and build` precisa ficar verde. `RLS homolog` skipped é o comportamento esperado.
 
