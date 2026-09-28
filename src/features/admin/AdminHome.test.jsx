@@ -3,12 +3,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const loadAdminDashboardJobCounts = vi.hoisted(() => vi.fn());
-const countIngestionsNeedingAttention = vi.hoisted(() => vi.fn());
+const loadAdminDashboardSummary = vi.hoisted(() => vi.fn());
 
 vi.mock("./admin-dashboard-api.js", () => ({
-  loadAdminDashboardJobCounts: (...args) => loadAdminDashboardJobCounts(...args),
-  countIngestionsNeedingAttention: (...args) => countIngestionsNeedingAttention(...args),
+  loadAdminDashboardSummary: (...args) => loadAdminDashboardSummary(...args),
 }));
 
 import { AdminHome } from "./AdminHome.jsx";
@@ -19,6 +17,7 @@ const jobCounts = {
   rejectedJobs: 0,
   rejectedQueue: 0,
   pendingJobs: 2,
+  ingestAttention: 0,
 };
 
 const clearCounts = {
@@ -27,6 +26,7 @@ const clearCounts = {
   rejectedJobs: 0,
   rejectedQueue: 0,
   pendingJobs: 0,
+  ingestAttention: 0,
 };
 
 function homeTree(role, refreshKey = 0) {
@@ -51,20 +51,14 @@ function focusSection() {
 
 describe("AdminHome", () => {
   beforeEach(() => {
-    loadAdminDashboardJobCounts.mockReset();
-    countIngestionsNeedingAttention.mockReset();
-    loadAdminDashboardJobCounts.mockResolvedValue(jobCounts);
-    countIngestionsNeedingAttention.mockResolvedValue(0);
+    loadAdminDashboardSummary.mockReset();
+    loadAdminDashboardSummary.mockResolvedValue(jobCounts);
   });
 
-  it("mostra a estrutura antes dos counts e não trata pendente como zero", async () => {
-    let resolveJobs;
-    let resolveIngest;
-    loadAdminDashboardJobCounts.mockImplementation(
-      () => new Promise((resolve) => { resolveJobs = resolve; }),
-    );
-    countIngestionsNeedingAttention.mockImplementation(
-      () => new Promise((resolve) => { resolveIngest = resolve; }),
+  it("mostra a estrutura antes da RPC e não trata pendente como zero", async () => {
+    let resolveSummary;
+    loadAdminDashboardSummary.mockImplementation(
+      () => new Promise((resolve) => { resolveSummary = resolve; }),
     );
     renderHome("admin");
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
@@ -78,26 +72,23 @@ describe("AdminHome", () => {
     expect(screen.queryByRole("link", { name: /Ver ingestões/ })).not.toBeInTheDocument();
     expect(document.querySelector(".admin-dashboard-stat--skeleton")).toBeTruthy();
     expect(focusSection()).toHaveAttribute("aria-busy", "true");
+    expect(loadAdminDashboardSummary).toHaveBeenCalledTimes(1);
 
-    resolveJobs(jobCounts);
+    resolveSummary({ ...jobCounts, ingestAttention: 3 });
     expect(await screen.findByRole("heading", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByText("2 vagas aguardam revisão")).toBeInTheDocument();
     expect(screen.getByText("Atenção")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Revisar fila" })).toHaveAttribute("href", "/admin/curadoria");
     expect(focusSection()).toHaveClass("admin-dashboard-focus--attention");
-    expect(document.querySelector(".admin-dashboard-stat--skeleton")).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /Ver ingestões/ })).not.toBeInTheDocument();
-    expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
-
-    resolveIngest(3);
     expect(await screen.findByRole("link", { name: "Ver ingestões (3)" })).toBeInTheDocument();
     expect(document.querySelector(".admin-dashboard-stat--skeleton")).toBeNull();
     expect(document.querySelector(".admin-dashboard-stat--ingest-attention")).toHaveTextContent("3");
-    expect(screen.getByRole("link", { name: "Revisar fila" })).toBeInTheDocument();
+    expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
+    expect(loadAdminDashboardSummary).toHaveBeenCalledTimes(1);
   });
 
   it("com pendência de curadoria destaca a ação de revisar a fila", async () => {
-    countIngestionsNeedingAttention.mockResolvedValue(1);
+    loadAdminDashboardSummary.mockResolvedValue({ ...jobCounts, ingestAttention: 1 });
     renderHome("admin");
     expect(await screen.findByRole("heading", { name: "Curadoria" })).toBeInTheDocument();
     expect(screen.getByText("2 vagas aguardam revisão")).toBeInTheDocument();
@@ -109,20 +100,18 @@ describe("AdminHome", () => {
   });
 
   it("sem pendência mostra estado positivo e não mantém o alerta laranja", async () => {
-    let resolveIngest;
-    loadAdminDashboardJobCounts.mockResolvedValue(clearCounts);
-    countIngestionsNeedingAttention.mockImplementation(
-      () => new Promise((resolve) => { resolveIngest = resolve; }),
+    let resolveSummary;
+    loadAdminDashboardSummary.mockImplementation(
+      () => new Promise((resolve) => { resolveSummary = resolve; }),
     );
     renderHome("admin");
-    expect(await screen.findByText("4")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
     expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
-    expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
     expect(focusSection()).toHaveAttribute("aria-busy", "true");
 
-    resolveIngest(0);
+    resolveSummary(clearCounts);
     expect(await screen.findByRole("heading", { name: "Em dia" })).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Fila de revisão em dia")).toBeInTheDocument();
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
@@ -133,8 +122,7 @@ describe("AdminHome", () => {
   });
 
   it("prioriza ingestão quando a curadoria está em dia e há ingestões pendentes", async () => {
-    loadAdminDashboardJobCounts.mockResolvedValue(clearCounts);
-    countIngestionsNeedingAttention.mockResolvedValue(3);
+    loadAdminDashboardSummary.mockResolvedValue({ ...clearCounts, ingestAttention: 3 });
     renderHome("admin");
     expect(await screen.findByRole("heading", { name: "Ingestões pendentes" })).toBeInTheDocument();
     expect(screen.getByText("3 ingestões pendentes")).toBeInTheDocument();
@@ -146,11 +134,10 @@ describe("AdminHome", () => {
   });
 
   it("prioriza vagas quando essa é a próxima pendência do resumo", async () => {
-    loadAdminDashboardJobCounts.mockResolvedValue({
+    loadAdminDashboardSummary.mockResolvedValue({
       ...clearCounts,
       pendingJobs: 4,
     });
-    countIngestionsNeedingAttention.mockResolvedValue(0);
     renderHome("admin");
     expect(await screen.findByRole("heading", { name: "Vagas" })).toBeInTheDocument();
     expect(screen.getByText("4 vagas pendentes")).toBeInTheDocument();
@@ -160,33 +147,36 @@ describe("AdminHome", () => {
     expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
   });
 
-  it("curator não dispara a contagem de ingestão", async () => {
+  it("curator usa uma RPC e não mostra cards de ingestão", async () => {
     renderHome("curator");
     expect(await screen.findByText("2 vagas aguardam revisão")).toBeInTheDocument();
-    expect(countIngestionsNeedingAttention).not.toHaveBeenCalled();
+    expect(loadAdminDashboardSummary).toHaveBeenCalledTimes(1);
+    expect(loadAdminDashboardSummary).toHaveBeenCalledWith({ isAdmin: false });
     expect(screen.queryByText("Ingestões pendentes")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Revisar fila" })).toBeInTheDocument();
   });
 
-  it("curator sem fila mostra o estado positivo sem consultar ingestão", async () => {
-    loadAdminDashboardJobCounts.mockResolvedValue({
+  it("curator sem fila mostra o estado positivo sem cards de admin", async () => {
+    loadAdminDashboardSummary.mockResolvedValue({
       pendingCuration: 0,
       approved: 0,
       rejectedJobs: 0,
       rejectedQueue: 0,
       pendingJobs: 0,
+      ingestAttention: 0,
     });
     renderHome("curator");
     expect(await screen.findByText("Fila de revisão em dia")).toBeInTheDocument();
-    expect(countIngestionsNeedingAttention).not.toHaveBeenCalled();
+    expect(loadAdminDashboardSummary).toHaveBeenCalledWith({ isAdmin: false });
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Ingestões pendentes")).not.toBeInTheDocument();
   });
 
-  it("moderator não consulta ingestão nem vê cards de admin", async () => {
+  it("moderator não vê cards de admin", async () => {
     renderHome("moderator");
     expect(await screen.findByText("2 vagas aguardam revisão")).toBeInTheDocument();
-    expect(countIngestionsNeedingAttention).not.toHaveBeenCalled();
+    expect(loadAdminDashboardSummary).toHaveBeenCalledWith({ isAdmin: false });
     expect(screen.queryByText("Ingestões pendentes")).not.toBeInTheDocument();
     expect(screen.queryByText("Publicadas")).not.toBeInTheDocument();
     expect(screen.queryByText("Rejeitadas")).not.toBeInTheDocument();
@@ -195,46 +185,25 @@ describe("AdminHome", () => {
     expect(screen.getByRole("link", { name: "Revisar fila" })).toHaveAttribute("href", "/admin/curadoria");
   });
 
-  it("moderator sem fila mostra Em dia sem consultar ingestão", async () => {
-    loadAdminDashboardJobCounts.mockResolvedValue({
+  it("moderator sem fila mostra Em dia", async () => {
+    loadAdminDashboardSummary.mockResolvedValue({
       pendingCuration: 0,
       approved: 0,
       rejectedJobs: 0,
       rejectedQueue: 0,
       pendingJobs: 0,
+      ingestAttention: 0,
     });
     renderHome("moderator");
     expect(await screen.findByText("Fila de revisão em dia")).toBeInTheDocument();
-    expect(countIngestionsNeedingAttention).not.toHaveBeenCalled();
     expect(screen.queryByText("Ingestões pendentes")).not.toBeInTheDocument();
     expect(screen.queryByText("Publicadas")).not.toBeInTheDocument();
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
   });
 
-  it("falha da contagem de ingestão mantém as vagas e o alerta", async () => {
-    countIngestionsNeedingAttention.mockRejectedValue(new Error("contagem indisponível"));
-    renderHome("admin");
-    expect(await screen.findByText("2 vagas aguardam revisão")).toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("contagem indisponível");
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Revisar fila" })).toBeInTheDocument();
-  });
-
-  it("falha da ingestão com curadoria em dia não confirma o estado positivo", async () => {
-    loadAdminDashboardJobCounts.mockResolvedValue(clearCounts);
-    countIngestionsNeedingAttention.mockRejectedValue(new Error("contagem indisponível"));
-    renderHome("admin");
-    expect(await screen.findByRole("alert")).toHaveTextContent("contagem indisponível");
-    expect(screen.getByText("—")).toBeInTheDocument();
-    expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
-    expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
-    expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");
-  });
-
-  it("falha das contagens de vagas não publica zeros", async () => {
-    loadAdminDashboardJobCounts.mockRejectedValue(new Error("painel indisponível"));
+  it("falha da RPC não publica zeros", async () => {
+    loadAdminDashboardSummary.mockRejectedValue(new Error("painel indisponível"));
     renderHome("admin");
     expect(screen.getByRole("heading", { name: "Painel" })).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("painel indisponível");
@@ -243,8 +212,9 @@ describe("AdminHome", () => {
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
     expect(document.querySelector(".admin-dashboard-stat--skeleton")).toBeTruthy();
+    expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
-    await waitFor(() => expect(loadAdminDashboardJobCounts).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(loadAdminDashboardSummary).toHaveBeenCalledTimes(2));
   });
 
   it("recarregar preserva o último valor e marca aria-busy", async () => {
@@ -252,10 +222,9 @@ describe("AdminHome", () => {
     const view = renderHome("admin", 0);
     expect(await screen.findByText("2 vagas aguardam revisão")).toBeInTheDocument();
 
-    loadAdminDashboardJobCounts.mockImplementation(
+    loadAdminDashboardSummary.mockImplementation(
       () => new Promise((resolve) => { resolveReload = resolve; }),
     );
-    countIngestionsNeedingAttention.mockImplementation(() => new Promise(() => {}));
     view.rerender(homeTree("admin", 1));
 
     expect(screen.getByText("2 vagas aguardam revisão")).toBeInTheDocument();
@@ -263,59 +232,37 @@ describe("AdminHome", () => {
     expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
     expect(screen.queryByText("0 vagas aguardam revisão")).not.toBeInTheDocument();
 
-    resolveReload({ ...jobCounts, pendingCuration: 4, pendingJobs: 4 });
+    resolveReload({ ...jobCounts, pendingCuration: 4, pendingJobs: 4, ingestAttention: 0 });
     expect(await screen.findByText("4 vagas aguardam revisão")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Curadoria" }).closest("section")).not.toHaveAttribute("aria-busy", "true");
   });
 
   it("falha no refresh não confirma Em dia com o valor em cache", async () => {
-    let rejectJobs;
-    loadAdminDashboardJobCounts.mockResolvedValue(clearCounts);
-    countIngestionsNeedingAttention.mockResolvedValue(0);
+    let rejectSummary;
+    loadAdminDashboardSummary.mockResolvedValue(clearCounts);
     const view = renderHome("admin", 0);
     expect(await screen.findByText("Fila de revisão em dia")).toBeInTheDocument();
 
-    loadAdminDashboardJobCounts.mockImplementation(
-      () => new Promise((_, reject) => { rejectJobs = reject; }),
+    loadAdminDashboardSummary.mockImplementation(
+      () => new Promise((_, reject) => { rejectSummary = reject; }),
     );
     view.rerender(homeTree("admin", 1));
 
     const published = screen.getByText("Publicadas").closest(".admin-dashboard-stat");
+    const ingestCard = screen.getByText("Ingestões pendentes").closest(".admin-dashboard-stat");
     expect(published).toHaveAttribute("aria-busy", "true");
     expect(published).toHaveTextContent("4");
+    expect(ingestCard).toHaveTextContent("0");
     expect(screen.getByText("Fila de revisão em dia")).toBeInTheDocument();
 
-    rejectJobs(new Error("painel indisponível"));
+    rejectSummary(new Error("painel indisponível"));
     expect(await screen.findByRole("alert")).toHaveTextContent("painel indisponível");
     expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
     expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");
     expect(published).toHaveTextContent("4");
+    expect(ingestCard).toHaveTextContent("0");
     expect(published).not.toHaveAttribute("aria-busy", "true");
-  });
-
-  it("falha da ingestão no refresh não confirma Em dia com o cache", async () => {
-    let rejectIngest;
-    loadAdminDashboardJobCounts.mockResolvedValue(clearCounts);
-    countIngestionsNeedingAttention.mockResolvedValue(0);
-    const view = renderHome("admin", 0);
-    expect(await screen.findByText("Fila de revisão em dia")).toBeInTheDocument();
-
-    countIngestionsNeedingAttention.mockImplementation(
-      () => new Promise((_, reject) => { rejectIngest = reject; }),
-    );
-    view.rerender(homeTree("admin", 1));
-
-    const ingestCard = screen.getByText("Ingestões pendentes").closest(".admin-dashboard-stat");
-    expect(ingestCard).toHaveAttribute("aria-busy", "true");
-    expect(ingestCard).toHaveTextContent("0");
-
-    rejectIngest(new Error("contagem indisponível"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("contagem indisponível");
-    expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
-    expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
-    expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");
-    expect(ingestCard).toHaveTextContent("0");
   });
 });

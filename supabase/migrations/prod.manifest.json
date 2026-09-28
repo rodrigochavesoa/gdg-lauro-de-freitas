@@ -18,5 +18,6 @@
   "20260927080100_sec_data_authority_revoke_match_jobs.sql",
   "20260927080300_sec_apply_ratelimit_concurrency.sql",
   "20260928010000_tech_admin_write_atomicity.sql",
-  "20260928020000_sec_staff_aal2_prod.sql"
+  "20260928020000_sec_staff_aal2_prod.sql",
+  "20260928030000_perf_admin_shell_summary.sql"
 ]

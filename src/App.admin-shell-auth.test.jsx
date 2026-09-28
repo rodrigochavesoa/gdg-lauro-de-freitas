@@ -47,14 +47,14 @@ vi.mock("./features/auth/staff-mfa.js", async () => {
 });
 
 vi.mock("./features/admin/admin-dashboard-api.js", () => ({
-  loadAdminDashboardJobCounts: vi.fn(async () => ({
+  loadAdminDashboardSummary: vi.fn(async () => ({
     pendingCuration: 0,
     approved: 0,
     rejectedJobs: 0,
     rejectedQueue: 0,
     pendingJobs: 0,
+    ingestAttention: 0,
   })),
-  countIngestionsNeedingAttention: vi.fn(async () => 0),
 }));
 
 import { App } from "./App.jsx";

@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, SEC-STAFF-AAL2-PROD-01, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01 e TECH-ADMIN-WRITE-ATOMICITY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, SEC-STAFF-AAL2-PROD-01, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01, TECH-ADMIN-WRITE-ATOMICITY-01 e PERF-ADMIN-SHELL-SUMMARY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -1524,6 +1524,60 @@ async function scenario26_adminPendingJobConcurrency() {
       problems.push(`admin signOut: ${error?.message ?? "falhou"}`);
     }
     assert(problems.length === 0, `cleanup cenário 26 (${problems.join("; ") || "ok"})`);
+  }
+}
+
+/** Cenário 27 — PERF-ADMIN-SHELL-SUMMARY-01: resumo do painel exige AAL2. */
+async function scenario27_adminDashboardSummary() {
+  const anonDenied = await anon.rpc("get_admin_dashboard_summary");
+  assert(
+    Boolean(anonDenied.error) && /permission denied|42501/i.test(errorText(anonDenied.error)),
+    `anon sem EXECUTE em get_admin_dashboard_summary (${errorText(anonDenied.error) || "sem erro"})`,
+  );
+
+  const admin = await signInStaffForScenario(27, "admin");
+  if (!admin) return;
+
+  let aal1 = null;
+  try {
+    const summary = await admin.rpc("get_admin_dashboard_summary");
+    if (summary.error?.message?.includes("Could not find the function")) {
+      skipRequired(27, "RPC get_admin_dashboard_summary não aplicada no ambiente");
+      return;
+    }
+    assert(!summary.error && summary.data, `admin AAL2 recebe resumo (${errorText(summary.error) || "ok"})`);
+    const data = summary.data ?? {};
+    const pending = Number(data.pending_curation);
+    assert(Number.isInteger(pending) && pending >= 0, `pending_curation inteiro (${data.pending_curation})`);
+    assert(Number(data.pending_jobs) === pending, "pending_jobs espelha pending_curation");
+    assert(Number(data.rejected_queue) === Number(data.rejected_jobs), "rejected_queue espelha rejected_jobs");
+    assert(Number.isInteger(Number(data.approved)) && Number(data.approved) >= 0, "approved inteiro");
+    assert(Number.isInteger(Number(data.ingest_attention)) && Number(data.ingest_attention) >= 0, "ingest_attention inteiro");
+
+    const listed = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("status", "pending");
+    assert(!listed.error, `admin conta pending (${listed.error?.message ?? "ok"})`);
+    assert(listed.count === pending, `RPC coincide com a contagem de pending (${listed.count} vs ${pending})`);
+
+    aal1 = await assertPasswordOnlyNotAal2("admin");
+    if (aal1) {
+      const denied = await aal1.rpc("get_admin_dashboard_summary");
+      assert(
+        /aal2 required/i.test(errorText(denied.error)),
+        `admin AAL1 não lê o resumo (${errorText(denied.error) || "sem erro"})`,
+      );
+      assert(denied.data == null, "admin AAL1 não recebe jsonb");
+    }
+  } finally {
+    try {
+      await aal1?.auth.signOut();
+    } catch {
+      /* signOut do probe AAL1 não pode esconder a falha da RPC */
+    }
+    try {
+      await admin.auth.signOut();
+    } catch {
+      /* idem */
+    }
   }
 }
 
@@ -3060,6 +3114,9 @@ await scenario24_matchJobsExecuteDenied();
 console.log("\n=== Cenário 26: publicação admin concorrente ===");
 await scenario26_adminPendingJobConcurrency();
 
+console.log("\n=== Cenário 27: resumo do painel admin ===");
+await scenario27_adminDashboardSummary();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -3078,6 +3135,7 @@ if (skippedRequired.size > 0) {
     if (n === 22) band = "MVP-013 Fase B exige execução real do cenário 22";
     if (n === 24) band = "SEC-DATA-AUTHORITY-01 exige execução real do cenário 24";
     if (n === 26) band = "TECH-ADMIN-WRITE-ATOMICITY-01 exige execução real do cenário 26";
+    if (n === 27) band = "PERF-ADMIN-SHELL-SUMMARY-01 exige execução real do cenário 27";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -3088,5 +3146,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + SEC-STAFF-AAL2-PROD-01 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin: ok (${skipped.length} aviso(s) opcionais; cenários 3–26 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + SEC-STAFF-AAL2-PROD-01 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin + PERF-ADMIN-SHELL-SUMMARY-01: ok (${skipped.length} aviso(s) opcionais; cenários 3–27 executados).`,
 );
