@@ -196,6 +196,12 @@ begin
     raise exception 'authentication required';
   end if;
 
+  -- AAL2 antes de qualquer leitura: SECURITY DEFINER não revela existência,
+  -- status, autoria ou lock da vaga para quem não está em AAL2.
+  if not private.can_review_curation_aal2() then
+    raise exception 'aal2 required';
+  end if;
+
   if length(trim(coalesce(p_rubric_code, ''))) = 0 then
     raise exception 'rubric_code is required';
   end if;
@@ -235,10 +241,6 @@ begin
 
   if v_role is null then
     raise exception 'profile not found';
-  end if;
-
-  if v_role in ('curator', 'moderator', 'admin') and not private.jwt_aal2() then
-    raise exception 'aal2 required';
   end if;
 
   select

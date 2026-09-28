@@ -2267,6 +2267,38 @@ async function scenario20_staffAal1Blocked() {
       /aal2 required/i.test(errorText(review.error)),
       `curadoria AAL1 recusada (${errorText(review.error) || "sem mensagem"})`,
     );
+    const missingReview = await rpcReview(aal1Admin, "00000000-0000-4000-8000-00000000a1a1", "approve");
+    assert(
+      /aal2 required/i.test(errorText(missingReview.error)),
+      `AAL1 não distingue vaga inexistente (${errorText(missingReview.error) || "sem mensagem"})`,
+    );
+
+    const svc = createServiceClient();
+    const beforeJob = svc
+      ? await svc.from("jobs").select("status,priority,curation_round").eq("id", SEED_PENDING).maybeSingle()
+      : null;
+    const resubmit = await aal1Admin.rpc("resubmit_job_for_curation", { p_job_id: SEED_PENDING });
+    assert(
+      /admin required/i.test(errorText(resubmit.error)),
+      `AAL1 não reenvia curadoria (${errorText(resubmit.error) || "sem mensagem"})`,
+    );
+    const priorityDenied = await aal1Admin.rpc("set_job_curation_priority", {
+      p_job_id: SEED_PENDING,
+      p_priority: "urgent",
+      p_reason: "probe aal1",
+    });
+    assert(
+      /admin required/i.test(errorText(priorityDenied.error)),
+      `AAL1 não define prioridade (${errorText(priorityDenied.error) || "sem mensagem"})`,
+    );
+    if (beforeJob && !beforeJob.error && beforeJob.data) {
+      const afterJob = await svc.from("jobs").select("status,priority,curation_round").eq("id", SEED_PENDING).maybeSingle();
+      const sameState = afterJob.data
+        && afterJob.data.status === beforeJob.data.status
+        && afterJob.data.priority === beforeJob.data.priority
+        && afterJob.data.curation_round === beforeJob.data.curation_round;
+      assert(Boolean(sameState), "AAL1 não altera status, prioridade nem rodada da vaga");
+    }
 
     const rpcDenied = await aal1Admin.rpc("create_admin_pending_job", {
       p_payload: {
