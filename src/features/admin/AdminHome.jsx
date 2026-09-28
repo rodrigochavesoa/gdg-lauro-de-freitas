@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router-dom";
 import { Check, ChevronRight, Clock, Database, FileText, X } from "lucide-react";
-import { countIngestionsNeedingAttention, loadAdminDashboardJobCounts } from "./admin-dashboard-api.js";
+import { loadAdminDashboardSummary } from "./admin-dashboard-api.js";
 import { describeAdminDashboardFocus, summarizeAdminDashboard } from "./admin-dashboard.js";
 import { canManageAdminJobs } from "./staff-access.js";
 
@@ -51,8 +51,8 @@ export function AdminHome({ refreshKey = 0 }) {
   const isAdmin = canManageAdminJobs(profile?.role);
   const [jobCounts, setJobCounts] = useState(null);
   const [ingestAttention, setIngestAttention] = useState(null);
+  const [ingestUnavailable, setIngestUnavailable] = useState(false);
   const [jobsError, setJobsError] = useState("");
-  const [ingestError, setIngestError] = useState("");
   const [jobsBusy, setJobsBusy] = useState(true);
   const [ingestBusy, setIngestBusy] = useState(isAdmin);
   const [reloadToken, setReloadToken] = useState(0);
@@ -65,40 +65,25 @@ export function AdminHome({ refreshKey = 0 }) {
     if (adminChanged) {
       setJobCounts(null);
       setIngestAttention(null);
+      setIngestUnavailable(false);
     }
     setJobsBusy(true);
+    setIngestBusy(isAdmin);
     setJobsError("");
-    setIngestError("");
 
-    loadAdminDashboardJobCounts({ isAdmin })
-      .then((counts) => {
+    loadAdminDashboardSummary({ isAdmin })
+      .then((summary) => {
         if (cancelled) return;
-        setJobCounts(counts);
+        setJobCounts(summary);
+        setIngestAttention(summary.ingestAttention);
+        setIngestUnavailable(isAdmin && summary.ingestAvailable !== true);
         setJobsBusy(false);
+        setIngestBusy(false);
       })
       .catch((err) => {
         if (cancelled) return;
         setJobsError(err.message || "Não foi possível carregar o resumo do painel.");
         setJobsBusy(false);
-      });
-
-    if (!isAdmin) {
-      setIngestBusy(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setIngestBusy(true);
-    countIngestionsNeedingAttention()
-      .then((count) => {
-        if (cancelled) return;
-        setIngestAttention(count);
-        setIngestBusy(false);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setIngestError(err.message || "Não foi possível contar as ingestões.");
         setIngestBusy(false);
       });
 
@@ -122,13 +107,12 @@ export function AdminHome({ refreshKey = 0 }) {
     pendingJobs: jobCounts ? jobCounts.pendingJobs : null,
     ingestAttention,
     jobsFailed: Boolean(jobsError),
-    ingestFailed: Boolean(ingestError),
+    ingestFailed: isAdmin && ingestUnavailable,
   });
   const secondaryMetrics = summary.metrics.slice(1);
   const otherCtas = summary.ctas.filter((cta) => {
     if (focus.href && cta.to === focus.href) return false;
-    if (jobsError && cta.to !== "/admin/ingestao") return false;
-    if (ingestError && cta.to === "/admin/ingestao") return false;
+    if (jobsError) return false;
     return true;
   });
   const unresolved = focus.state === "loading" || focus.state === "unavailable";
@@ -185,7 +169,8 @@ export function AdminHome({ refreshKey = 0 }) {
             {secondaryMetrics.map((metric) => {
               const isIngest = metric.id === "ingest-attention";
               const busy = isIngest ? ingestBusy : jobsBusy;
-              const pending = metric.value == null && !(isIngest && ingestError);
+              const unavailable = isIngest && ingestUnavailable && !busy;
+              const pending = metric.value == null && !unavailable;
               const Icon = STAT_ICONS[metric.id];
               return (
                 <div
@@ -202,8 +187,11 @@ export function AdminHome({ refreshKey = 0 }) {
                     <span>{metric.label}</span>
                   </dt>
                   <dd aria-describedby={metric.hint ? `admin-metric-${metric.id}-hint` : undefined}>
-                    {pending ? <span className="admin-dashboard-skeleton-value" /> : isIngest && ingestError && metric.value == null ? "—" : metric.value}
+                    {unavailable ? "Indisponível" : pending ? <span className="admin-dashboard-skeleton-value" /> : metric.value}
                   </dd>
+                  {unavailable ? (
+                    <button className="outline small" type="button" onClick={retry}>Tentar novamente</button>
+                  ) : null}
                   {metric.hint ? (
                     <p className="admin-dashboard-stat-hint" id={`admin-metric-${metric.id}-hint`}>{metric.hint}</p>
                   ) : null}
@@ -212,12 +200,6 @@ export function AdminHome({ refreshKey = 0 }) {
             })}
           </dl>
         </>
-      ) : null}
-      {ingestError ? (
-        <div className="form-alert" role="alert">
-          <p>{ingestError}</p>
-          <button className="outline small" type="button" onClick={retry}>Tentar novamente</button>
-        </div>
       ) : null}
       {otherCtas.length > 0 ? (
         <nav className="admin-dashboard-cta" aria-label="Outras ações pendentes no painel">

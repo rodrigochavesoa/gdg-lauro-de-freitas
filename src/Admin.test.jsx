@@ -5,16 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { adminChildRoutes } from "./features/admin/admin-routes.jsx";
 
 const loadCurationProfile = vi.hoisted(() => vi.fn(async () => null));
-const loadAdminDashboardJobCounts = vi.hoisted(() =>
+const loadAdminDashboardSummary = vi.hoisted(() =>
   vi.fn(async () => ({
     pendingCuration: 0,
     approved: 0,
     rejectedJobs: 0,
     rejectedQueue: 0,
     pendingJobs: 0,
+    ingestAttention: 0,
   })),
 );
-const countIngestionsNeedingAttention = vi.hoisted(() => vi.fn(async () => 0));
 const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 const loadAdminJobPage = vi.hoisted(() =>
   vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false })),
@@ -35,8 +35,7 @@ vi.mock("./features/curation/curation-api.js", () => ({
 }));
 
 vi.mock("./features/admin/admin-dashboard-api.js", () => ({
-  loadAdminDashboardJobCounts: (...args) => loadAdminDashboardJobCounts(...args),
-  countIngestionsNeedingAttention: (...args) => countIngestionsNeedingAttention(...args),
+  loadAdminDashboardSummary: (...args) => loadAdminDashboardSummary(...args),
 }));
 
 vi.mock("./lib/admin-api.js", async () => {
@@ -110,16 +109,15 @@ describe("Admin", () => {
     loadAdminJob.mockReset();
     loadAdminJob.mockResolvedValue(null);
     signInCuration.mockReset();
-    loadAdminDashboardJobCounts.mockReset();
-    loadAdminDashboardJobCounts.mockResolvedValue({
+    loadAdminDashboardSummary.mockReset();
+    loadAdminDashboardSummary.mockResolvedValue({
       pendingCuration: 0,
       approved: 0,
       rejectedJobs: 0,
       rejectedQueue: 0,
       pendingJobs: 0,
+      ingestAttention: 0,
     });
-    countIngestionsNeedingAttention.mockReset();
-    countIngestionsNeedingAttention.mockResolvedValue(0);
     CurationQueueMock.mockClear();
     staffMfa.required = false;
     staffMfa.getStaffMfaAssurance.mockReset();

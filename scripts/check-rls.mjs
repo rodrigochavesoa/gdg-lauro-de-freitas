@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, SEC-STAFF-AAL2-PROD-01, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01 e TECH-ADMIN-WRITE-ATOMICITY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, SEC-STAFF-AAL2-PROD-01, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01, TECH-ADMIN-WRITE-ATOMICITY-01 e PERF-ADMIN-SHELL-SUMMARY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -1524,6 +1524,160 @@ async function scenario26_adminPendingJobConcurrency() {
       problems.push(`admin signOut: ${error?.message ?? "falhou"}`);
     }
     assert(problems.length === 0, `cleanup cenário 26 (${problems.join("; ") || "ok"})`);
+  }
+}
+
+/** Cenário 27 — PERF-ADMIN-SHELL-SUMMARY-01: resumo do painel exige AAL2. */
+async function scenario27_adminDashboardSummary() {
+  const anonDenied = await anon.rpc("get_admin_dashboard_summary");
+  assert(
+    Boolean(anonDenied.error) && /permission denied|42501/i.test(errorText(anonDenied.error)),
+    `anon sem EXECUTE em get_admin_dashboard_summary (${errorText(anonDenied.error) || "sem erro"})`,
+  );
+
+  const admin = await signInStaffForScenario(27, "admin");
+  if (!admin) return;
+
+  let aal1 = null;
+  try {
+    const summary = await admin.rpc("get_admin_dashboard_summary");
+    if (summary.error?.message?.includes("Could not find the function")) {
+      skipRequired(27, "RPC get_admin_dashboard_summary não aplicada no ambiente");
+      return;
+    }
+    assert(!summary.error && summary.data, `admin AAL2 recebe resumo (${errorText(summary.error) || "ok"})`);
+    const data = summary.data ?? {};
+    const pending = Number(data.pending_curation);
+    assert(Number.isInteger(pending) && pending >= 0, `pending_curation inteiro (${data.pending_curation})`);
+    assert(Number(data.pending_jobs) === pending, "pending_jobs espelha pending_curation");
+    assert(Number(data.rejected_queue) === Number(data.rejected_jobs), "rejected_queue espelha rejected_jobs");
+    assert(Number.isInteger(Number(data.approved)) && Number(data.approved) >= 0, "approved inteiro");
+    assert(data.ingest_available === true, `homolog marca ingestão disponível (${data.ingest_available})`);
+    assert(
+      Number.isInteger(Number(data.ingest_attention)) && Number(data.ingest_attention) >= 0,
+      `ingest_attention inteiro quando disponível (${data.ingest_attention})`,
+    );
+
+    const listed = await admin.from("jobs").select("id", { count: "exact", head: true }).eq("status", "pending");
+    assert(!listed.error, `admin conta pending (${listed.error?.message ?? "ok"})`);
+    assert(listed.count === pending, `RPC coincide com a contagem de pending (${listed.count} vs ${pending})`);
+
+    assert(data.ingest_unavailable == null, "contagem disponível não traz ingest_unavailable");
+
+    const svc = createServiceClient();
+    if (!svc) {
+      assert(false, "service role ausente: ingest_attention > 0 não comprovado no banco");
+    } else {
+      const before = Number(data.ingest_attention);
+      const locator = `fixture:rls-s27-${Date.now()}`;
+      let ingestionId = null;
+      try {
+        const inserted = await svc.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: locator,
+          payload_hash: "a".repeat(64),
+        }).select("id").single();
+        ingestionId = inserted.data?.id ?? null;
+        assert(!inserted.error && ingestionId, `service insere ingestão sem job (${inserted.error?.message ?? "ok"})`);
+        if (ingestionId) {
+          const raised = await admin.rpc("get_admin_dashboard_summary");
+          assert(
+            !raised.error && Number(raised.data?.ingest_attention) === before + 1,
+            `admin AAL2 vê ingest_attention aumentar (${before} → ${raised.data?.ingest_attention})`,
+          );
+          assert(raised.data?.ingest_available === true, "contagem positiva continua disponível");
+          assert(raised.data?.ingest_unavailable == null, "contagem positiva não classifica indisponível");
+          assert(Number(raised.data?.pending_curation) === pending, "contagem de vagas permanece junto da ingestão");
+        }
+      } finally {
+        if (ingestionId) {
+          const removedById = await svc.from("job_ingestions").delete().eq("id", ingestionId);
+          assert(!removedById.error, `cleanup ingestão do cenário 27 por id (${removedById.error?.message ?? "ok"})`);
+        }
+        const removedByLocator = await svc.from("job_ingestions").delete().eq("normalized_locator", locator);
+        assert(!removedByLocator.error, `cleanup ingestão do cenário 27 por locator (${removedByLocator.error?.message ?? "ok"})`);
+        const leftover = await svc
+          .from("job_ingestions")
+          .select("id", { count: "exact", head: true })
+          .like("normalized_locator", "fixture:rls-s27-%");
+        assert(
+          !leftover.error && leftover.count === 0,
+          `marcador fixture:rls-s27 ficou em zero (${leftover.error?.message ?? leftover.count})`,
+        );
+      }
+    }
+
+    aal1 = await assertPasswordOnlyNotAal2("admin");
+    if (aal1) {
+      const denied = await aal1.rpc("get_admin_dashboard_summary");
+      assert(
+        /aal2 required/i.test(errorText(denied.error)),
+        `admin AAL1 não lê o resumo (${errorText(denied.error) || "sem erro"})`,
+      );
+      assert(denied.data == null, "admin AAL1 não recebe jsonb");
+    }
+  } finally {
+    try {
+      await aal1?.auth.signOut();
+    } catch {
+      /* signOut do probe AAL1 não pode esconder a falha da RPC */
+    }
+    try {
+      await admin.auth.signOut();
+    } catch {
+      /* idem */
+    }
+  }
+
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(27, "falta candidate em docs-local");
+  } else {
+    let candidate = null;
+    try {
+      const signed = await signInWithRetry(testUsers.candidate, { label: "candidato (resumo)" });
+      candidate = signed.client ?? null;
+      assert(!signed.error && candidate, `candidato autentica (${signed.error?.message ?? "ok"})`);
+      if (!signed.error && candidate) {
+        const { data: aal } = await candidate.auth.mfa.getAuthenticatorAssuranceLevel();
+        const denied = await candidate.rpc("get_admin_dashboard_summary");
+        assert(
+          /not authorized to review/i.test(errorText(denied.error)),
+          `candidato ${aal?.currentLevel ?? "sem AAL"} não lê o resumo (${errorText(denied.error) || "sem erro"})`,
+        );
+        assert(denied.data == null, "candidato não recebe jsonb");
+      }
+    } finally {
+      try {
+        await candidate?.auth.signOut();
+      } catch {
+        /* signOut do candidato não pode esconder a falha da asserção */
+      }
+    }
+  }
+
+  for (const role of ["curator", "moderator"]) {
+    const client = await signInStaffForScenario(27, role);
+    if (!client) continue;
+    try {
+      const summary = await client.rpc("get_admin_dashboard_summary");
+      assert(!summary.error && summary.data, `${role} AAL2 recebe resumo (${errorText(summary.error) || "ok"})`);
+      const data = summary.data ?? {};
+      const pending = Number(data.pending_curation);
+      assert(Number.isInteger(pending) && pending >= 0, `${role} pending_curation inteiro (${data.pending_curation})`);
+      assert(Number(data.pending_jobs) === pending, `${role} pending_jobs espelha a curadoria`);
+      assert(Number(data.approved) === 0, `${role} approved zerado no banco (${data.approved})`);
+      assert(Number(data.rejected_jobs) === 0, `${role} rejected_jobs zerado no banco (${data.rejected_jobs})`);
+      assert(Number(data.rejected_queue) === 0, `${role} rejected_queue zerado no banco (${data.rejected_queue})`);
+      assert(data.ingest_available === false, `${role} ingest_available falso`);
+      assert(data.ingest_attention == null, `${role} ingest_attention nulo (${JSON.stringify(data.ingest_attention)})`);
+      assert(data.ingest_unavailable == null, `${role} não recebe classificação de ingestão`);
+    } finally {
+      try {
+        await client.auth.signOut();
+      } catch {
+        /* idem */
+      }
+    }
   }
 }
 
@@ -3060,6 +3214,9 @@ await scenario24_matchJobsExecuteDenied();
 console.log("\n=== Cenário 26: publicação admin concorrente ===");
 await scenario26_adminPendingJobConcurrency();
 
+console.log("\n=== Cenário 27: resumo do painel admin ===");
+await scenario27_adminDashboardSummary();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -3078,6 +3235,7 @@ if (skippedRequired.size > 0) {
     if (n === 22) band = "MVP-013 Fase B exige execução real do cenário 22";
     if (n === 24) band = "SEC-DATA-AUTHORITY-01 exige execução real do cenário 24";
     if (n === 26) band = "TECH-ADMIN-WRITE-ATOMICITY-01 exige execução real do cenário 26";
+    if (n === 27) band = "PERF-ADMIN-SHELL-SUMMARY-01 exige execução real do cenário 27";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -3088,5 +3246,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + SEC-STAFF-AAL2-PROD-01 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin: ok (${skipped.length} aviso(s) opcionais; cenários 3–26 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + SEC-STAFF-AAL2-PROD-01 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin + PERF-ADMIN-SHELL-SUMMARY-01: ok (${skipped.length} aviso(s) opcionais; cenários 3–27 executados).`,
 );
