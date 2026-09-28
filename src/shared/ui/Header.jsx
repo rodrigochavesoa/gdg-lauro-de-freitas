@@ -82,6 +82,8 @@ export function Header({
     setCropImage(null);
     setCropError("");
   };
+  const closeCropDialogRef = useRef(closeCropDialog);
+  closeCropDialogRef.current = closeCropDialog;
 
   const toggleMobileMenu = (triggerRef) => {
     if (cropImage) closeCropDialog();
@@ -119,6 +121,18 @@ export function Header({
     return () => revokeLoadedImageUrl(image);
   }, [cropImage]);
 
+  useEffect(() => {
+    if (!cropImage) return undefined;
+    const onKey = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeCropDialogRef.current();
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [cropImage]);
+
   const confirmCrop = async () => {
     if (!cropImage) return;
     setCropBusy(true);
@@ -148,13 +162,13 @@ export function Header({
   };
 
   useEffect(() => {
-    if (!mobileMenuOpen) return undefined;
+    if (!mobileMenuOpen || cropImage) return undefined;
     const onKey = (event) => {
       if (event.key === "Escape") closeMobileMenu();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [mobileMenuOpen]);
+  }, [mobileMenuOpen, cropImage]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return undefined;
