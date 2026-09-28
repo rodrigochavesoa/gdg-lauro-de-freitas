@@ -86,6 +86,8 @@ begin
     raise exception 'authentication required';
   end if;
 
+  -- AAL2 fica de fora desta história. Admin com sessão AAL1 ainda pode executar.
+  -- Antes do apply em Production o Plan escolhe: aceitar esse risco ou exigir aal2.
   if not private.is_admin() then
     raise exception 'admin required';
   end if;

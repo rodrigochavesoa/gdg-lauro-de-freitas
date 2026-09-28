@@ -1354,6 +1354,45 @@ function normalizedTitle(title) {
   return String(title ?? "").trim().toLowerCase();
 }
 
+async function noteCleanup(problems, label, run) {
+  try {
+    const result = await run();
+    if (result?.error) problems.push(`${label}: ${result.error.message}`);
+    return result;
+  } catch (error) {
+    problems.push(`${label}: ${error?.message ?? "falhou"}`);
+    return null;
+  }
+}
+
+async function cleanupScenario26Fixtures(admin, { stamp, companyName }) {
+  const problems = [];
+  const leaked = await noteCleanup(problems, "jobs read", () => admin.from("jobs").select("id").ilike("title", `%${stamp}%`));
+  const jobIds = leaked?.data?.map((row) => row.id) ?? [];
+  if (jobIds.length > 0) {
+    await noteCleanup(problems, "jobs delete", () => admin.from("jobs").delete().in("id", jobIds));
+  }
+  const leftoverJobs = await noteCleanup(problems, "jobs readback", () => admin.from("jobs").select("id").ilike("title", `%${stamp}%`));
+  if (leftoverJobs && !leftoverJobs.error && (leftoverJobs.data ?? []).length > 0) {
+    problems.push(`jobs restantes: ${leftoverJobs.data.length}`);
+  }
+
+  const companies = await noteCleanup(problems, "companies read", () => admin.from("companies").select("id,name").ilike("name", companyName));
+  const companyIds = (companies?.data ?? [])
+    .filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName))
+    .map((row) => row.id);
+  if (companyIds.length > 0) {
+    await noteCleanup(problems, "company jobs delete", () => admin.from("jobs").delete().in("company_id", companyIds));
+    await noteCleanup(problems, "companies delete", () => admin.from("companies").delete().in("id", companyIds));
+  }
+  const stillCompanies = await noteCleanup(problems, "companies readback", () => admin.from("companies").select("id,name").ilike("name", companyName));
+  const still = (stillCompanies?.data ?? []).filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName));
+  if (stillCompanies && !stillCompanies.error && still.length > 0) {
+    problems.push(`companies restantes: ${still.length}`);
+  }
+  return problems;
+}
+
 /** Cenário 26 — TECH-ADMIN-WRITE-ATOMICITY-01: publicação admin concorrente. */
 async function scenario26_adminPendingJobConcurrency() {
   const admin = await signInStaffForScenario(26, "admin");
@@ -1391,6 +1430,14 @@ async function scenario26_adminPendingJobConcurrency() {
       skipRequired(26, "RPC create_admin_pending_job não aplicada no ambiente");
       return;
     }
+
+    const anonDenied = await anon.rpc("create_admin_pending_job", {
+      p_payload: payload({ company_id: SEED_COMPANY, title: `anon ${stamp}` }),
+    });
+    assert(
+      Boolean(anonDenied.error) && /permission denied|42501/i.test(errorText(anonDenied.error)),
+      `anon sem EXECUTE em create_admin_pending_job (${errorText(anonDenied.error) || "sem erro"})`,
+    );
 
     const created = sameCompany.filter((row) => !row.error && row.data?.id);
     const duplicated = sameCompany.filter(isDuplicatePendingJob);
@@ -1442,37 +1489,23 @@ async function scenario26_adminPendingJobConcurrency() {
       }
     }
   } finally {
-    const leaked = await admin.from("jobs").select("id").ilike("title", `%${stamp}%`);
-    if (leaked.error) {
-      assert(false, `cleanup cenário 26 lê jobs (${leaked.error.message})`);
-    } else if ((leaked.data ?? []).length > 0) {
-      const removed = await admin.from("jobs").delete().in("id", leaked.data.map((row) => row.id));
-      assert(!removed.error, `cleanup cenário 26 apaga jobs (${removed.error?.message ?? "ok"})`);
+    let problems = [];
+    try {
+      problems = await cleanupScenario26Fixtures(admin, { stamp, companyName });
+    } catch (error) {
+      problems.push(`cleanup: ${error?.message ?? "falhou"}`);
     }
-    const leftoverJobs = await admin.from("jobs").select("id").ilike("title", `%${stamp}%`);
-    assert(
-      !leftoverJobs.error && (leftoverJobs.data ?? []).length === 0,
-      `cleanup cenário 26 sem vaga restante (${leftoverJobs.error?.message ?? leftoverJobs.data?.length})`,
-    );
-
-    const companies = await admin.from("companies").select("id,name").ilike("name", companyName);
-    const companyIds = (companies.data ?? [])
-      .filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName))
-      .map((row) => row.id);
-    if (companies.error) {
-      assert(false, `cleanup cenário 26 lê companies (${companies.error.message})`);
-    } else if (companyIds.length > 0) {
-      const removedJobs = await admin.from("jobs").delete().in("company_id", companyIds);
-      assert(!removedJobs.error, `cleanup cenário 26 apaga jobs da empresa (${removedJobs.error?.message ?? "ok"})`);
-      const removedCompany = await admin.from("companies").delete().in("id", companyIds);
-      assert(!removedCompany.error, `cleanup cenário 26 apaga empresa (${removedCompany.error?.message ?? "ok"})`);
+    try {
+      await candidate?.auth.signOut();
+    } catch (error) {
+      problems.push(`candidate signOut: ${error?.message ?? "falhou"}`);
     }
-    const stillCompanies = await admin.from("companies").select("id,name").ilike("name", companyName);
-    const still = (stillCompanies.data ?? []).filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName));
-    assert(!stillCompanies.error && still.length === 0, `cleanup cenário 26 sem empresa restante (${stillCompanies.error?.message ?? still.length})`);
-
-    await candidate?.auth.signOut();
-    await admin.auth.signOut();
+    try {
+      await admin.auth.signOut();
+    } catch (error) {
+      problems.push(`admin signOut: ${error?.message ?? "falhou"}`);
+    }
+    assert(problems.length === 0, `cleanup cenário 26 (${problems.join("; ") || "ok"})`);
   }
 }
 
