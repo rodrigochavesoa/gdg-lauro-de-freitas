@@ -86,6 +86,17 @@ describe("admin-dashboard-api", () => {
     expect(missing.ingestAttention).toBeNull();
     expect(missing.ingestAvailable).toBe(false);
 
+    supabaseState.summary = {
+      ...supabaseState.summary,
+      ingest_attention: null,
+      ingest_available: true,
+      ingest_unavailable: "ingest_unavailable",
+    };
+    const contradictory = await loadAdminDashboardSummary({ isAdmin: true });
+    expect(contradictory.ingestAttention).toBeNull();
+    expect(contradictory.ingestAvailable).toBe(false);
+    expect(contradictory.approved).toBe(5);
+
     supabaseState.summary = { ...supabaseState.summary, ingest_attention: "nope", ingest_available: true };
     const invalid = await loadAdminDashboardSummary({ isAdmin: true });
     expect(invalid.ingestAttention).toBeNull();

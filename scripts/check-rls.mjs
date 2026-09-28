@@ -1562,26 +1562,37 @@ async function scenario27_adminDashboardSummary() {
     assert(!listed.error, `admin conta pending (${listed.error?.message ?? "ok"})`);
     assert(listed.count === pending, `RPC coincide com a contagem de pending (${listed.count} vs ${pending})`);
 
+    assert(data.ingest_unavailable == null, "contagem disponível não traz ingest_unavailable");
+
     const svc = createServiceClient();
     if (!svc) {
       assert(false, "service role ausente: ingest_attention > 0 não comprovado no banco");
     } else {
       const before = Number(data.ingest_attention);
-      const inserted = await svc.from("job_ingestions").insert({
-        source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-        normalized_locator: `fixture:rls-s27-${Date.now()}`,
-        payload_hash: "a".repeat(64),
-      }).select("id").single();
-      assert(!inserted.error && inserted.data?.id, `service insere ingestão sem job (${inserted.error?.message ?? "ok"})`);
-      if (inserted.data?.id) {
-        const raised = await admin.rpc("get_admin_dashboard_summary");
-        assert(
-          !raised.error && Number(raised.data?.ingest_attention) === before + 1,
-          `admin AAL2 vê ingest_attention aumentar (${before} → ${raised.data?.ingest_attention})`,
-        );
-        assert(raised.data?.ingest_available === true, "contagem positiva continua disponível");
-        assert(Number(raised.data?.pending_curation) === pending, "contagem de vagas permanece junto da ingestão");
-        await deleteIngestions([inserted.data.id]);
+      let ingestionId = null;
+      try {
+        const inserted = await svc.from("job_ingestions").insert({
+          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          normalized_locator: `fixture:rls-s27-${Date.now()}`,
+          payload_hash: "a".repeat(64),
+        }).select("id").single();
+        ingestionId = inserted.data?.id ?? null;
+        assert(!inserted.error && ingestionId, `service insere ingestão sem job (${inserted.error?.message ?? "ok"})`);
+        if (ingestionId) {
+          const raised = await admin.rpc("get_admin_dashboard_summary");
+          assert(
+            !raised.error && Number(raised.data?.ingest_attention) === before + 1,
+            `admin AAL2 vê ingest_attention aumentar (${before} → ${raised.data?.ingest_attention})`,
+          );
+          assert(raised.data?.ingest_available === true, "contagem positiva continua disponível");
+          assert(raised.data?.ingest_unavailable == null, "contagem positiva não classifica indisponível");
+          assert(Number(raised.data?.pending_curation) === pending, "contagem de vagas permanece junto da ingestão");
+        }
+      } finally {
+        if (ingestionId) {
+          const removed = await svc.from("job_ingestions").delete().eq("id", ingestionId);
+          assert(!removed.error, `cleanup ingestão do cenário 27 (${removed.error?.message ?? "ok"})`);
+        }
       }
     }
 
@@ -1610,17 +1621,26 @@ async function scenario27_adminDashboardSummary() {
   if (!hasCreds(testUsers.candidate)) {
     skipRequired(27, "falta candidate em docs-local");
   } else {
-    const { client: candidate, error: candErr } = await signInWithRetry(testUsers.candidate, { label: "candidato (resumo)" });
-    assert(!candErr && candidate, `candidato autentica (${candErr?.message ?? "ok"})`);
-    if (!candErr && candidate) {
-      const { data: aal } = await candidate.auth.mfa.getAuthenticatorAssuranceLevel();
-      const denied = await candidate.rpc("get_admin_dashboard_summary");
-      assert(
-        /not authorized to review/i.test(errorText(denied.error)),
-        `candidato ${aal?.currentLevel ?? "sem AAL"} não lê o resumo (${errorText(denied.error) || "sem erro"})`,
-      );
-      assert(denied.data == null, "candidato não recebe jsonb");
-      await candidate.auth.signOut();
+    let candidate = null;
+    try {
+      const signed = await signInWithRetry(testUsers.candidate, { label: "candidato (resumo)" });
+      candidate = signed.client ?? null;
+      assert(!signed.error && candidate, `candidato autentica (${signed.error?.message ?? "ok"})`);
+      if (!signed.error && candidate) {
+        const { data: aal } = await candidate.auth.mfa.getAuthenticatorAssuranceLevel();
+        const denied = await candidate.rpc("get_admin_dashboard_summary");
+        assert(
+          /not authorized to review/i.test(errorText(denied.error)),
+          `candidato ${aal?.currentLevel ?? "sem AAL"} não lê o resumo (${errorText(denied.error) || "sem erro"})`,
+        );
+        assert(denied.data == null, "candidato não recebe jsonb");
+      }
+    } finally {
+      try {
+        await candidate?.auth.signOut();
+      } catch {
+        /* signOut do candidato não pode esconder a falha da asserção */
+      }
     }
   }
 
@@ -1639,6 +1659,7 @@ async function scenario27_adminDashboardSummary() {
       assert(Number(data.rejected_queue) === 0, `${role} rejected_queue zerado no banco (${data.rejected_queue})`);
       assert(data.ingest_available === false, `${role} ingest_available falso`);
       assert(data.ingest_attention == null, `${role} ingest_attention nulo (${JSON.stringify(data.ingest_attention)})`);
+      assert(data.ingest_unavailable == null, `${role} não recebe classificação de ingestão`);
     } finally {
       try {
         await client.auth.signOut();
