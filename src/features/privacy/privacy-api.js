@@ -1,4 +1,6 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { mapPrivacyPurposeRowToDto } from "../../lib/data-contracts/map-row.js";
+import { PRIVACY_EVENT_SELECT, PRIVACY_PURPOSE_SELECT } from "../../lib/data-contracts/selects.js";
 import { redactForLog } from "../../lib/privacy-redaction.js";
 import { PRIVACY_PURPOSES, latestEventsByPurpose } from "./privacy-catalog.js";
 
@@ -100,8 +102,8 @@ async function fetchPrivacyPreferences() {
   }
 
   const [{ data: purposes, error: purposeError }, { data: events, error: eventError }] = await Promise.all([
-    client.from("privacy_purposes").select("*").order("purpose_code").order("version", { ascending: false }),
-    client.from("privacy_consent_events").select("id,purpose_code,purpose_version,event_type,source,proof,created_at").order("created_at", { ascending: false }),
+    client.from("privacy_purposes").select(PRIVACY_PURPOSE_SELECT).order("purpose_code").order("version", { ascending: false }),
+    client.from("privacy_consent_events").select(PRIVACY_EVENT_SELECT).order("created_at", { ascending: false }),
   ]);
   if (isPrivacySchemaUnavailableError(purposeError) || isPrivacySchemaUnavailableError(eventError)) {
     return schemaUnavailablePayload();
@@ -110,7 +112,7 @@ async function fetchPrivacyPreferences() {
   throwIfError(eventError);
   return {
     available: true,
-    purposes: sortPurposes(purposes?.length ? purposes : PRIVACY_PURPOSES),
+    purposes: sortPurposes(purposes?.length ? purposes.map(mapPrivacyPurposeRowToDto) : PRIVACY_PURPOSES),
     events: events ?? [],
     source: "supabase",
   };

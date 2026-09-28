@@ -15,7 +15,6 @@ const loadAdminDashboardSummary = vi.hoisted(() =>
     ingestAttention: 0,
   })),
 );
-const loadAdminJobs = vi.hoisted(() => vi.fn(async () => []));
 const loadAdminJobPage = vi.hoisted(() =>
   vi.fn(async () => ({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false })),
 );
@@ -43,7 +42,6 @@ vi.mock("./lib/admin-api.js", async () => {
   return {
     ...actual,
     createPendingJob: vi.fn(),
-    loadAdminJobs: (...args) => loadAdminJobs(...args),
     loadAdminJob: (...args) => loadAdminJob(...args),
     loadCompanies: vi.fn(async () => []),
     updatePendingJob: vi.fn(),
@@ -102,8 +100,6 @@ describe("Admin", () => {
   beforeEach(() => {
     loadCurationProfile.mockReset();
     loadCurationProfile.mockResolvedValue(null);
-    loadAdminJobs.mockReset();
-    loadAdminJobs.mockResolvedValue([]);
     loadAdminJobPage.mockReset();
     loadAdminJobPage.mockResolvedValue({ items: [], total: 0, page: 1, pageSize: 24, hasNext: false });
     loadAdminJob.mockReset();
@@ -325,7 +321,6 @@ describe("Admin", () => {
     );
     expect(await screen.findByRole("status")).toHaveTextContent(/restrita ao papel admin/i);
     expect(screen.queryByRole("heading", { name: "Aguardando curadoria" })).not.toBeInTheDocument();
-    expect(loadAdminJobs).not.toHaveBeenCalled();
     expect(loadAdminJobPage).not.toHaveBeenCalled();
   });
 
@@ -439,7 +434,6 @@ describe("Admin", () => {
       "href",
       "/admin/vagas/j2",
     );
-    expect(loadAdminJobs).not.toHaveBeenCalled();
     expect(loadAdminJobPage).toHaveBeenCalledWith(
       expect.objectContaining({ status: "pending", query: "", sort: "recent", page: 1, pageSize: 24 }),
     );
@@ -770,7 +764,6 @@ describe("Admin", () => {
     await waitFor(() => {
       expect(loadAdminJobPage).toHaveBeenCalledWith(expect.objectContaining({ sort: "oldest", page: 1 }));
     });
-    expect(loadAdminJobs).not.toHaveBeenCalled();
   });
 
   it("anuncia falha de login com alerta, não com token de sucesso", async () => {

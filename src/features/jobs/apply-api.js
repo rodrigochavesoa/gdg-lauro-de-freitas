@@ -1,10 +1,7 @@
+import { mapApplicationListRowToDto } from "../../lib/data-contracts/map-row.js";
+import { APPLICATION_LIST_SELECT, APPLICATION_SELECT } from "../../lib/data-contracts/selects.js";
 import { runObserved } from "../../lib/ops-observability.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
-
-const APPLICATION_SELECT = "id,job_id,candidate_id,status,snapshot,created_at,updated_at";
-
-/** Lista: sem snapshot (a UI não renderiza). Detalhe/RPC continua com APPLICATION_SELECT. */
-const APPLICATION_LIST_SELECT = "id,job_id,candidate_id,status,created_at,updated_at, jobs ( title, companies ( name ) )";
 
 export const APPLICATION_LIST_LIMIT = 100;
 
@@ -227,7 +224,7 @@ export async function loadMyApplications(userIdOrOptions) {
       .order("id", { ascending: false })
       .range(from, to);
     if (error) throw createApplyError(error);
-    const rows = (data ?? []).map(parseApplication).filter(Boolean);
+    const rows = (data ?? []).map((row) => parseApplication(mapApplicationListRowToDto(row))).filter(Boolean);
     const result = sliceApplicationsPage(rows, APPLICATION_LIST_LIMIT);
     if (useCache) {
       myApplicationsCache.set(candidateId, { data: result, fetchedAt: Date.now() });

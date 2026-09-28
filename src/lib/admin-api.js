@@ -1,4 +1,6 @@
 import { centsFromReaisInput, normalizeCountryCode, normalizeSalaryCents } from "./catalog-url.js";
+import { mapAdminJobFormRowToDto } from "./data-contracts/map-row.js";
+import { ADMIN_JOB_SELECT, ADMIN_JOB_TITLE_PROBE_SELECT, COMPANY_PICKER_SELECT } from "./data-contracts/selects.js";
 import { runObserved } from "./ops-observability.js";
 import { throwStaffApiError } from "./staff-api-errors.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
@@ -176,7 +178,7 @@ export const COMPANY_LIST_LIMIT = 100;
 export async function loadCompanies({ query = "", includeId = "" } = {}) {
   const client = clientOrThrow();
   const term = String(query ?? "").trim();
-  let request = client.from("companies").select("id,name").order("name", { ascending: true }).order("id", { ascending: true });
+  let request = client.from("companies").select(COMPANY_PICKER_SELECT).order("name", { ascending: true }).order("id", { ascending: true });
   if (term) request = request.ilike("name", `%${ilikeExact(term)}%`);
   const { data, error } = await request.limit(COMPANY_LIST_LIMIT + 1);
   throwIfError(error);
@@ -184,22 +186,11 @@ export async function loadCompanies({ query = "", includeId = "" } = {}) {
   const truncated = rows.length > COMPANY_LIST_LIMIT;
   const companies = truncated ? rows.slice(0, COMPANY_LIST_LIMIT) : [...rows];
   if (includeId && !companies.some((row) => row.id === includeId)) {
-    const extra = await client.from("companies").select("id,name").eq("id", includeId).maybeSingle();
+    const extra = await client.from("companies").select(COMPANY_PICKER_SELECT).eq("id", includeId).maybeSingle();
     throwIfError(extra.error);
     if (extra.data) companies.unshift(extra.data);
   }
   return { companies, truncated };
-}
-
-const ADMIN_JOB_SELECT =
-  "id,title,status,company_id,level,work_model,location,country_code,salary_min,salary_max,description,stack,curation_round,rejected_at,companies(name),job_curation_reviews(decision,rubric_code,internal_comment,curation_round,created_at)";
-
-/**
- * Fora da listagem staff. /admin/vagas usa loadAdminJobPage (pageSize, count exact, range).
- * Não baixa jobs. Mantida só para o mock das rotas não chamarem a lista legada.
- */
-export async function loadAdminJobs() {
-  throw new Error("loadAdminJobs saiu da listagem. Use loadAdminJobPage.");
 }
 
 export async function loadAdminJob(id) {
@@ -207,7 +198,7 @@ export async function loadAdminJob(id) {
   const client = clientOrThrow();
   const { data, error } = await client.from("jobs").select(ADMIN_JOB_SELECT).eq("id", id).maybeSingle();
   throwIfError(error);
-  return data ?? null;
+  return data ? mapAdminJobFormRowToDto(data) : null;
 }
 
 function ilikeExact(value) {
@@ -226,7 +217,7 @@ async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
   if (!trimmed) return;
   let request = client
     .from("jobs")
-    .select("id,title,company_id")
+    .select(ADMIN_JOB_TITLE_PROBE_SELECT)
     .eq("company_id", companyId)
     .ilike("title", ilikeExact(trimmed));
   if (excludeId) request = request.neq("id", excludeId);
@@ -244,7 +235,7 @@ export async function createCompany({ name, description = "Empresa fictícia de 
   const { data, error } = await client
     .from("companies")
     .insert({ name: trimmed, description, website: "https://example.invalid" })
-    .select("id,name")
+    .select(COMPANY_PICKER_SELECT)
     .single();
   throwIfError(error);
   return data;

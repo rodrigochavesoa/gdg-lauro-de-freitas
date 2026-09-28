@@ -1,4 +1,6 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { mapProfileRowToDto } from "../../lib/data-contracts/map-row.js";
+import { PROFILE_SELECT } from "../../lib/data-contracts/selects.js";
 import { classifyOpsFailure, emitOpsEvent, runObserved, technicalRoute } from "../../lib/ops-observability.js";
 import {
   isCandidateProfile,
@@ -7,7 +9,6 @@ import {
   validateOnboarding,
 } from "./profile-completeness.js";
 
-const PROFILE_SELECT = "id,full_name,headline,bio,skills,preferences,role,avatar_path";
 export const AVATAR_BUCKET = "avatars";
 const AVATAR_SIGNED_TTL_SEC = 60 * 60;
 /** Memory-only cache expires before the signed URL itself. */
@@ -175,7 +176,7 @@ async function fetchProfile(client, userId) {
     .eq("id", userId)
     .maybeSingle();
   throwIfError(error);
-  return data;
+  return data ? mapProfileRowToDto(data) : data;
 }
 
 /** Só ignora corrida na PK `profiles.id` (Postgres 23505 / profiles_pkey). */
@@ -380,7 +381,7 @@ export async function saveOnboardingProfile({
     .select(PROFILE_SELECT)
     .single();
   throwIfError(error);
-  return data;
+  return mapProfileRowToDto(data);
 }
 
 /** Signed URL — bucket `avatars` é privado para não expor foto de terceiros. Cache só em memória. */
@@ -464,5 +465,5 @@ export async function saveProfileAvatar(blob) {
     }
   }
 
-  return persisted.data;
+  return mapProfileRowToDto(persisted.data);
 }
