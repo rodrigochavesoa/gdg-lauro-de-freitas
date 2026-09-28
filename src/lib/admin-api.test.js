@@ -3,9 +3,10 @@ import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fromMock = vi.fn();
+const rpcMock = vi.fn();
 
 vi.mock("./supabase-client.js", () => ({
-  getSupabaseBrowserClient: () => ({ from: fromMock }),
+  getSupabaseBrowserClient: () => ({ from: fromMock, rpc: rpcMock }),
 }));
 
 import {
@@ -94,8 +95,9 @@ describe("parseStack", () => {
 });
 
 describe("normalizeJobTitle e duplicidade", () => {
-  it("normaliza trim, espaços e caixa", () => {
-    expect(normalizeJobTitle("  Pessoa   Dev  ")).toBe("pessoa dev");
+  it("normaliza como lower(btrim(title)), sem colapsar espaços internos", () => {
+    expect(normalizeJobTitle("  Pessoa Dev  ")).toBe("pessoa dev");
+    expect(normalizeJobTitle("  Pessoa   Dev  ")).toBe("pessoa   dev");
   });
 
   it("detecta o mesmo título na mesma empresa", () => {
@@ -103,8 +105,9 @@ describe("normalizeJobTitle e duplicidade", () => {
       { id: "a", company_id: "c1", title: "Pessoa Dev" },
       { id: "b", company_id: "c2", title: "Pessoa Dev" },
     ];
-    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV" })?.id).toBe("a");
-    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV", excludeId: "a" })).toBeNull();
+    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa DEV" })?.id).toBe("a");
+    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa   DEV" })).toBeNull();
+    expect(findDuplicateJob(jobs, { companyId: "c1", title: "pessoa DEV", excludeId: "a" })).toBeNull();
     expect(findDuplicateJob(jobs, { companyId: "c2", title: "Outra" })).toBeNull();
   });
 });
@@ -131,6 +134,7 @@ const jobInput = {
 describe("listas staff com teto", () => {
   beforeEach(() => {
     fromMock.mockReset();
+    rpcMock.mockReset();
   });
 
   it("loadCompanies corta a busca e avisa quando há mais empresas", async () => {
@@ -180,18 +184,66 @@ describe("listas staff com teto", () => {
     expect(formRoute).toContain("loadCompanies");
   });
 
-  it("createPendingJob sonda o título com ilike e limite, sem varrer a empresa", async () => {
+  it("createPendingJob sonda o título e publica pela RPC, sem insert direto", async () => {
     const probe = chain({ data: [], error: null });
-    const insert = chain({ data: { id: "j1", title: "Pessoa Dev", status: "pending" }, error: null });
-    fromMock.mockReturnValueOnce(probe).mockReturnValueOnce(insert);
+    fromMock.mockReturnValueOnce(probe);
+    rpcMock.mockResolvedValue({
+      data: { id: "j1", title: "Pessoa Dev", status: "pending" },
+      error: null,
+    });
 
-    await createPendingJob(jobInput);
+    await expect(createPendingJob(jobInput)).resolves.toEqual({
+      id: "j1",
+      title: "Pessoa Dev",
+      status: "pending",
+    });
 
     expect(probe.select).toHaveBeenCalledWith("id,title,company_id");
     expect(probe.eq).toHaveBeenCalledWith("company_id", jobInput.companyId);
     expect(probe.ilike).toHaveBeenCalledWith("title", "Pessoa Dev");
     expect(probe.limit).toHaveBeenCalledWith(5);
-    expect(insert.insert).toHaveBeenCalled();
+    expect(probe.insert).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith("create_admin_pending_job", {
+      p_payload: expect.objectContaining({
+        company_id: jobInput.companyId,
+        new_company_name: null,
+        title: "Pessoa Dev",
+        description: jobInput.description,
+        level: "mid",
+        work_model: "remote",
+        stack: [],
+      }),
+    });
+  });
+
+  it("createPendingJob com empresa nova não insere company no cliente", async () => {
+    rpcMock.mockResolvedValue({
+      data: { id: "j2", title: "Pessoa Dev", status: "pending" },
+      error: null,
+    });
+
+    await createPendingJob({ ...jobInput, companyId: "", newCompanyName: "  Lab Nova  " });
+
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(rpcMock).toHaveBeenCalledWith("create_admin_pending_job", {
+      p_payload: expect.objectContaining({
+        company_id: null,
+        new_company_name: "Lab Nova",
+        title: "Pessoa Dev",
+      }),
+    });
+  });
+
+  it("createPendingJob mapeia duplicata devolvida pela RPC", async () => {
+    const probe = chain({ data: [], error: null });
+    fromMock.mockReturnValueOnce(probe);
+    rpcMock.mockResolvedValue({
+      data: null,
+      error: { message: "Já existe vaga com este título para esta empresa.", code: "23505" },
+    });
+
+    await expect(createPendingJob(jobInput)).rejects.toThrow(/Já existe vaga/);
+    expect(rpcMock).toHaveBeenCalledOnce();
   });
 
   it("updatePendingJob exclui a própria vaga na sonda", async () => {
