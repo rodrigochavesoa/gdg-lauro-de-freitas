@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01 e TECH-ADMIN-WRITE-ATOMICITY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, SEC-STAFF-AAL2-PROD-01, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01 e TECH-ADMIN-WRITE-ATOMICITY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -1393,7 +1393,7 @@ async function cleanupScenario26Fixtures(admin, { stamp, companyName }) {
   return problems;
 }
 
-/** Cenário 26 — TECH-ADMIN-WRITE-ATOMICITY-01: publicação admin concorrente. */
+/** Cenário 26 — publicação admin: concorrência, anon negado, AAL2 ok, AAL1 recusado. */
 async function scenario26_adminPendingJobConcurrency() {
   const admin = await signInStaffForScenario(26, "admin");
   if (!admin) return;
@@ -1404,6 +1404,7 @@ async function scenario26_adminPendingJobConcurrency() {
   const innerSpaceTitle = `cargo  atom ${stamp}`;
   const companyName = `Lab Atom ${stamp}`;
   let candidate = null;
+  let aal1Admin = null;
 
   const payload = (overrides) => ({
     company_id: null,
@@ -1488,6 +1489,18 @@ async function scenario26_adminPendingJobConcurrency() {
         assert(/admin required/i.test(applyResultText(denied)), `candidato não publica (${applyResultText(denied) || "sem erro"})`);
       }
     }
+
+    aal1Admin = await assertPasswordOnlyNotAal2("admin");
+    if (aal1Admin) {
+      const deniedAal1 = await aal1Admin.rpc("create_admin_pending_job", {
+        p_payload: payload({ company_id: SEED_COMPANY, title: `aal1 ${stamp}` }),
+      });
+      assert(
+        /aal2 required/i.test(applyResultText(deniedAal1)),
+        `admin AAL1 não publica (${applyResultText(deniedAal1) || "sem erro"})`,
+      );
+      assert(!deniedAal1.data?.id, "admin AAL1 não cria vaga");
+    }
   } finally {
     let problems = [];
     try {
@@ -1499,6 +1512,11 @@ async function scenario26_adminPendingJobConcurrency() {
       await candidate?.auth.signOut();
     } catch (error) {
       problems.push(`candidate signOut: ${error?.message ?? "falhou"}`);
+    }
+    try {
+      await aal1Admin?.auth.signOut();
+    } catch (error) {
+      problems.push(`aal1 signOut: ${error?.message ?? "falhou"}`);
     }
     try {
       await admin.auth.signOut();
@@ -2187,7 +2205,7 @@ async function assertPasswordOnlyNotAal2(role) {
   assert(!aalError, `${role} lê AAL (${errorText(aalError) || "ok"})`);
   assert(
     aal?.currentLevel === "aal1",
-    `${role} sessão de controle do cenário 20 é AAL1 (atual: ${aal?.currentLevel ?? "ausente"})`,
+    `${role} sessão de controle é AAL1 (atual: ${aal?.currentLevel ?? "ausente"})`,
   );
   if (aalError || aal?.currentLevel !== "aal1") {
     await client.auth.signOut();
@@ -2233,7 +2251,7 @@ async function scenario20_staffAal1Blocked() {
       await deleteJob(aal1Admin, created.data.id);
       assert(
         false,
-        "AAL1 não insere vaga staff — aplique 20260917140000_staff_rls_aal2.sql só em homologação",
+        "AAL1 não insere vaga staff — SEC-STAFF-AAL2-PROD-01 exige a policy *_aal2",
       );
       return;
     }
@@ -2248,6 +2266,56 @@ async function scenario20_staffAal1Blocked() {
     assert(
       /aal2 required/i.test(errorText(review.error)),
       `curadoria AAL1 recusada (${errorText(review.error) || "sem mensagem"})`,
+    );
+    const missingReview = await rpcReview(aal1Admin, "00000000-0000-4000-8000-00000000a1a1", "approve");
+    assert(
+      /aal2 required/i.test(errorText(missingReview.error)),
+      `AAL1 não distingue vaga inexistente (${errorText(missingReview.error) || "sem mensagem"})`,
+    );
+
+    const svc = createServiceClient();
+    const beforeJob = svc
+      ? await svc.from("jobs").select("status,priority,curation_round").eq("id", SEED_PENDING).maybeSingle()
+      : null;
+    const resubmit = await aal1Admin.rpc("resubmit_job_for_curation", { p_job_id: SEED_PENDING });
+    assert(
+      /admin required/i.test(errorText(resubmit.error)),
+      `AAL1 não reenvia curadoria (${errorText(resubmit.error) || "sem mensagem"})`,
+    );
+    const priorityDenied = await aal1Admin.rpc("set_job_curation_priority", {
+      p_job_id: SEED_PENDING,
+      p_priority: "urgent",
+      p_reason: "probe aal1",
+    });
+    assert(
+      /admin required/i.test(errorText(priorityDenied.error)),
+      `AAL1 não define prioridade (${errorText(priorityDenied.error) || "sem mensagem"})`,
+    );
+    if (beforeJob && !beforeJob.error && beforeJob.data) {
+      const afterJob = await svc.from("jobs").select("status,priority,curation_round").eq("id", SEED_PENDING).maybeSingle();
+      const sameState = afterJob.data
+        && afterJob.data.status === beforeJob.data.status
+        && afterJob.data.priority === beforeJob.data.priority
+        && afterJob.data.curation_round === beforeJob.data.curation_round;
+      assert(Boolean(sameState), "AAL1 não altera status, prioridade nem rodada da vaga");
+    }
+
+    const rpcDenied = await aal1Admin.rpc("create_admin_pending_job", {
+      p_payload: {
+        company_id: SEED_COMPANY,
+        title: marker,
+        description: "Vaga fictícia para teste RLS de curadoria.",
+        level: "junior",
+        work_model: "remote",
+      },
+    });
+    if (!rpcDenied.error && rpcDenied.data?.id) {
+      await deleteJob(aal1Admin, rpcDenied.data.id);
+    }
+    assert(Boolean(rpcDenied.error), "AAL1 não publica pela RPC create_admin_pending_job");
+    assert(
+      /aal2 required/i.test(errorText(rpcDenied.error)),
+      `RPC AAL1 recusada (${errorText(rpcDenied.error) || "sem mensagem"})`,
     );
   } finally {
     await aal1Admin.auth.signOut();
@@ -2275,6 +2343,19 @@ async function scenario20_staffAal1Blocked() {
   const createdAal2 = await createPendingJob(aal2, okMarker);
   assert(!createdAal2.error && createdAal2.data?.id, "AAL2 cadastra pending");
   if (createdAal2.data?.id) await deleteJob(aal2, createdAal2.data.id);
+
+  const rpcMarker = `RLS aal2 rpc ${Date.now()}`;
+  const rpcOk = await aal2.rpc("create_admin_pending_job", {
+    p_payload: {
+      company_id: SEED_COMPANY,
+      title: rpcMarker,
+      description: "Vaga fictícia para teste RLS de curadoria.",
+      level: "junior",
+      work_model: "remote",
+    },
+  });
+  assert(!rpcOk.error && rpcOk.data?.id, `AAL2 publica pela RPC (${errorText(rpcOk.error) || "ok"})`);
+  if (rpcOk.data?.id) await deleteJob(aal2, rpcOk.data.id);
   await aal2.auth.signOut();
 }
 
@@ -2962,7 +3043,7 @@ await scenario18_rlsHelperRpcSurface();
 console.log("\n=== Cenário 19: Storage avatars (PERF-AVATAR-02) ===");
 await scenario19_avatarStorage();
 
-console.log("\n=== Cenário 20: SEC-STAFF-MFA-02 AAL1 bloqueado em mutação staff ===");
+console.log("\n=== Cenário 20: SEC-STAFF-AAL2-PROD-01 AAL1 bloqueado em mutação staff ===");
 await scenario20_staffAal1Blocked();
 
 await delayBeforeIngestionScenarios();
@@ -3007,5 +3088,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin: ok (${skipped.length} aviso(s) opcionais; cenários 3–26 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + SEC-STAFF-AAL2-PROD-01 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin: ok (${skipped.length} aviso(s) opcionais; cenários 3–26 executados).`,
 );
