@@ -16,5 +16,6 @@
   "20260914041628_rls_helper_private_least_privilege.sql",
   "20260927080000_sec_data_authority_staff_apply.sql",
   "20260927080100_sec_data_authority_revoke_match_jobs.sql",
-  "20260927080300_sec_apply_ratelimit_concurrency.sql"
+  "20260927080300_sec_apply_ratelimit_concurrency.sql",
+  "20260928010000_tech_admin_write_atomicity.sql"
 ]

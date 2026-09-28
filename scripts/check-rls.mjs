@@ -1,5 +1,5 @@
 /**
- * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01 e SEC-APPLY-RATELIMIT-CONCURRENCY-01.
+ * Verifica RLS, curadoria V1 (S4-01), candidatura V1 (S6-01), F-019, F-023, MVP-021, MVP-003, MVP-005, MVP-022, SEC-STAFF-MFA-02, MVP-013 (Fase A/B), SEC-STAFF-APPLY-01, SEC-APPLY-RATE-LIMIT-RAISE-01, SEC-DATA-AUTHORITY-01, SEC-APPLY-RATELIMIT-CONCURRENCY-01 e TECH-ADMIN-WRITE-ATOMICITY-01.
  * Lê .env.local, docs-local/*-test-user.md e docs-local/staff-mfa-totp-secrets.md. Nunca imprime senhas nem secrets TOTP.
  * pwsh: pnpm test:rls
  */
@@ -1342,6 +1342,170 @@ async function scenario25_applyRateLimitConcurrency() {
       const problems = await cleanupScenario25Probe(svc, probeUserId);
       assert(problems.length === 0, `cleanup cenário 25 (${problems.join("; ") || "ok"})`);
     }
+  }
+}
+
+function isDuplicatePendingJob(row) {
+  const text = applyResultText(row);
+  return row.error?.code === "23505" || /Já existe vaga com este título para esta empresa/i.test(text);
+}
+
+function normalizedTitle(title) {
+  return String(title ?? "").trim().toLowerCase();
+}
+
+async function noteCleanup(problems, label, run) {
+  try {
+    const result = await run();
+    if (result?.error) problems.push(`${label}: ${result.error.message}`);
+    return result;
+  } catch (error) {
+    problems.push(`${label}: ${error?.message ?? "falhou"}`);
+    return null;
+  }
+}
+
+async function cleanupScenario26Fixtures(admin, { stamp, companyName }) {
+  const problems = [];
+  const leaked = await noteCleanup(problems, "jobs read", () => admin.from("jobs").select("id").ilike("title", `%${stamp}%`));
+  const jobIds = leaked?.data?.map((row) => row.id) ?? [];
+  if (jobIds.length > 0) {
+    await noteCleanup(problems, "jobs delete", () => admin.from("jobs").delete().in("id", jobIds));
+  }
+  const leftoverJobs = await noteCleanup(problems, "jobs readback", () => admin.from("jobs").select("id").ilike("title", `%${stamp}%`));
+  if (leftoverJobs && !leftoverJobs.error && (leftoverJobs.data ?? []).length > 0) {
+    problems.push(`jobs restantes: ${leftoverJobs.data.length}`);
+  }
+
+  const companies = await noteCleanup(problems, "companies read", () => admin.from("companies").select("id,name").ilike("name", companyName));
+  const companyIds = (companies?.data ?? [])
+    .filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName))
+    .map((row) => row.id);
+  if (companyIds.length > 0) {
+    await noteCleanup(problems, "company jobs delete", () => admin.from("jobs").delete().in("company_id", companyIds));
+    await noteCleanup(problems, "companies delete", () => admin.from("companies").delete().in("id", companyIds));
+  }
+  const stillCompanies = await noteCleanup(problems, "companies readback", () => admin.from("companies").select("id,name").ilike("name", companyName));
+  const still = (stillCompanies?.data ?? []).filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName));
+  if (stillCompanies && !stillCompanies.error && still.length > 0) {
+    problems.push(`companies restantes: ${still.length}`);
+  }
+  return problems;
+}
+
+/** Cenário 26 — TECH-ADMIN-WRITE-ATOMICITY-01: publicação admin concorrente. */
+async function scenario26_adminPendingJobConcurrency() {
+  const admin = await signInStaffForScenario(26, "admin");
+  if (!admin) return;
+
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const baseTitle = `cargo atom ${stamp}`;
+  const spacedTitle = `  Cargo Atom ${stamp}  `;
+  const innerSpaceTitle = `cargo  atom ${stamp}`;
+  const companyName = `Lab Atom ${stamp}`;
+  let candidate = null;
+
+  const payload = (overrides) => ({
+    company_id: null,
+    new_company_name: null,
+    title: spacedTitle,
+    description: "Vaga fictícia do cenário 26.",
+    stack: ["JavaScript"],
+    level: "junior",
+    work_model: "remote",
+    location: null,
+    country_code: null,
+    salary_min: null,
+    salary_max: null,
+    ...overrides,
+  });
+
+  try {
+    const sameCompany = await Promise.all([
+      admin.rpc("create_admin_pending_job", { p_payload: payload({ company_id: SEED_COMPANY, title: spacedTitle }) }),
+      admin.rpc("create_admin_pending_job", { p_payload: payload({ company_id: SEED_COMPANY, title: baseTitle }) }),
+    ]);
+
+    if (sameCompany.some((row) => row.error?.message?.includes("Could not find the function"))) {
+      skipRequired(26, "RPC create_admin_pending_job não aplicada no ambiente");
+      return;
+    }
+
+    const anonDenied = await anon.rpc("create_admin_pending_job", {
+      p_payload: payload({ company_id: SEED_COMPANY, title: `anon ${stamp}` }),
+    });
+    assert(
+      Boolean(anonDenied.error) && /permission denied|42501/i.test(errorText(anonDenied.error)),
+      `anon sem EXECUTE em create_admin_pending_job (${errorText(anonDenied.error) || "sem erro"})`,
+    );
+
+    const created = sameCompany.filter((row) => !row.error && row.data?.id);
+    const duplicated = sameCompany.filter(isDuplicatePendingJob);
+    assert(created.length === 1, `exatamente uma vaga na empresa existente (${created.length})`);
+    assert(
+      duplicated.length === 1,
+      `a outra chamada é duplicata estável (${duplicated.length}: ${sameCompany.map(applyResultText).join(" | ") || "sem detalhe"})`,
+    );
+    assert(created[0]?.data?.status === "pending", "a vaga criada fica pending");
+
+    const distinct = await admin.rpc("create_admin_pending_job", {
+      p_payload: payload({ company_id: SEED_COMPANY, title: innerSpaceTitle }),
+    });
+    assert(!distinct.error && distinct.data?.id, `espaço interno não colapsa no índice (${applyResultText(distinct) || "ok"})`);
+
+    const freshCompany = await Promise.all([
+      admin.rpc("create_admin_pending_job", { p_payload: payload({ new_company_name: companyName, title: spacedTitle }) }),
+      admin.rpc("create_admin_pending_job", { p_payload: payload({ new_company_name: companyName, title: baseTitle }) }),
+    ]);
+    const createdFresh = freshCompany.filter((row) => !row.error && row.data?.id);
+    const duplicatedFresh = freshCompany.filter(isDuplicatePendingJob);
+    assert(createdFresh.length === 1, `exatamente uma vaga na empresa nova (${createdFresh.length})`);
+    assert(
+      duplicatedFresh.length === 1,
+      `empresa nova: a outra chamada é duplicata (${duplicatedFresh.length}: ${freshCompany.map(applyResultText).join(" | ") || "sem detalhe"})`,
+    );
+
+    const companies = await admin.from("companies").select("id,name").ilike("name", companyName);
+    assert(!companies.error, `admin lê companies (${companies.error?.message ?? "ok"})`);
+    const matched = (companies.data ?? []).filter((row) => normalizedTitle(row.name) === normalizedTitle(companyName));
+    assert(matched.length === 1, `uma empresa para o nome novo (${matched.length})`);
+    if (matched[0]?.id) {
+      const jobs = await admin.from("jobs").select("id,title").eq("company_id", matched[0].id);
+      assert(!jobs.error, `admin lê jobs da empresa nova (${jobs.error?.message ?? "ok"})`);
+      const titled = (jobs.data ?? []).filter((row) => normalizedTitle(row.title) === normalizedTitle(baseTitle));
+      assert(titled.length === 1, `uma vaga com o título normalizado (${titled.length})`);
+    }
+
+    if (hasCreds(testUsers.candidate)) {
+      const cand = await signIn(testUsers.candidate);
+      candidate = cand.client;
+      if (cand.error || !cand.user) {
+        skip("cenário 26: candidato não autenticou para a prova de gate");
+      } else {
+        const denied = await candidate.rpc("create_admin_pending_job", {
+          p_payload: payload({ company_id: SEED_COMPANY, title: `candidato ${stamp}` }),
+        });
+        assert(/admin required/i.test(applyResultText(denied)), `candidato não publica (${applyResultText(denied) || "sem erro"})`);
+      }
+    }
+  } finally {
+    let problems = [];
+    try {
+      problems = await cleanupScenario26Fixtures(admin, { stamp, companyName });
+    } catch (error) {
+      problems.push(`cleanup: ${error?.message ?? "falhou"}`);
+    }
+    try {
+      await candidate?.auth.signOut();
+    } catch (error) {
+      problems.push(`candidate signOut: ${error?.message ?? "falhou"}`);
+    }
+    try {
+      await admin.auth.signOut();
+    } catch (error) {
+      problems.push(`admin signOut: ${error?.message ?? "falhou"}`);
+    }
+    assert(problems.length === 0, `cleanup cenário 26 (${problems.join("; ") || "ok"})`);
   }
 }
 
@@ -2812,6 +2976,9 @@ await scenario22_processJobIngestion();
 console.log("\n=== Cenário 24: match_jobs sem EXECUTE (SEC-DATA-AUTHORITY-01) ===");
 await scenario24_matchJobsExecuteDenied();
 
+console.log("\n=== Cenário 26: publicação admin concorrente ===");
+await scenario26_adminPendingJobConcurrency();
+
 if (skippedRequired.size > 0) {
   for (const n of [...skippedRequired].sort()) {
     let band = "S4-01 exige execução real de 3–9";
@@ -2829,6 +2996,7 @@ if (skippedRequired.size > 0) {
     if (n === 21) band = "MVP-013 exige execução real do cenário 21";
     if (n === 22) band = "MVP-013 Fase B exige execução real do cenário 22";
     if (n === 24) band = "SEC-DATA-AUTHORITY-01 exige execução real do cenário 24";
+    if (n === 26) band = "TECH-ADMIN-WRITE-ATOMICITY-01 exige execução real do cenário 26";
     failures.push(`cenário ${n} ignorado (${band})`);
   }
 }
@@ -2839,5 +3007,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013 + SEC-DATA-AUTHORITY-01: ok (${skipped.length} aviso(s) opcionais; cenários 3–25 executados).`,
+  `\nRLS curadoria + apply V1 + F-019 + F-023 + F4 + concorrência apply + MVP-021 + MVP-003 + MVP-005 + MVP-022 + avatars + AAL2 + MVP-013 + SEC-DATA-AUTHORITY-01 + publicação admin: ok (${skipped.length} aviso(s) opcionais; cenários 3–26 executados).`,
 );

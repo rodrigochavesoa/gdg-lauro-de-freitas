@@ -23,12 +23,9 @@ export function parseStack(text) {
     .filter(Boolean);
 }
 
-/** Trim, colapsa espaços e lower — espelha `lower(btrim(title))` no índice único. */
+/** Trim e lower — espelha `lower(btrim(title))`. Espaços internos permanecem. */
 export function normalizeJobTitle(title) {
-  return String(title ?? "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLowerCase();
+  return String(title ?? "").trim().toLowerCase();
 }
 
 export function findDuplicateJob(jobs, { companyId, title, excludeId } = {}) {
@@ -114,9 +111,23 @@ function clientOrThrow() {
 
 function throwIfError(error) {
   if (!error) return;
-  if (isUniqueViolation(error)) {
+  const message = String(error.message ?? "");
+  if (isUniqueViolation(error) || message.includes(DUPLICATE_JOB_MESSAGE)) {
     throw new Error(DUPLICATE_JOB_MESSAGE);
   }
+  const stable = [
+    "Empresa não encontrada.",
+    "Título é obrigatório.",
+    "Descrição é obrigatória.",
+    "Selecione uma empresa ou informe o nome de uma empresa fictícia.",
+    "Nível é obrigatório.",
+    "Modelo de trabalho é obrigatório.",
+    "País deve ser um código ISO de duas letras.",
+    "A faixa mínima não pode ser maior que a máxima.",
+    "Informe o salário mínimo em centavos inteiros.",
+    "Informe o salário máximo em centavos inteiros.",
+  ].find((item) => message.includes(item));
+  if (stable) throw new Error(stable);
   throwStaffApiError(error);
 }
 
@@ -206,8 +217,8 @@ function ilikeExact(value) {
 const DUPLICATE_TITLE_PROBE_LIMIT = 5;
 
 /**
- * Uma sonda por company_id + título (lower/btrim no índice único).
- * Não seleciona os jobs da empresa. O insert ainda rejeita 23505.
+ * Pré-check de UX para company_id + lower(btrim(title)).
+ * Não é garantia: a publicação passa pela RPC e pelo índice único.
  */
 async function assertNoDuplicateTitle(client, { companyId, title, excludeId }) {
   if (!companyId) return;
@@ -243,15 +254,14 @@ export async function createPendingJob(input) {
   const errors = validateAdminJob(input);
   if (errors.length) throw new Error(errors[0]);
   const client = clientOrThrow();
-  let companyId = input.companyId;
-  if (!companyId && input.newCompanyName) {
-    const company = await createCompany({ name: input.newCompanyName });
-    companyId = company.id;
+  const companyId = input.companyId || null;
+  if (companyId) {
+    await assertNoDuplicateTitle(client, { companyId, title: input.title });
   }
-  await assertNoDuplicateTitle(client, { companyId, title: input.title });
   const { columns } = structuredJobColumns(input);
   const payload = {
     company_id: companyId,
+    new_company_name: companyId ? null : String(input.newCompanyName ?? "").trim(),
     title: input.title.trim(),
     description: input.description.trim(),
     stack: parseStack(input.stackText),
@@ -261,9 +271,8 @@ export async function createPendingJob(input) {
     country_code: columns.country_code,
     salary_min: columns.salary_min,
     salary_max: columns.salary_max,
-    requirements: { mandatory: [], desirable: [] },
   };
-  const { data, error } = await client.from("jobs").insert(payload).select("id,title,status").single();
+  const { data, error } = await client.rpc("create_admin_pending_job", { p_payload: payload });
   throwIfError(error);
   return data;
 }
