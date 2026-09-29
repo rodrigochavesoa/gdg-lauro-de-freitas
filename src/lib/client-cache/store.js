@@ -28,9 +28,30 @@ export function createMemoryCache({ ttlMs, name }) {
     epochs.set(key, clock);
   }
 
+  function hasInflight(key) {
+    if (inflight.has(key)) return true;
+    const prefix = `${key}:`;
+    for (const inflightKey of inflight.keys()) {
+      if (inflightKey.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  function releaseIdleEpoch(key) {
+    if (!key || !epochs.has(key) || entries.has(key) || hasInflight(key)) return;
+    const epoch = epochs.get(key);
+    epochs.delete(key);
+    if (epoch === clock) clock += 1;
+  }
+
   function pruneExpired() {
+    const expired = [];
     for (const [key, entry] of entries) {
-      if (!isFresh(entry)) entries.delete(key);
+      if (!isFresh(entry)) expired.push(key);
+    }
+    for (const key of expired) {
+      entries.delete(key);
+      releaseIdleEpoch(key);
     }
   }
 
@@ -99,6 +120,10 @@ export function createMemoryCache({ ttlMs, name }) {
       pruneExpired();
       return entries.size;
     },
+    epochCount() {
+      pruneExpired();
+      return epochs.size;
+    },
     inflightGet(key) {
       return inflight.get(key) ?? null;
     },
@@ -107,6 +132,9 @@ export function createMemoryCache({ ttlMs, name }) {
     },
     inflightDelete(key, promise) {
       if (!promise || inflight.get(key) === promise) inflight.delete(key);
+      releaseIdleEpoch(key);
+      const split = key.lastIndexOf(":");
+      if (split > 0) releaseIdleEpoch(key.slice(0, split));
     },
   };
 }

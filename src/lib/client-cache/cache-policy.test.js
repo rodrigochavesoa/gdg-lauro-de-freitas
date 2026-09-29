@@ -119,6 +119,34 @@ describe("createMemoryCache", () => {
     expect(cache.set("job-1", { secret: "late" }, second)).toBe(false);
     expect(cache.peek("job-1")).toEqual({ secret: "fresh" });
   });
+
+  it("descarta a geração de várias chaves expiradas que não estão em voo", () => {
+    const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-epoch-gc" });
+    const captured = ["filtro-a", "filtro-b", "filtro-c"].map((key) => {
+      const epoch = cache.capture(key);
+      cache.set(key, { jobs: [key] }, epoch);
+      return epoch;
+    });
+    const liveEpoch = cache.capture("em-voo");
+    cache.set("em-voo", { jobs: ["em-voo"] }, liveEpoch);
+    cache.inflightSet("em-voo", Promise.resolve());
+    const catalogKey = '{"q":"react"}';
+    const catalogEpoch = cache.capture(catalogKey);
+    cache.set(catalogKey, { jobs: [1] }, catalogEpoch);
+    cache.inflightSet(`${catalogKey}:24`, Promise.resolve());
+    expect(cache.epochCount()).toBe(5);
+
+    vi.advanceTimersByTime(30_001);
+    expect(cache.peek("filtro-a")).toBeNull();
+    expect(cache.epochCount()).toBe(2);
+    expect(cache.set("filtro-b", { secret: "late" }, captured[1])).toBe(false);
+    expect(cache.set("filtro-c", { secret: "late" }, captured[2])).toBe(false);
+
+    cache.inflightDelete("em-voo");
+    cache.inflightDelete(`${catalogKey}:24`);
+    expect(cache.peek("em-voo")).toBeNull();
+    expect(cache.epochCount()).toBe(0);
+  });
 });
 
 describe("caches de sessão", () => {
