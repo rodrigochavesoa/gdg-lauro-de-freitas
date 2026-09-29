@@ -14,6 +14,7 @@ import { mapIngestionDetailRowToDto, mapIngestionListRowToDto } from "../../lib/
 import { INGESTION_DETAIL_SELECT, INGESTION_LIST_SELECT } from "../../lib/data-contracts/selects.js";
 import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
+import { invalidateCurationJobSurfaces } from "../curation/curation-api.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const PROCESS_JOB_INGESTION_RPC = "process_job_ingestion";
@@ -114,6 +115,7 @@ export async function processJobIngestion(client, { sourceKind, locator, payload
       if (!row.ingestion?.id) {
         throw new Error("RPC process_job_ingestion não devolveu a ingestão.");
       }
+      invalidateCurationJobSurfaces(row.job_id ?? row.job?.id, { scopes: ["pending"], includeDetail: false });
       return row;
     },
   );

@@ -7,6 +7,8 @@ import {
 } from "./data-contracts/selects.js";
 import { mapCatalogDetailRowToDto, mapCatalogHeavyRowToDto, mapCatalogListRowToDto } from "./data-contracts/map-row.js";
 import { mapJob } from "./map-job.js";
+import { createMemoryCache } from "./client-cache/store.js";
+import { LIST_CACHE_TTL_MS } from "./client-cache/ttl.js";
 import { classifyOpsFailure, emitOpsEvent } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 import {
@@ -19,15 +21,13 @@ import {
 
 export { JOB_DETAIL_HEAVY_SELECT };
 
-export const CATALOG_CACHE_TTL_MS = 30_000;
+export const CATALOG_CACHE_TTL_MS = LIST_CACHE_TTL_MS;
 export const CATALOG_PAGE_SIZE = 24;
 
-const catalogCache = new Map();
-const catalogInflight = new Map();
+const catalogCache = createMemoryCache({ ttlMs: CATALOG_CACHE_TTL_MS, name: "catalog" });
 
 export function invalidateApprovedJobsCache() {
   catalogCache.clear();
-  catalogInflight.clear();
 }
 
 function sortedCopy(values = []) {
@@ -81,16 +81,14 @@ export function buildSalaryVisibilityOr(salaryMin, salaryMax) {
   return `and(${parts.join(",")})`;
 }
 
-function cacheEntryFresh(entry) {
-  if (!entry?.jobs) return false;
-  if (Date.now() - entry.fetchedAt > CATALOG_CACHE_TTL_MS) return false;
-  return true;
+function cacheEntryFresh(data) {
+  return Boolean(data?.jobs);
 }
 
 export function peekApprovedJobsPage(params) {
-  const entry = catalogCache.get(catalogCacheKey(params));
-  if (!cacheEntryFresh(entry)) return null;
-  return { jobs: entry.jobs, count: entry.count, rows: entry.rows };
+  const data = catalogCache.peek(catalogCacheKey(params));
+  if (!cacheEntryFresh(data)) return null;
+  return { jobs: data.jobs, count: data.count, rows: data.rows };
 }
 
 export function peekApprovedJobsCache(params) {
@@ -101,9 +99,9 @@ export function peekApprovedJobsCache(params) {
 export function findApprovedJobInCache(id) {
   if (id == null || id === "") return null;
   const needle = String(id);
-  for (const entry of catalogCache.values()) {
-    if (!cacheEntryFresh(entry)) continue;
-    const job = entry.jobs.find((item) => String(item.id) === needle);
+  for (const data of catalogCache.freshValues()) {
+    if (!cacheEntryFresh(data)) continue;
+    const job = data.jobs.find((item) => String(item.id) === needle);
     if (job) return job;
   }
   return null;
@@ -112,9 +110,9 @@ export function findApprovedJobInCache(id) {
 function findApprovedJobRowInCache(id) {
   if (id == null || id === "") return null;
   const needle = String(id);
-  for (const entry of catalogCache.values()) {
-    if (!cacheEntryFresh(entry)) continue;
-    const row = entry.rows.find((item) => String(item.id) === needle);
+  for (const data of catalogCache.freshValues()) {
+    if (!cacheEntryFresh(data)) continue;
+    const row = data.rows.find((item) => String(item.id) === needle);
     if (row) return row;
   }
   return null;
@@ -256,10 +254,10 @@ export async function loadApprovedJobs(options = {}) {
   if (!params.forceRefresh && params.offset === 0) {
     const cached = peekApprovedJobsPage(params);
     if (cached) return { jobs: cached.jobs, count: cached.count };
-    const inflight = catalogInflight.get(inflightKey);
+    const inflight = catalogCache.inflightGet(inflightKey);
     if (inflight) return inflight;
   } else if (!params.forceRefresh && params.offset > 0) {
-    const inflight = catalogInflight.get(inflightKey);
+    const inflight = catalogCache.inflightGet(inflightKey);
     if (inflight) return inflight;
   }
 
@@ -305,18 +303,15 @@ export async function loadApprovedJobs(options = {}) {
       jobs: mergedJobs,
       rows: mergedRows,
       count,
-      fetchedAt: Date.now(),
     });
     return { jobs: mergedJobs, count };
   })();
 
-  catalogInflight.set(inflightKey, request);
+  catalogCache.inflightSet(inflightKey, request);
   try {
     return await request;
   } finally {
-    if (catalogInflight.get(inflightKey) === request) {
-      catalogInflight.delete(inflightKey);
-    }
+    catalogCache.inflightDelete(inflightKey, request);
   }
 }
 

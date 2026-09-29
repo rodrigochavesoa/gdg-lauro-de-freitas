@@ -1,13 +1,17 @@
+import { createMemoryCache } from "../../lib/client-cache/store.js";
+import { LIST_CACHE_TTL_MS } from "../../lib/client-cache/ttl.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import { mapPrivacyPurposeRowToDto } from "../../lib/data-contracts/map-row.js";
 import { PRIVACY_EVENT_SELECT, PRIVACY_PURPOSE_SELECT } from "../../lib/data-contracts/selects.js";
 import { redactForLog } from "../../lib/privacy-redaction.js";
 import { PRIVACY_PURPOSES, latestEventsByPurpose } from "./privacy-catalog.js";
 
-export const PRIVACY_PREFERENCES_CACHE_TTL_MS = 30_000;
+export const PRIVACY_PREFERENCES_CACHE_TTL_MS = LIST_CACHE_TTL_MS;
 
-const privacyPreferencesCache = new Map();
-const privacyPreferencesInflight = new Map();
+const privacyPreferencesCache = createMemoryCache({
+  ttlMs: PRIVACY_PREFERENCES_CACHE_TTL_MS,
+  name: "privacy",
+});
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -77,22 +81,17 @@ function parseLoadPrivacyOptions(userIdOrOptions) {
 
 export function invalidatePrivacyPreferencesCache(userId) {
   if (userId) {
-    privacyPreferencesCache.delete(userId);
-    privacyPreferencesInflight.delete(userId);
+    privacyPreferencesCache.invalidateKey(userId);
     return;
   }
   privacyPreferencesCache.clear();
-  privacyPreferencesInflight.clear();
   privacySchemaUnavailable = false;
   privacySchemaUnavailableReported = false;
 }
 
 export function peekPrivacyPreferencesCache(userId) {
   if (!userId) return null;
-  const entry = privacyPreferencesCache.get(userId);
-  if (!entry) return null;
-  if (Date.now() - entry.fetchedAt > PRIVACY_PREFERENCES_CACHE_TTL_MS) return null;
-  return entry.data;
+  return privacyPreferencesCache.peek(userId);
 }
 
 async function fetchPrivacyPreferences() {
@@ -125,24 +124,22 @@ export async function loadPrivacyPreferences(userIdOrOptions) {
   if (cacheKey && !forceRefresh) {
     const cached = peekPrivacyPreferencesCache(cacheKey);
     if (cached) return cached;
-    const inflight = privacyPreferencesInflight.get(cacheKey);
+    const inflight = privacyPreferencesCache.inflightGet(cacheKey);
     if (inflight) return inflight;
   }
 
   const request = fetchPrivacyPreferences().then((data) => {
     if (cacheKey && data.source !== "schema-unavailable") {
-      privacyPreferencesCache.set(cacheKey, { data, fetchedAt: Date.now() });
+      privacyPreferencesCache.set(cacheKey, data);
     }
     return data;
   });
 
-  if (cacheKey) privacyPreferencesInflight.set(cacheKey, request);
+  if (cacheKey) privacyPreferencesCache.inflightSet(cacheKey, request);
   try {
     return await request;
   } finally {
-    if (cacheKey && privacyPreferencesInflight.get(cacheKey) === request) {
-      privacyPreferencesInflight.delete(cacheKey);
-    }
+    if (cacheKey) privacyPreferencesCache.inflightDelete(cacheKey, request);
   }
 }
 

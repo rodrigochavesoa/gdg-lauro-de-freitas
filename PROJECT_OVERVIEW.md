@@ -487,6 +487,7 @@ Não faça:
 | `docs/adr/` | decisões arquiteturais versionadas |
 | `docs/agents/` | mapa de contexto para agentes e ferramentas |
 | `docs/tech/DATA-CONTRACTS.md` | seletores PostgREST e DTOs das superfícies P1 |
+| `docs/tech/CACHE-POLICY.md` | freshness, chaves e invalidação dos caches em memória |
 | `supabase/migrations/prod.manifest.json` | migrations autorizadas para produção |
 
 ## 16. Estado de confiança

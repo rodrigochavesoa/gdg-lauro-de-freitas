@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const fromMock = vi.fn();
+const rpcMock = vi.fn();
+let realtimeHandler = null;
 
 vi.mock("../../lib/supabase-client.js", () => ({
   getSupabaseBrowserClient: () => ({
     from: fromMock,
+    rpc: rpcMock,
+    removeChannel: vi.fn(),
+    channel: () => ({
+      on: (_event, _filter, callback) => {
+        realtimeHandler = callback;
+        return { subscribe: () => ({}) };
+      },
+    }),
   }),
 }));
 
@@ -15,6 +25,8 @@ import {
   loadCurationJobDetail,
   loadCurationQueue,
   peekCurationQueueCache,
+  setJobCurationPriority,
+  subscribeCurationJobs,
 } from "./curation-api.js";
 
 const PENDING_JOB = {
@@ -260,5 +272,99 @@ describe("loadCurationJobDetail", () => {
 
     await loadCurationJobDetail("job-1");
     expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(1);
+  });
+});
+
+describe("invalidação de curadoria", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+    realtimeHandler = null;
+    invalidateCurationQueueCache();
+  });
+
+  it("prioridade limpa a fila pending e preserva rejeitadas e o detalhe de outra vaga", async () => {
+    mockQueueClient({
+      pending: [PENDING_JOB],
+      rejected: [
+        {
+          id: "job-r",
+          title: "Rejeitada",
+          priority: "normal",
+          created_at: "2026-09-07T12:00:00Z",
+          status: "rejected",
+        },
+      ],
+    });
+    await loadCurationQueue({ scope: "pending" });
+    await loadCurationQueue({ scope: "rejected" });
+
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "job-2", description: "Outra", stack: ["Go"] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "job_curation_reviews") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: async () => ({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(table);
+    });
+    await loadCurationJobDetail("job-2");
+    const jobsFetches = fromMock.mock.calls.filter((call) => call[0] === "jobs").length;
+
+    rpcMock.mockResolvedValue({ data: { id: "job-1" }, error: null });
+    await setJobCurationPriority("job-1", "urgent", "fila urgente");
+
+    expect(peekCurationQueueCache({ scope: "pending" })).toBeNull();
+    expect(peekCurationQueueCache({ scope: "rejected" }).rejected[0].id).toBe("job-r");
+    await loadCurationJobDetail("job-2");
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(jobsFetches);
+  });
+
+  it("evento realtime com id não usa o clear global no detalhe de outra vaga", async () => {
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "job-2", description: "Outra", stack: ["Go"] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "job_curation_reviews") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: async () => ({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(table);
+    });
+    await loadCurationJobDetail("job-2");
+    const jobsFetches = fromMock.mock.calls.filter((call) => call[0] === "jobs").length;
+    subscribeCurationJobs(() => {});
+    realtimeHandler({ new: { id: "job-1", status: "pending" }, old: { id: "job-1" } });
+    await loadCurationJobDetail("job-2");
+    expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(jobsFetches);
   });
 });

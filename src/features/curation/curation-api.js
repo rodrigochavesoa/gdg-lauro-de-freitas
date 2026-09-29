@@ -10,6 +10,9 @@ import {
   CURATION_MODERATION_ID_SELECT,
   CURATION_REVIEW_FIELDS,
 } from "../../lib/data-contracts/selects.js";
+import { createMemoryCache } from "../../lib/client-cache/store.js";
+import { LIST_CACHE_TTL_MS } from "../../lib/client-cache/ttl.js";
+import { invalidateApprovedJobsCache } from "../../lib/jobs-api.js";
 import { runObserved } from "../../lib/ops-observability.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { mergeCurationQueue } from "./curation-queue.js";
@@ -68,12 +71,16 @@ export async function signOutCuration() {
   }
 }
 
-export const CURATION_QUEUE_CACHE_TTL_MS = 30_000;
+export const CURATION_QUEUE_CACHE_TTL_MS = LIST_CACHE_TTL_MS;
 
-const curationQueueCache = new Map();
-const curationQueueInflight = new Map();
-const curationDetailCache = new Map();
-const curationDetailInflight = new Map();
+const curationQueueCache = createMemoryCache({
+  ttlMs: CURATION_QUEUE_CACHE_TTL_MS,
+  name: "curation-queue",
+});
+const curationDetailCache = createMemoryCache({
+  ttlMs: CURATION_QUEUE_CACHE_TTL_MS,
+  name: "curation-detail",
+});
 
 function normalizePage(page) {
   const n = Number.parseInt(page, 10);
@@ -90,11 +97,22 @@ function queueCacheKey({ scope, page, pageSize }) {
   return `${scope}:${page}:${pageSize}`;
 }
 
+/** Limpa fila, inflight e detalhes. Fallback quando a mutação não informa a vaga. */
 export function invalidateCurationQueueCache() {
   curationQueueCache.clear();
-  curationQueueInflight.clear();
   curationDetailCache.clear();
-  curationDetailInflight.clear();
+}
+
+/**
+ * Invalida as páginas dos scopes e, se pedido, o detalhe da vaga.
+ * Páginas inteiras do scope saem porque a posição da vaga na página não fica na chave.
+ * Detalhes de outras vagas permanecem.
+ */
+export function invalidateCurationJobSurfaces(jobId, { scopes = ["pending", "rejected"], includeDetail = true } = {}) {
+  for (const scope of scopes) {
+    curationQueueCache.invalidatePrefix(`${scope}:`);
+  }
+  if (includeDetail && jobId) curationDetailCache.invalidateKey(String(jobId));
 }
 
 export function peekCurationQueueCache({
@@ -102,12 +120,9 @@ export function peekCurationQueueCache({
   page = 1,
   pageSize = CURATION_QUEUE_PAGE_SIZE,
 } = {}) {
-  const entry = curationQueueCache.get(
+  return curationQueueCache.peek(
     queueCacheKey({ scope, page: normalizePage(page), pageSize: normalizePageSize(pageSize) }),
   );
-  if (!entry) return null;
-  if (Date.now() - entry.fetchedAt > CURATION_QUEUE_CACHE_TTL_MS) return null;
-  return entry.data;
 }
 
 function sliceCurationPage(rows, pageSize) {
@@ -193,18 +208,18 @@ export async function loadCurationQueue({
   if (!forceRefresh) {
     const cached = peekCurationQueueCache(params);
     if (cached) return cached;
-    const inflight = curationQueueInflight.get(key);
+    const inflight = curationQueueCache.inflightGet(key);
     if (inflight) return inflight;
   }
 
   const request = fetchCurationQueue(params);
-  curationQueueInflight.set(key, request);
+  curationQueueCache.inflightSet(key, request);
   try {
     const data = await request;
-    curationQueueCache.set(key, { data, fetchedAt: Date.now() });
+    curationQueueCache.set(key, data);
     return data;
   } finally {
-    if (curationQueueInflight.get(key) === request) curationQueueInflight.delete(key);
+    curationQueueCache.inflightDelete(key, request);
   }
 }
 
@@ -232,20 +247,20 @@ async function fetchCurationJobDetail(jobId) {
 export async function loadCurationJobDetail(jobId, { forceRefresh = false } = {}) {
   if (!jobId) throw new Error("Vaga para detalhe não informada.");
   if (!forceRefresh) {
-    const cached = curationDetailCache.get(jobId);
-    if (cached && Date.now() - cached.fetchedAt <= CURATION_QUEUE_CACHE_TTL_MS) return cached.data;
-    const inflight = curationDetailInflight.get(jobId);
+    const cached = curationDetailCache.peek(jobId);
+    if (cached) return cached;
+    const inflight = curationDetailCache.inflightGet(jobId);
     if (inflight) return inflight;
   }
 
   const request = fetchCurationJobDetail(jobId);
-  curationDetailInflight.set(jobId, request);
+  curationDetailCache.inflightSet(jobId, request);
   try {
     const data = await request;
-    curationDetailCache.set(jobId, { data, fetchedAt: Date.now() });
+    curationDetailCache.set(jobId, data);
     return data;
   } finally {
-    if (curationDetailInflight.get(jobId) === request) curationDetailInflight.delete(jobId);
+    curationDetailCache.inflightDelete(jobId, request);
   }
 }
 
@@ -261,7 +276,8 @@ export async function submitCurationReview({ jobId, decision, rubricCode, intern
       p_internal_comment: String(internalComment ?? "").trim() || null,
     });
     throwIfError(error);
-    invalidateCurationQueueCache();
+    invalidateCurationJobSurfaces(jobId);
+    invalidateApprovedJobsCache();
     return data;
   });
 }
@@ -272,7 +288,8 @@ export async function resubmitJobForCuration(jobId) {
     const client = clientOrThrow();
     const { data, error } = await client.rpc("resubmit_job_for_curation", { p_job_id: jobId });
     throwIfError(error);
-    invalidateCurationQueueCache();
+    invalidateCurationJobSurfaces(jobId);
+    invalidateApprovedJobsCache();
     return data;
   });
 }
@@ -293,7 +310,7 @@ export async function setJobCurationPriority(jobId, priority, reason) {
       p_reason: priority === "urgent" ? String(reason).trim() : null,
     });
     throwIfError(error);
-    invalidateCurationQueueCache();
+    invalidateCurationJobSurfaces(jobId, { scopes: ["pending"], includeDetail: false });
     return data;
   });
 }
@@ -307,7 +324,15 @@ export function subscribeCurationJobs(onChange) {
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "jobs" },
-      () => {
+      (payload) => {
+        const jobId = payload?.new?.id ?? payload?.old?.id ?? null;
+        if (jobId) invalidateCurationJobSurfaces(jobId);
+        else invalidateCurationQueueCache();
+        const nextStatus = payload?.new?.status;
+        const previousStatus = payload?.old?.status;
+        if (nextStatus === "approved" || previousStatus === "approved") {
+          invalidateApprovedJobsCache();
+        }
         onChange();
       },
     )

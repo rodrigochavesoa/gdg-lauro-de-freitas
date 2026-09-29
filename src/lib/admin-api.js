@@ -3,6 +3,8 @@ import { mapAdminJobFormRowToDto } from "./data-contracts/map-row.js";
 import { ADMIN_JOB_SELECT, ADMIN_JOB_TITLE_PROBE_SELECT, COMPANY_PICKER_SELECT } from "./data-contracts/selects.js";
 import { runObserved } from "./ops-observability.js";
 import { throwStaffApiError } from "./staff-api-errors.js";
+import { invalidateCurationJobSurfaces } from "../features/curation/curation-api.js";
+import { invalidateApprovedJobsCache } from "./jobs-api.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
 
 export const LEVEL_TO_DB = {
@@ -265,6 +267,8 @@ export async function createPendingJob(input) {
   };
   const { data, error } = await client.rpc("create_admin_pending_job", { p_payload: payload });
   throwIfError(error);
+  invalidateCurationJobSurfaces(data?.id, { scopes: ["pending"], includeDetail: false });
+  if (data?.status === "approved") invalidateApprovedJobsCache();
   return data;
 }
 
@@ -301,5 +305,7 @@ export async function updatePendingJob(id, input) {
     .select("id,title,status")
     .single();
   throwIfError(error);
+  invalidateCurationJobSurfaces(id, { scopes: ["pending"] });
+  if (data?.status === "approved") invalidateApprovedJobsCache();
   return data;
 }
