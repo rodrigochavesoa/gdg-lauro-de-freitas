@@ -91,11 +91,12 @@ export function createMemoryCache({ ttlMs, name }) {
       pruneExpired();
       return [...entries.values()].map((entry) => entry.data);
     },
-    /** Descarta a entrada e invalida gravações já em voo. */
+    /** Descarta a entrada e invalida gravações já em voo, sem guardar geração de chave ociosa. */
     invalidateKey(key) {
       entries.delete(key);
       inflight.delete(key);
-      bump(key);
+      epochs.delete(key);
+      clock += 1;
     },
     /** Nova geração sem apagar o valor. A leitura antiga não pode sobrescrever a nova. */
     supersede(key) {
@@ -103,12 +104,15 @@ export function createMemoryCache({ ttlMs, name }) {
     },
     invalidatePrefix(prefix) {
       const keys = new Set([...entries.keys(), ...inflight.keys(), ...epochs.keys()]);
+      let removed = false;
       for (const key of keys) {
         if (!key.startsWith(prefix)) continue;
         entries.delete(key);
         inflight.delete(key);
-        bump(key);
+        epochs.delete(key);
+        removed = true;
       }
+      if (removed) clock += 1;
     },
     clear() {
       entries.clear();

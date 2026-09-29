@@ -120,6 +120,25 @@ describe("createMemoryCache", () => {
     expect(cache.peek("job-1")).toEqual({ secret: "fresh" });
   });
 
+  it("invalidateKey de chaves sem entrada nem leitura não acumula gerações", () => {
+    const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-invalidate-empty" });
+    for (let index = 0; index < 1000; index += 1) cache.invalidateKey(`job-${index}`);
+    expect(cache.epochCount()).toBe(0);
+
+    const epoch = cache.capture("job-7");
+    cache.set("job-7", { reviews: ["parecer interno"] }, epoch);
+    cache.invalidateKey("job-7");
+    expect(cache.epochCount()).toBe(0);
+    expect(cache.set("job-7", { secret: "late" }, epoch)).toBe(false);
+    expect(cache.peek("job-7")).toBeNull();
+
+    const queued = cache.capture("pending:1:24");
+    cache.set("pending:1:24", { queue: ["a"] }, queued);
+    cache.invalidatePrefix("pending:");
+    expect(cache.epochCount()).toBe(0);
+    expect(cache.set("pending:1:24", { secret: "late" }, queued)).toBe(false);
+  });
+
   it("descarta a geração de várias chaves expiradas que não estão em voo", () => {
     const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-epoch-gc" });
     const captured = ["filtro-a", "filtro-b", "filtro-c"].map((key) => {
