@@ -8,6 +8,7 @@
  *   pnpm qa:job-detail
  *
  * BASE_URL default: http://localhost:5173
+ * A lista do catálogo é /vagas. / é o portal e não tem .job-card.
  * JOB_ID opcional; MEASURE_RUNS default 5
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -110,7 +111,7 @@ async function waitCatalog() {
 }
 
 async function resolveSeedJobId() {
-  await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
   await waitCatalog();
   const first = page.locator(".job-card:not(.job-card--skeleton)").first();
   await first.waitFor({ state: "visible", timeout: 15_000 });
@@ -127,7 +128,7 @@ async function measureDirect(jobId, label) {
   const jobKinds = [];
 
   for (let run = 1; run <= runs; run += 1) {
-    await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
     await waitCatalog();
     await page.waitForTimeout(200);
 
@@ -168,7 +169,7 @@ async function measureFromHome(jobId, label) {
   const jobKinds = [];
 
   for (let run = 1; run <= runs; run += 1) {
-    await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
     await waitCatalog();
     await page.waitForTimeout(300);
 

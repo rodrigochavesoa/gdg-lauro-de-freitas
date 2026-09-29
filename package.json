@@ -27,6 +27,7 @@
     "qa:my-applications": "node scripts/measure-my-applications.mjs",
     "qa:perf-avatar-01": "node scripts/measure-perf-avatar-01.mjs",
     "qa:staff-lists": "node scripts/measure-staff-lists.mjs",
+    "qa:ops-perf-slo": "node scripts/measure-ops-perf-slo-01.mjs",
     "clickup:bootstrap": "node scripts/bootstrap-clickup.mjs",
     "clickup:sprint-handoff": "node scripts/sprint-handoff-clickup.mjs",
     "clickup:sync": "node scripts/bootstrap-clickup.mjs && node scripts/sprint-handoff-clickup.mjs"

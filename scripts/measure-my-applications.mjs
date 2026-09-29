@@ -151,6 +151,9 @@ await context.addInitScript(
 );
 
 const page = await context.newPage();
+const primaryNav = () => page.getByRole("navigation", { name: "Principal" });
+const myApplicationsLink = () => primaryNav().getByRole("link", { name: "Minhas candidaturas" });
+const vagasLink = () => primaryNav().getByRole("link", { name: "Vagas", exact: true });
 const restLog = [];
 const lines = [];
 const log = (message) => {
@@ -166,7 +169,7 @@ page.on("request", (request) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-await page.getByRole("link", { name: "Minhas candidaturas" }).waitFor({ state: "visible", timeout: 30_000 });
+await myApplicationsLink().waitFor({ state: "visible", timeout: 30_000 });
 
 const t1 = [];
 const t1Ready = [];
@@ -180,13 +183,13 @@ log("\n=== T1 cold — reload / → clique Minhas candidaturas ===");
 
 for (let run = 1; run <= runs; run += 1) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.getByRole("link", { name: "Minhas candidaturas" }).waitFor({ state: "visible", timeout: 30_000 });
-  await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible", timeout: 30_000 });
+  await myApplicationsLink().waitFor({ state: "visible", timeout: 30_000 });
+  await page.getByRole("heading", { name: /Seu futuro em tech/i }).waitFor({ state: "visible", timeout: 30_000 });
   await page.waitForTimeout(200);
 
   const beforeRest = restLog.length;
   const started = Date.now();
-  await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+  await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
   const kind = await waitForReady(page);
   t1.push(Date.now() - started);
@@ -203,9 +206,9 @@ for (let run = 1; run <= runs; run += 1) {
 
 log("\n=== T2 remount — Vagas → Minhas candidaturas (cache SPA) ===");
 
-await page.getByRole("link", { name: "Vagas", exact: true }).click();
+await vagasLink().click();
 await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
-await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+await myApplicationsLink().click();
 await waitForReady(page);
 
 const t2 = [];
@@ -217,13 +220,13 @@ let t2SkeletonRuns = 0;
 const t2Rest = [];
 
 for (let run = 1; run <= runs; run += 1) {
-  await page.getByRole("link", { name: "Vagas", exact: true }).click();
+  await vagasLink().click();
   await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
   await page.waitForTimeout(300);
 
   const beforeRest = restLog.length;
   const started = Date.now();
-  await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+  await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
   const kind = await waitForReady(page);
   t2.push(Date.now() - started);
