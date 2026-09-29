@@ -100,6 +100,25 @@ describe("createMemoryCache", () => {
     expect(cache.peek("filtro-a")).toBeNull();
     expect(cache.size()).toBe(0);
   });
+
+  it("clear não reaceita a geração capturada depois da invalidação", () => {
+    const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-clear-epoch" });
+    const first = cache.capture("job-1");
+    expect(first).toBe(0);
+    cache.invalidateKey("job-1");
+    const second = cache.capture("job-1");
+    expect(second).toBe(1);
+    cache.clear();
+    expect(cache.set("job-1", { secret: "late" }, second)).toBe(false);
+    expect(cache.set("job-1", { secret: "late" }, first)).toBe(false);
+    expect(cache.peek("job-1")).toBeNull();
+    const third = cache.capture("job-1");
+    expect(third).not.toBe(first);
+    expect(third).not.toBe(second);
+    expect(cache.set("job-1", { secret: "fresh" }, third)).toBe(true);
+    expect(cache.set("job-1", { secret: "late" }, second)).toBe(false);
+    expect(cache.peek("job-1")).toEqual({ secret: "fresh" });
+  });
 });
 
 describe("caches de sessão", () => {

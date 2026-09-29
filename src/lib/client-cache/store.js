@@ -12,18 +12,20 @@ export function createMemoryCache({ ttlMs, name }) {
   const inflight = new Map();
   /** @type {Map<string, number>} */
   const epochs = new Map();
-  let floor = 0;
+  /** Contador monotônico. Nunca volta nem reemite uma geração já capturada. */
+  let clock = 0;
 
   function isFresh(entry) {
     return Boolean(entry) && Date.now() - entry.fetchedAt <= ttlMs;
   }
 
   function epochOf(key) {
-    return epochs.get(key) ?? floor;
+    return epochs.has(key) ? epochs.get(key) : clock;
   }
 
   function bump(key) {
-    epochs.set(key, epochOf(key) + 1);
+    clock += 1;
+    epochs.set(key, clock);
   }
 
   function pruneExpired() {
@@ -91,7 +93,7 @@ export function createMemoryCache({ ttlMs, name }) {
       entries.clear();
       inflight.clear();
       epochs.clear();
-      floor += 1;
+      clock += 1;
     },
     size() {
       pruneExpired();
