@@ -24,10 +24,12 @@ import {
   invalidateCurationQueueCache,
   loadCurationJobDetail,
   loadCurationQueue,
+  peekCurationJobDetail,
   peekCurationQueueCache,
   setJobCurationPriority,
   subscribeCurationJobs,
 } from "./curation-api.js";
+import { invalidateSessionCaches } from "../../lib/client-cache/session.js";
 
 const PENDING_JOB = {
   id: "job-1",
@@ -366,5 +368,99 @@ describe("invalidação de curadoria", () => {
     realtimeHandler({ new: { id: "job-1", status: "pending" }, old: { id: "job-1" } });
     await loadCurationJobDetail("job-2");
     expect(fromMock.mock.calls.filter((call) => call[0] === "jobs")).toHaveLength(jobsFetches);
+  });
+});
+
+describe("curadoria na troca de sessão", () => {
+  beforeEach(() => {
+    fromMock.mockReset();
+    rpcMock.mockReset();
+    invalidateCurationQueueCache();
+  });
+
+  function mockDetail(description = "Texto interno da fila") {
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: { id: "job-staff", description, stack: ["React"] },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      if (table === "job_curation_reviews") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: async () => ({
+                data: [
+                  {
+                    job_id: "job-staff",
+                    decision: "reject",
+                    rubric_code: "R3-sem-discriminacao",
+                    internal_comment: "parecer interno",
+                    created_at: "2026-09-07T12:00:00Z",
+                  },
+                ],
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      throw new Error(table);
+    });
+  }
+
+  it("logout e troca de usuário não deixam detalhe antigo disponível", async () => {
+    mockDetail();
+    await loadCurationJobDetail("job-staff");
+    expect(peekCurationJobDetail("job-staff").description).toBe("Texto interno da fila");
+    expect(peekCurationJobDetail("job-staff").reviews[0].internal_comment).toBe("parecer interno");
+
+    invalidateSessionCaches("staff-user");
+    expect(peekCurationJobDetail("job-staff")).toBeNull();
+
+    mockQueueClient({ pending: [PENDING_JOB] });
+    await loadCurationQueue({ scope: "pending" });
+    expect(peekCurationQueueCache({ scope: "pending" })).not.toBeNull();
+    invalidateSessionCaches();
+    expect(peekCurationQueueCache({ scope: "pending" })).toBeNull();
+    expect(peekCurationJobDetail("job-staff")).toBeNull();
+  });
+
+  it("resposta atrasada não regrava detalhe invalidado", async () => {
+    let resolveJob;
+    const jobPromise = new Promise((resolve) => {
+      resolveJob = resolve;
+    });
+    fromMock.mockImplementation((table) => {
+      if (table === "jobs") {
+        return { select: () => ({ eq: () => ({ maybeSingle: () => jobPromise }) }) };
+      }
+      if (table === "job_curation_reviews") {
+        return {
+          select: () => ({
+            eq: () => ({
+              order: async () => ({ data: [], error: null }),
+            }),
+          }),
+        };
+      }
+      throw new Error(table);
+    });
+
+    const pending = loadCurationJobDetail("job-1");
+    invalidateCurationQueueCache();
+    resolveJob({
+      data: { id: "job-1", description: "Texto interno", stack: ["React"] },
+      error: null,
+    });
+    await pending;
+    expect(peekCurationJobDetail("job-1")).toBeNull();
   });
 });

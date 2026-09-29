@@ -20,6 +20,7 @@ import {
   loadApprovedJob,
   loadApprovedJobs,
   mergeJobDetailRows,
+  peekApprovedJobsCache,
 } from "./jobs-api.js";
 
 const SAMPLE_ROW = {
@@ -246,6 +247,16 @@ describe("loadApprovedJobs", () => {
     const [a, b] = await Promise.all([first, second]);
     expect(a.jobs).toBe(b.jobs);
     expect(a.jobs).toHaveLength(1);
+  });
+
+  it("resposta atrasada não regrava o catálogo depois da invalidação", async () => {
+    const pending = {};
+    mockCatalogQuery({ pending });
+    const request = loadApprovedJobs();
+    invalidateApprovedJobsCache();
+    pending.resolveRange();
+    await request;
+    expect(peekApprovedJobsCache()).toBeNull();
   });
 
   it("append de carregar mais acumula páginas já carregadas", async () => {

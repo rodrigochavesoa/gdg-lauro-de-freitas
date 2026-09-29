@@ -390,13 +390,16 @@ export async function avatarPublicUrl(path, { userId, forceRefresh } = {}) {
   const client = getSupabaseBrowserClient();
   if (!client) return null;
 
+  if (key && forceRefresh) avatarSignedUrlCache.supersede(key);
+  const writeEpoch = key ? avatarSignedUrlCache.capture(key) : null;
+
   const request = client.storage
     .from(AVATAR_BUCKET)
     .createSignedUrl(path, AVATAR_SIGNED_TTL_SEC)
     .then(({ data, error }) => {
       if (error || !data?.signedUrl) return null;
       if (key) {
-        avatarSignedUrlCache.set(key, data.signedUrl);
+        avatarSignedUrlCache.set(key, data.signedUrl, writeEpoch);
       }
       return data.signedUrl;
     });

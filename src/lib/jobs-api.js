@@ -273,6 +273,9 @@ export async function loadApprovedJobs(options = {}) {
     throw error;
   }
 
+  if (params.forceRefresh) catalogCache.supersede(key);
+  const writeEpoch = catalogCache.capture(key);
+
   const request = (async () => {
     let rows;
     let count;
@@ -303,7 +306,7 @@ export async function loadApprovedJobs(options = {}) {
       jobs: mergedJobs,
       rows: mergedRows,
       count,
-    });
+    }, writeEpoch);
     return { jobs: mergedJobs, count };
   })();
 

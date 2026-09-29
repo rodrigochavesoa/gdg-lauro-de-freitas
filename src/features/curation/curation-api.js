@@ -10,7 +10,7 @@ import {
   CURATION_MODERATION_ID_SELECT,
   CURATION_REVIEW_FIELDS,
 } from "../../lib/data-contracts/selects.js";
-import { createMemoryCache } from "../../lib/client-cache/store.js";
+import { curationDetailCache, curationQueueCache } from "../../lib/client-cache/staff.js";
 import { LIST_CACHE_TTL_MS } from "../../lib/client-cache/ttl.js";
 import { invalidateApprovedJobsCache } from "../../lib/jobs-api.js";
 import { runObserved } from "../../lib/ops-observability.js";
@@ -73,15 +73,6 @@ export async function signOutCuration() {
 
 export const CURATION_QUEUE_CACHE_TTL_MS = LIST_CACHE_TTL_MS;
 
-const curationQueueCache = createMemoryCache({
-  ttlMs: CURATION_QUEUE_CACHE_TTL_MS,
-  name: "curation-queue",
-});
-const curationDetailCache = createMemoryCache({
-  ttlMs: CURATION_QUEUE_CACHE_TTL_MS,
-  name: "curation-detail",
-});
-
 function normalizePage(page) {
   const n = Number.parseInt(page, 10);
   return Number.isFinite(n) && n > 0 ? n : 1;
@@ -123,6 +114,11 @@ export function peekCurationQueueCache({
   return curationQueueCache.peek(
     queueCacheKey({ scope, page: normalizePage(page), pageSize: normalizePageSize(pageSize) }),
   );
+}
+
+export function peekCurationJobDetail(jobId) {
+  if (!jobId) return null;
+  return curationDetailCache.peek(String(jobId));
 }
 
 function sliceCurationPage(rows, pageSize) {
@@ -211,12 +207,14 @@ export async function loadCurationQueue({
     const inflight = curationQueueCache.inflightGet(key);
     if (inflight) return inflight;
   }
+  if (forceRefresh) curationQueueCache.supersede(key);
+  const writeEpoch = curationQueueCache.capture(key);
 
   const request = fetchCurationQueue(params);
   curationQueueCache.inflightSet(key, request);
   try {
     const data = await request;
-    curationQueueCache.set(key, data);
+    curationQueueCache.set(key, data, writeEpoch);
     return data;
   } finally {
     curationQueueCache.inflightDelete(key, request);
@@ -252,12 +250,14 @@ export async function loadCurationJobDetail(jobId, { forceRefresh = false } = {}
     const inflight = curationDetailCache.inflightGet(jobId);
     if (inflight) return inflight;
   }
+  if (forceRefresh) curationDetailCache.supersede(jobId);
+  const writeEpoch = curationDetailCache.capture(jobId);
 
   const request = fetchCurationJobDetail(jobId);
   curationDetailCache.inflightSet(jobId, request);
   try {
     const data = await request;
-    curationDetailCache.set(jobId, data);
+    curationDetailCache.set(jobId, data, writeEpoch);
     return data;
   } finally {
     curationDetailCache.inflightDelete(jobId, request);

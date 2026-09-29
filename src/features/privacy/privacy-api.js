@@ -127,10 +127,12 @@ export async function loadPrivacyPreferences(userIdOrOptions) {
     const inflight = privacyPreferencesCache.inflightGet(cacheKey);
     if (inflight) return inflight;
   }
+  if (cacheKey && forceRefresh) privacyPreferencesCache.supersede(cacheKey);
+  const writeEpoch = cacheKey ? privacyPreferencesCache.capture(cacheKey) : null;
 
   const request = fetchPrivacyPreferences().then((data) => {
     if (cacheKey && data.source !== "schema-unavailable") {
-      privacyPreferencesCache.set(cacheKey, data);
+      privacyPreferencesCache.set(cacheKey, data, writeEpoch);
     }
     return data;
   });

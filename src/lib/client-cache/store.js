@@ -2,6 +2,7 @@ import { noteClientCacheAccess } from "./stats.js";
 
 /**
  * Cache em memória: `{ data, fetchedAt }`, TTL, dedupe de inflight e invalidação por chave ou prefixo.
+ * Cada chave tem uma geração. `set` com geração antiga não regrava depois de invalidate/clear.
  * Não autoriza leitura. RLS e a sessão continuam a autoridade.
  */
 export function createMemoryCache({ ttlMs, name }) {
@@ -9,54 +10,92 @@ export function createMemoryCache({ ttlMs, name }) {
   const entries = new Map();
   /** @type {Map<string, Promise<unknown>>} */
   const inflight = new Map();
+  /** @type {Map<string, number>} */
+  const epochs = new Map();
+  let floor = 0;
 
   function isFresh(entry) {
     return Boolean(entry) && Date.now() - entry.fetchedAt <= ttlMs;
   }
 
-  function dropInflight(match) {
-    for (const key of inflight.keys()) {
-      if (match(key)) inflight.delete(key);
+  function epochOf(key) {
+    return epochs.get(key) ?? floor;
+  }
+
+  function bump(key) {
+    epochs.set(key, epochOf(key) + 1);
+  }
+
+  function pruneExpired() {
+    for (const [key, entry] of entries) {
+      if (!isFresh(entry)) entries.delete(key);
     }
   }
 
   return {
     peek(key) {
+      pruneExpired();
       const entry = entries.get(key);
-      if (!isFresh(entry)) {
+      if (!entry) {
         noteClientCacheAccess(name, "miss");
         return null;
       }
       noteClientCacheAccess(name, "hit");
       return entry.data;
     },
-    /** Valor armazenado mesmo fora do TTL — merge de página, sem contar hit/miss. */
+    /** Valor ainda dentro do TTL — merge de página, sem contar hit/miss. */
     get(key) {
+      pruneExpired();
       return entries.get(key)?.data ?? null;
     },
-    set(key, data) {
+    /** Geração da chave no início da leitura. Passe-a para `set` depois do await. */
+    capture(key) {
+      const epoch = epochOf(key);
+      epochs.set(key, epoch);
+      return epoch;
+    },
+    /**
+     * Grava se `epoch` ainda for a geração atual.
+     * Sem `epoch`, grava direto (só para semente de teste).
+     */
+    set(key, data, epoch) {
+      pruneExpired();
+      if (epoch !== undefined && epoch !== epochOf(key)) return false;
       entries.set(key, { data, fetchedAt: Date.now() });
+      return true;
     },
     freshValues() {
-      const values = [];
-      for (const entry of entries.values()) {
-        if (isFresh(entry)) values.push(entry.data);
-      }
-      return values;
+      pruneExpired();
+      return [...entries.values()].map((entry) => entry.data);
     },
+    /** Descarta a entrada e invalida gravações já em voo. */
     invalidateKey(key) {
       entries.delete(key);
       inflight.delete(key);
+      bump(key);
+    },
+    /** Nova geração sem apagar o valor. A leitura antiga não pode sobrescrever a nova. */
+    supersede(key) {
+      bump(key);
     },
     invalidatePrefix(prefix) {
-      for (const key of entries.keys()) {
-        if (key.startsWith(prefix)) entries.delete(key);
+      const keys = new Set([...entries.keys(), ...inflight.keys(), ...epochs.keys()]);
+      for (const key of keys) {
+        if (!key.startsWith(prefix)) continue;
+        entries.delete(key);
+        inflight.delete(key);
+        bump(key);
       }
-      dropInflight((key) => key.startsWith(prefix));
     },
     clear() {
       entries.clear();
       inflight.clear();
+      epochs.clear();
+      floor += 1;
+    },
+    size() {
+      pruneExpired();
+      return entries.size;
     },
     inflightGet(key) {
       return inflight.get(key) ?? null;

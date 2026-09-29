@@ -84,6 +84,22 @@ describe("createMemoryCache", () => {
     expect(cache.peek("rejected:1:24")).toBeNull();
     expect(getClientCacheStats()["policy-probe"]).toEqual({ hit: 3, miss: 3 });
   });
+
+  it("descarta resposta de geração antiga e remove entrada expirada", () => {
+    const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-epoch" });
+    const epoch = cache.capture("job-1");
+    cache.invalidateKey("job-1");
+    expect(cache.set("job-1", { reviews: ["parecer interno"] }, epoch)).toBe(false);
+    expect(cache.peek("job-1")).toBeNull();
+    expect(cache.size()).toBe(0);
+
+    cache.set("filtro-a", { jobs: [1] });
+    cache.set("filtro-b", { jobs: [2] });
+    expect(cache.size()).toBe(2);
+    vi.advanceTimersByTime(30_001);
+    expect(cache.peek("filtro-a")).toBeNull();
+    expect(cache.size()).toBe(0);
+  });
 });
 
 describe("caches de sessão", () => {

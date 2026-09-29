@@ -211,6 +211,8 @@ export async function loadMyApplications(userIdOrOptions) {
     const inflight = myApplicationsCache.inflightGet(candidateId);
     if (inflight) return inflight;
   }
+  if (useCache && forceRefresh) myApplicationsCache.supersede(candidateId);
+  const writeEpoch = useCache ? myApplicationsCache.capture(candidateId) : null;
 
   const from = (page - 1) * APPLICATION_LIST_LIMIT;
   const to = from + APPLICATION_LIST_LIMIT;
@@ -226,7 +228,7 @@ export async function loadMyApplications(userIdOrOptions) {
     const rows = (data ?? []).map((row) => parseApplication(mapApplicationListRowToDto(row))).filter(Boolean);
     const result = sliceApplicationsPage(rows, APPLICATION_LIST_LIMIT);
     if (useCache) {
-      myApplicationsCache.set(candidateId, result);
+      myApplicationsCache.set(candidateId, result, writeEpoch);
     }
     return result;
   })();
