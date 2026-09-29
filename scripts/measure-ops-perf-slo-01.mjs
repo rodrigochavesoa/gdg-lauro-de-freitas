@@ -13,8 +13,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { homologSupabaseHostnameError, loopbackBaseUrlError } from "./measure-target.mjs";
 
-const HOMOLOG_REF = "pcdfxnfhgdmzmcmlhxuv";
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
 
 function loadLocalEnv() {
@@ -35,21 +35,15 @@ function fileHas(path, pattern) {
   return existsSync(path) && pattern.test(readFileSync(path, "utf8"));
 }
 
-function assertPrereqs(env) {
-  const supabaseUrl = env.VITE_SUPABASE_URL;
-  if (!supabaseUrl) {
-    console.error("Falta VITE_SUPABASE_URL em .env.local.");
+function assertPrereqs(env, baseUrl) {
+  const supabaseError = homologSupabaseHostnameError(env.VITE_SUPABASE_URL || "");
+  if (supabaseError) {
+    console.error(supabaseError);
     process.exit(1);
   }
-  let host = "";
-  try {
-    host = new URL(supabaseUrl).host;
-  } catch {
-    console.error("VITE_SUPABASE_URL não é uma URL.");
-    process.exit(1);
-  }
-  if (!host.startsWith(`${HOMOLOG_REF}.`)) {
-    console.error(`Esta história mede só homolog (${HOMOLOG_REF}). O host configurado é outro.`);
+  const baseError = loopbackBaseUrlError(baseUrl);
+  if (baseError) {
+    console.error(baseError);
     process.exit(1);
   }
   const staffFile = resolve(process.cwd(), "docs-local/admin-test-user.md");
@@ -190,15 +184,17 @@ async function measureSpaRoute(page, { route, ready, leave, back, runs }) {
   return { cold, warm, coldRest, warmRest, coldBytes, warmBytes };
 }
 
-function routeFile(id, phase, measuredAt, sha, route, usefulMs, restPaths, bytes) {
+function routeFile(id, phase, runStartedAt, sha, route, usefulMs, restPaths, bytes) {
   writeJson(`${id}-${phase}.json`, {
     story: "OPS-PERF-SLO-01",
     pii: false,
     sha,
     environment: "homolog",
-    measuredAt,
+    runStartedAt,
+    measuredAt: new Date().toISOString(),
     route,
     phase,
+    coldMeans: "cache em memória da aba frio; o contexto do navegador e a sessão podem ser reutilizados",
     usefulMs: summary(usefulMs),
     restPaths,
     payloadBytes: summary(bytes),
@@ -206,8 +202,8 @@ function routeFile(id, phase, measuredAt, sha, route, usefulMs, restPaths, bytes
 }
 
 const env = { ...loadLocalEnv(), ...process.env };
-assertPrereqs(env);
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
+assertPrereqs(env, baseUrl);
 const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
 const checkOnly = process.argv.includes("--check");
 
@@ -229,7 +225,7 @@ if (checkOnly) {
 }
 
 const sha = execFileSync("git", ["rev-parse", "--short=7", "HEAD"], { encoding: "utf8" }).trim();
-const measuredAt = new Date().toISOString();
+const runStartedAt = new Date().toISOString();
 
 let chromium;
 try {
@@ -263,10 +259,10 @@ const catalog = await measureSpaRoute(page, {
 });
 await browser.close();
 
-routeFile("portal", "cold", measuredAt, sha, "/", portal.cold, portal.coldRest, portal.coldBytes);
-routeFile("portal", "warm", measuredAt, sha, "/", portal.warm, portal.warmRest, portal.warmBytes);
-routeFile("catalog", "cold", measuredAt, sha, "/vagas", catalog.cold, catalog.coldRest, catalog.coldBytes);
-routeFile("catalog", "warm", measuredAt, sha, "/vagas", catalog.warm, catalog.warmRest, catalog.warmBytes);
+routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, portal.coldRest, portal.coldBytes);
+routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, portal.warmRest, portal.warmBytes);
+routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, catalog.coldRest, catalog.coldBytes);
+routeFile("catalog", "warm", runStartedAt, sha, "/vagas", catalog.warm, catalog.warmRest, catalog.warmBytes);
 
 const childEnv = { MEASURE_RUNS: String(runs), BASE_URL: baseUrl };
 console.log("\n=== qa:staff-lists ===");
@@ -303,15 +299,17 @@ for (const entry of staffDesktop) {
     pii: false,
     sha,
     environment: "homolog",
-    measuredAt,
+    runStartedAt,
+    measuredAt: new Date().toISOString(),
     route: entry.route,
-    phase: "cold",
+    phase: "point",
     sampleN: 1,
+    percentiles: false,
     usefulMs: entry.ms,
     calls,
     note: id === "admin"
-      ? "Amostra única para confirmar o caminho pós-#205. p50/p95 da RPC continuam no estudo de 20 chamadas (item 3 do gate)."
-      : "Amostra única desta rodada. O script de listas staff não repete a rota.",
+      ? "Observação pontual, sem p50/p95. Confirma a RPC pós-#205. Os percentis da RPC estão no estudo de 20 chamadas (item 3 do gate). usefulMs inclui waitForTimeout(800)."
+      : "Observação pontual, sem p50/p95. O script de listas staff não repete a rota. usefulMs inclui waitForTimeout(800).",
   });
 }
 
@@ -324,9 +322,11 @@ writeJson("jobs-detail-cold.json", {
   pii: false,
   sha,
   environment: "homolog",
-  measuredAt,
+  runStartedAt,
+  measuredAt: new Date().toISOString(),
   route: "/jobs/:id",
   phase: "cold",
+  coldMeans: "cache em memória da aba frio; o contexto do navegador pode ser reutilizado",
   shellMs: summary(coldShell),
   fullMs: summary(coldFull),
 });
@@ -335,7 +335,8 @@ writeJson("jobs-detail-warm.json", {
   pii: false,
   sha,
   environment: "homolog",
-  measuredAt,
+  runStartedAt,
+  measuredAt: new Date().toISOString(),
   route: "/jobs/:id",
   phase: "warm",
   usefulMs: summary(warmUseful),
@@ -350,9 +351,11 @@ writeJson("minhas-candidaturas-cold.json", {
   pii: false,
   sha,
   environment: "homolog",
-  measuredAt,
+  runStartedAt,
+  measuredAt: apps.measuredAt || new Date().toISOString(),
   route: "/minhas-candidaturas",
   phase: "cold",
+  coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
   usefulMs: summary(apps.t1?.ms || []),
   restPaths: apps.t1?.rest || [],
 });
@@ -361,11 +364,21 @@ writeJson("minhas-candidaturas-warm.json", {
   pii: false,
   sha,
   environment: "homolog",
-  measuredAt,
+  runStartedAt,
+  measuredAt: apps.measuredAt || new Date().toISOString(),
   route: "/minhas-candidaturas",
   phase: "warm",
   usefulMs: summary(apps.t2?.ms || []),
   restPaths: apps.t2?.rest || [],
+});
+
+writeJson("run.json", {
+  story: "OPS-PERF-SLO-01",
+  pii: false,
+  sha,
+  environment: "homolog",
+  runStartedAt,
+  runFinishedAt: new Date().toISOString(),
 });
 
 console.log(`relatórios em docs-local/perf/OPS-PERF-SLO-01 (pii: false, sha ${sha})`);

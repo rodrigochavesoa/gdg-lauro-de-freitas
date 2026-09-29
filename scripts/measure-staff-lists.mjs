@@ -11,6 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
+import { isLoopbackHostname, loopbackBaseUrlError } from "./measure-target.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -72,6 +73,11 @@ function loadAdminTotpSecret(env) {
 }
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = env.BASE_URL || "http://127.0.0.1:5173";
+const baseError = loopbackBaseUrlError(baseUrl);
+if (baseError) {
+  console.error(baseError);
+  process.exit(1);
+}
 const { email, password } = loadAdminUser();
 const totpSecret = loadAdminTotpSecret(env);
 
@@ -133,6 +139,17 @@ const routes = [
 ];
 
 await page.goto(`${baseUrl}/admin`, { waitUntil: "domcontentloaded" });
+let pageHost = "";
+try {
+  pageHost = new URL(page.url()).hostname;
+} catch {
+  pageHost = "";
+}
+if (!isLoopbackHostname(pageHost)) {
+  console.error("A página de login saiu do loopback. Credenciais de teste não foram enviadas.");
+  await browser.close();
+  process.exit(1);
+}
 const loginHeading = page.getByRole("heading", { name: "Entrar para curadoria ou admin" });
 const panelHeading = page.getByRole("heading", { name: "Painel" });
 const mfaHeading = page.getByRole("heading", { name: "Confirmar segundo fator" });

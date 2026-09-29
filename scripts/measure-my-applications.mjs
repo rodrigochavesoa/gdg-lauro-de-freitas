@@ -14,6 +14,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { homologSupabaseHostnameError, isLoopbackHostname, loopbackBaseUrlError } from "./measure-target.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -65,6 +66,12 @@ const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
 const label = (env.MEASURE_LABEL || "after").toLowerCase() === "before" ? "before" : "after";
 const supabaseUrl = env.VITE_SUPABASE_URL;
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY;
+const supabaseError = homologSupabaseHostnameError(supabaseUrl || "");
+const baseError = loopbackBaseUrlError(baseUrl);
+if (supabaseError || baseError) {
+  console.error(supabaseError || baseError);
+  process.exit(1);
+}
 const { email, password } = loadCandidateUser();
 const outDir = resolve(process.cwd(), "docs-local/assets/ux-perf-06");
 mkdirSync(outDir, { recursive: true });
@@ -143,14 +150,25 @@ async function sampleRaf(page, durationMs = 800) {
 const auth = await signInCandidateSession();
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-await context.addInitScript(
-  ({ storageKey, session }) => {
-    localStorage.setItem(storageKey, JSON.stringify(session));
-  },
-  auth,
-);
-
 const page = await context.newPage();
+await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+let pageHost = "";
+try {
+  pageHost = new URL(page.url()).hostname;
+} catch {
+  pageHost = "";
+}
+if (!isLoopbackHostname(pageHost)) {
+  console.error("A página saiu do loopback. A sessão de teste não foi injetada.");
+  await browser.close();
+  process.exit(1);
+}
+await page.evaluate(({ storageKey, session }) => {
+  const host = location.hostname;
+  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") return;
+  localStorage.setItem(storageKey, JSON.stringify(session));
+}, auth);
+await page.reload({ waitUntil: "domcontentloaded" });
 const primaryNav = () => page.getByRole("navigation", { name: "Principal" });
 const myApplicationsLink = () => primaryNav().getByRole("link", { name: "Minhas candidaturas" });
 const vagasLink = () => primaryNav().getByRole("link", { name: "Vagas", exact: true });
