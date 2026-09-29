@@ -13,7 +13,6 @@ import {
   COMPANY_LIST_LIMIT,
   createPendingJob,
   findDuplicateJob,
-  loadAdminJobs,
   loadCompanies,
   normalizeJobTitle,
   parseStack,
@@ -169,8 +168,10 @@ describe("listas staff com teto", () => {
     expect(current.maybeSingle).toHaveBeenCalled();
   });
 
-  it("loadAdminJobs não baixa a tabela de jobs", async () => {
-    await expect(loadAdminJobs()).rejects.toThrow(/loadAdminJobPage/);
+  it("admin-api não exporta a lista legada loadAdminJobs", () => {
+    const root = resolve(import.meta.dirname, "..");
+    const source = readFileSync(resolve(root, "lib/admin-api.js"), "utf8");
+    expect(source).not.toContain("loadAdminJobs");
     expect(fromMock).not.toHaveBeenCalled();
   });
 

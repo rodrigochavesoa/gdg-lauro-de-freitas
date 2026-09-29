@@ -1,4 +1,11 @@
 import { normalizeCountryCode, normalizePlace, normalizeSalaryCents } from "./catalog-url.js";
+import {
+  JOB_DETAIL_HEAVY_SELECT,
+  JOB_DETAIL_SELECT,
+  JOB_LIST_SELECT,
+  JOB_LIST_SELECT_SEARCH,
+} from "./data-contracts/selects.js";
+import { mapCatalogDetailRowToDto, mapCatalogHeavyRowToDto, mapCatalogListRowToDto } from "./data-contracts/map-row.js";
 import { mapJob } from "./map-job.js";
 import { classifyOpsFailure, emitOpsEvent } from "./ops-observability.js";
 import { getSupabaseBrowserClient } from "./supabase-client.js";
@@ -10,68 +17,7 @@ import {
   stackTermsForSearch,
 } from "./filter-jobs.js";
 
-const JOB_DETAIL_SELECT = `
-  id,
-  title,
-  description,
-  requirements,
-  stack,
-  level,
-  work_model,
-  location,
-  country_code,
-  salary_min,
-  salary_max,
-  salary_currency,
-  status,
-  approved_at,
-  created_at,
-  companies ( name, description )
-`;
-
-/** UX-PERF-04 — only fields missing from JOB_LIST_SELECT / list mapJob. */
-export const JOB_DETAIL_HEAVY_SELECT = `
-  id,
-  description,
-  requirements,
-  companies ( description )
-`;
-
-const JOB_LIST_SELECT = `
-  id,
-  title,
-  stack,
-  level,
-  work_model,
-  location,
-  country_code,
-  salary_min,
-  salary_max,
-  salary_currency,
-  status,
-  approved_at,
-  created_at,
-  companies ( name )
-`;
-
-/** Empty embed `co` + display embed — PostgREST OR across company needs co.not.is.null, not companies.name inside .or(). */
-const JOB_LIST_SELECT_SEARCH = `
-  id,
-  title,
-  stack,
-  level,
-  work_model,
-  location,
-  country_code,
-  salary_min,
-  salary_max,
-  salary_currency,
-  status,
-  approved_at,
-  created_at,
-  co:companies(),
-  companies ( name )
-`;
+export { JOB_DETAIL_HEAVY_SELECT };
 
 export const CATALOG_CACHE_TTL_MS = 30_000;
 export const CATALOG_PAGE_SIZE = 24;
@@ -350,9 +296,10 @@ export async function loadApprovedJobs(options = {}) {
       outcome: "success",
       error_class: "none",
     });
-    const jobs = rows.map(mapJob);
+    const dtoRows = rows.map((row) => mapCatalogListRowToDto(row));
+    const jobs = dtoRows.map((row) => mapJob(row));
     const previous = params.offset > 0 && !params.forceRefresh ? catalogCache.get(key) : null;
-    const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, rows) : rows;
+    const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, dtoRows) : dtoRows;
     const mergedJobs = previous?.jobs ? mergeUniqueById(previous.jobs, jobs) : jobs;
     catalogCache.set(key, {
       jobs: mergedJobs,
@@ -387,7 +334,7 @@ export async function loadApprovedJobHeavyFields(id) {
     .maybeSingle();
 
   if (error) throw error;
-  return data ?? null;
+  return data ? mapCatalogHeavyRowToDto(data) : null;
 }
 
 export async function loadApprovedJob(id) {
@@ -411,5 +358,5 @@ export async function loadApprovedJob(id) {
     .maybeSingle();
 
   if (error) throw error;
-  return data ? mapJob(data) : null;
+  return data ? mapJob(mapCatalogDetailRowToDto(data)) : null;
 }

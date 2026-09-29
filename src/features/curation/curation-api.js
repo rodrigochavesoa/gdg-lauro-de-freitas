@@ -1,4 +1,15 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import {
+  mapCurationDetailRowToDto,
+  mapCurationListRowToDto,
+  mapCurationReviewRowToDto,
+} from "../../lib/data-contracts/map-row.js";
+import {
+  CURATION_DETAIL_FIELDS,
+  CURATION_LIST_FIELDS,
+  CURATION_MODERATION_ID_SELECT,
+  CURATION_REVIEW_FIELDS,
+} from "../../lib/data-contracts/selects.js";
 import { runObserved } from "../../lib/ops-observability.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { mergeCurationQueue } from "./curation-queue.js";
@@ -7,14 +18,6 @@ import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 const STAFF_ROLES = new Set(["admin", "curator", "moderator"]);
 
 export const CURATION_QUEUE_PAGE_SIZE = 24;
-
-const CURATION_LIST_FIELDS =
-  "id,title,status,priority,curation_round,level,work_model,location,created_at,companies(name)";
-
-const CURATION_DETAIL_FIELDS = "id,description,stack";
-
-const CURATION_REVIEW_FIELDS =
-  "job_id,curation_round,reviewer_id,decision,rubric_code,internal_comment,created_at";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -130,7 +133,7 @@ async function fetchPendingPage(client, page, pageSize) {
   if (sliced.rows.length > 0) {
     const moderation = await client
       .from("jobs_needing_moderation")
-      .select("id")
+      .select(CURATION_MODERATION_ID_SELECT)
       .in(
         "id",
         sliced.rows.map((row) => row.id),
@@ -140,7 +143,7 @@ async function fetchPendingPage(client, page, pageSize) {
   }
 
   return {
-    queue: mergeCurationQueue(sliced.rows, moderationIds),
+    queue: mergeCurationQueue(sliced.rows.map(mapCurationListRowToDto), moderationIds),
     rejected: [],
     page,
     pageSize,
@@ -162,7 +165,7 @@ async function fetchRejectedPage(client, page, pageSize) {
   const sliced = sliceCurationPage(rejected.data ?? [], pageSize);
   return {
     queue: [],
-    rejected: sliced.rows,
+    rejected: sliced.rows.map(mapCurationListRowToDto),
     page,
     pageSize,
     hasNext: sliced.hasNext,
@@ -217,11 +220,12 @@ async function fetchCurationJobDetail(jobId) {
   ]);
   throwIfError(job.error);
   throwIfError(reviews.error);
+  const detail = job.data ? mapCurationDetailRowToDto(job.data) : null;
   return {
     id: jobId,
-    description: job.data?.description ?? "",
-    stack: job.data?.stack ?? [],
-    reviews: reviews.data ?? [],
+    description: detail?.description ?? "",
+    stack: detail?.stack ?? [],
+    reviews: (reviews.data ?? []).map(mapCurationReviewRowToDto),
   };
 }
 

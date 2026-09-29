@@ -199,7 +199,7 @@ describe("RPCs", () => {
   it("loadMyApplication filtra job_id e candidate_id da sessão", async () => {
     getUserMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
     const maybeSingle = vi.fn().mockResolvedValue({
-      data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "reviewing" },
+      data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "reviewing", snapshot: null },
       error: null,
     });
     const eqCandidate = vi.fn().mockReturnValue({ maybeSingle });
@@ -217,7 +217,7 @@ describe("RPCs", () => {
 
   it("loadMyApplication com userId não chama getUser", async () => {
     const maybeSingle = vi.fn().mockResolvedValue({
-      data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted" },
+      data: { id: "a1", job_id: "job-1", candidate_id: "u1", status: "submitted", snapshot: null },
       error: null,
     });
     const eqCandidate = vi.fn().mockReturnValue({ maybeSingle });

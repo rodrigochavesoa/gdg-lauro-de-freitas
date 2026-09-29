@@ -143,7 +143,15 @@ describe("latestIngestionAttempt e copy", () => {
 describe("loadJobIngestions", () => {
   it("lista uma página enxuta, sem payload nem tentativas", async () => {
     const range = vi.fn(async () => ({
-      data: [{ id: "ing-1", payload_title: "Dev", latest_outcome: "failed", job_id: null }],
+      data: [{
+        id: "ing-1",
+        source_kind: "manual_fixture",
+        normalized_locator: "fixture:demo",
+        created_at: "2026-09-20T00:00:00.000Z",
+        payload_title: "Dev",
+        latest_outcome: "failed",
+        job_id: null,
+      }],
       error: null,
     }));
     const orderId = vi.fn(() => ({ range }));
@@ -158,14 +166,27 @@ describe("loadJobIngestions", () => {
     expect(select.mock.calls[0][0]).not.toMatch(/canonical_payload|job_ingestion_attempts/);
     expect(range).toHaveBeenCalledWith(0, INGESTION_PAGE_SIZE);
     expect(page.items).toEqual([
-      mapIngestionListRow({ id: "ing-1", payload_title: "Dev", latest_outcome: "failed", job_id: null }),
+      mapIngestionListRow({
+        id: "ing-1",
+        source_kind: "manual_fixture",
+        normalized_locator: "fixture:demo",
+        created_at: "2026-09-20T00:00:00.000Z",
+        payload_title: "Dev",
+        latest_outcome: "failed",
+        job_id: null,
+      }),
     ]);
     expect(page.items[0]).not.toHaveProperty("canonical_payload");
     expect(page.hasNext).toBe(false);
   });
 
   it("marca hasNext quando volta uma linha além da página", async () => {
-    const rows = Array.from({ length: INGESTION_PAGE_SIZE + 1 }, (_, index) => ({ id: `ing-${index}` }));
+    const rows = Array.from({ length: INGESTION_PAGE_SIZE + 1 }, (_, index) => ({
+      id: `ing-${index}`,
+      source_kind: "manual_fixture",
+      normalized_locator: `fixture:${index}`,
+      created_at: "2026-09-20T00:00:00.000Z",
+    }));
     const range = vi.fn(async () => ({ data: rows, error: null }));
     const orderId = vi.fn(() => ({ range }));
     const orderCreated = vi.fn(() => ({ order: orderId }));

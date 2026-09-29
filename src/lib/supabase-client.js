@@ -1,7 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
-let browserClient;
+/**
+ * Tipos do schema public de homolog. Regenerar com `pnpm types:database`.
+ * `pnpm types:client` checa só este módulo. O restante do app continua JavaScript.
+ * @typedef {import("./database.types").Database} Database
+ */
 
+/** @type {import("@supabase/supabase-js").SupabaseClient<Database> | null} */
+let browserClient = null;
+
+/**
+ * @returns {import("@supabase/supabase-js").SupabaseClient<Database> | null}
+ */
 export function getSupabaseBrowserClient() {
   if (browserClient) {
     return browserClient;
@@ -16,12 +26,22 @@ export function getSupabaseBrowserClient() {
     return null;
   }
 
-  browserClient = createClient(url, key, {
+  browserClient = createDatabaseClient(url, key);
+  return browserClient;
+}
+
+/**
+ * @param {string} url
+ * @param {string} key
+ * @returns {import("@supabase/supabase-js").SupabaseClient<Database>}
+ */
+function createDatabaseClient(url, key) {
+  const create = /** @type {typeof createClient<Database>} */ (createClient);
+  return create(url, key, {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
   });
-  return browserClient;
 }

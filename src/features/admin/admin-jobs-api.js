@@ -1,3 +1,5 @@
+import { mapAdminJobListRowToDto } from "../../lib/data-contracts/map-row.js";
+import { ADMIN_JOB_LIST_SELECT, ADMIN_JOB_LIST_SELECT_SEARCH } from "../../lib/data-contracts/selects.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { buildCatalogSearchPattern, quotePostgrestValue } from "../../lib/jobs-api.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
@@ -6,10 +8,6 @@ export const ADMIN_JOB_PAGE_SIZE = 24;
 export const ADMIN_JOB_STATUSES = ["pending", "approved", "rejected"];
 export const ADMIN_JOB_SORT_RECENT = "recent";
 export const ADMIN_JOB_SORT_OLDEST = "oldest";
-
-const ADMIN_JOB_LIST_SELECT = "id,title,status,created_at,level,work_model,companies(name)";
-const ADMIN_JOB_LIST_SELECT_SEARCH =
-  "id,title,status,created_at,level,work_model,co:companies(),companies(name)";
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -122,15 +120,7 @@ function buildAdminJobSearchOr(query) {
 }
 
 function mapAdminJobListItem(row) {
-  return {
-    id: row.id,
-    title: row.title,
-    status: row.status,
-    created_at: row.created_at,
-    level: row.level,
-    work_model: row.work_model,
-    companies: row.companies ?? null,
-  };
+  return mapAdminJobListRowToDto(row);
 }
 
 /**

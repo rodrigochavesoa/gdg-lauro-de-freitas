@@ -17,3 +17,5 @@ docs-local/
 docs/*
 !docs/agents/
 !docs/agents/**
+!docs/tech/
+!docs/tech/**

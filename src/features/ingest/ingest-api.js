@@ -10,6 +10,8 @@ import {
   normalizeLocator,
   isIngestionExpired,
 } from "./source-contract.js";
+import { mapIngestionDetailRowToDto, mapIngestionListRowToDto } from "../../lib/data-contracts/map-row.js";
+import { INGESTION_DETAIL_SELECT, INGESTION_LIST_SELECT } from "../../lib/data-contracts/selects.js";
 import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
@@ -119,33 +121,13 @@ export async function processJobIngestion(client, { sourceKind, locator, payload
 
 export const INGESTION_PAGE_SIZE = 24;
 
-const INGESTION_LIST_SELECT =
-  "id,source_kind,normalized_locator,expires_at,job_id,created_at,payload_title,job_title,job_status,latest_outcome";
-
-const INGESTION_DETAIL_SELECT =
-  "id,source_kind,normalized_locator,payload_hash,expires_at,job_id,created_at,canonical_payload,jobs(id,title,status),job_ingestion_attempts(id,outcome,failure_code,failure_detail,job_id,created_at)";
-
 function normalizePositiveInt(value, fallback) {
   const n = Number.parseInt(value, 10);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
 export function mapIngestionListRow(row) {
-  const source = row ?? {};
-  const jobId = source.job_id ?? null;
-  const title = source.job_title ?? null;
-  const status = source.job_status ?? null;
-  return {
-    id: source.id,
-    source_kind: source.source_kind,
-    normalized_locator: source.normalized_locator,
-    expires_at: source.expires_at ?? null,
-    job_id: jobId,
-    created_at: source.created_at,
-    payload_title: source.payload_title ?? null,
-    latest_outcome: source.latest_outcome ?? null,
-    jobs: jobId || title || status ? { id: jobId, title, status } : null,
-  };
+  return mapIngestionListRowToDto(row);
 }
 
 /** Página enxuta. Payload e tentativas ficam em loadJobIngestionDetail. */
@@ -181,7 +163,7 @@ export async function loadJobIngestionDetail(client, id) {
     .eq("id", id)
     .maybeSingle();
   throwIfError(error);
-  return data ?? null;
+  return data ? mapIngestionDetailRowToDto(data) : null;
 }
 
 export { REGISTER_JOB_INGESTION_RPC, isIngestionExpired };

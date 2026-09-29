@@ -9,6 +9,7 @@ Como agentes devem carregar contexto de **produto e código** (não confundir co
 | Onboarding público | `README.md`, `ABOUT.md`, `SETUP.md`, `CONTRIBUTING.md` | Produto, jornadas, setup, homologação vs produção e Git/PR |
 | Código | `src/` — `features/`, `lib/`, `components/`, `routes/` | Comportamento real; preferir ler módulo da feature antes de inferir |
 | Dados / auth | `supabase/migrations/`, `scripts/check-rls.mjs` | RLS, RPC, políticas |
+| Contratos de leitura | `docs/tech/DATA-CONTRACTS.md`, `src/lib/data-contracts/` | Select por superfície e DTO; listas sem coluna de detalhe |
 | Testes | `src/**/*.test.js`, `pnpm test` | Contratos e regressões |
 | Modelos operacionais (sem dados) | `docs-local.example/` | Templates ClickUp, QA, credenciais — **não** sprint viva |
 | Operação do squad | `docs-local/` | Backlog, ONE-LINERs, design system interno, assets QA — gitignored |
