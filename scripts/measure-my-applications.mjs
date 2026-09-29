@@ -14,7 +14,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { homologSupabaseHostnameError, isLoopbackHostname, loopbackBaseUrlError } from "./measure-target.mjs";
+import { documentMayStoreSession, homologSupabaseHostnameError, loopbackBaseUrlError, loopbackOriginError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -62,7 +62,12 @@ function hitsLabel(hits, total) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
-const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
+const runsError = measureRunsError(env.MEASURE_RUNS);
+if (runsError) {
+  console.error(runsError);
+  process.exit(1);
+}
+const runs = measureRuns(env.MEASURE_RUNS);
 const label = (env.MEASURE_LABEL || "after").toLowerCase() === "before" ? "before" : "after";
 const supabaseUrl = env.VITE_SUPABASE_URL;
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY;
@@ -152,22 +157,23 @@ const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 const page = await context.newPage();
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-let pageHost = "";
-try {
-  pageHost = new URL(page.url()).hostname;
-} catch {
-  pageHost = "";
-}
-if (!isLoopbackHostname(pageHost)) {
-  console.error("A página saiu do loopback. A sessão de teste não foi injetada.");
+const originError = loopbackOriginError(page.url(), baseUrl);
+const expectedOrigin = new URL(baseUrl).origin;
+if (originError) {
+  console.error(`${originError} A sessão de teste não foi injetada.`);
   await browser.close();
   process.exit(1);
 }
-await page.evaluate(({ storageKey, session }) => {
-  const host = location.hostname;
-  if (host !== "127.0.0.1" && host !== "localhost" && host !== "::1") return;
+const stored = await page.evaluate(({ storageKey, session, expectedOrigin: origin }) => {
+  if (location.origin !== origin) return false;
   localStorage.setItem(storageKey, JSON.stringify(session));
-}, auth);
+  return true;
+}, { ...auth, expectedOrigin });
+if (!stored || !documentMayStoreSession(new URL(page.url()).origin, expectedOrigin)) {
+  console.error("A página aberta não está na origem exata de BASE_URL. A sessão de teste não foi injetada.");
+  await browser.close();
+  process.exit(1);
+}
 await page.reload({ waitUntil: "domcontentloaded" });
 const primaryNav = () => page.getByRole("navigation", { name: "Principal" });
 const myApplicationsLink = () => primaryNav().getByRole("link", { name: "Minhas candidaturas" });
@@ -181,9 +187,20 @@ const log = (message) => {
 
 page.on("request", (request) => {
   const url = request.url();
-  if (url.includes("/rest/v1/")) {
-    restLog.push({ at: Date.now(), path: url.split("?")[0].replace(/^.*\/rest\/v1\//, "") });
-  }
+  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = url.includes("/rest/v1/")
+    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  restLog.push({ at: Date.now(), path, status: null });
+});
+page.on("response", (response) => {
+  const url = response.url();
+  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = url.includes("/rest/v1/")
+    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
+  if (entry) entry.status = response.status();
 });
 
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
@@ -217,9 +234,9 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t1GateHits += 1;
   if (raf.skeletonHits > 0) t1SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => row.path);
+  const restThisNav = restLog.slice(beforeRest).map((row) => ({ path: row.path, status: row.status }));
   t1Rest.push(restThisNav);
-  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.join(",") || "(nenhum)"}`);
+  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`);
 }
 
 log("\n=== T2 remount — Vagas → Minhas candidaturas (cache SPA) ===");
@@ -255,10 +272,10 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t2GateHits += 1;
   if (raf.skeletonHits > 0) t2SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => row.path);
+  const restThisNav = restLog.slice(beforeRest).map((row) => ({ path: row.path, status: row.status }));
   t2Rest.push(restThisNav);
   log(
-    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.join(",") || "(nenhum)"}`,
+    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`,
   );
 }
 
@@ -274,6 +291,15 @@ log(`T2 "Carregando candidaturas" gate: ${hitsLabel(t2GateHits, runs)}`);
 log(`T2 skeleton visível (amostra imediata): ${hitsLabel(t2SkeletonRuns, runs)}`);
 log(`T2 ready: ${t2Ready.join(", ")}`);
 log(`Meta remount: gate 0/${runs} · route 0/${runs} com cache quente · T2 mediana ≤500 ms`);
+
+for (const [name, values] of [["T1", t1], ["T2", t2]]) {
+  const countError = sampleCountError(values, runs, name);
+  if (countError) {
+    console.error(countError);
+    await browser.close();
+    process.exit(1);
+  }
+}
 
 const metrics = {
   name: label,

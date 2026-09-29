@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
-import { isLoopbackHostname, loopbackBaseUrlError } from "./measure-target.mjs";
+import { loopbackBaseUrlError, loopbackOriginError } from "./measure-target.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -139,17 +139,14 @@ const routes = [
 ];
 
 await page.goto(`${baseUrl}/admin`, { waitUntil: "domcontentloaded" });
-let pageHost = "";
-try {
-  pageHost = new URL(page.url()).hostname;
-} catch {
-  pageHost = "";
-}
-if (!isLoopbackHostname(pageHost)) {
-  console.error("A página de login saiu do loopback. Credenciais de teste não foram enviadas.");
+async function refuseForeignOrigin() {
+  const originError = loopbackOriginError(page.url(), baseUrl);
+  if (!originError) return;
+  console.error(`${originError} Credenciais de teste não foram enviadas.`);
   await browser.close();
   process.exit(1);
 }
+await refuseForeignOrigin();
 const loginHeading = page.getByRole("heading", { name: "Entrar para curadoria ou admin" });
 const panelHeading = page.getByRole("heading", { name: "Painel" });
 const mfaHeading = page.getByRole("heading", { name: "Confirmar segundo fator" });
@@ -160,6 +157,7 @@ await Promise.race([
 ]).catch(() => {});
 
 if (await loginHeading.isVisible().catch(() => false)) {
+  await refuseForeignOrigin();
   await page.getByLabel("E-mail").fill(email);
   await page.getByLabel("Senha").fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
@@ -171,6 +169,7 @@ const landed = await Promise.race([
 ]).catch(() => "timeout");
 
 if (landed === "mfa") {
+  await refuseForeignOrigin();
   if (!totpSecret) {
     console.error("O login pediu TOTP e não há ADMIN_TEST_TOTP_SECRET nem chave admin em docs-local/staff-mfa-totp-secrets.md");
     await browser.close();

@@ -11,8 +11,9 @@
  * A lista do catálogo é /vagas. / é o portal e não tem .job-card.
  * JOB_ID opcional; MEASURE_RUNS default 5
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { loopbackBaseUrlError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
 
 function loadLocalEnv() {
   const path = resolve(process.cwd(), ".env.local");
@@ -42,7 +43,13 @@ function summarize(label, values) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://localhost:5173").replace(/\/$/, "");
-const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
+const baseError = loopbackBaseUrlError(baseUrl);
+const runsError = measureRunsError(env.MEASURE_RUNS);
+if (baseError || runsError) {
+  console.error(baseError || runsError);
+  process.exit(1);
+}
+const runs = measureRuns(env.MEASURE_RUNS);
 
 let chromium;
 try {
@@ -91,19 +98,33 @@ page.on("request", (request) => {
 });
 page.on("response", (response) => {
   const url = response.url();
-  if (!url.includes("/rest/v1/")) return;
-  const path = url.split("?")[0].replace(/^.*\/rest\/v1\//, "");
-  const entry = [...restLog].reverse().find((row) => row.path === path && row.ms == null);
-  if (entry) entry.ms = Date.now() - entry.at;
+  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = url.includes("/rest/v1/")
+    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
+  if (!entry) return;
+  entry.status = response.status();
+  if (entry.ms == null) entry.ms = Date.now() - entry.at;
 });
 
 function formatRest(slice) {
   return slice
-    .map((r) => {
-      const kind = r.kind ? `:${r.kind}` : "";
-      return `${r.path}${kind}${r.ms != null ? `@${r.ms}ms` : ""}`;
+    .map((row) => {
+      const kind = row.kind ? `:${row.kind}` : "";
+      const timing = row.ms != null ? `@${row.ms}ms` : "";
+      const status = row.status == null ? "status=sem-resposta" : `status=${row.status}`;
+      return `${row.path}${kind}${timing} ${status}`;
     })
     .join(", ");
+}
+
+function callRecord(row) {
+  return { path: row.path, kind: row.kind, ms: row.ms ?? null, status: row.status ?? null };
+}
+
+function httpErrors(calls) {
+  return calls.flat().filter((row) => row.status >= 400);
 }
 
 async function waitCatalog() {
@@ -126,6 +147,7 @@ async function measureDirect(jobId, label) {
   const loadingTextSeen = [];
   const skeletonSeen = [];
   const jobKinds = [];
+  const rest = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -152,14 +174,15 @@ async function measureDirect(jobId, label) {
     const fullMs = Date.now() - started;
     fullTimes.push(fullMs);
 
-    const restThis = restLog.slice(before);
-    jobKinds.push(...restThis.filter((r) => r.path === "jobs").map((r) => r.kind));
+    const restThis = restLog.slice(before).map(callRecord);
+    rest.push(restThis);
+    jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
       `${label} run ${run}: shell=${shellMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds };
+  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds, rest };
 }
 
 async function measureFromHome(jobId, label) {
@@ -167,6 +190,7 @@ async function measureFromHome(jobId, label) {
   const fullTimes = [];
   const loadingTextSeen = [];
   const jobKinds = [];
+  const rest = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -193,14 +217,15 @@ async function measureFromHome(jobId, label) {
     const fullMs = Date.now() - started;
     fullTimes.push(fullMs);
 
-    const restThis = restLog.slice(before);
-    jobKinds.push(...restThis.filter((r) => r.path === "jobs").map((r) => r.kind));
+    const restThis = restLog.slice(before).map(callRecord);
+    rest.push(restThis);
+    jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
       `${label} run ${run}: useful=${usefulMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds };
+  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds, rest };
 }
 
 console.log(`BASE_URL=${baseUrl} runs=${runs}`);
@@ -237,5 +262,39 @@ console.log(summarize("anon from-home full (content p)", anonHome.fullTimes));
 console.log(`anon from-home "Carregando vaga…": ${anonHome.loadingTextSeen.filter(Boolean).length}/${anonHome.loadingTextSeen.length}`);
 console.log(`anon from-home jobs select kinds: full=${countKind(anonHome.jobKinds, "full")} heavy=${countKind(anonHome.jobKinds, "heavy")} list=${countKind(anonHome.jobKinds, "list")}`);
 console.log("Meta PERF-04: from-home detail request = heavy (not full); cold miss = full");
+
+for (const [name, values] of [
+  ["detalhe cold shell", anonDirect.shellTimes],
+  ["detalhe cold full", anonDirect.fullTimes],
+  ["detalhe warm útil", anonHome.usefulTimes],
+  ["detalhe warm full", anonHome.fullTimes],
+]) {
+  const countError = sampleCountError(values, runs, name);
+  if (countError) {
+    console.error(countError);
+    await browser.close();
+    process.exit(1);
+  }
+}
+
+const detailPath = resolve(process.cwd(), "docs-local/perf/UX-PERF-04-detail.json");
+mkdirSync(resolve(process.cwd(), "docs-local/perf"), { recursive: true });
+writeFileSync(detailPath, `${JSON.stringify({
+  pii: false,
+  runs,
+  cold: {
+    shellMs: anonDirect.shellTimes,
+    fullMs: anonDirect.fullTimes,
+    rest: anonDirect.rest,
+    httpErrors: httpErrors(anonDirect.rest),
+  },
+  warm: {
+    usefulMs: anonHome.usefulTimes,
+    fullMs: anonHome.fullTimes,
+    rest: anonHome.rest,
+    httpErrors: httpErrors(anonHome.rest),
+  },
+}, null, 2)}\n`);
+console.log("wrote docs-local/perf/UX-PERF-04-detail.json");
 
 await browser.close();

@@ -1,50 +1,52 @@
 # SLO operacional de homolog
 
-Baseline de latência da SPA no **homolog**. Não é SLO de Production, não autoriza `db push` e não liga alerta. Amostra pequena, catálogo pequeno. Percentil nearest-rank: índice `ceil(p × n) − 1`. Com n = 5, o p95 é a maior amostra.
+Método e tetos provisórios de latência da SPA no **homolog**. Não é SLO de Production, não autoriza `db push` e não liga alerta. A amostra prevista é pequena. Percentil nearest-rank: índice `ceil(p × n) − 1`. Com n = 5, o p95 é a maior amostra.
 
 **Cold** aqui é cache em memória da aba frio (reload ou primeira ida à rota nessa aba). Os scripts reutilizam o contexto do navegador e, no candidato e no staff, a sessão já autenticada. Não é a primeira visita de um navegador sem cookie nem sem sessão.
 
 `ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console. Esta matriz não lê esses eventos e não acrescenta fluxo em `OPS_FLOWS`. Hit/miss de cache não está em `window`; quando o script não chama `getClientCacheStats`, a ausência de um novo `rest/v1` na navegação quente é o sinal usado. A política de TTL e invalidação está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
 
-## O que é medido
+A evidência de uma rodada (SHA, horários, latências, payloads e status HTTP) fica em `docs-local/`. Este arquivo guarda o método e os critérios.
+
+## Como classificar uma rodada
 
 | Status | Significado |
 |---|---|
-| `medido` | Número desta rodada, com o n da tabela |
-| `herdado` | Estudo anterior, citado, sem repetir a bateria |
+| `medido` | Há o n da linha e os percentis cabem no limite |
+| `herdado` | Estudo anterior, citado no doc local, sem repetir a bateria |
 | `hipótese` | Limite ainda sem amostra suficiente, ou relógio que não é o marco de UI |
 
-Ambiente da rodada: Vite local (`pnpm dev`) com Supabase de homolog, SHA de app `7fc3d6e`. O instante `2026-09-29T15:13:21.597Z` nos JSON dessa rodada é o **início** da bateria, não a hora de cada captura. O script passa a gravar `runStartedAt`, `measuredAt` na hora do arquivo e `runFinishedAt` em `run.json`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git. JSON cru: `docs-local/perf/OPS-PERF-SLO-01/`.
+Cada arquivo da rodada grava `runStartedAt`, `measuredAt` na hora em que o JSON é escrito e, no fim, `runFinishedAt`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git.
 
-`/admin` depois do shell em `src/app/` ainda chama uma vez `rpc/get_admin_dashboard_summary` (amostra 282 ms, 175 B). O p50/p95 da RPC não foi refeito: 20 chamadas em 2026-09-28, p50 295 ms, p95 794 ms (`docs-local/decision-perf-admin-shell-summary-homolog-slo.md`).
+Cada chamada `rest/v1` ou `auth/v1` entra no artefato com caminho, status e bytes. Status `>= 400` também vai para `httpErrors`.
 
-## Rotas P1
+## Critérios
 
-Marco útil entre parênteses. Limite provisório é teto de homolog, acima do p95 medido, não um objetivo de Production.
+Marco útil. O limite provisório é teto de homolog, não um objetivo de Production. Lista staff com n = 1 é observação pontual: não publicar p50/p95.
 
-| Rota | Marco | Amostra | p50 | p95 | Pedidos | Payload | Limite provisório | Status |
-|---|---|---|---|---|---|---|---|---|
-| `/` | h1 do portal, cold | n = 5 | 377 ms | 1,4 s | 1× `jobs` (prefetch) | ~1,7 kB | 2,0 s | medido |
-| `/` | h1 do portal, SPA quente | n = 5 | 108 ms | 122 ms | 0× `jobs` | 0 | 250 ms | medido |
-| `/vagas` | “Vagas em destaque”, cold | n = 5 | 392 ms | 551 ms | 1× `jobs` | ~1,7 kB | 800 ms | medido |
-| `/vagas` | idem, SPA quente | n = 5 | 146 ms | 188 ms | 0× `jobs` | 0 | 300 ms | medido |
-| `/jobs/:id` | shell (voltar/skeleton), cold | n = 5 | 328 ms | 344 ms | `jobs` full + list | — | 500 ms | medido |
-| `/jobs/:id` | parágrafo do detalhe, cold | n = 5 | 1,05 s | 1,08 s | idem | — | 1,5 s | medido |
-| `/jobs/:id` | h1, clique no card | n = 5 | 123 ms | 141 ms | `jobs` heavy | — | 250 ms | medido |
-| `/jobs/:id` | parágrafo, clique no card | n = 5 | 876 ms | 904 ms | idem | — | 1,2 s | medido |
-| `/minhas-candidaturas` | empty/card, cold | n = 5 | 132 ms | 187 ms | `applications` em 4/5 | — | 400 ms | medido |
-| `/minhas-candidaturas` | empty/card, remount | n = 5 | 57 ms | 70 ms | `applications` em 5/5 | — | 200 ms | medido |
-| `/admin` | RPC `get_admin_dashboard_summary` | n = 20 | 295 ms | 794 ms | 1 RPC | — | 1,0 s | herdado |
-| `/admin` | heading “Painel” | n = 1, sem percentil | — | — | profiles + user + RPC 282 ms / 175 B | — | observação pontual; o relógio do script não é SLO | hipótese |
-| `/admin/curadoria` | lista | n = 1, sem percentil | — | — | `jobs` 344 ms / 1,8 kB, sem `description`; `jobs_needing_moderation` 2 B | — | observação pontual da chamada | hipótese |
-| `/admin/vagas` | lista | n = 1, sem percentil | — | — | `jobs` 355 ms / 1,4 kB, sem `description` | — | observação pontual da chamada | hipótese |
-| `/admin/ingestao` | lista | n = 1, sem percentil | — | — | `job_ingestion_staff_list` 362 ms / 828 B, sem payload canônico | — | observação pontual da chamada | hipótese |
+| Rota | Marco | n | Limite provisório |
+|---|---|---|---|
+| `/` | h1 do portal, cold | 5 | 2,0 s |
+| `/` | h1 do portal, SPA quente | 5 | 250 ms |
+| `/vagas` | “Vagas em destaque”, cold | 5 | 800 ms |
+| `/vagas` | idem, SPA quente | 5 | 300 ms |
+| `/jobs/:id` | shell (voltar/skeleton), cold | 5 | 500 ms |
+| `/jobs/:id` | parágrafo do detalhe, cold | 5 | 1,5 s |
+| `/jobs/:id` | h1, clique no card | 5 | 250 ms |
+| `/jobs/:id` | parágrafo, clique no card | 5 | 1,2 s |
+| `/minhas-candidaturas` | empty/card, cold | 5 | 400 ms |
+| `/minhas-candidaturas` | empty/card, remount | 5 | 200 ms |
+| `/admin` | RPC `get_admin_dashboard_summary` | 20 | 1,0 s |
+| `/admin` | heading “Painel” | 1, sem percentil | observação pontual; o relógio do script não é SLO |
+| `/admin/curadoria` | chamada de lista | 1, sem percentil | observação pontual da chamada |
+| `/admin/vagas` | chamada de lista | 1, sem percentil | observação pontual da chamada |
+| `/admin/ingestao` | chamada de lista | 1, sem percentil | observação pontual da chamada |
 
-O relógio de `pnpm qa:staff-lists` soma `waitForTimeout(800)` depois do texto de settle. Os 2,1–2,2 s de página não são o tempo até o heading. A coluna de limite usa `calls[].ms`.
+O relógio de `pnpm qa:staff-lists` soma `waitForTimeout(800)` depois do texto de settle. Esse relógio não é o tempo até o heading e não vira percentil.
 
-O remount de candidaturas ainda pede `applications` porque a página, se já há cache, chama `loadMyApplications` com `forceRefresh`. A UI não volta ao skeleton. Isso está alinhado ao código atual, não a um miss acidental.
+O remount de candidaturas ainda pede `applications` porque a página, se já há cache, chama `loadMyApplications` com `forceRefresh`. A UI não volta ao skeleton. Isso está alinhado ao código atual.
 
-Não há `EXPLAIN` novo. O estudo herdado, com 10 vagas reais e 10 mil linhas desfeitas na mesma transação, já mostrou o aggregate em poucos milissegundos e o seq scan. Esta rodada não tem volume que justifique índice.
+Não há `EXPLAIN` nesta história. O estudo herdado do aggregate fica no doc local do item 3 do gate.
 
 ## Como rodar
 
@@ -56,7 +58,9 @@ pnpm qa:ops-perf-slo -- --check
 pnpm qa:ops-perf-slo
 ```
 
-`BASE_URL` default `http://127.0.0.1:5173`, e só loopback (`127.0.0.1`, `localhost`, `::1`). `VITE_SUPABASE_URL` tem de ser o hostname https exato de homolog; um sufixo a mais é recusado antes de login ou de injetar sessão. O check falha sem chave publishable/anon, sem sessão staff (`ADMIN_EMAIL` / `ADMIN_PASSWORD` ou `docs-local/admin-test-user.md`) ou sem candidato de teste. `MEASURE_RUNS` default 5.
+`BASE_URL` default `http://127.0.0.1:5173`. Só loopback (`127.0.0.1`, `localhost` ou `::1`), e a página aberta tem de estar na origem exata, com a mesma porta, antes de injetar sessão ou preencher senha. `http://[::1]:5173` vale; a sessão só é gravada se `location.origin` for essa origem. `VITE_SUPABASE_URL` tem de ser o hostname https exato de homolog. O check falha sem chave publishable/anon, sem sessão staff (`ADMIN_EMAIL` / `ADMIN_PASSWORD` ou `docs-local/admin-test-user.md`) ou sem candidato de teste.
+
+`MEASURE_RUNS` default 5. Um valor presente que não seja inteiro positivo encerra a rodada antes do login. O orquestrador só grava os JSON quando portal, catálogo, detalhe e candidaturas têm esse número de amostras. As quatro rotas staff são obrigatórias e continuam observação pontual.
 
 O orquestrador não reimplementa o Playwright de detalhe, candidaturas e listas staff. Ele mede `/` e `/vagas` e em seguida chama `scripts/measure-staff-lists.mjs`, `measure-job-detail.mjs` e `measure-my-applications.mjs`. A lista do catálogo é `/vagas`; `/` é o portal. Os dois scripts de candidato e de detalhe usam a nav “Principal” e `/vagas` por isso.
 
@@ -64,4 +68,4 @@ Comandos avulsos, o mesmo contrato: `pnpm qa:job-detail`, `pnpm qa:my-applicatio
 
 ## Próxima ação
 
-Nenhuma migration nesta história. Repetir a matriz quando o catálogo de homolog deixar de ser uma lista de cerca de 2 kB, ou quando um SLO de Production for decidido à parte. O item 6 do gate de Production continua com o Plan; esta página só registra o método e os tetos provisórios de homolog.
+Nenhuma migration nesta história. Repetir a matriz quando o catálogo de homolog deixar de caber numa resposta pequena, ou quando um SLO de Production for decidido à parte. O item 6 do gate de Production continua com o Plan; esta página só registra o método e os tetos provisórios de homolog.

@@ -13,7 +13,7 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { homologSupabaseHostnameError, loopbackBaseUrlError } from "./measure-target.mjs";
+import { homologSupabaseHostnameError, loopbackBaseUrlError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
 
@@ -111,12 +111,38 @@ function runNode(script, extraEnv) {
   });
 }
 
-function parseSummarize(stdout, label) {
-  const line = stdout.split(/\r?\n/).find((row) => row.includes(label));
-  if (!line) return [];
-  const match = line.match(/:\s*([\d,\s]+)\|/);
-  if (!match) return [];
-  return match[1].split(",").map((part) => Number(part.trim())).filter((value) => Number.isFinite(value));
+async function captureRestCall(response) {
+  const url = response.url();
+  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return null;
+  const path = url.split("?")[0].replace(/^.*\/(?:rest|auth)\/v1\//, "");
+  let bytes = Number(response.headers()["content-length"] || 0);
+  if (!bytes) {
+    try {
+      bytes = (await response.body()).byteLength;
+    } catch {
+      bytes = 0;
+    }
+  }
+  return { path, bytes, status: response.status() };
+}
+
+function attachRest(page, bucket) {
+  const pending = new Set();
+  const onResponse = (response) => {
+    const task = captureRestCall(response).then((row) => {
+      if (row) bucket.push(row);
+    }).finally(() => pending.delete(task));
+    pending.add(task);
+  };
+  page.on("response", onResponse);
+  return async () => {
+    page.removeListener("response", onResponse);
+    await Promise.all([...pending]);
+  };
+}
+
+function httpErrorsOf(calls) {
+  return calls.flat().filter((row) => row.status >= 400);
 }
 
 async function measureSpaRoute(page, { route, ready, leave, back, runs }) {
@@ -129,62 +155,36 @@ async function measureSpaRoute(page, { route, ready, leave, back, runs }) {
 
   for (let run = 1; run <= runs; run += 1) {
     const coldBucket = [];
-    const onResponse = async (response) => {
-      const url = response.url();
-      if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
-      const path = url.split("?")[0].replace(/^.*\/(?:rest|auth)\/v1\//, "");
-      let bytes = Number(response.headers()["content-length"] || 0);
-      if (!bytes) {
-        try {
-          bytes = (await response.body()).byteLength;
-        } catch {
-          bytes = 0;
-        }
-      }
-      coldBucket.push({ path, bytes, status: response.status() });
-    };
-    page.on("response", onResponse);
+    const stopCold = attachRest(page, coldBucket);
     const started = Date.now();
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await ready();
     cold.push(Date.now() - started);
     await page.waitForTimeout(1200);
-    page.removeListener("response", onResponse);
-    coldRest.push(coldBucket.map((row) => row.path));
+    await stopCold();
+    coldRest.push(coldBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     coldBytes.push(coldBucket.reduce((sum, row) => sum + row.bytes, 0));
 
     await leave();
     const warmBucket = [];
-    const onWarm = async (response) => {
-      const url = response.url();
-      if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
-      const path = url.split("?")[0].replace(/^.*\/(?:rest|auth)\/v1\//, "");
-      let bytes = Number(response.headers()["content-length"] || 0);
-      if (!bytes) {
-        try {
-          bytes = (await response.body()).byteLength;
-        } catch {
-          bytes = 0;
-        }
-      }
-      warmBucket.push({ path, bytes, status: response.status() });
-    };
-    page.on("response", onWarm);
+    const stopWarm = attachRest(page, warmBucket);
     const warmStarted = Date.now();
     await back();
     await ready();
     warm.push(Date.now() - warmStarted);
     await page.waitForTimeout(800);
-    page.removeListener("response", onWarm);
-    warmRest.push(warmBucket.map((row) => row.path));
+    await stopWarm();
+    warmRest.push(warmBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     warmBytes.push(warmBucket.reduce((sum, row) => sum + row.bytes, 0));
-    console.log(`spa ${route} run ${run}: cold=${cold.at(-1)}ms warm=${warm.at(-1)}ms restCold=${coldRest.at(-1).join(",") || "(nenhum)"} restWarm=${warmRest.at(-1).join(",") || "(nenhum)"}`);
+    const coldPaths = coldRest.at(-1).map((row) => `${row.path}:${row.status}`).join(",") || "(nenhum)";
+    const warmPaths = warmRest.at(-1).map((row) => `${row.path}:${row.status}`).join(",") || "(nenhum)";
+    console.log(`spa ${route} run ${run}: cold=${cold.at(-1)}ms warm=${warm.at(-1)}ms restCold=${coldPaths} restWarm=${warmPaths}`);
   }
 
   return { cold, warm, coldRest, warmRest, coldBytes, warmBytes };
 }
 
-function routeFile(id, phase, runStartedAt, sha, route, usefulMs, restPaths, bytes) {
+function routeFile(id, phase, runStartedAt, sha, route, usefulMs, restCalls, bytes) {
   writeJson(`${id}-${phase}.json`, {
     story: "OPS-PERF-SLO-01",
     pii: false,
@@ -196,15 +196,29 @@ function routeFile(id, phase, runStartedAt, sha, route, usefulMs, restPaths, byt
     phase,
     coldMeans: "cache em memória da aba frio; o contexto do navegador e a sessão podem ser reutilizados",
     usefulMs: summary(usefulMs),
-    restPaths,
+    restCalls,
+    httpErrors: httpErrorsOf(restCalls),
     payloadBytes: summary(bytes),
   });
 }
 
+function requireSamples(values, expected, label) {
+  const error = sampleCountError(values, expected, label);
+  if (error) {
+    console.error(error);
+    process.exit(1);
+  }
+}
+
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
+const runsError = measureRunsError(env.MEASURE_RUNS);
+if (runsError) {
+  console.error(runsError);
+  process.exit(1);
+}
+const runs = measureRuns(env.MEASURE_RUNS);
 assertPrereqs(env, baseUrl);
-const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
 const checkOnly = process.argv.includes("--check");
 
 try {
@@ -259,6 +273,10 @@ const catalog = await measureSpaRoute(page, {
 });
 await browser.close();
 
+requireSamples(portal.cold, runs, "portal cold");
+requireSamples(portal.warm, runs, "portal warm");
+requireSamples(catalog.cold, runs, "catálogo cold");
+requireSamples(catalog.warm, runs, "catálogo warm");
 routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, portal.coldRest, portal.coldBytes);
 routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, portal.warmRest, portal.warmBytes);
 routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, catalog.coldRest, catalog.coldBytes);
@@ -268,13 +286,19 @@ const childEnv = { MEASURE_RUNS: String(runs), BASE_URL: baseUrl };
 console.log("\n=== qa:staff-lists ===");
 await runNode("scripts/measure-staff-lists.mjs", childEnv);
 console.log("\n=== qa:job-detail ===");
-const jobStdout = await runNode("scripts/measure-job-detail.mjs", childEnv);
+await runNode("scripts/measure-job-detail.mjs", childEnv);
 console.log("\n=== qa:my-applications ===");
 await runNode("scripts/measure-my-applications.mjs", childEnv);
 
 const staffPath = resolve(process.cwd(), "docs-local/perf/PERF-STAFF-LISTS-LIMIT-01-network.json");
 const staffRaw = JSON.parse(readFileSync(staffPath, "utf8"));
 const staffDesktop = (staffRaw.report || []).filter((entry) => entry.viewport === "1280x800" && Array.isArray(entry.calls));
+for (const route of ["/admin", "/admin/curadoria", "/admin/vagas", "/admin/ingestao"]) {
+  if (!staffDesktop.some((entry) => entry.route === route)) {
+    console.error(`Lista staff sem a rota ${route}.`);
+    process.exit(1);
+  }
+}
 for (const entry of staffDesktop) {
   const id = {
     "/admin": "admin",
@@ -307,16 +331,23 @@ for (const entry of staffDesktop) {
     percentiles: false,
     usefulMs: entry.ms,
     calls,
+    httpErrors: calls.filter((call) => call.status >= 400),
     note: id === "admin"
       ? "Observação pontual, sem p50/p95. Confirma a RPC pós-#205. Os percentis da RPC estão no estudo de 20 chamadas (item 3 do gate). usefulMs inclui waitForTimeout(800)."
       : "Observação pontual, sem p50/p95. O script de listas staff não repete a rota. usefulMs inclui waitForTimeout(800).",
   });
 }
 
-const coldShell = parseSummarize(jobStdout, "anon cold shell");
-const coldFull = parseSummarize(jobStdout, "anon cold full");
-const warmUseful = parseSummarize(jobStdout, "anon from-home useful");
-const warmFull = parseSummarize(jobStdout, "anon from-home full");
+const detailPath = resolve(process.cwd(), "docs-local/perf/UX-PERF-04-detail.json");
+if (!existsSync(detailPath)) {
+  console.error("measure-job-detail.mjs não gravou docs-local/perf/UX-PERF-04-detail.json.");
+  process.exit(1);
+}
+const detail = JSON.parse(readFileSync(detailPath, "utf8"));
+requireSamples(detail.cold?.shellMs, runs, "detalhe cold shell");
+requireSamples(detail.cold?.fullMs, runs, "detalhe cold full");
+requireSamples(detail.warm?.usefulMs, runs, "detalhe warm útil");
+requireSamples(detail.warm?.fullMs, runs, "detalhe warm full");
 writeJson("jobs-detail-cold.json", {
   story: "OPS-PERF-SLO-01",
   pii: false,
@@ -327,8 +358,10 @@ writeJson("jobs-detail-cold.json", {
   route: "/jobs/:id",
   phase: "cold",
   coldMeans: "cache em memória da aba frio; o contexto do navegador pode ser reutilizado",
-  shellMs: summary(coldShell),
-  fullMs: summary(coldFull),
+  shellMs: summary(detail.cold.shellMs),
+  fullMs: summary(detail.cold.fullMs),
+  restCalls: detail.cold.rest,
+  httpErrors: detail.cold.httpErrors,
 });
 writeJson("jobs-detail-warm.json", {
   story: "OPS-PERF-SLO-01",
@@ -339,13 +372,17 @@ writeJson("jobs-detail-warm.json", {
   measuredAt: new Date().toISOString(),
   route: "/jobs/:id",
   phase: "warm",
-  usefulMs: summary(warmUseful),
-  fullMs: summary(warmFull),
+  usefulMs: summary(detail.warm.usefulMs),
+  fullMs: summary(detail.warm.fullMs),
+  restCalls: detail.warm.rest,
+  httpErrors: detail.warm.httpErrors,
   note: "Clique no card em /vagas, com o catálogo já na memória da aba.",
 });
 
 const appsPath = resolve(process.cwd(), "docs-local/assets/ux-perf-06/metrics-after.json");
 const apps = JSON.parse(readFileSync(appsPath, "utf8"));
+requireSamples(apps.t1?.ms, runs, "candidaturas cold");
+requireSamples(apps.t2?.ms, runs, "candidaturas warm");
 writeJson("minhas-candidaturas-cold.json", {
   story: "OPS-PERF-SLO-01",
   pii: false,
@@ -356,8 +393,9 @@ writeJson("minhas-candidaturas-cold.json", {
   route: "/minhas-candidaturas",
   phase: "cold",
   coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
-  usefulMs: summary(apps.t1?.ms || []),
-  restPaths: apps.t1?.rest || [],
+  usefulMs: summary(apps.t1.ms),
+  restCalls: apps.t1.rest,
+  httpErrors: httpErrorsOf(apps.t1.rest || []),
 });
 writeJson("minhas-candidaturas-warm.json", {
   story: "OPS-PERF-SLO-01",
@@ -368,8 +406,9 @@ writeJson("minhas-candidaturas-warm.json", {
   measuredAt: apps.measuredAt || new Date().toISOString(),
   route: "/minhas-candidaturas",
   phase: "warm",
-  usefulMs: summary(apps.t2?.ms || []),
-  restPaths: apps.t2?.rest || [],
+  usefulMs: summary(apps.t2.ms),
+  restCalls: apps.t2.rest,
+  httpErrors: httpErrorsOf(apps.t2.rest || []),
 });
 
 writeJson("run.json", {

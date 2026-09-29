@@ -35,3 +35,39 @@ export function loopbackBaseUrlError(raw) {
 export function isLoopbackHostname(hostname) {
   return LOOPBACK_HOSTS.has(hostname);
 }
+
+/** Erro vazio significa a mesma origem (protocolo, host e porta) e BASE_URL em loopback. */
+export function loopbackOriginError(pageUrl, baseUrl) {
+  const baseError = loopbackBaseUrlError(baseUrl);
+  if (baseError) return baseError;
+  const page = parsedUrl(pageUrl);
+  const base = parsedUrl(baseUrl);
+  if (!page || !base) return "A página aberta não é uma URL.";
+  if (page.origin !== base.origin) return "A página aberta não está na origem exata de BASE_URL.";
+  return "";
+}
+
+/** A página só pode gravar a sessão quando location.origin é a origem exata de BASE_URL. */
+export function documentMayStoreSession(locationOrigin, expectedOrigin) {
+  return loopbackOriginError(locationOrigin, expectedOrigin) === "";
+}
+
+/** Vazio ou ausente usa o default do chamador. Qualquer outro valor precisa ser inteiro positivo. */
+export function measureRunsError(raw) {
+  if (raw == null || String(raw).trim() === "") return "";
+  if (!/^[1-9]\d*$/.test(String(raw).trim())) return "MEASURE_RUNS precisa ser um inteiro positivo.";
+  return "";
+}
+
+export function measureRuns(raw, fallback = 5) {
+  const error = measureRunsError(raw);
+  if (error) return 0;
+  if (raw == null || String(raw).trim() === "") return fallback;
+  return Number(String(raw).trim());
+}
+
+export function sampleCountError(values, expected, label) {
+  const count = Array.isArray(values) ? values.length : 0;
+  if (count !== expected) return `${label}: esperava ${expected} amostras e recebeu ${count}.`;
+  return "";
+}

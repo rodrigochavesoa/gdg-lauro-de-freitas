@@ -489,7 +489,7 @@ Não faça:
 | `docs/tech/DATA-CONTRACTS.md` | seletores PostgREST e DTOs das superfícies P1 |
 | `docs/tech/CACHE-POLICY.md` | freshness, chaves e invalidação dos caches em memória |
 | `docs/tech/APP-SHELL-BOUNDARIES.md` | sessão, prefetch, avatar e gates extraídos de `App.jsx` |
-| `docs/tech/PERF-SLO.md` | baseline de latência em homolog e tetos provisórios por rota |
+| `docs/tech/PERF-SLO.md` | método e tetos provisórios de latência em homolog; a rodada fica em `docs-local/` |
 | `supabase/migrations/prod.manifest.json` | migrations autorizadas para produção |
 
 ## 16. Estado de confiança
