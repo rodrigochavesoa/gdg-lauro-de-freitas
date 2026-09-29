@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { invalidateSessionCaches } from "./lib/client-cache/session.js";
 import { Header } from "./shared/ui/Header.jsx";
 import { Footer } from "./shared/ui/Footer.jsx";
 import { ScrollToTop } from "./shared/ui/ScrollToTop.jsx";
@@ -84,6 +85,9 @@ export function App() {
 
   useEffect(() => {
     if (lastUserId.current !== userId) {
+      if (lastUserId.current) {
+        invalidateSessionCaches(lastUserId.current);
+      }
       if (lastUserId.current != null || userId == null) {
         authGeneration.current += 1;
       }
@@ -140,9 +144,9 @@ export function App() {
 
   const handleSignOut = async () => {
     authGeneration.current += 1;
+    invalidateSessionCaches();
     lastUserId.current = null;
     avatarRequestKey.current = null;
-    invalidateAvatarSignedUrl();
     setAuth(EMPTY_AUTH);
     setHydratedUserId(null);
     setHydrateFailedUserId(undefined);

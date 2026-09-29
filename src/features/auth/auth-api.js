@@ -1,3 +1,5 @@
+import { createMemoryCache } from "../../lib/client-cache/store.js";
+import { AVATAR_SIGNED_CACHE_TTL_MS, AVATAR_SIGNED_TTL_SEC } from "../../lib/client-cache/ttl.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import { mapProfileRowToDto } from "../../lib/data-contracts/map-row.js";
 import { PROFILE_SELECT } from "../../lib/data-contracts/selects.js";
@@ -10,9 +12,7 @@ import {
 } from "./profile-completeness.js";
 
 export const AVATAR_BUCKET = "avatars";
-const AVATAR_SIGNED_TTL_SEC = 60 * 60;
-/** Memory-only cache expires before the signed URL itself. */
-export const AVATAR_SIGNED_CACHE_TTL_MS = (AVATAR_SIGNED_TTL_SEC - 5 * 60) * 1000;
+export { AVATAR_SIGNED_CACHE_TTL_MS, AVATAR_SIGNED_TTL_SEC };
 /**
  * Seconds for browser/CDN Cache-Control on the immutable object.
  * Matches signed URL TTL. Stale photos are avoided by a new path per upload, not by cacheControl 0.
@@ -20,8 +20,10 @@ export const AVATAR_SIGNED_CACHE_TTL_MS = (AVATAR_SIGNED_TTL_SEC - 5 * 60) * 100
 export const AVATAR_CACHE_CONTROL = "3600";
 const AVATAR_VERSION_PATTERN = /^[A-Za-z0-9._-]+$/;
 
-const avatarSignedUrlCache = new Map();
-const avatarSignedUrlInflight = new Map();
+const avatarSignedUrlCache = createMemoryCache({
+  ttlMs: AVATAR_SIGNED_CACHE_TTL_MS,
+  name: "avatar-signed-url",
+});
 const profileInitInflight = new Map();
 
 function avatarSignedUrlKey(userId, path) {
@@ -32,31 +34,20 @@ function avatarSignedUrlKey(userId, path) {
 export function invalidateAvatarSignedUrl(userId, path) {
   const key = avatarSignedUrlKey(userId, path);
   if (key) {
-    avatarSignedUrlCache.delete(key);
-    avatarSignedUrlInflight.delete(key);
+    avatarSignedUrlCache.invalidateKey(key);
     return;
   }
   if (userId) {
-    const prefix = `${userId}:`;
-    for (const cachedKey of [...avatarSignedUrlCache.keys()]) {
-      if (cachedKey.startsWith(prefix)) avatarSignedUrlCache.delete(cachedKey);
-    }
-    for (const cachedKey of [...avatarSignedUrlInflight.keys()]) {
-      if (cachedKey.startsWith(prefix)) avatarSignedUrlInflight.delete(cachedKey);
-    }
+    avatarSignedUrlCache.invalidatePrefix(`${userId}:`);
     return;
   }
   avatarSignedUrlCache.clear();
-  avatarSignedUrlInflight.clear();
 }
 
 export function peekAvatarSignedUrl(userId, path) {
   const key = avatarSignedUrlKey(userId, path);
   if (!key) return null;
-  const entry = avatarSignedUrlCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.fetchedAt > AVATAR_SIGNED_CACHE_TTL_MS) return null;
-  return entry.url;
+  return avatarSignedUrlCache.peek(key);
 }
 
 export function nextAvatarVersion() {
@@ -392,12 +383,15 @@ export async function avatarPublicUrl(path, { userId, forceRefresh } = {}) {
   if (key && !forceRefresh) {
     const cached = peekAvatarSignedUrl(userId, path);
     if (cached) return cached;
-    const inflight = avatarSignedUrlInflight.get(key);
+    const inflight = avatarSignedUrlCache.inflightGet(key);
     if (inflight) return inflight;
   }
 
   const client = getSupabaseBrowserClient();
   if (!client) return null;
+
+  if (key && forceRefresh) avatarSignedUrlCache.supersede(key);
+  const writeEpoch = key ? avatarSignedUrlCache.capture(key) : null;
 
   const request = client.storage
     .from(AVATAR_BUCKET)
@@ -405,18 +399,16 @@ export async function avatarPublicUrl(path, { userId, forceRefresh } = {}) {
     .then(({ data, error }) => {
       if (error || !data?.signedUrl) return null;
       if (key) {
-        avatarSignedUrlCache.set(key, { url: data.signedUrl, fetchedAt: Date.now() });
+        avatarSignedUrlCache.set(key, data.signedUrl, writeEpoch);
       }
       return data.signedUrl;
     });
 
-  if (key) avatarSignedUrlInflight.set(key, request);
+  if (key) avatarSignedUrlCache.inflightSet(key, request);
   try {
     return await request;
   } finally {
-    if (key && avatarSignedUrlInflight.get(key) === request) {
-      avatarSignedUrlInflight.delete(key);
-    }
+    if (key) avatarSignedUrlCache.inflightDelete(key, request);
   }
 }
 

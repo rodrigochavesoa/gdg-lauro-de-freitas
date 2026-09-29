@@ -131,6 +131,16 @@ describe("privacy-api cache", () => {
     await savePrivacyDecision({ purposeCode: "F-01", eventType: "notice" });
     expect(peekPrivacyPreferencesCache("u1")).toBeNull();
   });
+
+  it("resposta atrasada não regrava a preferência depois da invalidação", async () => {
+    const pending = {};
+    mockPrivacyFetch({ pending });
+    const request = loadPrivacyPreferences({ userId: "u1" });
+    invalidatePrivacyPreferencesCache("u1");
+    pending.resolve();
+    await request;
+    expect(peekPrivacyPreferencesCache("u1")).toBeNull();
+  });
 });
 
 describe("privacy-api schema unavailable", () => {

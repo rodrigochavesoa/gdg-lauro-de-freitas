@@ -353,6 +353,16 @@ describe("RPCs", () => {
     expect(peekMyApplicationsCache("u1")).toBeNull();
   });
 
+  it("resposta atrasada não regrava a lista depois da invalidação", async () => {
+    const pending = {};
+    mockApplicationsList([applicationRow("a1")], pending);
+    const request = loadMyApplications({ userId: "u1" });
+    invalidateMyApplicationsCache("u1");
+    pending.resolveLimit();
+    await request;
+    expect(peekMyApplicationsCache("u1")).toBeNull();
+  });
+
   it("marca hasMore quando a página volta uma linha além do limite", async () => {
     const rows = Array.from({ length: APPLICATION_LIST_LIMIT + 1 }, (_, index) =>
       applicationRow(`a${index}`),

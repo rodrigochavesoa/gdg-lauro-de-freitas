@@ -1,6 +1,8 @@
 import { mapApplicationDetailRowToDto, mapApplicationListRowToDto } from "../../lib/data-contracts/map-row.js";
 import { APPLICATION_LIST_SELECT, APPLICATION_SELECT } from "../../lib/data-contracts/selects.js";
 import { runObserved } from "../../lib/ops-observability.js";
+import { createMemoryCache } from "../../lib/client-cache/store.js";
+import { LIST_CACHE_TTL_MS } from "../../lib/client-cache/ttl.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const APPLICATION_LIST_LIMIT = 100;
@@ -90,10 +92,12 @@ export function formatApplicationDate(value) {
   return date.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-export const MY_APPLICATIONS_CACHE_TTL_MS = 30_000;
+export const MY_APPLICATIONS_CACHE_TTL_MS = LIST_CACHE_TTL_MS;
 
-const myApplicationsCache = new Map();
-const myApplicationsInflight = new Map();
+const myApplicationsCache = createMemoryCache({
+  ttlMs: MY_APPLICATIONS_CACHE_TTL_MS,
+  name: "applications",
+});
 
 function normalizeApplicationsPage(page) {
   const n = Number.parseInt(page, 10);
@@ -122,20 +126,15 @@ function parseLoadMyApplicationsOptions(userIdOrOptions) {
 
 export function invalidateMyApplicationsCache(userId) {
   if (userId) {
-    myApplicationsCache.delete(userId);
-    myApplicationsInflight.delete(userId);
+    myApplicationsCache.invalidateKey(userId);
     return;
   }
   myApplicationsCache.clear();
-  myApplicationsInflight.clear();
 }
 
 export function peekMyApplicationsCache(userId) {
   if (!userId) return null;
-  const entry = myApplicationsCache.get(userId);
-  if (!entry) return null;
-  if (Date.now() - entry.fetchedAt > MY_APPLICATIONS_CACHE_TTL_MS) return null;
-  return entry.data;
+  return myApplicationsCache.peek(userId);
 }
 
 export function parseApplication(row) {
@@ -209,9 +208,11 @@ export async function loadMyApplications(userIdOrOptions) {
   if (useCache && !forceRefresh) {
     const cached = peekMyApplicationsCache(candidateId);
     if (cached) return cached;
-    const inflight = myApplicationsInflight.get(candidateId);
+    const inflight = myApplicationsCache.inflightGet(candidateId);
     if (inflight) return inflight;
   }
+  if (useCache && forceRefresh) myApplicationsCache.supersede(candidateId);
+  const writeEpoch = useCache ? myApplicationsCache.capture(candidateId) : null;
 
   const from = (page - 1) * APPLICATION_LIST_LIMIT;
   const to = from + APPLICATION_LIST_LIMIT;
@@ -227,19 +228,17 @@ export async function loadMyApplications(userIdOrOptions) {
     const rows = (data ?? []).map((row) => parseApplication(mapApplicationListRowToDto(row))).filter(Boolean);
     const result = sliceApplicationsPage(rows, APPLICATION_LIST_LIMIT);
     if (useCache) {
-      myApplicationsCache.set(candidateId, { data: result, fetchedAt: Date.now() });
+      myApplicationsCache.set(candidateId, result, writeEpoch);
     }
     return result;
   })();
 
   if (!useCache) return request;
 
-  myApplicationsInflight.set(candidateId, request);
+  myApplicationsCache.inflightSet(candidateId, request);
   try {
     return await request;
   } finally {
-    if (myApplicationsInflight.get(candidateId) === request) {
-      myApplicationsInflight.delete(candidateId);
-    }
+    myApplicationsCache.inflightDelete(candidateId, request);
   }
 }
