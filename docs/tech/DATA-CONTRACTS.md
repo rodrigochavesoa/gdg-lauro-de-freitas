@@ -2,15 +2,16 @@
 
 Seletores e DTOs das superfícies P1. O código canônico está em `src/lib/data-contracts/`. Este documento é a matriz humana; o teste `src/lib/data-contracts/data-contracts.test.js` recusa drift.
 
-O aplicativo permanece JavaScript. `src/lib/database.types.ts` é gerado e versionado para consulta. `src/lib/supabase-client.js` declara o tipo só em JSDoc (`@typedef {import("./database.types").Database} Database`). Isso não liga um compilador TypeScript ao app.
+O aplicativo permanece JavaScript. `src/lib/database.types.ts` é gerado e versionado. `getSupabaseBrowserClient` devolve `SupabaseClient<Database>` (`src/lib/supabase-client.js`). `pnpm types:client` checa só esse módulo; o restante de `src/` não entra no compilador.
 
 ## Regenerar os tipos
 
 ```bash
 pnpm types:database
+pnpm types:client
 ```
 
-Pré-requisito local: `HOMOLOG_DATABASE_URL` no ambiente ou em `.env.local` (não versionar). O script recusa o project ref de produção e não imprime a URL. A CLI está fixada em `devDependencies` (`supabase@2.118.0`). O processo chama o binário com argumentos estruturados, sem shell. A senha sai da URL e entra só em `PGPASSWORD` e `SUPABASE_DB_PASSWORD` no ambiente desse processo. A saída é o schema `public` do banco **de homolog**.
+Pré-requisito local: `HOMOLOG_DATABASE_URL` no ambiente ou em `.env.local` (não versionar). O script recusa o project ref de produção e não imprime a URL. A CLI está fixada em `devDependencies` (`supabase@2.118.0`). O processo chama o binário com argumentos estruturados, sem shell. A senha sai do usuário da URL; parâmetro sensível na query (`password`, `token`, `secret` e equivalentes) recusa a geração. A query resultante fica só com `sslmode`, `connect_timeout` e `application_name`. A senha entra só em `PGPASSWORD` e `SUPABASE_DB_PASSWORD`. O filho não herda o restante do ambiente (tokens de Vercel, GitHub ou Supabase ficam de fora). A saída é o schema `public` do banco **de homolog**.
 
 Tabelas que existem só em homolog (ingestão) aparecem no arquivo gerado porque a fonte é esse schema. Isso **não** promove essas tabelas para `supabase/migrations/prod.manifest.json`.
 
@@ -53,7 +54,7 @@ O predicado de atenção da ingestão continua em `docs-local/tech/INGEST-ATTENT
 
 ## O que o teste garante
 
-- Nenhum `.select("*")` em `src/**/*.js` e `src/**/*.jsx`.
+- Nenhum select de produto em `src/` cujo primeiro argumento é só `*`, com aspas duplas, simples ou template, inclusive quando há outro argumento depois.
 - Cada superfície de `LIST_SURFACES` não contém os tokens proibidos daquela linha.
 - Cada superfície de `DETAIL_SURFACES` ainda contém as colunas pesadas (`description`, `requirements`, `canonical_payload`, `snapshot`).
 - Mapper de catálogo, admin, curadoria, ingestão e candidatura falha com a mensagem estável quando a chave obrigatória some, inclusive `description`, `requirements`, `canonical_payload` e `snapshot` no detalhe.

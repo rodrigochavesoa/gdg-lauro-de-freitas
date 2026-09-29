@@ -3,6 +3,7 @@
  * Pré-requisito: HOMOLOG_DATABASE_URL no ambiente ou em .env.local.
  * A CLI está pinada em devDependencies (supabase). O binário recebe a URL sem senha.
  * A senha fica só em PGPASSWORD e SUPABASE_DB_PASSWORD no ambiente do processo filho.
+ * O filho não herda o restante de process.env.
  * Não imprime a URL. Recusa o project ref de produção.
  */
 import { spawnSync } from "node:child_process";
@@ -24,6 +25,38 @@ const PLATFORMS = {
   win32: { arm64: ["windows-arm64"], x64: ["windows-x64"] },
 };
 
+/** Variáveis de sistema para o binário subir e achar o trust store. Segredos de app não entram. */
+export const CHILD_ENV_ALLOWLIST = [
+  "PATH",
+  "PATHEXT",
+  "SYSTEMROOT",
+  "WINDIR",
+  "TEMP",
+  "TMP",
+  "HOME",
+  "USERPROFILE",
+  "HOMEDRIVE",
+  "HOMEPATH",
+  "LANG",
+  "LC_ALL",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+];
+
+const SENSITIVE_QUERY_KEYS = new Set([
+  "password",
+  "pwd",
+  "passwd",
+  "pass",
+  "token",
+  "secret",
+  "access_token",
+  "api_key",
+  "apikey",
+]);
+
+const ALLOWED_QUERY_KEYS = new Set(["sslmode", "connect_timeout", "application_name"]);
+
 const HEADER = `/**
  * Regenerar: pnpm types:database
  * Fonte: schema public do Supabase de homolog (HOMOLOG_DATABASE_URL).
@@ -42,11 +75,22 @@ export function databaseUrlWithoutPassword(dbUrl) {
   } catch {
     throw new Error("HOMOLOG_DATABASE_URL inválida. Geração de tipos recusada.");
   }
+  for (const key of parsed.searchParams.keys()) {
+    if (SENSITIVE_QUERY_KEYS.has(key.toLowerCase())) {
+      throw new Error("HOMOLOG_DATABASE_URL com parâmetro sensível na query. Geração de tipos recusada.");
+    }
+  }
   const password = decodeURIComponent(parsed.password);
   if (!password) {
     throw new Error("HOMOLOG_DATABASE_URL sem senha. Geração de tipos recusada.");
   }
+  const kept = new URLSearchParams();
+  for (const [key, value] of parsed.searchParams.entries()) {
+    if (ALLOWED_QUERY_KEYS.has(key.toLowerCase())) kept.append(key, value);
+  }
+  parsed.hash = "";
   parsed.password = "";
+  parsed.search = kept.toString();
   const connectionUrl = parsed.toString().replace(/^(postgres(?:ql)?:\/\/[^:/@]+):@/i, "$1@");
   if (/^postgres(?:ql)?:\/\/[^/@]*:[^@]*@/i.test(connectionUrl)) {
     throw new Error("Não foi possível retirar a senha da URL de homologação.");
@@ -83,8 +127,11 @@ export function buildTypegenSpawn(dbUrl, { binaryPath }) {
     throw new Error("Geração de tipos exige o binário pinado da CLI, não npx.");
   }
   const { connectionUrl, password } = databaseUrlWithoutPassword(dbUrl);
-  const env = { ...process.env };
-  delete env.HOMOLOG_DATABASE_URL;
+  const env = {};
+  for (const key of CHILD_ENV_ALLOWLIST) {
+    const value = process.env[key];
+    if (value) env[key] = value;
+  }
   env.PGPASSWORD = password;
   env.SUPABASE_DB_PASSWORD = password;
   return {

@@ -20,6 +20,26 @@ import {
   selectIdentifiers,
 } from "./map-row.js";
 
+function findStarSelect(source) {
+  const hits = [];
+  const re = /\.select\s*\(/g;
+  let match = re.exec(source);
+  while (match) {
+    let index = match.index + match[0].length;
+    while (index < source.length && /\s/.test(source[index])) index += 1;
+    const quote = source[index];
+    if ((quote === "\"" || quote === "'" || quote === "`") && source[index + 1] === "*" && source[index + 2] === quote) {
+      hits.push(match.index);
+    }
+    match = re.exec(source);
+  }
+  return hits;
+}
+
+function starCall(quote, suffix = "") {
+  return `.select(${quote}*${quote}${suffix}`;
+}
+
 function sourceFiles(dir) {
   const files = [];
   for (const entry of readdirSync(dir)) {
@@ -66,10 +86,28 @@ describe("contratos de dados", () => {
     const root = join(import.meta.dirname, "..", "..");
     const hits = [];
     for (const file of sourceFiles(root)) {
+      if (/\.test\.(js|jsx)$/.test(file)) continue;
       const text = readFileSync(file, "utf8");
-      if (/\.select\(\s*["']\*["']\s*\)/.test(text)) hits.push(relative(root, file));
+      if (findStarSelect(text).length > 0) hits.push(relative(root, file));
     }
     expect(hits).toEqual([]);
+  });
+
+  it("o client devolve SupabaseClient do tipo Database", () => {
+    const source = readFileSync(join(import.meta.dirname, "..", "supabase-client.js"), "utf8");
+    expect(source).toMatch(/SupabaseClient<Database>/);
+    expect(source).toMatch(/typeof createClient<Database>/);
+  });
+
+  it("detecta select estrela em aspas, template e argumento extra", () => {
+    expect(findStarSelect(starCall("\""))).toHaveLength(1);
+    expect(findStarSelect(starCall("'"))).toHaveLength(1);
+    expect(findStarSelect(starCall("`"))).toHaveLength(1);
+    expect(findStarSelect(starCall("\"", ", { count: \"exact\" })"))).toHaveLength(1);
+    expect(findStarSelect(`.select(\n  ${starCall("\"").slice(".select(".length)}`)).toHaveLength(1);
+    expect(findStarSelect(".select(\"id,title\")")).toEqual([]);
+    expect(findStarSelect(".select(JOB_LIST_SELECT)")).toEqual([]);
+    expect(findStarSelect(".select(`id, ${\"title\"}`)")).toEqual([]);
   });
 
   it("mapper rejeita linha sem campo obrigatório", () => {

@@ -11,6 +11,7 @@
     "check:bundle": "node scripts/check-bundle-secrets.mjs",
     "migrations:prod": "node scripts/prod-migrations.mjs",
     "types:database": "node scripts/gen-database-types.mjs",
+    "types:client": "tsc -p tsconfig.client.json --noEmit",
     "migrations:homolog": "node scripts/prod-migrations.mjs --homolog-chain",
     "migrations:homolog:plan": "node scripts/prod-migrations.mjs --plan",
     "migrations:homolog:repair": "node scripts/prod-migrations.mjs --repair-history",
@@ -53,6 +54,7 @@
     "jsdom": "26.1.0",
     "playwright": "1.63.0",
     "supabase": "2.118.0",
+    "typescript": "7.0.2",
     "vitest": "3.2.4"
   }
 }
