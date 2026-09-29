@@ -11,6 +11,7 @@ Como agentes devem carregar contexto de **produto e código** (não confundir co
 | Dados / auth | `supabase/migrations/`, `scripts/check-rls.mjs` | RLS, RPC, políticas |
 | Contratos de leitura | `docs/tech/DATA-CONTRACTS.md`, `src/lib/data-contracts/` | Select por superfície e DTO; listas sem coluna de detalhe |
 | Cache em memória | `docs/tech/CACHE-POLICY.md`, `src/lib/client-cache/` | TTL, chave e invalidação; autorização não depende do mapa |
+| Shell da SPA | `docs/tech/APP-SHELL-BOUNDARIES.md`, `src/app/`, `src/App.jsx` | `App.jsx` só compõe; sessão, prefetch, avatar e gates têm módulo próprio |
 | Testes | `src/**/*.test.js`, `pnpm test` | Contratos e regressões |
 | Modelos operacionais (sem dados) | `docs-local.example/` | Templates ClickUp, QA, credenciais — **não** sprint viva |
 | Operação do squad | `docs-local/` | Backlog, ONE-LINERs, design system interno, assets QA — gitignored |
