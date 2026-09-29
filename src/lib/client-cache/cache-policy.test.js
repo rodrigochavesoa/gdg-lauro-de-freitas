@@ -139,6 +139,21 @@ describe("createMemoryCache", () => {
     expect(cache.set("pending:1:24", { secret: "late" }, queued)).toBe(false);
   });
 
+  it("leitura em voo sem entrada não retém geração depois da invalidação", () => {
+    const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-invalidate-inflight" });
+    const epoch = cache.capture("job-42");
+    const pending = Promise.resolve({ reviews: ["parecer interno"] });
+    cache.inflightSet("job-42", pending);
+    expect(cache.size()).toBe(0);
+    cache.invalidateKey("job-42");
+    expect(cache.epochCount()).toBe(0);
+    expect(cache.set("job-42", { secret: "late" }, epoch)).toBe(false);
+    expect(cache.peek("job-42")).toBeNull();
+    cache.inflightDelete("job-42", pending);
+    expect(cache.epochCount()).toBe(0);
+    expect(cache.peek("job-42")).toBeNull();
+  });
+
   it("descarta a geração de várias chaves expiradas que não estão em voo", () => {
     const cache = createMemoryCache({ ttlMs: 30_000, name: "policy-epoch-gc" });
     const captured = ["filtro-a", "filtro-b", "filtro-c"].map((key) => {

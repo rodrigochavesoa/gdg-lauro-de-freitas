@@ -27,7 +27,7 @@ A fila e o detalhe de curadoria não têm `userId` na chave. Os dois mapas saem 
 
 ## Geração da leitura
 
-Cada chave tem uma geração. O load captura a geração antes do `await` e só grava se ela ainda for a atual. O contador só cresce: `invalidateKey`, `invalidatePrefix`, `clear` e `forceRefresh` avançam para um número que nenhuma leitura anterior recebeu. Invalidar uma chave sem entrada e sem leitura em voo não grava geração nova no mapa. `clear()` não reaproveita a geração capturada antes do logout.
+Cada chave tem uma geração. O load captura a geração antes do `await` e só grava se ela ainda for a atual. O contador só cresce: `invalidateKey`, `invalidatePrefix`, `clear` e `forceRefresh` avançam para um número que nenhuma leitura anterior recebeu. Invalidar uma chave sem entrada não grava geração nova no mapa, mesmo se a leitura já começou e ainda não gravou: a resposta atrasada não entra. `clear()` não reaproveita a geração capturada antes do logout.
 
 Entrada fora do TTL é removida no `peek`, no `get` e no `set`. A geração dessa chave sai junto, salvo se ainda houver leitura em voo. O mapa não acumula filtros antigos do catálogo.
 
