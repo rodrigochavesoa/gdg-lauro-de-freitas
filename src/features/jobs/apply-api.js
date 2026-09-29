@@ -1,4 +1,4 @@
-import { mapApplicationListRowToDto } from "../../lib/data-contracts/map-row.js";
+import { mapApplicationDetailRowToDto, mapApplicationListRowToDto } from "../../lib/data-contracts/map-row.js";
 import { APPLICATION_LIST_SELECT, APPLICATION_SELECT } from "../../lib/data-contracts/selects.js";
 import { runObserved } from "../../lib/ops-observability.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
@@ -195,7 +195,7 @@ export async function loadMyApplication(jobId, userId) {
     .eq("candidate_id", candidateId)
     .maybeSingle();
   if (error) throw createApplyError(error);
-  return parseApplication(data);
+  return data ? parseApplication(mapApplicationDetailRowToDto(data)) : null;
 }
 
 export async function loadMyApplications(userIdOrOptions) {

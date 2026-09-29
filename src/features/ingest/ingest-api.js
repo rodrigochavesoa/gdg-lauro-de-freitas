@@ -10,7 +10,7 @@ import {
   normalizeLocator,
   isIngestionExpired,
 } from "./source-contract.js";
-import { mapIngestionListRowToDto } from "../../lib/data-contracts/map-row.js";
+import { mapIngestionDetailRowToDto, mapIngestionListRowToDto } from "../../lib/data-contracts/map-row.js";
 import { INGESTION_DETAIL_SELECT, INGESTION_LIST_SELECT } from "../../lib/data-contracts/selects.js";
 import { classifyIngestionResult, runObserved } from "../../lib/ops-observability.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
@@ -163,7 +163,7 @@ export async function loadJobIngestionDetail(client, id) {
     .eq("id", id)
     .maybeSingle();
   throwIfError(error);
-  return data ?? null;
+  return data ? mapIngestionDetailRowToDto(data) : null;
 }
 
 export { REGISTER_JOB_INGESTION_RPC, isIngestionExpired };

@@ -296,9 +296,10 @@ export async function loadApprovedJobs(options = {}) {
       outcome: "success",
       error_class: "none",
     });
-    const jobs = rows.map((row) => mapJob(mapCatalogListRowToDto(row)));
+    const dtoRows = rows.map((row) => mapCatalogListRowToDto(row));
+    const jobs = dtoRows.map((row) => mapJob(row));
     const previous = params.offset > 0 && !params.forceRefresh ? catalogCache.get(key) : null;
-    const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, rows) : rows;
+    const mergedRows = previous?.rows ? mergeUniqueById(previous.rows, dtoRows) : dtoRows;
     const mergedJobs = previous?.jobs ? mergeUniqueById(previous.jobs, jobs) : jobs;
     catalogCache.set(key, {
       jobs: mergedJobs,
@@ -333,7 +334,7 @@ export async function loadApprovedJobHeavyFields(id) {
     .maybeSingle();
 
   if (error) throw error;
-  return data ?? null;
+  return data ? mapCatalogHeavyRowToDto(data) : null;
 }
 
 export async function loadApprovedJob(id) {
@@ -346,7 +347,7 @@ export async function loadApprovedJob(id) {
   if (cachedRow) {
     const heavy = await loadApprovedJobHeavyFields(id);
     if (!heavy) return null;
-    return mapJob(mergeJobDetailRows(cachedRow, mapCatalogHeavyRowToDto(heavy)));
+    return mapJob(mergeJobDetailRows(cachedRow, heavy));
   }
 
   const { data, error } = await client

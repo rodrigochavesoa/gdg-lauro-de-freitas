@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
-import { mapCurationDetailRowToDto, mapCurationListRowToDto } from "../../lib/data-contracts/map-row.js";
+import {
+  mapCurationDetailRowToDto,
+  mapCurationListRowToDto,
+  mapCurationReviewRowToDto,
+} from "../../lib/data-contracts/map-row.js";
 import {
   CURATION_DETAIL_FIELDS,
   CURATION_LIST_FIELDS,
@@ -216,11 +220,12 @@ async function fetchCurationJobDetail(jobId) {
   ]);
   throwIfError(job.error);
   throwIfError(reviews.error);
+  const detail = job.data ? mapCurationDetailRowToDto(job.data) : null;
   return {
     id: jobId,
-    description: job.data ? mapCurationDetailRowToDto(job.data).description ?? "" : "",
-    stack: job.data?.stack ?? [],
-    reviews: reviews.data ?? [],
+    description: detail?.description ?? "",
+    stack: detail?.stack ?? [],
+    reviews: (reviews.data ?? []).map(mapCurationReviewRowToDto),
   };
 }
 

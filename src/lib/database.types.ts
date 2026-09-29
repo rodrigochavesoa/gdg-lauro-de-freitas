@@ -1,6 +1,7 @@
 /**
  * Regenerar: pnpm types:database
  * Fonte: schema public do Supabase de homolog (HOMOLOG_DATABASE_URL).
+ * CLI pinada: supabase@2.118.0. Senha fora dos argumentos do processo.
  * Este arquivo não contém secrets. O app permanece JavaScript.
  * Tabelas só de homolog (ingestão) aparecem aqui porque o schema ligado é o de homolog.
  * Isso não promove essas tabelas para prod.manifest.json.
@@ -9,7 +10,7 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
-  
+
   "public": {
           Tables: {
             "applications": {
@@ -54,7 +55,7 @@ isOneToOne: false
                     "created_at"?: string,"id"?: never,"user_id"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"companies": {
                   Row: {
@@ -67,7 +68,7 @@ isOneToOne: false
                     "created_at"?: string,"description"?: string | null,"id"?: string,"logo_path"?: string | null,"name"?: string,"updated_at"?: string,"website"?: string | null
                   }
                   Relationships: [
-                    
+
                   ]
                 },"job_curation_reviews": {
                   Row: {
@@ -198,7 +199,7 @@ isOneToOne: false
                     "actor_id"?: string | null,"created_at"?: string,"event_type"?: string,"id"?: string,"metadata_minimal"?: NonNullable<Json>,"occurred_at"?: string,"purpose_code"?: string,"resource_id"?: string | null,"resource_type"?: string,"result"?: string,"retention_status"?: string,"subject_id"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 },"privacy_consent_events": {
                   Row: {
@@ -236,7 +237,7 @@ isOneToOne: false
                     "classification"?: string,"created_at"?: string,"legal_basis_status"?: string,"purpose_code"?: string,"retention_status"?: string,"revocation_effect"?: string,"specific_description"?: string,"status"?: string,"text_status"?: string,"title"?: string,"version"?: number
                   }
                   Relationships: [
-                    
+
                   ]
                 },"profiles": {
                   Row: {
@@ -249,7 +250,7 @@ isOneToOne: false
                     "avatar_path"?: string | null,"bio"?: string | null,"created_at"?: string,"full_name"?: string,"headline"?: string | null,"id"?: string,"preferences"?: NonNullable<Json>,"role"?: Database["public"]['Enums']["user_role"],"skills"?: (string)[],"updated_at"?: string
                   }
                   Relationships: [
-                    
+
                   ]
                 }
           }
