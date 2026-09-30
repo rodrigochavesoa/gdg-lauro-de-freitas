@@ -13,39 +13,17 @@
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { homologSupabaseHostnameError, loopbackBaseUrlError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
+import { loadLocalEnv } from "./measure-env.mjs";
+import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
-
-function loadLocalEnv() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).trim();
-  }
-  return env;
-}
 
 function fileHas(path, pattern) {
   return existsSync(path) && pattern.test(readFileSync(path, "utf8"));
 }
 
-function assertPrereqs(env, baseUrl) {
-  const supabaseError = homologSupabaseHostnameError(env.VITE_SUPABASE_URL || "");
-  if (supabaseError) {
-    console.error(supabaseError);
-    process.exit(1);
-  }
-  const baseError = loopbackBaseUrlError(baseUrl);
-  if (baseError) {
-    console.error(baseError);
-    process.exit(1);
-  }
+function assertPrereqs(env) {
   const staffFile = resolve(process.cwd(), "docs-local/admin-test-user.md");
   const hasStaff = (env.ADMIN_EMAIL && env.ADMIN_PASSWORD)
     || fileHas(staffFile, /E-mail:\s*\S+/i) && fileHas(staffFile, /Senha:\s*\S+/i);
@@ -145,61 +123,94 @@ function httpErrorsOf(calls) {
   return calls.flat().filter((row) => row.status >= 400);
 }
 
-async function measureSpaRoute(page, { route, ready, leave, back, runs }) {
+async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs }) {
   const cold = [];
   const warm = [];
   const coldRest = [];
   const warmRest = [];
   const coldBytes = [];
   const warmBytes = [];
+  const coldCache = [];
+  const warmCache = [];
+  const coldOps = [];
+  const warmOps = [];
+  const coldNet = [];
+  const warmNet = [];
 
   for (let run = 1; run <= runs; run += 1) {
     const coldBucket = [];
     const stopCold = attachRest(page, coldBucket);
+    const netBefore = traffic.networkErrors.length;
+    const opsBefore = traffic.opsEvents.length;
     const started = Date.now();
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await ready();
     cold.push(Date.now() - started);
+    const coldProbe = await readLiveProbe(page);
+    if (coldProbe.backendError) throw new Error(coldProbe.backendError);
     await page.waitForTimeout(1200);
     await stopCold();
     coldRest.push(coldBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     coldBytes.push(coldBucket.reduce((sum, row) => sum + row.bytes, 0));
+    coldCache.push(coldProbe.cache);
+    coldOps.push(traffic.opsEvents.slice(opsBefore));
+    coldNet.push(traffic.networkErrors.slice(netBefore));
 
     await leave();
+    const warmBefore = await readLiveProbe(page);
+    if (warmBefore.backendError) throw new Error(warmBefore.backendError);
     const warmBucket = [];
     const stopWarm = attachRest(page, warmBucket);
+    const warmNetBefore = traffic.networkErrors.length;
+    const warmOpsBefore = traffic.opsEvents.length;
     const warmStarted = Date.now();
     await back();
     await ready();
     warm.push(Date.now() - warmStarted);
+    const warmAfter = await readLiveProbe(page);
+    if (warmAfter.backendError) throw new Error(warmAfter.backendError);
     await page.waitForTimeout(800);
     await stopWarm();
     warmRest.push(warmBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     warmBytes.push(warmBucket.reduce((sum, row) => sum + row.bytes, 0));
+    warmCache.push(cacheDelta(warmBefore.cache, warmAfter.cache));
+    warmOps.push(traffic.opsEvents.slice(warmOpsBefore));
+    warmNet.push(traffic.networkErrors.slice(warmNetBefore));
     const coldPaths = coldRest.at(-1).map((row) => `${row.path}:${row.status}`).join(",") || "(nenhum)";
     const warmPaths = warmRest.at(-1).map((row) => `${row.path}:${row.status}`).join(",") || "(nenhum)";
     console.log(`spa ${route} run ${run}: cold=${cold.at(-1)}ms warm=${warm.at(-1)}ms restCold=${coldPaths} restWarm=${warmPaths}`);
   }
 
-  return { cold, warm, coldRest, warmRest, coldBytes, warmBytes };
+  return {
+    cold, warm, coldRest, warmRest, coldBytes, warmBytes, coldCache, warmCache, coldOps, warmOps, coldNet, warmNet,
+  };
 }
 
-function routeFile(id, phase, runStartedAt, sha, route, usefulMs, restCalls, bytes) {
-  writeJson(`${id}-${phase}.json`, {
+function storyRecord(runStartedAt, sha, fields) {
+  return {
     story: "OPS-PERF-SLO-01",
     pii: false,
     sha,
     environment: "homolog",
     runStartedAt,
     measuredAt: new Date().toISOString(),
+    ...fields,
+  };
+}
+
+function routeFile(id, phase, runStartedAt, sha, route, usefulMs, extra) {
+  writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
     route,
     phase,
     coldMeans: "cache em memória da aba frio; o contexto do navegador e a sessão podem ser reutilizados",
     usefulMs: summary(usefulMs),
-    restCalls,
-    httpErrors: httpErrorsOf(restCalls),
-    payloadBytes: summary(bytes),
-  });
+    restCalls: extra.restCalls,
+    httpErrors: httpErrorsOf(extra.restCalls),
+    networkErrors: extra.networkErrors,
+    cache: extra.cache,
+    opsEvents: extra.opsEvents,
+    payloadBytes: summary(extra.bytes),
+  }));
 }
 
 function requireSamples(values, expected, label) {
@@ -212,13 +223,17 @@ function requireSamples(values, expected, label) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
-const runsError = measureRunsError(env.MEASURE_RUNS);
-if (runsError) {
-  console.error(runsError);
+const preflightError = measurePreflightError({
+  supabaseUrl: env.VITE_SUPABASE_URL,
+  baseUrl,
+  measureRuns: env.MEASURE_RUNS,
+});
+if (preflightError) {
+  console.error(preflightError);
   process.exit(1);
 }
 const runs = measureRuns(env.MEASURE_RUNS);
-assertPrereqs(env, baseUrl);
+assertPrereqs(env);
 const checkOnly = process.argv.includes("--check");
 
 try {
@@ -228,7 +243,7 @@ try {
     process.exit(1);
   }
 } catch {
-  console.error(`Não alcançou BASE_URL (${baseUrl}). Suba pnpm dev em outro terminal.`);
+  console.error("Não alcançou BASE_URL. Suba pnpm dev em outro terminal.");
   process.exit(1);
 }
 
@@ -251,7 +266,16 @@ try {
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-const portal = await measureSpaRoute(page, {
+const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
+const foreignError = attachObservers(page, traffic);
+await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
+const pageError = await livePageError(page, baseUrl);
+if (pageError || foreignError()) {
+  console.error(pageError || foreignError());
+  await browser.close();
+  process.exit(1);
+}
+const portal = await measureSpaRoute(page, traffic, {
   route: `${baseUrl}/`,
   runs,
   ready: () => page.getByRole("heading", { name: /Seu futuro em tech/i }).waitFor({ state: "visible", timeout: 30_000 }),
@@ -261,7 +285,7 @@ const portal = await measureSpaRoute(page, {
   },
   back: () => page.getByRole("link", { name: "Ir para a página inicial" }).click(),
 });
-const catalog = await measureSpaRoute(page, {
+const catalog = await measureSpaRoute(page, traffic, {
   route: `${baseUrl}/vagas`,
   runs,
   ready: () => page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible", timeout: 30_000 }),
@@ -271,18 +295,36 @@ const catalog = await measureSpaRoute(page, {
   },
   back: () => page.getByRole("link", { name: "Vagas", exact: true }).click(),
 });
+if (foreignError()) {
+  console.error(foreignError());
+  await browser.close();
+  process.exit(1);
+}
 await browser.close();
 
 requireSamples(portal.cold, runs, "portal cold");
 requireSamples(portal.warm, runs, "portal warm");
 requireSamples(catalog.cold, runs, "catálogo cold");
 requireSamples(catalog.warm, runs, "catálogo warm");
-routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, portal.coldRest, portal.coldBytes);
-routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, portal.warmRest, portal.warmBytes);
-routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, catalog.coldRest, catalog.coldBytes);
-routeFile("catalog", "warm", runStartedAt, sha, "/vagas", catalog.warm, catalog.warmRest, catalog.warmBytes);
+routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, {
+  restCalls: portal.coldRest, bytes: portal.coldBytes, networkErrors: portal.coldNet, cache: portal.coldCache, opsEvents: portal.coldOps,
+});
+routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, {
+  restCalls: portal.warmRest, bytes: portal.warmBytes, networkErrors: portal.warmNet, cache: portal.warmCache, opsEvents: portal.warmOps,
+});
+routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, {
+  restCalls: catalog.coldRest, bytes: catalog.coldBytes, networkErrors: catalog.coldNet, cache: catalog.coldCache, opsEvents: catalog.coldOps,
+});
+routeFile("catalog", "warm", runStartedAt, sha, "/vagas", catalog.warm, {
+  restCalls: catalog.warmRest, bytes: catalog.warmBytes, networkErrors: catalog.warmNet, cache: catalog.warmCache, opsEvents: catalog.warmOps,
+});
 
-const childEnv = { MEASURE_RUNS: String(runs), BASE_URL: baseUrl };
+const childEnv = {
+  MEASURE_RUNS: String(runs),
+  BASE_URL: baseUrl,
+  MEASURE_LABEL: "after",
+  MEASURE_RUN_ID: runStartedAt,
+};
 console.log("\n=== qa:staff-lists ===");
 await runNode("scripts/measure-staff-lists.mjs", childEnv);
 console.log("\n=== qa:job-detail ===");
@@ -290,52 +332,57 @@ await runNode("scripts/measure-job-detail.mjs", childEnv);
 console.log("\n=== qa:my-applications ===");
 await runNode("scripts/measure-my-applications.mjs", childEnv);
 
-const staffPath = resolve(process.cwd(), "docs-local/perf/PERF-STAFF-LISTS-LIMIT-01-network.json");
-const staffRaw = JSON.parse(readFileSync(staffPath, "utf8"));
-const staffDesktop = (staffRaw.report || []).filter((entry) => entry.viewport === "1280x800" && Array.isArray(entry.calls));
-for (const route of ["/admin", "/admin/curadoria", "/admin/vagas", "/admin/ingestao"]) {
-  if (!staffDesktop.some((entry) => entry.route === route)) {
-    console.error(`Lista staff sem a rota ${route}.`);
+function requireThisRun(record, label) {
+  if (record?.runId !== runStartedAt) {
+    console.error(`${label} não é desta rodada.`);
     process.exit(1);
   }
 }
-for (const entry of staffDesktop) {
-  const id = {
-    "/admin": "admin",
-    "/admin/curadoria": "admin-curadoria",
-    "/admin/vagas": "admin-vagas",
-    "/admin/ingestao": "admin-ingestao",
-  }[entry.route] || "admin-other";
-  const calls = entry.calls.map((call) => ({
-    method: call.method,
-    path: call.path,
-    status: call.status,
-    ms: call.ms,
-    bytes: call.bytes,
-    hasDescription: Boolean(call.hasDescription),
-    hasPayload: Boolean(call.hasPayload),
-    hasAttempts: Boolean(call.hasAttempts),
-    hasReviews: Boolean(call.hasReviews),
-    hasModeration: Boolean(call.hasModeration),
-  }));
-  writeJson(`${id}-cold.json`, {
-    story: "OPS-PERF-SLO-01",
-    pii: false,
-    sha,
-    environment: "homolog",
-    runStartedAt,
-    measuredAt: new Date().toISOString(),
-    route: entry.route,
-    phase: "point",
-    sampleN: 1,
-    percentiles: false,
-    usefulMs: entry.ms,
-    calls,
-    httpErrors: calls.filter((call) => call.status >= 400),
-    note: id === "admin"
-      ? "Observação pontual, sem p50/p95. Confirma a RPC pós-#205. Os percentis da RPC estão no estudo de 20 chamadas (item 3 do gate). usefulMs inclui waitForTimeout(800)."
-      : "Observação pontual, sem p50/p95. O script de listas staff não repete a rota. usefulMs inclui waitForTimeout(800).",
-  });
+
+const staffPath = resolve(process.cwd(), "docs-local/perf/PERF-STAFF-LISTS-LIMIT-01-network.json");
+const staffRaw = JSON.parse(readFileSync(staffPath, "utf8"));
+requireThisRun(staffRaw, "Lista staff");
+const staffIds = {
+  "/admin": "admin",
+  "/admin/curadoria": "admin-curadoria",
+  "/admin/vagas": "admin-vagas",
+  "/admin/ingestao": "admin-ingestao",
+};
+for (const route of Object.keys(staffIds)) {
+  const entry = (staffRaw.routes || []).find((row) => row.route === route);
+  if (!entry) {
+    console.error(`Lista staff sem a rota ${route}.`);
+    process.exit(1);
+  }
+  requireSamples(entry.coldMs, runs, `${route} cold`);
+  requireSamples(entry.warmMs, runs, `${route} warm`);
+  const id = staffIds[route];
+  for (const phase of ["cold", "warm"]) {
+    const calls = (entry[`${phase}Calls`] || []).flat().map((call) => ({
+      method: call.method,
+      path: call.path,
+      status: call.status,
+      ms: call.ms,
+      bytes: call.bytes,
+      hasDescription: Boolean(call.hasDescription),
+      hasPayload: Boolean(call.hasPayload),
+      hasAttempts: Boolean(call.hasAttempts),
+      hasReviews: Boolean(call.hasReviews),
+      hasModeration: Boolean(call.hasModeration),
+    }));
+    writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
+      route,
+      phase,
+      coldMeans: "reload do documento; a sessão staff permanece",
+      usefulMs: summary(entry[`${phase}Ms`]),
+      calls,
+      httpErrors: calls.filter((call) => call.status >= 400),
+      networkErrors: entry[`${phase}NetworkErrors`] || [],
+      cache: entry[`${phase}Cache`] || [],
+      opsEvents: entry[`${phase}Ops`] || [],
+      note: "Relógio até o heading. Os 800 ms seguintes só esperam a rede.",
+    }));
+  }
 }
 
 const detailPath = resolve(process.cwd(), "docs-local/perf/UX-PERF-04-detail.json");
@@ -344,17 +391,12 @@ if (!existsSync(detailPath)) {
   process.exit(1);
 }
 const detail = JSON.parse(readFileSync(detailPath, "utf8"));
+requireThisRun(detail, "Detalhe");
 requireSamples(detail.cold?.shellMs, runs, "detalhe cold shell");
 requireSamples(detail.cold?.fullMs, runs, "detalhe cold full");
 requireSamples(detail.warm?.usefulMs, runs, "detalhe warm útil");
 requireSamples(detail.warm?.fullMs, runs, "detalhe warm full");
-writeJson("jobs-detail-cold.json", {
-  story: "OPS-PERF-SLO-01",
-  pii: false,
-  sha,
-  environment: "homolog",
-  runStartedAt,
-  measuredAt: new Date().toISOString(),
+writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
   phase: "cold",
   coldMeans: "cache em memória da aba frio; o contexto do navegador pode ser reutilizado",
@@ -362,62 +404,52 @@ writeJson("jobs-detail-cold.json", {
   fullMs: summary(detail.cold.fullMs),
   restCalls: detail.cold.rest,
   httpErrors: detail.cold.httpErrors,
-});
-writeJson("jobs-detail-warm.json", {
-  story: "OPS-PERF-SLO-01",
-  pii: false,
-  sha,
-  environment: "homolog",
-  runStartedAt,
-  measuredAt: new Date().toISOString(),
+  networkErrors: detail.cold.networkErrors,
+  cache: detail.cold.cache,
+  opsEvents: detail.cold.opsEvents,
+}));
+writeJson("jobs-detail-warm.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
   phase: "warm",
   usefulMs: summary(detail.warm.usefulMs),
   fullMs: summary(detail.warm.fullMs),
   restCalls: detail.warm.rest,
   httpErrors: detail.warm.httpErrors,
+  networkErrors: detail.warm.networkErrors,
+  cache: detail.warm.cache,
+  opsEvents: detail.warm.opsEvents,
   note: "Clique no card em /vagas, com o catálogo já na memória da aba.",
-});
+}));
 
 const appsPath = resolve(process.cwd(), "docs-local/assets/ux-perf-06/metrics-after.json");
 const apps = JSON.parse(readFileSync(appsPath, "utf8"));
+requireThisRun(apps, "Candidaturas");
 requireSamples(apps.t1?.ms, runs, "candidaturas cold");
 requireSamples(apps.t2?.ms, runs, "candidaturas warm");
-writeJson("minhas-candidaturas-cold.json", {
-  story: "OPS-PERF-SLO-01",
-  pii: false,
-  sha,
-  environment: "homolog",
-  runStartedAt,
-  measuredAt: apps.measuredAt || new Date().toISOString(),
+writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
   route: "/minhas-candidaturas",
   phase: "cold",
   coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
   usefulMs: summary(apps.t1.ms),
   restCalls: apps.t1.rest,
   httpErrors: httpErrorsOf(apps.t1.rest || []),
-});
-writeJson("minhas-candidaturas-warm.json", {
-  story: "OPS-PERF-SLO-01",
-  pii: false,
-  sha,
-  environment: "homolog",
-  runStartedAt,
-  measuredAt: apps.measuredAt || new Date().toISOString(),
+  networkErrors: apps.t1.networkErrors || [],
+  cache: apps.t1.cache || [],
+  opsEvents: apps.t1.opsEvents || [],
+}));
+writeJson("minhas-candidaturas-warm.json", storyRecord(runStartedAt, sha, {
   route: "/minhas-candidaturas",
   phase: "warm",
   usefulMs: summary(apps.t2.ms),
   restCalls: apps.t2.rest,
   httpErrors: httpErrorsOf(apps.t2.rest || []),
-});
+  networkErrors: apps.t2.networkErrors || [],
+  cache: apps.t2.cache || [],
+  opsEvents: apps.t2.opsEvents || [],
+}));
 
-writeJson("run.json", {
-  story: "OPS-PERF-SLO-01",
-  pii: false,
-  sha,
-  environment: "homolog",
-  runStartedAt,
+writeJson("run.json", storyRecord(runStartedAt, sha, {
   runFinishedAt: new Date().toISOString(),
-});
+}));
 
 console.log(`relatórios em docs-local/perf/OPS-PERF-SLO-01 (pii: false, sha ${sha})`);

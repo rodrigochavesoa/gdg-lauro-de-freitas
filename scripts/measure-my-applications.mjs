@@ -14,21 +14,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { documentMayStoreSession, homologSupabaseHostnameError, loopbackBaseUrlError, loopbackOriginError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
-
-function loadLocalEnv() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).trim();
-  }
-  return env;
-}
+import { loadLocalEnv } from "./measure-env.mjs";
+import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
   const file = resolve(process.cwd(), "docs-local/candidate-test-user.md");
@@ -62,21 +50,20 @@ function hitsLabel(hits, total) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
-const runsError = measureRunsError(env.MEASURE_RUNS);
-if (runsError) {
-  console.error(runsError);
+const preflightError = measurePreflightError({
+  supabaseUrl: env.VITE_SUPABASE_URL,
+  baseUrl,
+  measureRuns: env.MEASURE_RUNS,
+});
+if (preflightError) {
+  console.error(preflightError);
   process.exit(1);
 }
 const runs = measureRuns(env.MEASURE_RUNS);
+const runId = env.MEASURE_RUN_ID || "";
 const label = (env.MEASURE_LABEL || "after").toLowerCase() === "before" ? "before" : "after";
 const supabaseUrl = env.VITE_SUPABASE_URL;
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY;
-const supabaseError = homologSupabaseHostnameError(supabaseUrl || "");
-const baseError = loopbackBaseUrlError(baseUrl);
-if (supabaseError || baseError) {
-  console.error(supabaseError || baseError);
-  process.exit(1);
-}
 const { email, password } = loadCandidateUser();
 const outDir = resolve(process.cwd(), "docs-local/assets/ux-perf-06");
 mkdirSync(outDir, { recursive: true });
@@ -152,18 +139,20 @@ async function sampleRaf(page, durationMs = 800) {
   }, durationMs);
 }
 
-const auth = await signInCandidateSession();
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 const page = await context.newPage();
+const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
+const foreignError = attachObservers(page, traffic);
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-const originError = loopbackOriginError(page.url(), baseUrl);
-const expectedOrigin = new URL(baseUrl).origin;
-if (originError) {
-  console.error(`${originError} A sessão de teste não foi injetada.`);
+const pageError = await livePageError(page, baseUrl);
+if (pageError || foreignError()) {
+  console.error(`${pageError || foreignError()} A sessão de teste não foi injetada.`);
   await browser.close();
   process.exit(1);
 }
+const auth = await signInCandidateSession();
+const expectedOrigin = new URL(baseUrl).origin;
 const stored = await page.evaluate(({ storageKey, session, expectedOrigin: origin }) => {
   if (location.origin !== origin) return false;
   localStorage.setItem(storageKey, JSON.stringify(session));
@@ -212,8 +201,41 @@ let t1RouteHits = 0;
 let t1GateHits = 0;
 let t1SkeletonRuns = 0;
 const t1Rest = [];
+const t1Cache = [];
+const t1Ops = [];
+const t1Net = [];
 
-log(`BASE_URL=${baseUrl} label=${label} runs=${runs} (sem credenciais neste log)`);
+async function navigationMark() {
+  const probe = await readLiveProbe(page);
+  if (probe.backendError) {
+    console.error(probe.backendError);
+    await browser.close();
+    process.exit(1);
+  }
+  return {
+    rest: restLog.length,
+    ops: traffic.opsEvents.length,
+    net: traffic.networkErrors.length,
+    cache: probe.cache,
+  };
+}
+
+async function navigationSlice(start) {
+  const probe = await readLiveProbe(page);
+  if (probe.backendError) {
+    console.error(probe.backendError);
+    await browser.close();
+    process.exit(1);
+  }
+  return {
+    rest: restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status })),
+    cache: cacheDelta(start.cache, probe.cache),
+    ops: traffic.opsEvents.slice(start.ops),
+    net: traffic.networkErrors.slice(start.net),
+  };
+}
+
+log(`label=${label} runs=${runs} (sem credenciais neste log)`);
 log("\n=== T1 cold — reload / → clique Minhas candidaturas ===");
 
 for (let run = 1; run <= runs; run += 1) {
@@ -222,7 +244,7 @@ for (let run = 1; run <= runs; run += 1) {
   await page.getByRole("heading", { name: /Seu futuro em tech/i }).waitFor({ state: "visible", timeout: 30_000 });
   await page.waitForTimeout(200);
 
-  const beforeRest = restLog.length;
+  const startedMark = await navigationMark();
   const started = Date.now();
   await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
@@ -234,9 +256,12 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t1GateHits += 1;
   if (raf.skeletonHits > 0) t1SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => ({ path: row.path, status: row.status }));
-  t1Rest.push(restThisNav);
-  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`);
+  const slice = await navigationSlice(startedMark);
+  t1Rest.push(slice.rest);
+  t1Cache.push(slice.cache);
+  t1Ops.push(slice.ops);
+  t1Net.push(slice.net);
+  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${slice.rest.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`);
 }
 
 log("\n=== T2 remount — Vagas → Minhas candidaturas (cache SPA) ===");
@@ -253,13 +278,16 @@ let t2RouteHits = 0;
 let t2GateHits = 0;
 let t2SkeletonRuns = 0;
 const t2Rest = [];
+const t2Cache = [];
+const t2Ops = [];
+const t2Net = [];
 
 for (let run = 1; run <= runs; run += 1) {
   await vagasLink().click();
   await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
   await page.waitForTimeout(300);
 
-  const beforeRest = restLog.length;
+  const startedMark = await navigationMark();
   const started = Date.now();
   await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
@@ -272,10 +300,13 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t2GateHits += 1;
   if (raf.skeletonHits > 0) t2SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => ({ path: row.path, status: row.status }));
-  t2Rest.push(restThisNav);
+  const slice = await navigationSlice(startedMark);
+  t2Rest.push(slice.rest);
+  t2Cache.push(slice.cache);
+  t2Ops.push(slice.ops);
+  t2Net.push(slice.net);
   log(
-    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`,
+    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${slice.rest.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`,
   );
 }
 
@@ -303,7 +334,8 @@ for (const [name, values] of [["T1", t1], ["T2", t2]]) {
 
 const metrics = {
   name: label,
-  baseUrl,
+  runId,
+  pii: false,
   measuredAt: new Date().toISOString(),
   runs,
   t1: {
@@ -314,6 +346,9 @@ const metrics = {
     gateHits: t1GateHits,
     skeletonRuns: t1SkeletonRuns,
     rest: t1Rest,
+    cache: t1Cache,
+    opsEvents: t1Ops,
+    networkErrors: t1Net,
   },
   t2: {
     ms: t2,
@@ -324,8 +359,17 @@ const metrics = {
     skeletonRuns: t2SkeletonRuns,
     raf: t2Raf,
     rest: t2Rest,
+    cache: t2Cache,
+    opsEvents: t2Ops,
+    networkErrors: t2Net,
   },
 };
+
+if (foreignError()) {
+  console.error(foreignError());
+  await browser.close();
+  process.exit(1);
+}
 
 writeFileSync(resolve(outDir, `metrics-${label}.json`), `${JSON.stringify(metrics, null, 2)}\n`);
 writeFileSync(resolve(outDir, `measure-${label}.log`), `${lines.join("\n")}\n`);

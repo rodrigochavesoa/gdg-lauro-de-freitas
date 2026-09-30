@@ -22,20 +22,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
-
-function loadLocalEnv() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).trim();
-  }
-  return env;
-}
+import { loadLocalEnv } from "./measure-env.mjs";
+import { attachObservers, livePageError } from "./measure-observe.mjs";
+import { measurePreflightError } from "./measure-target.mjs";
 
 function loadAdminUser() {
   const file = resolve(process.cwd(), "docs-local/admin-test-user.md");
@@ -62,7 +51,16 @@ function summarize(label, values) {
 }
 
 const env = { ...loadLocalEnv(), ...process.env };
-const baseUrl = env.BASE_URL || "http://127.0.0.1:5173";
+const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
+const preflightError = measurePreflightError({
+  supabaseUrl: env.VITE_SUPABASE_URL,
+  baseUrl,
+  measureRuns: env.MEASURE_RUNS,
+});
+if (preflightError) {
+  console.error(preflightError);
+  process.exit(1);
+}
 const { email, password } = loadAdminUser();
 
 function loadAdminTotpSecret() {
@@ -95,6 +93,8 @@ try {
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
+const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
+const foreignError = attachObservers(page, traffic);
 const restLog = [];
 
 page.on("request", (request) => {
@@ -105,7 +105,19 @@ page.on("request", (request) => {
 });
 
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+const pageError = await livePageError(page, baseUrl);
+if (pageError || foreignError()) {
+  console.error(`${pageError || foreignError()} Credenciais de teste não foram enviadas.`);
+  await browser.close();
+  process.exit(1);
+}
 await page.getByRole("link", { name: "Área admin" }).click();
+const pageErrorAfterNav = await livePageError(page, baseUrl);
+if (pageErrorAfterNav || foreignError()) {
+  console.error(`${pageErrorAfterNav || foreignError()} Credenciais de teste não foram enviadas.`);
+  await browser.close();
+  process.exit(1);
+}
 await page.getByLabel("E-mail").fill(email);
 await page.getByLabel("Senha").fill(password);
 await page.getByRole("button", { name: "Entrar" }).click();
@@ -116,6 +128,12 @@ const landed = await Promise.race([
   mfaHeading.waitFor({ state: "visible", timeout: 30_000 }).then(() => "mfa"),
 ]).catch(() => "timeout");
 if (landed === "mfa") {
+  const still = await livePageError(page, baseUrl);
+  if (still || foreignError()) {
+    console.error(`${still || foreignError()} Credenciais de teste não foram enviadas.`);
+    await browser.close();
+    process.exit(1);
+  }
   const totpSecret = loadAdminTotpSecret();
   if (!totpSecret) {
     console.error("O login pediu TOTP e não há segredo admin local.");

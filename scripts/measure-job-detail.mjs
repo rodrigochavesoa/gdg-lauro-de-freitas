@@ -11,23 +11,11 @@
  * A lista do catálogo é /vagas. / é o portal e não tem .job-card.
  * JOB_ID opcional; MEASURE_RUNS default 5
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loopbackBaseUrlError, measureRuns, measureRunsError, sampleCountError } from "./measure-target.mjs";
-
-function loadLocalEnv() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).trim();
-  }
-  return env;
-}
+import { loadLocalEnv } from "./measure-env.mjs";
+import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function median(values) {
   if (values.length === 0) return null;
@@ -43,13 +31,17 @@ function summarize(label, values) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://localhost:5173").replace(/\/$/, "");
-const baseError = loopbackBaseUrlError(baseUrl);
-const runsError = measureRunsError(env.MEASURE_RUNS);
-if (baseError || runsError) {
-  console.error(baseError || runsError);
+const preflightError = measurePreflightError({
+  supabaseUrl: env.VITE_SUPABASE_URL,
+  baseUrl,
+  measureRuns: env.MEASURE_RUNS,
+});
+if (preflightError) {
+  console.error(preflightError);
   process.exit(1);
 }
 const runs = measureRuns(env.MEASURE_RUNS);
+const runId = env.MEASURE_RUN_ID || "";
 
 let chromium;
 try {
@@ -62,6 +54,8 @@ try {
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 const page = await context.newPage();
+const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
+const foreignError = attachObservers(page, traffic);
 
 const restLog = [];
 
@@ -148,6 +142,9 @@ async function measureDirect(jobId, label) {
   const skeletonSeen = [];
   const jobKinds = [];
   const rest = [];
+  const cache = [];
+  const opsEvents = [];
+  const networkErrors = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -155,6 +152,8 @@ async function measureDirect(jobId, label) {
     await page.waitForTimeout(200);
 
     const before = restLog.length;
+    const opsBefore = traffic.opsEvents.length;
+    const netBefore = traffic.networkErrors.length;
     const started = Date.now();
     await page.goto(`${baseUrl}/jobs/${jobId}`, { waitUntil: "domcontentloaded" });
 
@@ -176,13 +175,22 @@ async function measureDirect(jobId, label) {
 
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
+    const live = await readLiveProbe(page);
+    if (live.backendError) {
+      console.error(live.backendError);
+      await browser.close();
+      process.exit(1);
+    }
+    cache.push(live.cache);
+    opsEvents.push(traffic.opsEvents.slice(opsBefore));
+    networkErrors.push(traffic.networkErrors.slice(netBefore));
     jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
       `${label} run ${run}: shell=${shellMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds, rest };
+  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors };
 }
 
 async function measureFromHome(jobId, label) {
@@ -191,6 +199,9 @@ async function measureFromHome(jobId, label) {
   const loadingTextSeen = [];
   const jobKinds = [];
   const rest = [];
+  const cache = [];
+  const opsEvents = [];
+  const networkErrors = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -198,6 +209,14 @@ async function measureFromHome(jobId, label) {
     await page.waitForTimeout(300);
 
     const before = restLog.length;
+    const opsBefore = traffic.opsEvents.length;
+    const netBefore = traffic.networkErrors.length;
+    const cacheBefore = await readLiveProbe(page);
+    if (cacheBefore.backendError) {
+      console.error(cacheBefore.backendError);
+      await browser.close();
+      process.exit(1);
+    }
     const started = Date.now();
     await page.locator(".job-card:not(.job-card--skeleton)").first().click();
     await page.waitForURL(/\/jobs\//, { timeout: 15_000 });
@@ -219,16 +238,32 @@ async function measureFromHome(jobId, label) {
 
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
+    const live = await readLiveProbe(page);
+    if (live.backendError) {
+      console.error(live.backendError);
+      await browser.close();
+      process.exit(1);
+    }
+    cache.push(cacheDelta(cacheBefore.cache, live.cache));
+    opsEvents.push(traffic.opsEvents.slice(opsBefore));
+    networkErrors.push(traffic.networkErrors.slice(netBefore));
     jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
       `${label} run ${run}: useful=${usefulMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds, rest };
+  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors };
 }
 
-console.log(`BASE_URL=${baseUrl} runs=${runs}`);
+console.log(`runs=${runs}`);
+await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+const pageError = await livePageError(page, baseUrl);
+if (pageError || foreignError()) {
+  console.error(pageError || foreignError());
+  await browser.close();
+  process.exit(1);
+}
 let jobId = env.JOB_ID || null;
 if (!jobId) {
   console.log("Resolving seed job id from catalog…");
@@ -281,18 +316,25 @@ const detailPath = resolve(process.cwd(), "docs-local/perf/UX-PERF-04-detail.jso
 mkdirSync(resolve(process.cwd(), "docs-local/perf"), { recursive: true });
 writeFileSync(detailPath, `${JSON.stringify({
   pii: false,
+  runId,
   runs,
   cold: {
     shellMs: anonDirect.shellTimes,
     fullMs: anonDirect.fullTimes,
     rest: anonDirect.rest,
     httpErrors: httpErrors(anonDirect.rest),
+    networkErrors: anonDirect.networkErrors,
+    cache: anonDirect.cache,
+    opsEvents: anonDirect.opsEvents,
   },
   warm: {
     usefulMs: anonHome.usefulTimes,
     fullMs: anonHome.fullTimes,
     rest: anonHome.rest,
     httpErrors: httpErrors(anonHome.rest),
+    networkErrors: anonHome.networkErrors,
+    cache: anonHome.cache,
+    opsEvents: anonHome.opsEvents,
   },
 }, null, 2)}\n`);
 console.log("wrote docs-local/perf/UX-PERF-04-detail.json");
