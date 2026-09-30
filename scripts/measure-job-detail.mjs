@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, readLiveProbe, restPathFromUrl, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainSample, livePageError, readLiveProbe, restPathFromUrl, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, detailContentSample, validDetailLatencies } from "./measure-target.mjs";
 
 function median(values) {
@@ -59,6 +59,7 @@ const foreignError = attachObservers(page, traffic);
 
 const restLog = [];
 const pendingBodies = new Set();
+let readSample = null;
 
 function classifyJobsSelect(url) {
   if (!url.includes("/rest/v1/jobs")) return null;
@@ -101,7 +102,7 @@ page.on("response", (response) => {
   if (!path) return;
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (!entry) return;
-  const slot = { drop: false, path };
+  const slot = { drop: false, path, sample: readSample };
   let task;
   task = (async () => {
     entry.status = response.status();
@@ -117,21 +118,19 @@ page.on("response", (response) => {
     if (slot.drop) return;
     entry.bytes = bytes;
   })().finally(() => pendingBodies.delete(task));
+  task.sample = slot.sample;
   task.slot = slot;
   pendingBodies.add(task);
 });
 
 async function drainDetailTraffic(sliceStart) {
+  const sample = readSample;
   const quiet = await waitForQuiet(() => restLog.slice(sliceStart).some((row) => row.status == null && !row.failed));
-  const bodyUnsettled = [];
-  const bodyDrain = await drainPromises(pendingBodies, undefined, () => {
-    const slots = [...pendingBodies].map((task) => task.slot).filter(Boolean);
-    bodyUnsettled.push(...expiredReadRows(slots, "body"));
-  });
+  const bodyDrain = await drainSample(pendingBodies, sample, undefined, "body");
   const opsDrain = await foreignError.drain();
   return {
     incomplete: quiet.timedOut || bodyDrain.timedOut || opsDrain.timedOut,
-    reads: [...bodyUnsettled, ...(opsDrain.unsettled || [])],
+    reads: [...(bodyDrain.unsettled || []), ...(opsDrain.unsettled || [])],
   };
 }
 
@@ -204,6 +203,7 @@ async function measureDirect(jobId, label) {
     const before = restLog.length;
     const opsBefore = traffic.opsEvents.length;
     const netBefore = traffic.networkErrors.length;
+    readSample = foreignError.beginSample();
     const started = Date.now();
     await page.goto(`${baseUrl}/jobs/${jobId}`, { waitUntil: "domcontentloaded" });
 
@@ -275,6 +275,7 @@ async function measureFromHome(jobId, label) {
       await browser.close();
       process.exit(1);
     }
+    readSample = foreignError.beginSample();
     const started = Date.now();
     await page.locator(".job-card:not(.job-card--skeleton)").first().click();
     await page.waitForURL(/\/jobs\//, { timeout: 15_000 });

@@ -13,7 +13,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, drainPromises, expiredReadRows, opsEventFromConsole, probeBackendError, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { cacheDelta, drainPromises, drainSample, expiredReadRows, opsEventFromConsole, probeBackendError, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -165,6 +165,7 @@ describe("destinos da medição local", () => {
       { settled: false, pending: "console" },
     ]);
     expect(consoleSlot.drop).toBe(true);
+    expect(expiredReadRows([consoleSlot], "console")).toEqual([]);
 
     const earlier = { id: "antes" };
     const during = { id: "amostra" };
@@ -178,6 +179,51 @@ describe("destinos da medição local", () => {
       limitMs: 800,
     })).toBe("hipótese");
     expect(requestsOpenedDuring(new Set([earlier]), new Set([earlier]))).toEqual([]);
+  });
+
+  it("pendência expirada da primeira amostra não rebaixa a segunda", async () => {
+    const pending = new Set();
+    const sample1 = {};
+    let rejectHang;
+    const hang = new Promise((_, reject) => {
+      rejectHang = reject;
+    });
+    const slot = { path: "jobs", drop: false, sample: sample1 };
+    hang.sample = sample1;
+    hang.slot = slot;
+    pending.add(hang);
+
+    const first = await drainSample(pending, sample1, 20, "body");
+    expect(first.timedOut).toBe(true);
+    expect(first.unsettled).toEqual([{ path: "jobs", settled: false, pending: "body" }]);
+    expect(lineStatus({
+      captureIncomplete: first.timedOut,
+      validN: 5,
+      expectedN: 5,
+      p95: 100,
+      limitMs: 250,
+    })).toBe("hipótese");
+    expect(pending.has(hang)).toBe(true);
+    expect(slot.drop).toBe(true);
+
+    const sample2 = {};
+    const second = await drainSample(pending, sample2, 20, "body");
+    expect(second.timedOut).toBe(false);
+    expect(second.unsettled).toEqual([]);
+    expect(lineStatus({
+      captureIncomplete: second.timedOut || second.unsettled.length > 0,
+      validN: 5,
+      expectedN: 5,
+      p95: 100,
+      limitMs: 250,
+    })).toBe("medido");
+
+    const again = await drainSample(pending, sample1, 20, "console");
+    expect(again.timedOut).toBe(false);
+    expect(again.unsettled).toEqual([]);
+
+    rejectHang(new Error("encerrado no teste"));
+    await hang.catch(() => {});
   });
 
   it("descarta identificador pessoal e encerra o flush no prazo", async () => {

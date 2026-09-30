@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainSample, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -100,7 +100,7 @@ const foreignError = attachObservers(page, traffic);
 const startedAt = new Map();
 const inflight = new Set();
 const pendingCalls = new Set();
-const openReads = new Set();
+let readSample = null;
 
 page.on("request", (request) => {
   const url = request.url();
@@ -121,8 +121,7 @@ page.on("response", (response) => {
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
   const request = response.request();
   inflight.delete(request);
-  const slot = { drop: false, path: restPathFromUrl(url) };
-  openReads.add(slot);
+  const slot = { drop: false, path: restPathFromUrl(url), sample: readSample };
   let task;
   task = (async () => {
     let bytes = Number(response.headers()["content-length"] || 0);
@@ -143,10 +142,9 @@ page.on("response", (response) => {
       bytes,
       ...summarizeRequest(url),
     });
-  })().finally(() => {
-    openReads.delete(slot);
-    pendingCalls.delete(task);
-  });
+  })().finally(() => pendingCalls.delete(task));
+  task.sample = slot.sample;
+  task.slot = slot;
   pendingCalls.add(task);
 });
 
@@ -254,6 +252,7 @@ async function timeStaffRoute(route, phase) {
       }
       cacheBefore = beforeProbe.cache;
     }
+    readSample = foreignError.beginSample();
     const inflightBefore = new Set(inflight);
     const started = Date.now();
     if (phase === "cold") {
@@ -266,10 +265,7 @@ async function timeStaffRoute(route, phase) {
     await page.getByText(route.settle).first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(800);
     const quiet = await waitForQuiet(() => requestsOpenedDuring(inflight, inflightBefore).length > 0);
-    const bodyUnsettled = [];
-    const bodyDrain = await drainPromises(pendingCalls, undefined, () => {
-      bodyUnsettled.push(...expiredReadRows(openReads, "body"));
-    });
+    const bodyDrain = await drainSample(pendingCalls, readSample, undefined, "body");
     const opsDrain = await foreignError.drain();
     const responseRows = requestsOpenedDuring(inflight, inflightBefore)
       .map((request) => openRequestRow(restPathFromUrl(request.url())))
@@ -289,7 +285,7 @@ async function timeStaffRoute(route, phase) {
     errorRuns.push(traffic.networkErrors.slice(beforeErrors));
     unsettledRuns.push([
       ...responseRows,
-      ...bodyUnsettled,
+      ...(bodyDrain.unsettled || []),
       ...(opsDrain.unsettled || []),
     ]);
     console.log(`${route.path} ${phase} run ${run}: ${samples.at(-1)}ms`);

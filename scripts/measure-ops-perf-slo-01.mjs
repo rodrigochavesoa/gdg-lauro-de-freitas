@@ -220,6 +220,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const stopCold = attachRest(page, coldBucket);
     const netBefore = traffic.networkErrors.length;
     const opsBefore = traffic.opsEvents.length;
+    traffic.beginSample();
     const started = Date.now();
     await page.goto(route, { waitUntil: "domcontentloaded" });
     await ready();
@@ -244,6 +245,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const stopWarm = attachRest(page, warmBucket);
     const warmNetBefore = traffic.networkErrors.length;
     const warmOpsBefore = traffic.opsEvents.length;
+    traffic.beginSample();
     const warmStarted = Date.now();
     await back();
     await ready();
@@ -364,6 +366,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
 const foreignError = attachObservers(page, traffic);
 traffic.drain = foreignError.drain;
+traffic.beginSample = foreignError.beginSample;
 await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
 const pageError = await livePageError(page, baseUrl);
 if (pageError || foreignError()) {

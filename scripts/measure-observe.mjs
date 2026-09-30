@@ -143,16 +143,42 @@ export function unsettledRows(rows) {
     .map((row) => openRequestRow(row.path));
 }
 
-/** Leituras que estouraram o prazo. `pending` diz se foi corpo ou console. */
+/** Leituras que estouraram o prazo. Slot já descartado não entra de novo. */
 export function expiredReadRows(slots, pending) {
   const rows = [];
   for (const slot of slots) {
-    if (slot && typeof slot === "object") slot.drop = true;
+    if (!slot || typeof slot !== "object" || slot.drop) continue;
+    slot.drop = true;
     const row = { settled: false, pending };
-    if (slot?.path) row.path = String(slot.path);
+    if (slot.path) row.path = String(slot.path);
     rows.push(row);
   }
   return rows;
+}
+
+export function createReadSample() {
+  return {};
+}
+
+/** Só a amostra que abriu a leitura. Pendência já descartada fica de fora. */
+export function sampleReads(tasks, sample) {
+  if (!sample) return [];
+  const owned = [];
+  for (const task of tasks) {
+    if (!task || task.sample !== sample) continue;
+    if (task.slot?.drop) continue;
+    owned.push(task);
+  }
+  return owned;
+}
+
+export async function drainSample(tasks, sample, timeoutMs = SETTLE_MS, pending = "body") {
+  const owned = sampleReads(tasks, sample);
+  const unsettled = [];
+  const result = await drainPromises(owned, timeoutMs, () => {
+    unsettled.push(...expiredReadRows(owned.map((task) => task.slot), pending));
+  });
+  return { timedOut: result.timedOut, unsettled };
 }
 
 export async function waitForQuiet(isBusy, timeoutMs = SETTLE_MS) {
@@ -238,7 +264,7 @@ export async function readLiveProbe(page) {
 
 export function attachObservers(page, buckets) {
   const pendingConsole = new Set();
-  const consoleSlots = new Set();
+  const active = { sample: null };
   const onRequest = (request) => {
     const error = supabaseHostError(request.url());
     if (error) buckets.foreign.push(error);
@@ -250,17 +276,17 @@ export function attachObservers(page, buckets) {
   };
   const onConsole = (message) => {
     for (const arg of message.args()) {
-      const slot = { drop: false };
-      consoleSlots.add(slot);
+      const slot = { drop: false, sample: active.sample };
       let task;
       task = arg.jsonValue().then((value) => {
         if (slot.drop) return;
         const event = opsEventFromConsole(value);
         if (event) buckets.opsEvents.push(event);
       }).catch(() => {}).finally(() => {
-        consoleSlots.delete(slot);
         pendingConsole.delete(task);
       });
+      task.sample = slot.sample;
+      task.slot = slot;
       pendingConsole.add(task);
     }
   };
@@ -268,13 +294,11 @@ export function attachObservers(page, buckets) {
   page.on("requestfailed", onFailed);
   page.on("console", onConsole);
   const foreignError = () => buckets.foreign[0] || "";
-  foreignError.drain = async () => {
-    const unsettled = [];
-    const result = await drainPromises(pendingConsole, SETTLE_MS, () => {
-      unsettled.push(...expiredReadRows(consoleSlots, "console"));
-    });
-    return { timedOut: result.timedOut, unsettled };
+  foreignError.beginSample = () => {
+    active.sample = createReadSample();
+    return active.sample;
   };
+  foreignError.drain = () => drainSample(pendingConsole, active.sample, SETTLE_MS, "console");
   return foreignError;
 }
 

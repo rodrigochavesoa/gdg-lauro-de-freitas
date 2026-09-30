@@ -262,6 +262,7 @@ for (let run = 1; run <= runs; run += 1) {
   await page.waitForTimeout(200);
 
   const startedMark = await navigationMark();
+  foreignError.beginSample();
   const started = Date.now();
   await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
@@ -309,6 +310,7 @@ for (let run = 1; run <= runs; run += 1) {
   await page.waitForTimeout(300);
 
   const startedMark = await navigationMark();
+  foreignError.beginSample();
   const started = Date.now();
   await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
