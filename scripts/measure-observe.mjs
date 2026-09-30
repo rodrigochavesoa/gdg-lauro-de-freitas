@@ -1,11 +1,71 @@
 import { HOMOLOG_HOSTNAME, homologSupabaseHostnameError, loopbackOriginError } from "./measure-target.mjs";
 
 const SAFE_CORRELATION = /^[a-f0-9]{12}$/;
-const SAFE_ACTION = /^[a-z][a-z0-9_]{0,63}$/;
-const SAFE_ROUTE = /^\/[a-z0-9/_:-]{0,80}$/;
-const SAFE_CLASS = /^[a-z][a-z0-9_]{0,63}$/;
 const OPS_EVENTS = new Set(["ops.login", "ops.search", "ops.application", "ops.ingestion", "ops.rpc"]);
 const OPS_OUTCOMES = new Set(["success", "failure", "blocked", "rate_limited"]);
+const OPS_ACTIONS = new Set([
+  "unknown",
+  "catalog_search",
+  "staff_password",
+  "session_hydrate",
+  "google_oauth",
+  "apply_to_job",
+  "withdraw_application",
+  "register_job_ingestion",
+  "process_job_ingestion",
+  "submit_curation_review",
+  "resubmit_job_for_curation",
+  "set_job_curation_priority",
+]);
+const OPS_ROUTES = new Set([
+  "unknown",
+  "/",
+  "/vagas",
+  "/eventos",
+  "/eventos/devfest-lauro-de-freitas-2026",
+  "/eventos/devopsdays-salvador-2026",
+  "/newsletter",
+  "/jobs/:id",
+  "/minhas-candidaturas",
+  "/preferencias",
+  "/perfil",
+  "/onboarding",
+  "/login",
+  "/admin",
+  "/admin/curadoria",
+  "/admin/ingestao",
+  "/admin/vagas",
+  "/admin/vagas/nova",
+  "/admin/vagas/:id",
+]);
+const OPS_CLASSES = new Set([
+  "none",
+  "unknown",
+  "rate_limited",
+  "client_unconfigured",
+  "apply_auth_required",
+  "apply_profile_incomplete",
+  "apply_job_unavailable",
+  "apply_duplicate",
+  "apply_withdraw_blocked",
+  "apply_not_found",
+  "apply_staff_blocked",
+  "apply_unavailable",
+  "auth_forbidden",
+  "auth_invalid",
+  "auth_unavailable",
+  "search_unavailable",
+  "search_rejected",
+  "ingest_expired",
+  "ingest_duplicate",
+  "ingest_invalid",
+  "ingest_unavailable",
+  "ingest_materialize_failed",
+  "rpc_forbidden",
+  "rpc_conflict",
+  "rpc_unavailable",
+  "rpc_rejected",
+]);
 const SETTLE_MS = 5_000;
 const CACHE_NAMES = new Set([
   "catalog",
@@ -43,22 +103,21 @@ export function supabaseHostError(raw) {
   return "A página chamou um projeto Supabase que não é o de homolog.";
 }
 
-/** Allowlist do contrato de `buildOpsEvent`. Valor fora do contrato descarta o evento. */
+/** Lista fechada. Formato parecido com identificador técnico não entra. */
 export function opsEventFromConsole(value) {
   if (!value || typeof value !== "object") return null;
   if (!OPS_EVENTS.has(value.event_name)) return null;
   if (!SAFE_CORRELATION.test(String(value.correlation_id || ""))) return null;
-  const route = value.route === "unknown" || SAFE_ROUTE.test(value.route) ? value.route : "";
-  const action = SAFE_ACTION.test(value.action) ? value.action : "";
-  const outcome = OPS_OUTCOMES.has(value.outcome) ? value.outcome : "";
-  const errorClass = SAFE_CLASS.test(value.error_class) ? value.error_class : "";
-  if (!route || !action || !outcome || !errorClass) return null;
+  if (!OPS_ROUTES.has(value.route)) return null;
+  if (!OPS_ACTIONS.has(value.action)) return null;
+  if (!OPS_OUTCOMES.has(value.outcome)) return null;
+  if (!OPS_CLASSES.has(value.error_class)) return null;
   return {
     event_name: value.event_name,
-    route,
-    action,
-    outcome,
-    error_class: errorClass,
+    route: value.route,
+    action: value.action,
+    outcome: value.outcome,
+    error_class: value.error_class,
     correlation_id: value.correlation_id,
   };
 }
@@ -77,8 +136,29 @@ export async function waitForQuiet(isBusy, timeoutMs = SETTLE_MS) {
   }
 }
 
-export async function drainPromises(pending) {
-  await Promise.all([...pending]);
+export async function drainPromises(pending, timeoutMs = SETTLE_MS, onTimeout = () => {}) {
+  const tasks = [...pending];
+  if (tasks.length === 0) return { timedOut: false };
+  let timedOut = false;
+  await new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    Promise.all(tasks).then(finish, finish);
+    setTimeout(() => {
+      if (settled) return;
+      timedOut = true;
+      try {
+        onTimeout();
+      } finally {
+        finish();
+      }
+    }, timeoutMs);
+  });
+  return { timedOut };
 }
 
 export function sanitizeCacheStats(stats) {
@@ -131,6 +211,7 @@ export async function readLiveProbe(page) {
 
 export function attachObservers(page, buckets) {
   const pendingConsole = new Set();
+  const consoleSlots = new Set();
   const onRequest = (request) => {
     const error = supabaseHostError(request.url());
     if (error) buckets.foreign.push(error);
@@ -142,11 +223,17 @@ export function attachObservers(page, buckets) {
   };
   const onConsole = (message) => {
     for (const arg of message.args()) {
+      const slot = { drop: false };
+      consoleSlots.add(slot);
       let task;
       task = arg.jsonValue().then((value) => {
+        if (slot.drop) return;
         const event = opsEventFromConsole(value);
         if (event) buckets.opsEvents.push(event);
-      }).catch(() => {}).finally(() => pendingConsole.delete(task));
+      }).catch(() => {}).finally(() => {
+        consoleSlots.delete(slot);
+        pendingConsole.delete(task);
+      });
       pendingConsole.add(task);
     }
   };
@@ -154,7 +241,9 @@ export function attachObservers(page, buckets) {
   page.on("requestfailed", onFailed);
   page.on("console", onConsole);
   const foreignError = () => buckets.foreign[0] || "";
-  foreignError.drain = () => drainPromises(pendingConsole);
+  foreignError.drain = () => drainPromises(pendingConsole, SETTLE_MS, () => {
+    for (const slot of consoleSlots) slot.drop = true;
+  });
   return foreignError;
 }
 

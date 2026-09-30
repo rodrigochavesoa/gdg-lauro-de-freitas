@@ -100,6 +100,7 @@ const foreignError = attachObservers(page, traffic);
 const startedAt = new Map();
 const inflight = new Set();
 const pendingCalls = new Set();
+const openReads = new Set();
 
 page.on("request", (request) => {
   const url = request.url();
@@ -117,6 +118,8 @@ page.on("response", (response) => {
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
   const request = response.request();
   inflight.delete(request);
+  const slot = { drop: false, path: restPathFromUrl(url) };
+  openReads.add(slot);
   let task;
   task = (async () => {
     let bytes = Number(response.headers()["content-length"] || 0);
@@ -127,6 +130,7 @@ page.on("response", (response) => {
         bytes = null;
       }
     }
+    if (slot.drop) return;
     const began = startedAt.get(request) ?? Date.now();
     calls.push({
       at: new Date().toISOString(),
@@ -136,7 +140,10 @@ page.on("response", (response) => {
       bytes,
       ...summarizeRequest(url),
     });
-  })().finally(() => pendingCalls.delete(task));
+  })().finally(() => {
+    openReads.delete(slot);
+    pendingCalls.delete(task);
+  });
   pendingCalls.add(task);
 });
 
@@ -223,6 +230,7 @@ async function timeStaffRoute(route, phase) {
   const opsRuns = [];
   const errorRuns = [];
   const unsettledRuns = [];
+  let captureIncomplete = false;
   for (let run = 1; run <= runs; run += 1) {
     if (phase === "warm") {
       const away = route.nav === "Painel" ? "Curadoria" : "Painel";
@@ -254,8 +262,11 @@ async function timeStaffRoute(route, phase) {
     await page.getByText(route.settle).first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(800);
     await waitForQuiet(() => inflight.size > 0);
-    await drainPromises(pendingCalls);
-    await foreignError.drain();
+    const bodyDrain = await drainPromises(pendingCalls, undefined, () => {
+      for (const slot of openReads) slot.drop = true;
+    });
+    const opsDrain = await foreignError.drain();
+    if (bodyDrain.timedOut || opsDrain.timedOut) captureIncomplete = true;
     const cacheAfter = await readLiveProbe(page);
     if (cacheAfter.backendError) {
       console.error(cacheAfter.backendError);
@@ -266,12 +277,17 @@ async function timeStaffRoute(route, phase) {
     cacheRuns.push(phase === "cold" ? cacheAfter.cache : cacheDelta(cacheBefore, cacheAfter.cache));
     opsRuns.push(traffic.opsEvents.slice(beforeOps));
     errorRuns.push(traffic.networkErrors.slice(beforeErrors));
-    unsettledRuns.push([...inflight]
-      .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
-      .filter((row) => row.path));
+    unsettledRuns.push([
+      ...[...inflight]
+        .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+        .filter((row) => row.path),
+      ...[...openReads]
+        .filter((slot) => slot.path)
+        .map((slot) => ({ path: slot.path, settled: false })),
+    ]);
     console.log(`${route.path} ${phase} run ${run}: ${samples.at(-1)}ms`);
   }
-  return { samples, callRuns, cacheRuns, opsRuns, errorRuns, unsettledRuns };
+  return { samples, callRuns, cacheRuns, opsRuns, errorRuns, unsettledRuns, captureIncomplete };
 }
 
 const routesOut = [];
@@ -302,6 +318,8 @@ for (const route of routes) {
     warmNetworkErrors: warm.errorRuns,
     coldUnsettled: cold.unsettledRuns,
     warmUnsettled: warm.unsettledRuns,
+    coldCaptureIncomplete: cold.captureIncomplete,
+    warmCaptureIncomplete: warm.captureIncomplete,
   });
 }
 

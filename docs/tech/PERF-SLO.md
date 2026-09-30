@@ -4,7 +4,7 @@ Método e tetos provisórios de latência da SPA no **homolog**. Não é SLO de 
 
 **Cold** aqui é cache em memória da aba frio (reload ou primeira ida à rota nessa aba). Os scripts reutilizam o contexto do navegador e, no candidato e no staff, a sessão já autenticada. Não é a primeira visita de um navegador sem cookie nem sem sessão.
 
-`ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console e não ganha fluxo novo. A medição lê esses eventos e guarda `event_name`, rota, ação, outcome, `error_class` e `correlation_id` só quando cada campo cabe na allowlist do contrato. Fora dela o evento é descartado. Não cria outro id. Hit/miss vem dos contadores de `peek` no probe `__gdgMeasure`, instalado só em `pnpm dev`. Ausência de `rest/v1` não conta como hit. A política de TTL está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
+`ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console e não ganha fluxo novo. A medição lê esses eventos e guarda `event_name`, rota, ação, outcome, `error_class` e `correlation_id` só quando o valor está na lista fechada do coletor. Formato parecido com um identificador técnico não basta: nome ou token fora da lista é descartado. Não cria outro id. Hit/miss vem dos contadores de `peek` no probe `__gdgMeasure`, instalado só em `pnpm dev`. Ausência de `rest/v1` não conta como hit. A política de TTL está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
 
 O hostname de homolog está fixo em `scripts/measure-target.mjs` como allowlist fail-closed. É exceção explícita à fronteira de `docs-local/`: não é segredo e não pode virar destino livre, senão um Vite local enviaria senha ou sessão de teste a outro projeto. O restante da configuração de squad continua local.
 
@@ -17,7 +17,7 @@ A evidência de uma rodada (SHA, horários, latências, payloads, status HTTP, f
 | `medido` | Há o n da linha, o marco foi alcançado em todas as amostras e o p95 cabe no limite |
 | `fora do teto` | Há o n da linha e o marco é válido, mas o p95 passa do limite. O limite permanece |
 | `herdado` | Estudo anterior, citado no doc local, sem repetir a bateria |
-| `hipótese` | Amostra insuficiente, marco não confirmado, ou relógio que não é o marco de UI |
+| `hipótese` | Amostra insuficiente, marco não confirmado, relógio que não é o marco de UI, ou flush que estourou o prazo |
 
 O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visível. Sem esse marco a amostra é inválida e não vira latência. Se alguma amostra da linha ficar inválida, a linha é `hipótese`.
 
@@ -25,7 +25,7 @@ O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visí
 
 Cada arquivo da rodada grava `runStartedAt`, `measuredAt` na hora em que o JSON é escrito e, no fim, `runFinishedAt`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git.
 
-Cada chamada `rest/v1` ou `auth/v1` que já respondeu entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Pedido ainda aberto depois do flush vai para `unsettled`. `httpErrors` vazio não cobre `unsettled` nem `networkErrors`. Pedido que falha sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
+Cada chamada `rest/v1` ou `auth/v1` que já respondeu entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Pedido ainda aberto depois do flush vai para `unsettled`. A leitura do corpo e o `jsonValue()` do console têm prazo. Se não terminam, a captura fica incompleta e a linha é `hipótese`. `httpErrors` vazio não cobre `unsettled` nem `networkErrors`. Pedido que falha sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
 
 ## Critérios
 

@@ -109,6 +109,7 @@ page.on("response", (response) => {
     : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (!entry) return;
+  const slot = { drop: false };
   let task;
   task = (async () => {
     entry.status = response.status();
@@ -121,15 +122,22 @@ page.on("response", (response) => {
         bytes = null;
       }
     }
+    if (slot.drop) return;
     entry.bytes = bytes;
   })().finally(() => pendingBodies.delete(task));
+  task.slot = slot;
   pendingBodies.add(task);
 });
 
 async function drainDetailTraffic(sliceStart) {
   await waitForQuiet(() => restLog.slice(sliceStart).some((row) => row.status == null && !row.failed));
-  await drainPromises(pendingBodies);
-  await foreignError.drain();
+  const bodyDrain = await drainPromises(pendingBodies, undefined, () => {
+    for (const task of pendingBodies) {
+      if (task.slot) task.slot.drop = true;
+    }
+  });
+  const opsDrain = await foreignError.drain();
+  return { incomplete: bodyDrain.timedOut || opsDrain.timedOut };
 }
 
 function formatRest(slice) {
@@ -191,6 +199,7 @@ async function measureDirect(jobId, label) {
   const opsEvents = [];
   const networkErrors = [];
   const unsettled = [];
+  let captureIncomplete = false;
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -219,7 +228,8 @@ async function measureDirect(jobId, label) {
     const fullSample = detailContentSample(Date.now() - started, reached);
     fullSamples.push(fullSample);
 
-    await drainDetailTraffic(before);
+    const drained = await drainDetailTraffic(before);
+    if (drained.incomplete) captureIncomplete = true;
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
     unsettled.push(unsettledRows(restLog.slice(before).filter((row) => !row.failed)));
@@ -238,7 +248,7 @@ async function measureDirect(jobId, label) {
     );
   }
 
-  return { shellTimes, fullSamples, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled };
+  return { shellTimes, fullSamples, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled, captureIncomplete };
 }
 
 async function measureFromHome(jobId, label) {
@@ -251,6 +261,7 @@ async function measureFromHome(jobId, label) {
   const opsEvents = [];
   const networkErrors = [];
   const unsettled = [];
+  let captureIncomplete = false;
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -285,7 +296,8 @@ async function measureFromHome(jobId, label) {
     const fullSample = detailContentSample(Date.now() - started, reached);
     fullSamples.push(fullSample);
 
-    await drainDetailTraffic(before);
+    const drained = await drainDetailTraffic(before);
+    if (drained.incomplete) captureIncomplete = true;
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
     unsettled.push(unsettledRows(restLog.slice(before).filter((row) => !row.failed)));
@@ -304,7 +316,7 @@ async function measureFromHome(jobId, label) {
     );
   }
 
-  return { usefulTimes, fullSamples, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled };
+  return { usefulTimes, fullSamples, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled, captureIncomplete };
 }
 
 console.log(`runs=${runs}`);
@@ -379,6 +391,7 @@ writeFileSync(detailPath, `${JSON.stringify({
     httpErrors: httpErrors(anonDirect.rest),
     networkErrors: anonDirect.networkErrors,
     unsettled: anonDirect.unsettled,
+    captureIncomplete: anonDirect.captureIncomplete,
     cache: anonDirect.cache,
     opsEvents: anonDirect.opsEvents,
   },
@@ -390,6 +403,7 @@ writeFileSync(detailPath, `${JSON.stringify({
     httpErrors: httpErrors(anonHome.rest),
     networkErrors: anonHome.networkErrors,
     unsettled: anonHome.unsettled,
+    captureIncomplete: anonHome.captureIncomplete,
     cache: anonHome.cache,
     opsEvents: anonHome.opsEvents,
   },

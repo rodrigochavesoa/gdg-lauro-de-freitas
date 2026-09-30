@@ -12,7 +12,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
+import { cacheDelta, drainPromises, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -122,5 +122,34 @@ describe("destinos da medição local", () => {
     expect(classifyLatency({ validN: 5, expectedN: 5, p95: 383, limitMs: 250 })).toBe("fora do teto");
     expect(classifyLatency({ validN: 5, expectedN: 5, p95: 122, limitMs: 250 })).toBe("medido");
     expect(classifyLatency({ validN: 4, expectedN: 5, p95: 1048, limitMs: 1500 })).toBe("hipótese");
+  });
+
+  it("descarta identificador pessoal e encerra o flush no prazo", async () => {
+    const valid = {
+      event_name: "ops.search",
+      route: "/vagas",
+      action: "catalog_search",
+      outcome: "success",
+      error_class: "none",
+      correlation_id: "0123456789ab",
+    };
+    expect(opsEventFromConsole({ ...valid, action: "ana_silva" })).toBeNull();
+    expect(opsEventFromConsole({ ...valid, error_class: "secret_token" })).toBeNull();
+    expect(opsEventFromConsole({ ...valid, route: "/ana_silva" })).toBeNull();
+    expect(opsEventFromConsole(valid)?.action).toBe("catalog_search");
+
+    let dropped = false;
+    let rejectHang;
+    const hang = new Promise((_, reject) => {
+      rejectHang = reject;
+    });
+    const pending = new Set([hang]);
+    const result = await drainPromises(pending, 20, () => {
+      dropped = true;
+    });
+    expect(result.timedOut).toBe(true);
+    expect(dropped).toBe(true);
+    rejectHang(new Error("encerrado no teste"));
+    await hang.catch(() => {});
   });
 });

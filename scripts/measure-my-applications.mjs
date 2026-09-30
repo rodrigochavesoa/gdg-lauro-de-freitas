@@ -211,6 +211,7 @@ const t1Cache = [];
 const t1Ops = [];
 const t1Net = [];
 const t1Unsettled = [];
+let t1CaptureIncomplete = false;
 
 async function navigationMark() {
   const probe = await readLiveProbe(page);
@@ -229,7 +230,7 @@ async function navigationMark() {
 
 async function navigationSlice(start) {
   await waitForQuiet(() => inflight.size > 0);
-  await foreignError.drain();
+  const opsDrain = await foreignError.drain();
   const probe = await readLiveProbe(page);
   if (probe.backendError) {
     console.error(probe.backendError);
@@ -237,15 +238,17 @@ async function navigationSlice(start) {
     process.exit(1);
   }
   const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
+  const unsettled = [...inflight].map((request) => {
+    const url = request.url();
+    const path = url.includes("/rest/v1/")
+      ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+      : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+    return { path, settled: false };
+  }).filter((row) => row.path);
   return {
     rest,
-    unsettled: [...inflight].map((request) => {
-      const url = request.url();
-      const path = url.includes("/rest/v1/")
-        ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-        : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
-      return { path, settled: false };
-    }).filter((row) => row.path),
+    unsettled,
+    captureIncomplete: opsDrain.timedOut || unsettled.length > 0,
     cache: cacheDelta(start.cache, probe.cache),
     ops: traffic.opsEvents.slice(start.ops),
     net: traffic.networkErrors.slice(start.net),
@@ -276,6 +279,7 @@ for (let run = 1; run <= runs; run += 1) {
   const slice = await navigationSlice(startedMark);
   t1Rest.push(slice.rest);
   t1Unsettled.push(slice.unsettled);
+  if (slice.captureIncomplete) t1CaptureIncomplete = true;
   t1Cache.push(slice.cache);
   t1Ops.push(slice.ops);
   t1Net.push(slice.net);
@@ -300,6 +304,7 @@ const t2Cache = [];
 const t2Ops = [];
 const t2Net = [];
 const t2Unsettled = [];
+let t2CaptureIncomplete = false;
 
 for (let run = 1; run <= runs; run += 1) {
   await vagasLink().click();
@@ -322,6 +327,7 @@ for (let run = 1; run <= runs; run += 1) {
   const slice = await navigationSlice(startedMark);
   t2Rest.push(slice.rest);
   t2Unsettled.push(slice.unsettled);
+  if (slice.captureIncomplete) t2CaptureIncomplete = true;
   t2Cache.push(slice.cache);
   t2Ops.push(slice.ops);
   t2Net.push(slice.net);
@@ -367,6 +373,7 @@ const metrics = {
     skeletonRuns: t1SkeletonRuns,
     rest: t1Rest,
     unsettled: t1Unsettled,
+    captureIncomplete: t1CaptureIncomplete,
     cache: t1Cache,
     opsEvents: t1Ops,
     networkErrors: t1Net,
@@ -381,6 +388,7 @@ const metrics = {
     raf: t2Raf,
     rest: t2Rest,
     unsettled: t2Unsettled,
+    captureIncomplete: t2CaptureIncomplete,
     cache: t2Cache,
     opsEvents: t2Ops,
     networkErrors: t2Net,

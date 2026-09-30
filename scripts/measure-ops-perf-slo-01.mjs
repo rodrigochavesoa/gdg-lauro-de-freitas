@@ -77,16 +77,21 @@ const LIMIT_MS = {
   "admin-ingestao-warm": 800,
 };
 
-function mark(label, samples, limitMs, expectedN = samples.length) {
+function mark(label, samples, limitMs, expectedN = samples.length, captureIncomplete = false) {
   const stats = summary(samples);
-  const status = classifyLatency({
-    validN: stats.n,
-    expectedN,
-    p95: stats.p95,
-    limitMs,
-  });
+  const status = captureIncomplete
+    ? "hipótese"
+    : classifyLatency({
+      validN: stats.n,
+      expectedN,
+      p95: stats.p95,
+      limitMs,
+    });
   if (status === "fora do teto") {
     console.log(`${label}: fora do teto (p95 ${stats.p95} ms, limite ${limitMs} ms). O limite permanece.`);
+  }
+  if (captureIncomplete) {
+    console.log(`${label}: captura incompleta. A linha fica hipótese.`);
   }
   return { stats, limitMs, status };
 }
@@ -137,15 +142,23 @@ async function captureRestCall(response) {
 function attachRest(page, bucket) {
   const pending = new Set();
   const inflight = new Set();
+  const openReads = new Set();
   const onRequest = (request) => {
     if (restPathFromUrl(request.url())) inflight.add(request);
   };
   const onResponse = (response) => {
-    inflight.delete(response.request());
+    const request = response.request();
+    inflight.delete(request);
+    const slot = { drop: false, path: restPathFromUrl(response.url()) };
+    openReads.add(slot);
     let task;
     task = captureRestCall(response).then((row) => {
-      if (row) bucket.push(row);
-    }).finally(() => pending.delete(task));
+      if (slot.drop || !row) return;
+      bucket.push(row);
+    }).finally(() => {
+      openReads.delete(slot);
+      pending.delete(task);
+    });
     pending.add(task);
   };
   const onFailed = (request) => {
@@ -159,10 +172,18 @@ function attachRest(page, bucket) {
     page.removeListener("request", onRequest);
     page.removeListener("response", onResponse);
     page.removeListener("requestfailed", onFailed);
-    await drainPromises(pending);
-    return [...inflight]
-      .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
-      .filter((row) => row.path);
+    const drained = await drainPromises(pending, undefined, () => {
+      for (const slot of openReads) slot.drop = true;
+    });
+    const unsettled = [
+      ...[...inflight]
+        .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+        .filter((row) => row.path),
+      ...[...openReads]
+        .filter((slot) => slot.path)
+        .map((slot) => ({ path: slot.path, settled: false })),
+    ];
+    return { unsettled, incomplete: drained.timedOut || unsettled.length > 0 };
   };
 }
 
@@ -185,6 +206,8 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
   const warmNet = [];
   const coldUnsettled = [];
   const warmUnsettled = [];
+  const coldIncomplete = [];
+  const warmIncomplete = [];
 
   for (let run = 1; run <= runs; run += 1) {
     const coldBucket = [];
@@ -199,10 +222,11 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     if (coldProbe.backendError) throw new Error(coldProbe.backendError);
     await page.waitForTimeout(1200);
     const coldOpen = await stopCold();
-    await traffic.drain();
+    const coldOpsDrain = await traffic.drain();
     coldRest.push(coldBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     coldBytes.push(coldBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
-    coldUnsettled.push(coldOpen);
+    coldUnsettled.push(coldOpen.unsettled);
+    coldIncomplete.push(coldOpen.incomplete || coldOpsDrain.timedOut);
     coldCache.push(coldProbe.cache);
     coldOps.push(traffic.opsEvents.slice(opsBefore));
     coldNet.push(traffic.networkErrors.slice(netBefore));
@@ -222,10 +246,11 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     if (warmAfter.backendError) throw new Error(warmAfter.backendError);
     await page.waitForTimeout(800);
     const warmOpen = await stopWarm();
-    await traffic.drain();
+    const warmOpsDrain = await traffic.drain();
     warmRest.push(warmBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     warmBytes.push(warmBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
-    warmUnsettled.push(warmOpen);
+    warmUnsettled.push(warmOpen.unsettled);
+    warmIncomplete.push(warmOpen.incomplete || warmOpsDrain.timedOut);
     warmCache.push(cacheDelta(warmBefore.cache, warmAfter.cache));
     warmOps.push(traffic.opsEvents.slice(warmOpsBefore));
     warmNet.push(traffic.networkErrors.slice(warmNetBefore));
@@ -236,7 +261,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
 
   return {
     cold, warm, coldRest, warmRest, coldBytes, warmBytes, coldCache, warmCache, coldOps, warmOps, coldNet, warmNet,
-    coldUnsettled, warmUnsettled,
+    coldUnsettled, warmUnsettled, coldIncomplete, warmIncomplete,
   };
 }
 
@@ -253,10 +278,12 @@ function storyRecord(runStartedAt, sha, fields) {
 }
 
 function routeFile(id, phase, runStartedAt, sha, route, usefulMs, extra) {
-  const marked = mark(`${route} ${phase}`, usefulMs, LIMIT_MS[`${id}-${phase}`]);
+  const captureIncomplete = (extra.captureIncomplete || []).some(Boolean);
+  const marked = mark(`${route} ${phase}`, usefulMs, LIMIT_MS[`${id}-${phase}`], usefulMs.length, captureIncomplete);
   writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
     route,
     phase,
+    captureIncomplete,
     coldMeans: "cache em memória da aba frio; o contexto do navegador e a sessão podem ser reutilizados",
     usefulMs: marked.stats,
     limitMs: marked.limitMs,
@@ -370,16 +397,16 @@ requireSamples(portal.warm, runs, "portal warm");
 requireSamples(catalog.cold, runs, "catálogo cold");
 requireSamples(catalog.warm, runs, "catálogo warm");
 routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, {
-  restCalls: portal.coldRest, bytes: portal.coldBytes, networkErrors: portal.coldNet, unsettled: portal.coldUnsettled, cache: portal.coldCache, opsEvents: portal.coldOps,
+  restCalls: portal.coldRest, bytes: portal.coldBytes, networkErrors: portal.coldNet, unsettled: portal.coldUnsettled, captureIncomplete: portal.coldIncomplete, cache: portal.coldCache, opsEvents: portal.coldOps,
 });
 routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, {
-  restCalls: portal.warmRest, bytes: portal.warmBytes, networkErrors: portal.warmNet, unsettled: portal.warmUnsettled, cache: portal.warmCache, opsEvents: portal.warmOps,
+  restCalls: portal.warmRest, bytes: portal.warmBytes, networkErrors: portal.warmNet, unsettled: portal.warmUnsettled, captureIncomplete: portal.warmIncomplete, cache: portal.warmCache, opsEvents: portal.warmOps,
 });
 routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, {
-  restCalls: catalog.coldRest, bytes: catalog.coldBytes, networkErrors: catalog.coldNet, unsettled: catalog.coldUnsettled, cache: catalog.coldCache, opsEvents: catalog.coldOps,
+  restCalls: catalog.coldRest, bytes: catalog.coldBytes, networkErrors: catalog.coldNet, unsettled: catalog.coldUnsettled, captureIncomplete: catalog.coldIncomplete, cache: catalog.coldCache, opsEvents: catalog.coldOps,
 });
 routeFile("catalog", "warm", runStartedAt, sha, "/vagas", catalog.warm, {
-  restCalls: catalog.warmRest, bytes: catalog.warmBytes, networkErrors: catalog.warmNet, unsettled: catalog.warmUnsettled, cache: catalog.warmCache, opsEvents: catalog.warmOps,
+  restCalls: catalog.warmRest, bytes: catalog.warmBytes, networkErrors: catalog.warmNet, unsettled: catalog.warmUnsettled, captureIncomplete: catalog.warmIncomplete, cache: catalog.warmCache, opsEvents: catalog.warmOps,
 });
 
 const childEnv = {
@@ -437,7 +464,13 @@ for (const route of Object.keys(staffIds)) {
       hasReviews: Boolean(call.hasReviews),
       hasModeration: Boolean(call.hasModeration),
     }));
-    const marked = mark(`${route} ${phase}`, entry[`${phase}Ms`], LIMIT_MS[`${id}-${phase}`]);
+    const marked = mark(
+      `${route} ${phase}`,
+      entry[`${phase}Ms`],
+      LIMIT_MS[`${id}-${phase}`],
+      entry[`${phase}Ms`].length,
+      Boolean(entry[`${phase}CaptureIncomplete`]),
+    );
     writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
       route,
       phase,
@@ -449,6 +482,7 @@ for (const route of Object.keys(staffIds)) {
       httpErrors: calls.filter((call) => call.status >= 400),
       networkErrors: entry[`${phase}NetworkErrors`] || [],
       unsettled: entry[`${phase}Unsettled`] || [],
+      captureIncomplete: Boolean(entry[`${phase}CaptureIncomplete`]),
       cache: entry[`${phase}Cache`] || [],
       opsEvents: entry[`${phase}Ops`] || [],
       note: "Relógio até o heading. Os 800 ms seguintes só esperam a rede.",
@@ -467,12 +501,13 @@ requireSamples(detail.cold?.shellMs, runs, "detalhe cold shell");
 requireSamples(detail.cold?.fullSamples, runs, "detalhe cold full");
 requireSamples(detail.warm?.usefulMs, runs, "detalhe warm útil");
 requireSamples(detail.warm?.fullSamples, runs, "detalhe warm full");
-const coldShell = mark("/jobs/:id cold shell", detail.cold.shellMs, 500);
+const coldShell = mark("/jobs/:id cold shell", detail.cold.shellMs, 500, detail.cold.shellMs.length, Boolean(detail.cold.captureIncomplete));
 const coldFull = mark(
   "/jobs/:id cold full",
   validDetailLatencies(detail.cold.fullSamples),
   1500,
   detail.cold.fullSamples.length,
+  Boolean(detail.cold.captureIncomplete),
 );
 writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
@@ -485,6 +520,7 @@ writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   fullSamples: detail.cold.fullSamples,
   fullLimitMs: coldFull.limitMs,
   fullStatus: coldFull.status,
+  captureIncomplete: Boolean(detail.cold.captureIncomplete),
   restCalls: detail.cold.rest,
   httpErrors: detail.cold.httpErrors,
   networkErrors: detail.cold.networkErrors,
@@ -492,12 +528,13 @@ writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   cache: detail.cold.cache,
   opsEvents: detail.cold.opsEvents,
 }));
-const warmUseful = mark("/jobs/:id warm h1", detail.warm.usefulMs, 250);
+const warmUseful = mark("/jobs/:id warm h1", detail.warm.usefulMs, 250, detail.warm.usefulMs.length, Boolean(detail.warm.captureIncomplete));
 const warmFull = mark(
   "/jobs/:id warm full",
   validDetailLatencies(detail.warm.fullSamples),
   1200,
   detail.warm.fullSamples.length,
+  Boolean(detail.warm.captureIncomplete),
 );
 writeJson("jobs-detail-warm.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
@@ -509,6 +546,7 @@ writeJson("jobs-detail-warm.json", storyRecord(runStartedAt, sha, {
   fullSamples: detail.warm.fullSamples,
   fullLimitMs: warmFull.limitMs,
   fullStatus: warmFull.status,
+  captureIncomplete: Boolean(detail.warm.captureIncomplete),
   restCalls: detail.warm.rest,
   httpErrors: detail.warm.httpErrors,
   networkErrors: detail.warm.networkErrors,
@@ -524,8 +562,8 @@ if (applicationsOptional) {
   requireThisRun(apps, "Candidaturas");
   requireSamples(apps.t1?.ms, runs, "candidaturas cold");
   requireSamples(apps.t2?.ms, runs, "candidaturas warm");
-  const appsCold = mark("/minhas-candidaturas cold", apps.t1.ms, 400);
-  const appsWarm = mark("/minhas-candidaturas warm", apps.t2.ms, 200);
+  const appsCold = mark("/minhas-candidaturas cold", apps.t1.ms, 400, apps.t1.ms.length, Boolean(apps.t1.captureIncomplete));
+  const appsWarm = mark("/minhas-candidaturas warm", apps.t2.ms, 200, apps.t2.ms.length, Boolean(apps.t2.captureIncomplete));
   writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
     route: "/minhas-candidaturas",
     phase: "cold",
@@ -533,6 +571,7 @@ if (applicationsOptional) {
     usefulMs: appsCold.stats,
     limitMs: appsCold.limitMs,
     status: appsCold.status,
+    captureIncomplete: Boolean(apps.t1.captureIncomplete),
     restCalls: apps.t1.rest,
     httpErrors: httpErrorsOf(apps.t1.rest || []),
     networkErrors: apps.t1.networkErrors || [],
@@ -546,6 +585,7 @@ if (applicationsOptional) {
     usefulMs: appsWarm.stats,
     limitMs: appsWarm.limitMs,
     status: appsWarm.status,
+    captureIncomplete: Boolean(apps.t2.captureIncomplete),
     restCalls: apps.t2.rest,
     httpErrors: httpErrorsOf(apps.t2.rest || []),
     networkErrors: apps.t2.networkErrors || [],
