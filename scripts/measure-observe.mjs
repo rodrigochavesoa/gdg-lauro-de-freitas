@@ -170,6 +170,13 @@ export function bodySlotForRequest(store, request, path) {
   return { drop: false, path: path || "", sample };
 }
 
+/** A chamada registrada segue a amostra do request, não a amostra vigente na resposta. */
+export function recordSampleCall(calls, slot, sample, call) {
+  if (!sample || !slot || slot.drop || slot.sample !== sample) return false;
+  calls.push(call);
+  return true;
+}
+
 /** Só a amostra que abriu a leitura. Pendência já descartada fica de fora. */
 export function sampleReads(tasks, sample) {
   if (!sample) return [];

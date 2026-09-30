@@ -13,7 +13,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { bodySlotForRequest, cacheDelta, createReadSample, drainPromises, drainSample, expiredReadRows, opsEventFromConsole, probeBackendError, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { bodySlotForRequest, cacheDelta, createReadSample, drainPromises, drainSample, expiredReadRows, opsEventFromConsole, probeBackendError, recordSampleCall, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -263,6 +263,24 @@ describe("destinos da medição local", () => {
 
     rejectHang(new Error("encerrado no teste"));
     await hang.catch(() => {});
+  });
+
+  it("resposta de request antigo não entra nas calls da amostra seguinte", () => {
+    const store = new Map();
+    const calls = [];
+    const previous = createReadSample();
+    const current = createReadSample();
+    const early = { id: "antes" };
+    rememberRequestSample(store, early, previous);
+    const late = bodySlotForRequest(store, early, "profiles");
+    expect(recordSampleCall(calls, late, current, { path: late.path, status: 200 })).toBe(false);
+    expect(calls).toEqual([]);
+
+    const now = { id: "agora" };
+    rememberRequestSample(store, now, current);
+    const owned = bodySlotForRequest(store, now, "rpc/get_admin_dashboard_summary");
+    expect(recordSampleCall(calls, owned, current, { path: owned.path, status: 200 })).toBe(true);
+    expect(calls).toEqual([{ path: "rpc/get_admin_dashboard_summary", status: 200 }]);
   });
 
   it("descarta identificador pessoal e encerra o flush no prazo", async () => {

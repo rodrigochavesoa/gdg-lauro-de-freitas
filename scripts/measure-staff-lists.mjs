@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, bodySlotForRequest, cacheDelta, drainSample, livePageError, openRequestRow, readLiveProbe, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, bodySlotForRequest, cacheDelta, drainSample, livePageError, openRequestRow, readLiveProbe, recordSampleCall, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -134,9 +134,8 @@ page.on("response", (response) => {
         bytes = null;
       }
     }
-    if (slot.drop) return;
     const began = startedAt.get(request) ?? Date.now();
-    calls.push({
+    recordSampleCall(calls, slot, readSample, {
       at: new Date().toISOString(),
       method: request.method(),
       status: response.status(),
