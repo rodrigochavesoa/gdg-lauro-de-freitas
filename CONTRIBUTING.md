@@ -12,7 +12,8 @@ Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) f
 2. **Default ao criar documentação** — rascunho e operação do squad vão para **`docs-local/`** (nunca commitados). Só depois o PO/mantenedor decide se algo vira template genérico em `docs-local.example/` ou texto público em `README` / `SETUP` / `CONTRIBUTING`.
 3. **`docs-local.example/`** — apenas **modelos** (`.example.json`, stubs, checklists genéricos). **Proibido** sprint vivo, handoff, backlog, credenciais, IDs ClickUp reais ou histórico de entregas do squad.
 4. **Git público** — código, testes, onboarding mínimo e ferramentas **genéricas** (ex.: `scripts/*clickup*.mjs` leem config de `docs-local/clickup/`; módulo `clickup-task-metadata.mjs` sem dados do squad). Dados e configs operacionais ficam locais.
-5. **Antes de abrir PR** — revisar o diff: nada operacional/squad-specific versionado por engano.
+5. **Exceção — allowlist fixa de QA.** Uma ferramenta de medição pode versionar um valor fixo quando ele é trava fail-closed: o script recusa qualquer destino que não seja exatamente esse valor, para não enviar credencial de teste a outro projeto. Não é segredo, não é config de squad e não pode ser lido de ambiente como destino livre. O caso vigente é o hostname de homolog em `scripts/measure-target.mjs`. Credenciais, URLs de sessão e o restante da operação continuam em `docs-local/`.
+6. **Antes de abrir PR** — revisar o diff: nada operacional/squad-specific versionado por engano, salvo a exceção do item 5.
 
 Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
 

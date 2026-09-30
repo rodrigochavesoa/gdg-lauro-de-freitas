@@ -6,7 +6,7 @@ Método e tetos provisórios de latência da SPA no **homolog**. Não é SLO de 
 
 `ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console e não ganha fluxo novo. A medição lê esses eventos e guarda `event_name`, rota, ação, outcome, `error_class` e `correlation_id` só quando o valor está na lista fechada do coletor. Formato parecido com um identificador técnico não basta: nome ou token fora da lista é descartado. Não cria outro id. Hit/miss vem dos contadores de `peek` no probe `__gdgMeasure`, instalado só em `pnpm dev`. Ausência de `rest/v1` não conta como hit. A política de TTL está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
 
-O hostname de homolog está fixo em `scripts/measure-target.mjs` como allowlist fail-closed. É exceção explícita à fronteira de `docs-local/`: não é segredo e não pode virar destino livre, senão um Vite local enviaria senha ou sessão de teste a outro projeto. O restante da configuração de squad continua local.
+O hostname de homolog está fixo em `scripts/measure-target.mjs` como allowlist fail-closed. A exceção está em `CONTRIBUTING.md` § *Regra de ouro*, item 5: trava de QA, não config de squad e não destino livre. Sem ela, um Vite local enviaria senha ou sessão de teste a outro projeto. O restante da configuração de squad continua local.
 
 A evidência de uma rodada (SHA, horários, latências, payloads, status HTTP, falhas sem resposta, cache e correlation ids) fica em `docs-local/`. Este arquivo guarda o método e os critérios.
 

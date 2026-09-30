@@ -1,11 +1,11 @@
 /**
  * Destinos aceitos pelos scripts de medição local. Não entra no CI.
  *
- * Exceção de fronteira, de propósito: o hostname de homolog fica neste
- * módulo como allowlist fail-closed. Não é segredo. Sem ele, um Vite local
- * com VITE_SUPABASE_URL trocado enviaria senha ou sessão de teste a outro
- * projeto. Configuração de squad continua em docs-local/. Não substituir
- * por um destino livre.
+ * Exceção formal em CONTRIBUTING.md § Regra de ouro, item 5: allowlist
+ * fixa de QA. O hostname de homolog fica neste módulo como trava
+ * fail-closed. Não é segredo. Sem ele, um Vite local com VITE_SUPABASE_URL
+ * trocado enviaria senha ou sessão de teste a outro projeto. Não substituir
+ * por um destino livre. Configuração de squad continua em docs-local/.
  */
 
 export const HOMOLOG_HOSTNAME = "pcdfxnfhgdmzmcmlhxuv.supabase.co";

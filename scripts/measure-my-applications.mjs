@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
@@ -176,24 +176,18 @@ const log = (message) => {
 };
 
 page.on("request", (request) => {
-  const url = request.url();
-  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = restPathFromUrl(request.url());
+  if (!path) return;
   inflight.add(request);
-  const path = url.includes("/rest/v1/")
-    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
   restLog.push({ at: Date.now(), path, status: null });
 });
 page.on("requestfailed", (request) => {
   inflight.delete(request);
 });
 page.on("response", (response) => {
-  const url = response.url();
-  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = restPathFromUrl(response.url());
+  if (!path) return;
   inflight.delete(response.request());
-  const path = url.includes("/rest/v1/")
-    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (entry) entry.status = response.status();
 });
@@ -238,13 +232,9 @@ async function navigationSlice(start) {
     process.exit(1);
   }
   const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
-  const unsettled = [...inflight].map((request) => {
-    const url = request.url();
-    const path = url.includes("/rest/v1/")
-      ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-      : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
-    return { path, settled: false };
-  }).filter((row) => row.path);
+  const unsettled = [...inflight]
+    .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+    .filter((row) => row.path);
   return {
     rest,
     unsettled,

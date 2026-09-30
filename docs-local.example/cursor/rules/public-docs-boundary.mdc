@@ -13,6 +13,7 @@ Antes de **criar ou mover qualquer arquivo**, o agente **deve** inspecionar o qu
 2. **`docs-local.example/`** → só **modelos genéricos** (`*.example.json`, stubs, checklists sem dados do squad).
 3. **Git público** → produto + onboarding mínimo: `README.md`, `SETUP.md`, `CONTRIBUTING.md`, `LICENSE`, código, testes, fixtures sintéticas, `.github/`.
 4. **Scripts genéricos** (`scripts/*clickup*.mjs`, `check-rls.mjs`, …) **podem** ficar versionados — são ferramentas sem dados do squad; leem `docs-local/clickup/` e `clickup.env`. **Não** mover para `docs-local/` por padrão.
+5. **Exceção — allowlist fixa de QA.** Uma ferramenta de medição pode versionar um valor fixo quando ele é trava fail-closed e recusa qualquer outro destino. Não é segredo nem config de squad, e não pode virar destino livre. O caso vigente é o hostname de homolog em `scripts/measure-target.mjs`. O restante da operação continua em `docs-local/`. Ver `CONTRIBUTING.md` § *Regra de ouro*.
 
 ## ClickUp — metadados obrigatórios
 
@@ -43,7 +44,7 @@ Só então commit no Git público
 ## Checklist rápido (antes do PR)
 
 - [ ] Nenhum segredo, token ou dado de squad no diff versionado
-- [ ] Configs operacionais só em `docs-local/`
+- [ ] Configs operacionais só em `docs-local/`, salvo allowlist fixa de QA (item 5)
 - [ ] `docs-local.example/` sem Sprint NN, CU-xxx reais ou backlog vivo
 - [ ] Scripts versionados = ferramenta genérica; dados = config local
 

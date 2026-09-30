@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, restPathFromUrl, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, detailContentSample, validDetailLatencies } from "./measure-target.mjs";
 
 function median(values) {
@@ -79,34 +79,26 @@ function classifyJobsSelect(url) {
 
 page.on("request", (request) => {
   const url = request.url();
-  if (url.includes("/rest/v1/") || url.includes("/auth/v1/")) {
-    const path = url.includes("/rest/v1/")
-      ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-      : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
-    restLog.push({
-      at: Date.now(),
-      path,
-      kind: classifyJobsSelect(url),
-      url,
-    });
-  }
+  const path = restPathFromUrl(url);
+  if (!path) return;
+  restLog.push({
+    at: Date.now(),
+    path,
+    kind: classifyJobsSelect(url),
+    url,
+  });
 });
 page.on("requestfailed", (request) => {
-  const url = request.url();
-  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
-  const path = url.includes("/rest/v1/")
-    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  const path = restPathFromUrl(request.url());
+  if (!path) return;
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null && !row.failed);
   if (entry) entry.failed = true;
 });
 
 page.on("response", (response) => {
   const url = response.url();
-  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
-  const path = url.includes("/rest/v1/")
-    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
-    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  const path = restPathFromUrl(url);
+  if (!path) return;
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (!entry) return;
   const slot = { drop: false };

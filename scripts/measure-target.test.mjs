@@ -12,7 +12,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, drainPromises, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
+import { cacheDelta, drainPromises, opsEventFromConsole, probeBackendError, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -109,6 +109,9 @@ describe("destinos da medição local", () => {
     expect(probeBackendError({ supabaseUrl: "https://other-project.supabase.co" })).not.toBe("");
     expect(supabaseHostError("https://other-project.supabase.co/rest/v1/jobs")).not.toBe("");
     expect(supabaseHostError("https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs")).toBe("");
+    expect(restPathFromUrl("https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs?select=id")).toBe("jobs");
+    expect(restPathFromUrl("https://pcdfxnfhgdmzmcmlhxuv.supabase.co/auth/v1/token?grant_type=password")).toBe("token");
+    expect(restPathFromUrl("https://example.com/outras")).toBe("");
     expect(safeFailureText("net::ERR_CONNECTION_REFUSED at https://secret.example/?token=abc")).toBe("net::ERR_CONNECTION_REFUSED");
   });
 
