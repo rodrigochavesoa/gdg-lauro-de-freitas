@@ -7,14 +7,15 @@
  *   pnpm qa:ops-perf-slo
  *   pnpm qa:ops-perf-slo -- --check
  *
- * Falha se faltar VITE_SUPABASE_URL, o dev server em BASE_URL, sessão staff ou candidato.
+ * Falha se faltar VITE_SUPABASE_URL, o dev server em BASE_URL ou sessão staff.
+ * /minhas-candidaturas é opcional: só roda quando há candidato de teste.
  * Não imprime senha, e-mail nem URL com chave.
  */
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, classifyLatency, validDetailLatencies } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
@@ -31,18 +32,18 @@ function assertPrereqs(env) {
     console.error("Falta sessão staff: ADMIN_EMAIL/ADMIN_PASSWORD ou docs-local/admin-test-user.md.");
     process.exit(1);
   }
-  const candidateFile = resolve(process.cwd(), "docs-local/candidate-test-user.md");
-  const hasCandidate = (env.CANDIDATE_TEST_EMAIL || env.CANDIDATE_EMAIL)
-    && (env.CANDIDATE_TEST_PASSWORD || env.CANDIDATE_PASSWORD)
-    || fileHas(candidateFile, /E-mail:\s*\S+/i) && fileHas(candidateFile, /Senha:\s*\S+/i);
-  if (!hasCandidate) {
-    console.error("Falta candidato: CANDIDATE_TEST_EMAIL/CANDIDATE_TEST_PASSWORD ou docs-local/candidate-test-user.md.");
-    process.exit(1);
-  }
   if (!env.VITE_SUPABASE_PUBLISHABLE_KEY && !env.VITE_SUPABASE_ANON_KEY) {
     console.error("Falta a chave publishable/anon em .env.local.");
     process.exit(1);
   }
+}
+
+function hasCandidate(env) {
+  const candidateFile = resolve(process.cwd(), "docs-local/candidate-test-user.md");
+  const fromEnv = (env.CANDIDATE_TEST_EMAIL || env.CANDIDATE_EMAIL)
+    && (env.CANDIDATE_TEST_PASSWORD || env.CANDIDATE_PASSWORD);
+  const fromFile = fileHas(candidateFile, /E-mail:\s*\S+/i) && fileHas(candidateFile, /Senha:\s*\S+/i);
+  return Boolean(fromEnv || fromFile);
 }
 
 function nearestRank(values, percentile) {
@@ -127,7 +128,7 @@ async function captureRestCall(response) {
     try {
       bytes = (await response.body()).byteLength;
     } catch {
-      bytes = 0;
+      bytes = null;
     }
   }
   return { path, bytes, status: response.status() };
@@ -135,16 +136,33 @@ async function captureRestCall(response) {
 
 function attachRest(page, bucket) {
   const pending = new Set();
+  const inflight = new Set();
+  const onRequest = (request) => {
+    if (restPathFromUrl(request.url())) inflight.add(request);
+  };
   const onResponse = (response) => {
-    const task = captureRestCall(response).then((row) => {
+    inflight.delete(response.request());
+    let task;
+    task = captureRestCall(response).then((row) => {
       if (row) bucket.push(row);
     }).finally(() => pending.delete(task));
     pending.add(task);
   };
+  const onFailed = (request) => {
+    inflight.delete(request);
+  };
+  page.on("request", onRequest);
   page.on("response", onResponse);
+  page.on("requestfailed", onFailed);
   return async () => {
+    await waitForQuiet(() => inflight.size > 0);
+    page.removeListener("request", onRequest);
     page.removeListener("response", onResponse);
-    await Promise.all([...pending]);
+    page.removeListener("requestfailed", onFailed);
+    await drainPromises(pending);
+    return [...inflight]
+      .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+      .filter((row) => row.path);
   };
 }
 
@@ -165,6 +183,8 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
   const warmOps = [];
   const coldNet = [];
   const warmNet = [];
+  const coldUnsettled = [];
+  const warmUnsettled = [];
 
   for (let run = 1; run <= runs; run += 1) {
     const coldBucket = [];
@@ -178,9 +198,11 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const coldProbe = await readLiveProbe(page);
     if (coldProbe.backendError) throw new Error(coldProbe.backendError);
     await page.waitForTimeout(1200);
-    await stopCold();
+    const coldOpen = await stopCold();
+    await traffic.drain();
     coldRest.push(coldBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
-    coldBytes.push(coldBucket.reduce((sum, row) => sum + row.bytes, 0));
+    coldBytes.push(coldBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
+    coldUnsettled.push(coldOpen);
     coldCache.push(coldProbe.cache);
     coldOps.push(traffic.opsEvents.slice(opsBefore));
     coldNet.push(traffic.networkErrors.slice(netBefore));
@@ -199,9 +221,11 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const warmAfter = await readLiveProbe(page);
     if (warmAfter.backendError) throw new Error(warmAfter.backendError);
     await page.waitForTimeout(800);
-    await stopWarm();
+    const warmOpen = await stopWarm();
+    await traffic.drain();
     warmRest.push(warmBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
-    warmBytes.push(warmBucket.reduce((sum, row) => sum + row.bytes, 0));
+    warmBytes.push(warmBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
+    warmUnsettled.push(warmOpen);
     warmCache.push(cacheDelta(warmBefore.cache, warmAfter.cache));
     warmOps.push(traffic.opsEvents.slice(warmOpsBefore));
     warmNet.push(traffic.networkErrors.slice(warmNetBefore));
@@ -212,6 +236,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
 
   return {
     cold, warm, coldRest, warmRest, coldBytes, warmBytes, coldCache, warmCache, coldOps, warmOps, coldNet, warmNet,
+    coldUnsettled, warmUnsettled,
   };
 }
 
@@ -239,6 +264,7 @@ function routeFile(id, phase, runStartedAt, sha, route, usefulMs, extra) {
     restCalls: extra.restCalls,
     httpErrors: httpErrorsOf(extra.restCalls),
     networkErrors: extra.networkErrors,
+    unsettled: extra.unsettled || [],
     cache: extra.cache,
     opsEvents: extra.opsEvents,
     payloadBytes: summary(extra.bytes),
@@ -279,9 +305,13 @@ try {
   process.exit(1);
 }
 
+const applicationsOptional = hasCandidate(env);
 console.log(`OPS-PERF-SLO-01 check ok. BASE_URL alcançável. homolog. runs=${runs}. Sem credenciais neste log.`);
+console.log(applicationsOptional
+  ? "Candidaturas: candidato presente; a rota opcional entra nesta rodada."
+  : "Candidaturas: omitidas. A rota é opcional e não há candidato de teste.");
 if (checkOnly) {
-  console.log("Checklist: pnpm qa:staff-lists · pnpm qa:job-detail · pnpm qa:my-applications · portal e /vagas neste script.");
+  console.log("Checklist: pnpm qa:staff-lists · pnpm qa:job-detail · portal e /vagas neste script. qa:my-applications só com candidato.");
   process.exit(0);
 }
 
@@ -300,6 +330,7 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
 const foreignError = attachObservers(page, traffic);
+traffic.drain = foreignError.drain;
 await page.goto(`${baseUrl}/`, { waitUntil: "domcontentloaded" });
 const pageError = await livePageError(page, baseUrl);
 if (pageError || foreignError()) {
@@ -339,16 +370,16 @@ requireSamples(portal.warm, runs, "portal warm");
 requireSamples(catalog.cold, runs, "catálogo cold");
 requireSamples(catalog.warm, runs, "catálogo warm");
 routeFile("portal", "cold", runStartedAt, sha, "/", portal.cold, {
-  restCalls: portal.coldRest, bytes: portal.coldBytes, networkErrors: portal.coldNet, cache: portal.coldCache, opsEvents: portal.coldOps,
+  restCalls: portal.coldRest, bytes: portal.coldBytes, networkErrors: portal.coldNet, unsettled: portal.coldUnsettled, cache: portal.coldCache, opsEvents: portal.coldOps,
 });
 routeFile("portal", "warm", runStartedAt, sha, "/", portal.warm, {
-  restCalls: portal.warmRest, bytes: portal.warmBytes, networkErrors: portal.warmNet, cache: portal.warmCache, opsEvents: portal.warmOps,
+  restCalls: portal.warmRest, bytes: portal.warmBytes, networkErrors: portal.warmNet, unsettled: portal.warmUnsettled, cache: portal.warmCache, opsEvents: portal.warmOps,
 });
 routeFile("catalog", "cold", runStartedAt, sha, "/vagas", catalog.cold, {
-  restCalls: catalog.coldRest, bytes: catalog.coldBytes, networkErrors: catalog.coldNet, cache: catalog.coldCache, opsEvents: catalog.coldOps,
+  restCalls: catalog.coldRest, bytes: catalog.coldBytes, networkErrors: catalog.coldNet, unsettled: catalog.coldUnsettled, cache: catalog.coldCache, opsEvents: catalog.coldOps,
 });
 routeFile("catalog", "warm", runStartedAt, sha, "/vagas", catalog.warm, {
-  restCalls: catalog.warmRest, bytes: catalog.warmBytes, networkErrors: catalog.warmNet, cache: catalog.warmCache, opsEvents: catalog.warmOps,
+  restCalls: catalog.warmRest, bytes: catalog.warmBytes, networkErrors: catalog.warmNet, unsettled: catalog.warmUnsettled, cache: catalog.warmCache, opsEvents: catalog.warmOps,
 });
 
 const childEnv = {
@@ -361,8 +392,12 @@ console.log("\n=== qa:staff-lists ===");
 await runNode("scripts/measure-staff-lists.mjs", childEnv);
 console.log("\n=== qa:job-detail ===");
 await runNode("scripts/measure-job-detail.mjs", childEnv);
-console.log("\n=== qa:my-applications ===");
-await runNode("scripts/measure-my-applications.mjs", childEnv);
+if (applicationsOptional) {
+  console.log("\n=== qa:my-applications ===");
+  await runNode("scripts/measure-my-applications.mjs", childEnv);
+} else {
+  console.log("\n=== qa:my-applications omitido ===");
+}
 
 function requireThisRun(record, label) {
   if (record?.runId !== runStartedAt) {
@@ -413,6 +448,7 @@ for (const route of Object.keys(staffIds)) {
       calls,
       httpErrors: calls.filter((call) => call.status >= 400),
       networkErrors: entry[`${phase}NetworkErrors`] || [],
+      unsettled: entry[`${phase}Unsettled`] || [],
       cache: entry[`${phase}Cache`] || [],
       opsEvents: entry[`${phase}Ops`] || [],
       note: "Relógio até o heading. Os 800 ms seguintes só esperam a rede.",
@@ -452,6 +488,7 @@ writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   restCalls: detail.cold.rest,
   httpErrors: detail.cold.httpErrors,
   networkErrors: detail.cold.networkErrors,
+  unsettled: detail.cold.unsettled || [],
   cache: detail.cold.cache,
   opsEvents: detail.cold.opsEvents,
 }));
@@ -475,43 +512,54 @@ writeJson("jobs-detail-warm.json", storyRecord(runStartedAt, sha, {
   restCalls: detail.warm.rest,
   httpErrors: detail.warm.httpErrors,
   networkErrors: detail.warm.networkErrors,
+  unsettled: detail.warm.unsettled || [],
   cache: detail.warm.cache,
   opsEvents: detail.warm.opsEvents,
   note: "Clique no card em /vagas, com o catálogo já na memória da aba.",
 }));
 
-const appsPath = resolve(process.cwd(), "docs-local/assets/ux-perf-06/metrics-after.json");
-const apps = JSON.parse(readFileSync(appsPath, "utf8"));
-requireThisRun(apps, "Candidaturas");
-requireSamples(apps.t1?.ms, runs, "candidaturas cold");
-requireSamples(apps.t2?.ms, runs, "candidaturas warm");
-const appsCold = mark("/minhas-candidaturas cold", apps.t1.ms, 400);
-const appsWarm = mark("/minhas-candidaturas warm", apps.t2.ms, 200);
-writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
-  route: "/minhas-candidaturas",
-  phase: "cold",
-  coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
-  usefulMs: appsCold.stats,
-  limitMs: appsCold.limitMs,
-  status: appsCold.status,
-  restCalls: apps.t1.rest,
-  httpErrors: httpErrorsOf(apps.t1.rest || []),
-  networkErrors: apps.t1.networkErrors || [],
-  cache: apps.t1.cache || [],
-  opsEvents: apps.t1.opsEvents || [],
-}));
-writeJson("minhas-candidaturas-warm.json", storyRecord(runStartedAt, sha, {
-  route: "/minhas-candidaturas",
-  phase: "warm",
-  usefulMs: appsWarm.stats,
-  limitMs: appsWarm.limitMs,
-  status: appsWarm.status,
-  restCalls: apps.t2.rest,
-  httpErrors: httpErrorsOf(apps.t2.rest || []),
-  networkErrors: apps.t2.networkErrors || [],
-  cache: apps.t2.cache || [],
-  opsEvents: apps.t2.opsEvents || [],
-}));
+if (applicationsOptional) {
+  const appsPath = resolve(process.cwd(), "docs-local/assets/ux-perf-06/metrics-after.json");
+  const apps = JSON.parse(readFileSync(appsPath, "utf8"));
+  requireThisRun(apps, "Candidaturas");
+  requireSamples(apps.t1?.ms, runs, "candidaturas cold");
+  requireSamples(apps.t2?.ms, runs, "candidaturas warm");
+  const appsCold = mark("/minhas-candidaturas cold", apps.t1.ms, 400);
+  const appsWarm = mark("/minhas-candidaturas warm", apps.t2.ms, 200);
+  writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
+    route: "/minhas-candidaturas",
+    phase: "cold",
+    coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
+    usefulMs: appsCold.stats,
+    limitMs: appsCold.limitMs,
+    status: appsCold.status,
+    restCalls: apps.t1.rest,
+    httpErrors: httpErrorsOf(apps.t1.rest || []),
+    networkErrors: apps.t1.networkErrors || [],
+    unsettled: apps.t1.unsettled || [],
+    cache: apps.t1.cache || [],
+    opsEvents: apps.t1.opsEvents || [],
+  }));
+  writeJson("minhas-candidaturas-warm.json", storyRecord(runStartedAt, sha, {
+    route: "/minhas-candidaturas",
+    phase: "warm",
+    usefulMs: appsWarm.stats,
+    limitMs: appsWarm.limitMs,
+    status: appsWarm.status,
+    restCalls: apps.t2.rest,
+    httpErrors: httpErrorsOf(apps.t2.rest || []),
+    networkErrors: apps.t2.networkErrors || [],
+    unsettled: apps.t2.unsettled || [],
+    cache: apps.t2.cache || [],
+    opsEvents: apps.t2.opsEvents || [],
+  }));
+} else {
+  writeJson("minhas-candidaturas.json", storyRecord(runStartedAt, sha, {
+    route: "/minhas-candidaturas",
+    skipped: true,
+    reason: "rota opcional, fora da matriz obrigatória, sem candidato de teste",
+  }));
+}
 
 writeJson("run.json", storyRecord(runStartedAt, sha, {
   runFinishedAt: new Date().toISOString(),

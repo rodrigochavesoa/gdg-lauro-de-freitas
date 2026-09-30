@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, detailContentSample, validDetailLatencies } from "./measure-target.mjs";
 
 function median(values) {
@@ -58,6 +58,7 @@ const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
 const foreignError = attachObservers(page, traffic);
 
 const restLog = [];
+const pendingBodies = new Set();
 
 function classifyJobsSelect(url) {
   if (!url.includes("/rest/v1/jobs")) return null;
@@ -90,6 +91,16 @@ page.on("request", (request) => {
     });
   }
 });
+page.on("requestfailed", (request) => {
+  const url = request.url();
+  if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  const path = url.includes("/rest/v1/")
+    ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+    : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+  const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null && !row.failed);
+  if (entry) entry.failed = true;
+});
+
 page.on("response", (response) => {
   const url = response.url();
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
@@ -98,9 +109,28 @@ page.on("response", (response) => {
     : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (!entry) return;
-  entry.status = response.status();
-  if (entry.ms == null) entry.ms = Date.now() - entry.at;
+  let task;
+  task = (async () => {
+    entry.status = response.status();
+    if (entry.ms == null) entry.ms = Date.now() - entry.at;
+    let bytes = Number(response.headers()["content-length"] || 0);
+    if (!bytes) {
+      try {
+        bytes = (await response.body()).byteLength;
+      } catch {
+        bytes = null;
+      }
+    }
+    entry.bytes = bytes;
+  })().finally(() => pendingBodies.delete(task));
+  pendingBodies.add(task);
 });
+
+async function drainDetailTraffic(sliceStart) {
+  await waitForQuiet(() => restLog.slice(sliceStart).some((row) => row.status == null && !row.failed));
+  await drainPromises(pendingBodies);
+  await foreignError.drain();
+}
 
 function formatRest(slice) {
   return slice
@@ -114,7 +144,13 @@ function formatRest(slice) {
 }
 
 function callRecord(row) {
-  return { path: row.path, kind: row.kind, ms: row.ms ?? null, status: row.status ?? null };
+  return {
+    path: row.path,
+    kind: row.kind,
+    ms: row.ms ?? null,
+    status: row.status ?? null,
+    bytes: row.bytes ?? null,
+  };
 }
 
 function httpErrors(calls) {
@@ -154,6 +190,7 @@ async function measureDirect(jobId, label) {
   const cache = [];
   const opsEvents = [];
   const networkErrors = [];
+  const unsettled = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -182,8 +219,10 @@ async function measureDirect(jobId, label) {
     const fullSample = detailContentSample(Date.now() - started, reached);
     fullSamples.push(fullSample);
 
+    await drainDetailTraffic(before);
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
+    unsettled.push(unsettledRows(restLog.slice(before).filter((row) => !row.failed)));
     const live = await readLiveProbe(page);
     if (live.backendError) {
       console.error(live.backendError);
@@ -199,7 +238,7 @@ async function measureDirect(jobId, label) {
     );
   }
 
-  return { shellTimes, fullSamples, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors };
+  return { shellTimes, fullSamples, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled };
 }
 
 async function measureFromHome(jobId, label) {
@@ -211,6 +250,7 @@ async function measureFromHome(jobId, label) {
   const cache = [];
   const opsEvents = [];
   const networkErrors = [];
+  const unsettled = [];
 
   for (let run = 1; run <= runs; run += 1) {
     await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
@@ -245,8 +285,10 @@ async function measureFromHome(jobId, label) {
     const fullSample = detailContentSample(Date.now() - started, reached);
     fullSamples.push(fullSample);
 
+    await drainDetailTraffic(before);
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
+    unsettled.push(unsettledRows(restLog.slice(before).filter((row) => !row.failed)));
     const live = await readLiveProbe(page);
     if (live.backendError) {
       console.error(live.backendError);
@@ -262,7 +304,7 @@ async function measureFromHome(jobId, label) {
     );
   }
 
-  return { usefulTimes, fullSamples, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors };
+  return { usefulTimes, fullSamples, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors, unsettled };
 }
 
 console.log(`runs=${runs}`);
@@ -336,6 +378,7 @@ writeFileSync(detailPath, `${JSON.stringify({
     rest: anonDirect.rest,
     httpErrors: httpErrors(anonDirect.rest),
     networkErrors: anonDirect.networkErrors,
+    unsettled: anonDirect.unsettled,
     cache: anonDirect.cache,
     opsEvents: anonDirect.opsEvents,
   },
@@ -346,6 +389,7 @@ writeFileSync(detailPath, `${JSON.stringify({
     rest: anonHome.rest,
     httpErrors: httpErrors(anonHome.rest),
     networkErrors: anonHome.networkErrors,
+    unsettled: anonHome.unsettled,
     cache: anonHome.cache,
     opsEvents: anonHome.opsEvents,
   },

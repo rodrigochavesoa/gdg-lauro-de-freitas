@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -98,34 +98,46 @@ const calls = [];
 const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
 const foreignError = attachObservers(page, traffic);
 const startedAt = new Map();
+const inflight = new Set();
+const pendingCalls = new Set();
 
 page.on("request", (request) => {
   const url = request.url();
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  inflight.add(request);
   startedAt.set(request, Date.now());
 });
 
-page.on("response", async (response) => {
+page.on("requestfailed", (request) => {
+  inflight.delete(request);
+});
+
+page.on("response", (response) => {
   const url = response.url();
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
   const request = response.request();
-  let bytes = Number(response.headers()["content-length"] || 0);
-  if (!bytes) {
-    try {
-      bytes = (await response.body()).length;
-    } catch {
-      bytes = 0;
+  inflight.delete(request);
+  let task;
+  task = (async () => {
+    let bytes = Number(response.headers()["content-length"] || 0);
+    if (!bytes) {
+      try {
+        bytes = (await response.body()).byteLength;
+      } catch {
+        bytes = null;
+      }
     }
-  }
-  const began = startedAt.get(request) ?? Date.now();
-  calls.push({
-    at: new Date().toISOString(),
-    method: request.method(),
-    status: response.status(),
-    ms: Date.now() - began,
-    bytes,
-    ...summarizeRequest(url),
-  });
+    const began = startedAt.get(request) ?? Date.now();
+    calls.push({
+      at: new Date().toISOString(),
+      method: request.method(),
+      status: response.status(),
+      ms: Date.now() - began,
+      bytes,
+      ...summarizeRequest(url),
+    });
+  })().finally(() => pendingCalls.delete(task));
+  pendingCalls.add(task);
 });
 
 const routes = [
@@ -210,6 +222,7 @@ async function timeStaffRoute(route, phase) {
   const cacheRuns = [];
   const opsRuns = [];
   const errorRuns = [];
+  const unsettledRuns = [];
   for (let run = 1; run <= runs; run += 1) {
     if (phase === "warm") {
       const away = route.nav === "Painel" ? "Curadoria" : "Painel";
@@ -240,6 +253,9 @@ async function timeStaffRoute(route, phase) {
     samples.push(Date.now() - started);
     await page.getByText(route.settle).first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(800);
+    await waitForQuiet(() => inflight.size > 0);
+    await drainPromises(pendingCalls);
+    await foreignError.drain();
     const cacheAfter = await readLiveProbe(page);
     if (cacheAfter.backendError) {
       console.error(cacheAfter.backendError);
@@ -250,9 +266,12 @@ async function timeStaffRoute(route, phase) {
     cacheRuns.push(phase === "cold" ? cacheAfter.cache : cacheDelta(cacheBefore, cacheAfter.cache));
     opsRuns.push(traffic.opsEvents.slice(beforeOps));
     errorRuns.push(traffic.networkErrors.slice(beforeErrors));
+    unsettledRuns.push([...inflight]
+      .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+      .filter((row) => row.path));
     console.log(`${route.path} ${phase} run ${run}: ${samples.at(-1)}ms`);
   }
-  return { samples, callRuns, cacheRuns, opsRuns, errorRuns };
+  return { samples, callRuns, cacheRuns, opsRuns, errorRuns, unsettledRuns };
 }
 
 const routesOut = [];
@@ -281,6 +300,8 @@ for (const route of routes) {
     warmOps: warm.opsRuns,
     coldNetworkErrors: cold.errorRuns,
     warmNetworkErrors: warm.errorRuns,
+    coldUnsettled: cold.unsettledRuns,
+    warmUnsettled: warm.unsettledRuns,
   });
 }
 

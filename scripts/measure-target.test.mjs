@@ -12,7 +12,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError } from "./measure-observe.mjs";
+import { cacheDelta, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -71,6 +71,33 @@ describe("destinos da medição local", () => {
       correlation_id: "0123456789ab",
     })?.correlation_id).toBe("0123456789ab");
     expect(opsEventFromConsole({ event_name: "ops.search", correlation_id: "user@example.com" })).toBeNull();
+    expect(opsEventFromConsole({
+      event_name: "ops.search",
+      route: "/vagas?email=person@example.com",
+      action: "catalog_search",
+      outcome: "success",
+      error_class: "none",
+      correlation_id: "0123456789ab",
+    })).toBeNull();
+    expect(opsEventFromConsole({
+      event_name: "ops.custom",
+      route: "/vagas",
+      action: "catalog_search",
+      outcome: "success",
+      error_class: "none",
+      correlation_id: "0123456789ab",
+    })).toBeNull();
+    expect(opsEventFromConsole({
+      event_name: "ops.search",
+      route: "/vagas",
+      action: "catalog_search",
+      outcome: "success",
+      error_class: "falha com detalhe livre",
+      correlation_id: "0123456789ab",
+    })).toBeNull();
+    expect(unsettledRows([{ path: "jobs", status: 200 }, { path: "jobs", status: null }])).toEqual([
+      { path: "jobs", settled: false },
+    ]);
     expect(sanitizeCacheStats({ catalog: { hit: 1, miss: 0 }, "user-id": { hit: 1, miss: 0 } })).toEqual({
       catalog: { hit: 1, miss: 0 },
     });

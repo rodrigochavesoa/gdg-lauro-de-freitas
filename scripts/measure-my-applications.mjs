@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, livePageError, readLiveProbe, waitForQuiet } from "./measure-observe.mjs";
 import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
@@ -168,6 +168,7 @@ const primaryNav = () => page.getByRole("navigation", { name: "Principal" });
 const myApplicationsLink = () => primaryNav().getByRole("link", { name: "Minhas candidaturas" });
 const vagasLink = () => primaryNav().getByRole("link", { name: "Vagas", exact: true });
 const restLog = [];
+const inflight = new Set();
 const lines = [];
 const log = (message) => {
   lines.push(message);
@@ -177,14 +178,19 @@ const log = (message) => {
 page.on("request", (request) => {
   const url = request.url();
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  inflight.add(request);
   const path = url.includes("/rest/v1/")
     ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
     : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
   restLog.push({ at: Date.now(), path, status: null });
 });
+page.on("requestfailed", (request) => {
+  inflight.delete(request);
+});
 page.on("response", (response) => {
   const url = response.url();
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
+  inflight.delete(response.request());
   const path = url.includes("/rest/v1/")
     ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
     : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
@@ -204,6 +210,7 @@ const t1Rest = [];
 const t1Cache = [];
 const t1Ops = [];
 const t1Net = [];
+const t1Unsettled = [];
 
 async function navigationMark() {
   const probe = await readLiveProbe(page);
@@ -221,14 +228,24 @@ async function navigationMark() {
 }
 
 async function navigationSlice(start) {
+  await waitForQuiet(() => inflight.size > 0);
+  await foreignError.drain();
   const probe = await readLiveProbe(page);
   if (probe.backendError) {
     console.error(probe.backendError);
     await browser.close();
     process.exit(1);
   }
+  const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
   return {
-    rest: restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status })),
+    rest,
+    unsettled: [...inflight].map((request) => {
+      const url = request.url();
+      const path = url.includes("/rest/v1/")
+        ? url.split("?")[0].replace(/^.*\/rest\/v1\//, "")
+        : url.split("?")[0].replace(/^.*\/auth\/v1\//, "auth/");
+      return { path, settled: false };
+    }).filter((row) => row.path),
     cache: cacheDelta(start.cache, probe.cache),
     ops: traffic.opsEvents.slice(start.ops),
     net: traffic.networkErrors.slice(start.net),
@@ -258,6 +275,7 @@ for (let run = 1; run <= runs; run += 1) {
 
   const slice = await navigationSlice(startedMark);
   t1Rest.push(slice.rest);
+  t1Unsettled.push(slice.unsettled);
   t1Cache.push(slice.cache);
   t1Ops.push(slice.ops);
   t1Net.push(slice.net);
@@ -281,6 +299,7 @@ const t2Rest = [];
 const t2Cache = [];
 const t2Ops = [];
 const t2Net = [];
+const t2Unsettled = [];
 
 for (let run = 1; run <= runs; run += 1) {
   await vagasLink().click();
@@ -302,6 +321,7 @@ for (let run = 1; run <= runs; run += 1) {
 
   const slice = await navigationSlice(startedMark);
   t2Rest.push(slice.rest);
+  t2Unsettled.push(slice.unsettled);
   t2Cache.push(slice.cache);
   t2Ops.push(slice.ops);
   t2Net.push(slice.net);
@@ -346,6 +366,7 @@ const metrics = {
     gateHits: t1GateHits,
     skeletonRuns: t1SkeletonRuns,
     rest: t1Rest,
+    unsettled: t1Unsettled,
     cache: t1Cache,
     opsEvents: t1Ops,
     networkErrors: t1Net,
@@ -359,6 +380,7 @@ const metrics = {
     skeletonRuns: t2SkeletonRuns,
     raf: t2Raf,
     rest: t2Rest,
+    unsettled: t2Unsettled,
     cache: t2Cache,
     opsEvents: t2Ops,
     networkErrors: t2Net,

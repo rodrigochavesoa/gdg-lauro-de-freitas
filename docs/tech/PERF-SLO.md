@@ -4,7 +4,7 @@ Método e tetos provisórios de latência da SPA no **homolog**. Não é SLO de 
 
 **Cold** aqui é cache em memória da aba frio (reload ou primeira ida à rota nessa aba). Os scripts reutilizam o contexto do navegador e, no candidato e no staff, a sessão já autenticada. Não é a primeira visita de um navegador sem cookie nem sem sessão.
 
-`ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console e não ganha fluxo novo. A medição lê esses eventos e guarda `event_name`, rota, ação, outcome, `error_class` e `correlation_id` já emitidos. Não cria outro id. Hit/miss vem dos contadores de `peek` no probe `__gdgMeasure`, instalado só em `pnpm dev`. Ausência de `rest/v1` não conta como hit. A política de TTL está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
+`ops.*` (MVP-014, `src/lib/ops-observability.js`) continua só no console e não ganha fluxo novo. A medição lê esses eventos e guarda `event_name`, rota, ação, outcome, `error_class` e `correlation_id` só quando cada campo cabe na allowlist do contrato. Fora dela o evento é descartado. Não cria outro id. Hit/miss vem dos contadores de `peek` no probe `__gdgMeasure`, instalado só em `pnpm dev`. Ausência de `rest/v1` não conta como hit. A política de TTL está em `docs/tech/CACHE-POLICY.md`. O prefetch do shell está em `docs/tech/APP-SHELL-BOUNDARIES.md`.
 
 O hostname de homolog está fixo em `scripts/measure-target.mjs` como allowlist fail-closed. É exceção explícita à fronteira de `docs-local/`: não é segredo e não pode virar destino livre, senão um Vite local enviaria senha ou sessão de teste a outro projeto. O restante da configuração de squad continua local.
 
@@ -25,7 +25,7 @@ O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visí
 
 Cada arquivo da rodada grava `runStartedAt`, `measuredAt` na hora em que o JSON é escrito e, no fim, `runFinishedAt`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git.
 
-Cada chamada `rest/v1` ou `auth/v1` entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Pedido sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
+Cada chamada `rest/v1` ou `auth/v1` que já respondeu entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Pedido ainda aberto depois do flush vai para `unsettled`. `httpErrors` vazio não cobre `unsettled` nem `networkErrors`. Pedido que falha sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
 
 ## Critérios
 
@@ -53,7 +53,9 @@ Marco útil. O limite provisório é teto de homolog, não um objetivo de Produc
 | `/admin/ingestao` | heading da ingestão, cold | 5 | 2,0 s |
 | `/admin/ingestao` | heading da ingestão, SPA quente | 5 | 800 ms |
 
-O relógio de staff para no heading. `waitForTimeout(800)` vem depois e não entra no percentil.
+O relógio de staff para no heading. `waitForTimeout(800)` vem depois e não entra no percentil. Em seguida o script espera os pedidos ainda abertos, até um limite, e só então recorta erros e eventos.
+
+`/minhas-candidaturas` não entra na matriz obrigatória. O orquestrador só a mede quando já existe candidato de teste. Sem isso a bateria segue nas outras rotas. O teto da linha continua valendo para quem roda o comando avulso.
 
 O remount de candidaturas ainda pede `applications` porque a página, se já há cache, chama `loadMyApplications` com `forceRefresh`. A UI não volta ao skeleton. Isso está alinhado ao código atual.
 
@@ -69,16 +71,14 @@ pnpm qa:ops-perf-slo -- --check
 pnpm qa:ops-perf-slo
 ```
 
-`BASE_URL` default `http://127.0.0.1:5173`. Só loopback (`127.0.0.1`, `localhost` ou `::1`), e a página aberta tem de estar na origem exata, com a mesma porta, antes de injetar sessão ou preencher senha. `http://[::1]:5173` vale; a sessão só é gravada se `location.origin` for essa origem. `VITE_SUPABASE_URL` tem de ser o hostname https exato de homolog. Além do arquivo, a página em execução expõe a URL compilada no probe de dev; se não for esse hostname, o script para antes da senha. O check falha sem chave publishable/anon, sem sessão staff (`ADMIN_EMAIL` / `ADMIN_PASSWORD` ou `docs-local/admin-test-user.md`) ou sem candidato de teste.
+`BASE_URL` default `http://127.0.0.1:5173`. Só loopback (`127.0.0.1`, `localhost` ou `::1`), e a página aberta tem de estar na origem exata, com a mesma porta, antes de injetar sessão ou preencher senha. `http://[::1]:5173` vale; a sessão só é gravada se `location.origin` for essa origem. `VITE_SUPABASE_URL` tem de ser o hostname https exato de homolog. Além do arquivo, a página em execução expõe a URL compilada no probe de dev; se não for esse hostname, o script para antes da senha. O check falha sem chave publishable/anon ou sem sessão staff (`ADMIN_EMAIL` / `ADMIN_PASSWORD` ou `docs-local/admin-test-user.md`). Candidato de teste não é pré-requisito.
 
-`MEASURE_RUNS` default 5, inteiro de 1 a 20. Fora disso a rodada encerra antes do login. O orquestrador grava `MEASURE_LABEL=after` e um id da rodada nos filhos. JSON de candidaturas, detalhe ou staff com outro id é recusado, para não reaproveitar `metrics-after.json` antigo. Portal, catálogo, detalhe, candidaturas e as quatro rotas staff precisam desse n em cold e warm.
+`MEASURE_RUNS` default 5, inteiro de 1 a 20. Fora disso a rodada encerra antes do login. O orquestrador grava `MEASURE_LABEL=after` e um id da rodada nos filhos. JSON de candidaturas, detalhe ou staff com outro id é recusado, para não reaproveitar `metrics-after.json` antigo. Portal, catálogo, detalhe e as quatro rotas staff precisam desse n em cold e warm. Candidaturas só entram com candidato de teste.
 
-O orquestrador não reimplementa o Playwright de detalhe, candidaturas e listas staff. Ele mede `/` e `/vagas` e em seguida chama `scripts/measure-staff-lists.mjs`, `measure-job-detail.mjs` e `measure-my-applications.mjs`. A lista do catálogo é `/vagas`; `/` é o portal.
+O orquestrador não reimplementa o Playwright de detalhe, candidaturas e listas staff. Ele mede `/` e `/vagas` e em seguida chama `scripts/measure-staff-lists.mjs` e `measure-job-detail.mjs`. `measure-my-applications.mjs` só entra se houver candidato de teste. A lista do catálogo é `/vagas`; `/` é o portal.
 
 Comandos avulsos usam o mesmo preflight, cada um no próprio processo: `pnpm qa:job-detail`, `pnpm qa:my-applications`, `pnpm qa:staff-lists`, `pnpm qa:admin-nav`. O orquestrador não cobre quem os executa direto.
 
 ## Próxima ação
-
-A rodada vigente classifica `/` quente como `fora do teto`. O limite de 250 ms permanece. A próxima ação é repetir essa rota e inspecionar a amostra lenta; uma rodada não autoriza subir o teto. O número está em `docs-local/decision-ops-perf-slo-homolog.md`.
 
 Nenhuma migration nesta história. Repetir a matriz quando o catálogo de homolog deixar de caber numa resposta pequena, ou quando um SLO de Production for decidido à parte. O item 6 do gate de Production continua com o Plan; esta página só registra o método e os tetos provisórios de homolog.
