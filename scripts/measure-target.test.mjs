@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyLatency,
+  lineStatus,
   detailContentSample,
   documentMayStoreSession,
   homologSupabaseHostnameError,
@@ -12,7 +13,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, drainPromises, opsEventFromConsole, probeBackendError, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows } from "./measure-observe.mjs";
+import { cacheDelta, drainPromises, expiredReadRows, opsEventFromConsole, probeBackendError, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -96,7 +97,7 @@ describe("destinos da medição local", () => {
       correlation_id: "0123456789ab",
     })).toBeNull();
     expect(unsettledRows([{ path: "jobs", status: 200 }, { path: "jobs", status: null }])).toEqual([
-      { path: "jobs", settled: false },
+      { path: "jobs", settled: false, pending: "response" },
     ]);
     expect(sanitizeCacheStats({ catalog: { hit: 1, miss: 0 }, "user-id": { hit: 1, miss: 0 } })).toEqual({
       catalog: { hit: 1, miss: 0 },
@@ -125,6 +126,45 @@ describe("destinos da medição local", () => {
     expect(classifyLatency({ validN: 5, expectedN: 5, p95: 383, limitMs: 250 })).toBe("fora do teto");
     expect(classifyLatency({ validN: 5, expectedN: 5, p95: 122, limitMs: 250 })).toBe("medido");
     expect(classifyLatency({ validN: 4, expectedN: 5, p95: 1048, limitMs: 1500 })).toBe("hipótese");
+    expect(lineStatus({
+      captureIncomplete: true,
+      validN: 5,
+      expectedN: 5,
+      p95: 100,
+      limitMs: 250,
+    })).toBe("hipótese");
+    expect(lineStatus({
+      captureIncomplete: false,
+      validN: 5,
+      expectedN: 5,
+      p95: 100,
+      limitMs: 250,
+    })).toBe("medido");
+  });
+
+  it("espera de rede expirada vira hipótese e nomeia a leitura pendente", async () => {
+    const quiet = await waitForQuiet(() => true, 20);
+    expect(quiet.timedOut).toBe(true);
+    expect(lineStatus({
+      captureIncomplete: quiet.timedOut,
+      validN: 5,
+      expectedN: 5,
+      p95: 120,
+      limitMs: 800,
+    })).toBe("hipótese");
+    const settled = await waitForQuiet(() => false, 20);
+    expect(settled.timedOut).toBe(false);
+
+    const body = { path: "jobs", drop: false };
+    const consoleSlot = { drop: false };
+    expect(expiredReadRows([body], "body")).toEqual([
+      { path: "jobs", settled: false, pending: "body" },
+    ]);
+    expect(body.drop).toBe(true);
+    expect(expiredReadRows([consoleSlot], "console")).toEqual([
+      { settled: false, pending: "console" },
+    ]);
+    expect(consoleSlot.drop).toBe(true);
   });
 
   it("descarta identificador pessoal e encerra o flush no prazo", async () => {

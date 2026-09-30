@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -261,12 +261,18 @@ async function timeStaffRoute(route, phase) {
     samples.push(Date.now() - started);
     await page.getByText(route.settle).first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(800);
-    await waitForQuiet(() => inflight.size > 0);
+    const quiet = await waitForQuiet(() => inflight.size > 0);
+    const bodyUnsettled = [];
     const bodyDrain = await drainPromises(pendingCalls, undefined, () => {
-      for (const slot of openReads) slot.drop = true;
+      bodyUnsettled.push(...expiredReadRows(openReads, "body"));
     });
     const opsDrain = await foreignError.drain();
-    if (bodyDrain.timedOut || opsDrain.timedOut) captureIncomplete = true;
+    const responseRows = [...inflight]
+      .map((request) => openRequestRow(restPathFromUrl(request.url())))
+      .filter((row) => row.path);
+    if (quiet.timedOut || bodyDrain.timedOut || opsDrain.timedOut || responseRows.length > 0) {
+      captureIncomplete = true;
+    }
     const cacheAfter = await readLiveProbe(page);
     if (cacheAfter.backendError) {
       console.error(cacheAfter.backendError);
@@ -278,12 +284,9 @@ async function timeStaffRoute(route, phase) {
     opsRuns.push(traffic.opsEvents.slice(beforeOps));
     errorRuns.push(traffic.networkErrors.slice(beforeErrors));
     unsettledRuns.push([
-      ...[...inflight]
-        .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
-        .filter((row) => row.path),
-      ...[...openReads]
-        .filter((slot) => slot.path)
-        .map((slot) => ({ path: slot.path, settled: false })),
+      ...responseRows,
+      ...bodyUnsettled,
+      ...(opsDrain.unsettled || []),
     ]);
     console.log(`${route.path} ${phase} run ${run}: ${samples.at(-1)}ms`);
   }

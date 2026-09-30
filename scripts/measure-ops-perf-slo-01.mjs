@@ -15,8 +15,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
-import { measurePreflightError, measureRuns, sampleCountError, classifyLatency, validDetailLatencies } from "./measure-target.mjs";
+import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { measurePreflightError, measureRuns, sampleCountError, lineStatus, validDetailLatencies } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
 
@@ -79,14 +79,13 @@ const LIMIT_MS = {
 
 function mark(label, samples, limitMs, expectedN = samples.length, captureIncomplete = false) {
   const stats = summary(samples);
-  const status = captureIncomplete
-    ? "hipótese"
-    : classifyLatency({
-      validN: stats.n,
-      expectedN,
-      p95: stats.p95,
-      limitMs,
-    });
+  const status = lineStatus({
+    captureIncomplete,
+    validN: stats.n,
+    expectedN,
+    p95: stats.p95,
+    limitMs,
+  });
   if (status === "fora do teto") {
     console.log(`${label}: fora do teto (p95 ${stats.p95} ms, limite ${limitMs} ms). O limite permanece.`);
   }
@@ -168,22 +167,24 @@ function attachRest(page, bucket) {
   page.on("response", onResponse);
   page.on("requestfailed", onFailed);
   return async () => {
-    await waitForQuiet(() => inflight.size > 0);
+    const quiet = await waitForQuiet(() => inflight.size > 0);
     page.removeListener("request", onRequest);
     page.removeListener("response", onResponse);
     page.removeListener("requestfailed", onFailed);
+    const bodyUnsettled = [];
     const drained = await drainPromises(pending, undefined, () => {
-      for (const slot of openReads) slot.drop = true;
+      bodyUnsettled.push(...expiredReadRows(openReads, "body"));
     });
     const unsettled = [
       ...[...inflight]
-        .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
+        .map((request) => openRequestRow(restPathFromUrl(request.url())))
         .filter((row) => row.path),
-      ...[...openReads]
-        .filter((slot) => slot.path)
-        .map((slot) => ({ path: slot.path, settled: false })),
+      ...bodyUnsettled,
     ];
-    return { unsettled, incomplete: drained.timedOut || unsettled.length > 0 };
+    return {
+      unsettled,
+      incomplete: quiet.timedOut || drained.timedOut || unsettled.length > 0,
+    };
   };
 }
 
@@ -225,7 +226,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const coldOpsDrain = await traffic.drain();
     coldRest.push(coldBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     coldBytes.push(coldBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
-    coldUnsettled.push(coldOpen.unsettled);
+    coldUnsettled.push([...(coldOpen.unsettled || []), ...(coldOpsDrain.unsettled || [])]);
     coldIncomplete.push(coldOpen.incomplete || coldOpsDrain.timedOut);
     coldCache.push(coldProbe.cache);
     coldOps.push(traffic.opsEvents.slice(opsBefore));
@@ -249,7 +250,7 @@ async function measureSpaRoute(page, traffic, { route, ready, leave, back, runs 
     const warmOpsDrain = await traffic.drain();
     warmRest.push(warmBucket.map(({ path, status, bytes }) => ({ path, status, bytes })));
     warmBytes.push(warmBucket.reduce((sum, row) => sum + (Number(row.bytes) || 0), 0));
-    warmUnsettled.push(warmOpen.unsettled);
+    warmUnsettled.push([...(warmOpen.unsettled || []), ...(warmOpsDrain.unsettled || [])]);
     warmIncomplete.push(warmOpen.incomplete || warmOpsDrain.timedOut);
     warmCache.push(cacheDelta(warmBefore.cache, warmAfter.cache));
     warmOps.push(traffic.opsEvents.slice(warmOpsBefore));

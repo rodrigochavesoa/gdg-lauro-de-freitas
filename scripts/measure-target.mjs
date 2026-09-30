@@ -110,3 +110,9 @@ export function classifyLatency({ validN, expectedN, p95, limitMs }) {
   if (p95 > limitMs) return "fora do teto";
   return "medido";
 }
+
+/** Captura incompleta vence o percentil: a linha não sai como `medido`. */
+export function lineStatus({ captureIncomplete = false, validN, expectedN, p95, limitMs }) {
+  if (captureIncomplete) return "hipótese";
+  return classifyLatency({ validN, expectedN, p95, limitMs });
+}

@@ -17,7 +17,7 @@ A evidência de uma rodada (SHA, horários, latências, payloads, status HTTP, f
 | `medido` | Há o n da linha, o marco foi alcançado em todas as amostras e o p95 cabe no limite |
 | `fora do teto` | Há o n da linha e o marco é válido, mas o p95 passa do limite. O limite permanece |
 | `herdado` | Estudo anterior, citado no doc local, sem repetir a bateria |
-| `hipótese` | Amostra insuficiente, marco não confirmado, relógio que não é o marco de UI, ou flush que estourou o prazo |
+| `hipótese` | Amostra insuficiente, marco não confirmado, relógio que não é o marco de UI, flush que estourou o prazo, ou pedido ainda aberto quando a espera de rede expira |
 
 O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visível. Sem esse marco a amostra é inválida e não vira latência. Se alguma amostra da linha ficar inválida, a linha é `hipótese`.
 
@@ -25,7 +25,7 @@ O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visí
 
 Cada arquivo da rodada grava `runStartedAt`, `measuredAt` na hora em que o JSON é escrito e, no fim, `runFinishedAt`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git.
 
-Cada chamada `rest/v1` ou `auth/v1` que já respondeu entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Pedido ainda aberto depois do flush vai para `unsettled`. A leitura do corpo e o `jsonValue()` do console têm prazo. Se não terminam, a captura fica incompleta e a linha é `hipótese`. `httpErrors` vazio não cobre `unsettled` nem `networkErrors`. Pedido que falha sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
+Cada chamada `rest/v1` ou `auth/v1` que já respondeu entra no artefato com caminho, status e bytes. Status `>= 400` vai para `httpErrors`. Se `waitForQuiet` expira com pedido ainda aberto, a captura fica incompleta e a linha é `hipótese`, mesmo com p95 dentro do teto. Esse pedido vai para `unsettled` com `pending: "response"`. Leitura de corpo que expira entra com `pending: "body"` e o caminho. `jsonValue()` do console que expira entra com `pending: "console"`. `httpErrors` vazio não cobre `unsettled` nem `networkErrors`. Pedido que falha sem resposta vai para `networkErrors`, só com o caminho e `net::ERR_*`.
 
 ## Critérios
 

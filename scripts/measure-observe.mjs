@@ -122,11 +122,27 @@ export function opsEventFromConsole(value) {
   };
 }
 
+export function openRequestRow(path) {
+  return { path: String(path || ""), settled: false, pending: "response" };
+}
+
 export function unsettledRows(rows) {
   if (!Array.isArray(rows)) return [];
   return rows
     .filter((row) => row && row.status == null)
-    .map((row) => ({ path: String(row.path || ""), settled: false }));
+    .map((row) => openRequestRow(row.path));
+}
+
+/** Leituras que estouraram o prazo. `pending` diz se foi corpo ou console. */
+export function expiredReadRows(slots, pending) {
+  const rows = [];
+  for (const slot of slots) {
+    if (slot && typeof slot === "object") slot.drop = true;
+    const row = { settled: false, pending };
+    if (slot?.path) row.path = String(slot.path);
+    rows.push(row);
+  }
+  return rows;
 }
 
 export async function waitForQuiet(isBusy, timeoutMs = SETTLE_MS) {
@@ -134,6 +150,7 @@ export async function waitForQuiet(isBusy, timeoutMs = SETTLE_MS) {
   while (isBusy() && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+  return { timedOut: Boolean(isBusy()) };
 }
 
 export async function drainPromises(pending, timeoutMs = SETTLE_MS, onTimeout = () => {}) {
@@ -241,9 +258,13 @@ export function attachObservers(page, buckets) {
   page.on("requestfailed", onFailed);
   page.on("console", onConsole);
   const foreignError = () => buckets.foreign[0] || "";
-  foreignError.drain = () => drainPromises(pendingConsole, SETTLE_MS, () => {
-    for (const slot of consoleSlots) slot.drop = true;
-  });
+  foreignError.drain = async () => {
+    const unsettled = [];
+    const result = await drainPromises(pendingConsole, SETTLE_MS, () => {
+      unsettled.push(...expiredReadRows(consoleSlots, "console"));
+    });
+    return { timedOut: result.timedOut, unsettled };
+  };
   return foreignError;
 }
 

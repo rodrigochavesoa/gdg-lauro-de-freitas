@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
@@ -223,7 +223,7 @@ async function navigationMark() {
 }
 
 async function navigationSlice(start) {
-  await waitForQuiet(() => inflight.size > 0);
+  const quiet = await waitForQuiet(() => inflight.size > 0);
   const opsDrain = await foreignError.drain();
   const probe = await readLiveProbe(page);
   if (probe.backendError) {
@@ -232,13 +232,16 @@ async function navigationSlice(start) {
     process.exit(1);
   }
   const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
-  const unsettled = [...inflight]
-    .map((request) => ({ path: restPathFromUrl(request.url()), settled: false }))
-    .filter((row) => row.path);
+  const unsettled = [
+    ...[...inflight]
+      .map((request) => openRequestRow(restPathFromUrl(request.url())))
+      .filter((row) => row.path),
+    ...(opsDrain.unsettled || []),
+  ];
   return {
     rest,
     unsettled,
-    captureIncomplete: opsDrain.timedOut || unsettled.length > 0,
+    captureIncomplete: quiet.timedOut || opsDrain.timedOut || unsettled.length > 0,
     cache: cacheDelta(start.cache, probe.cache),
     ops: traffic.opsEvents.slice(start.ops),
     net: traffic.networkErrors.slice(start.net),
