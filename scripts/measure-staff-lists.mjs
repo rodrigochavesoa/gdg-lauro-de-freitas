@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainSample, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, bodySlotForRequest, cacheDelta, drainSample, livePageError, openRequestRow, readLiveProbe, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -100,6 +100,7 @@ const foreignError = attachObservers(page, traffic);
 const startedAt = new Map();
 const inflight = new Set();
 const pendingCalls = new Set();
+const requestSamples = new WeakMap();
 let readSample = null;
 
 page.on("request", (request) => {
@@ -107,6 +108,7 @@ page.on("request", (request) => {
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
   inflight.add(request);
   startedAt.set(request, Date.now());
+  rememberRequestSample(requestSamples, request, readSample);
 });
 
 page.on("requestfailed", (request) => {
@@ -121,7 +123,7 @@ page.on("response", (response) => {
   if (!url.includes("/rest/v1/") && !url.includes("/auth/v1/")) return;
   const request = response.request();
   inflight.delete(request);
-  const slot = { drop: false, path: restPathFromUrl(url), sample: readSample };
+  const slot = bodySlotForRequest(requestSamples, request, restPathFromUrl(url));
   let task;
   task = (async () => {
     let bytes = Number(response.headers()["content-length"] || 0);

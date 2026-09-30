@@ -160,6 +160,16 @@ export function createReadSample() {
   return {};
 }
 
+/** A amostra fica no request. A resposta não troca esse vínculo. */
+export function rememberRequestSample(store, request, sample) {
+  store.set(request, sample ?? null);
+}
+
+export function bodySlotForRequest(store, request, path) {
+  const sample = store?.has(request) ? (store.get(request) ?? null) : null;
+  return { drop: false, path: path || "", sample };
+}
+
 /** Só a amostra que abriu a leitura. Pendência já descartada fica de fora. */
 export function sampleReads(tasks, sample) {
   if (!sample) return [];

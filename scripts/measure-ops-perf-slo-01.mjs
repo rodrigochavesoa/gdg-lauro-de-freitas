@@ -15,7 +15,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, bodySlotForRequest, cacheDelta, createReadSample, drainSample, livePageError, openRequestRow, readLiveProbe, rememberRequestSample, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, lineStatus, validDetailLatencies } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
@@ -141,23 +141,27 @@ async function captureRestCall(response) {
 function attachRest(page, bucket) {
   const pending = new Set();
   const inflight = new Set();
-  const openReads = new Set();
+  const requestSamples = new WeakMap();
+  const sample = createReadSample();
   const onRequest = (request) => {
-    if (restPathFromUrl(request.url())) inflight.add(request);
+    if (!restPathFromUrl(request.url())) return;
+    inflight.add(request);
+    rememberRequestSample(requestSamples, request, sample);
   };
   const onResponse = (response) => {
     const request = response.request();
     inflight.delete(request);
-    const slot = { drop: false, path: restPathFromUrl(response.url()) };
-    openReads.add(slot);
+    const slot = bodySlotForRequest(requestSamples, request, restPathFromUrl(response.url()));
+    if (slot.sample !== sample) return;
     let task;
     task = captureRestCall(response).then((row) => {
       if (slot.drop || !row) return;
       bucket.push(row);
     }).finally(() => {
-      openReads.delete(slot);
       pending.delete(task);
     });
+    task.sample = slot.sample;
+    task.slot = slot;
     pending.add(task);
   };
   const onFailed = (request) => {
@@ -176,10 +180,8 @@ function attachRest(page, bucket) {
     page.removeListener("response", onResponse);
     page.removeListener("requestfailed", onFailed);
     page.removeListener("requestfinished", onFinished);
-    const bodyUnsettled = [];
-    const drained = await drainPromises(pending, undefined, () => {
-      bodyUnsettled.push(...expiredReadRows(openReads, "body"));
-    });
+    const drained = await drainSample(pending, sample, undefined, "body");
+    const bodyUnsettled = drained.unsettled || [];
     const unsettled = [
       ...[...inflight]
         .map((request) => openRequestRow(restPathFromUrl(request.url())))

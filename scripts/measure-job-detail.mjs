@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainSample, livePageError, readLiveProbe, restPathFromUrl, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, bodySlotForRequest, cacheDelta, drainSample, livePageError, readLiveProbe, rememberRequestSample, restPathFromUrl, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError, detailContentSample, validDetailLatencies } from "./measure-target.mjs";
 
 function median(values) {
@@ -59,6 +59,7 @@ const foreignError = attachObservers(page, traffic);
 
 const restLog = [];
 const pendingBodies = new Set();
+const requestSamples = new WeakMap();
 let readSample = null;
 
 function classifyJobsSelect(url) {
@@ -88,6 +89,7 @@ page.on("request", (request) => {
     kind: classifyJobsSelect(url),
     url,
   });
+  rememberRequestSample(requestSamples, request, readSample);
 });
 page.on("requestfailed", (request) => {
   const path = restPathFromUrl(request.url());
@@ -102,7 +104,8 @@ page.on("response", (response) => {
   if (!path) return;
   const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
   if (!entry) return;
-  const slot = { drop: false, path, sample: readSample };
+  const request = response.request();
+  const slot = bodySlotForRequest(requestSamples, request, path);
   let task;
   task = (async () => {
     entry.status = response.status();

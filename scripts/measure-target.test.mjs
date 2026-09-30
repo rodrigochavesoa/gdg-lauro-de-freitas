@@ -13,7 +13,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, drainPromises, drainSample, expiredReadRows, opsEventFromConsole, probeBackendError, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { bodySlotForRequest, cacheDelta, createReadSample, drainPromises, drainSample, expiredReadRows, opsEventFromConsole, probeBackendError, rememberRequestSample, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -221,6 +221,45 @@ describe("destinos da medição local", () => {
     const again = await drainSample(pending, sample1, 20, "console");
     expect(again.timedOut).toBe(false);
     expect(again.unsettled).toEqual([]);
+
+    rejectHang(new Error("encerrado no teste"));
+    await hang.catch(() => {});
+  });
+
+  it("requisição anterior que responde nesta amostra não reclassifica o corpo", async () => {
+    const store = new Map();
+    const early = { id: "antes" };
+    rememberRequestSample(store, early, null);
+    const sample = createReadSample();
+    const slot = bodySlotForRequest(store, early, "jobs");
+    expect(slot.sample).toBe(null);
+
+    const pending = new Set();
+    let rejectHang;
+    const hang = new Promise((_, reject) => {
+      rejectHang = reject;
+    });
+    hang.sample = slot.sample;
+    hang.slot = slot;
+    pending.add(hang);
+
+    const drained = await drainSample(pending, sample, 20, "body");
+    expect(drained.timedOut).toBe(false);
+    expect(drained.unsettled).toEqual([]);
+    expect(lineStatus({
+      captureIncomplete: drained.timedOut || drained.unsettled.length > 0,
+      validN: 5,
+      expectedN: 5,
+      p95: 100,
+      limitMs: 250,
+    })).toBe("medido");
+    expect(pending.has(hang)).toBe(true);
+    expect(slot.drop).toBe(false);
+
+    const during = { id: "durante" };
+    rememberRequestSample(store, during, sample);
+    const owned = bodySlotForRequest(store, during, "profiles");
+    expect(owned.sample).toBe(sample);
 
     rejectHang(new Error("encerrado no teste"));
     await hang.catch(() => {});
