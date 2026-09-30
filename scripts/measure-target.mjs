@@ -87,3 +87,26 @@ export function sampleCountError(values, expected, label) {
   if (count !== expected) return `${label}: esperava ${expected} amostras e recebeu ${count}.`;
   return "";
 }
+
+/** Marco de conteúdo: sem visibilidade não há latência válida. */
+export function detailContentSample(elapsedMs, reached) {
+  if (reached === true && Number.isFinite(elapsedMs)) return { reached: true, ms: elapsedMs };
+  return { reached: false };
+}
+
+export function validDetailLatencies(samples) {
+  if (!Array.isArray(samples)) return [];
+  return samples
+    .filter((sample) => sample?.reached === true && Number.isFinite(sample.ms))
+    .map((sample) => sample.ms);
+}
+
+/**
+ * `medido` cabe no teto. `fora do teto` tem n e marco válidos, mas o p95 passa.
+ * `hipótese` cobre amostra incompleta ou marco não confirmado.
+ */
+export function classifyLatency({ validN, expectedN, p95, limitMs }) {
+  if (!Number.isFinite(limitMs) || validN !== expectedN || !Number.isFinite(p95)) return "hipótese";
+  if (p95 > limitMs) return "fora do teto";
+  return "medido";
+}

@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
 import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
-import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
+import { measurePreflightError, measureRuns, sampleCountError, detailContentSample, validDetailLatencies } from "./measure-target.mjs";
 
 function median(values) {
   if (values.length === 0) return null;
@@ -125,6 +125,15 @@ async function waitCatalog() {
   await page.waitForSelector(".job-card:not(.job-card--skeleton), .empty", { timeout: 30_000 });
 }
 
+async function waitForDetailContent() {
+  try {
+    await page.locator(".content-block p").first().waitFor({ state: "visible", timeout: 30_000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function resolveSeedJobId() {
   await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
   await waitCatalog();
@@ -137,7 +146,7 @@ async function resolveSeedJobId() {
 
 async function measureDirect(jobId, label) {
   const shellTimes = [];
-  const fullTimes = [];
+  const fullSamples = [];
   const loadingTextSeen = [];
   const skeletonSeen = [];
   const jobKinds = [];
@@ -169,9 +178,9 @@ async function measureDirect(jobId, label) {
     skeletonSeen.push((await page.locator(".detail-page[aria-busy='true']").count()) > 0 || (await page.locator(".detail-skeleton-line").count()) > 0);
     loadingTextSeen.push(await loadingPromise);
 
-    await page.locator(".content-block p").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
-    const fullMs = Date.now() - started;
-    fullTimes.push(fullMs);
+    const reached = await waitForDetailContent();
+    const fullSample = detailContentSample(Date.now() - started, reached);
+    fullSamples.push(fullSample);
 
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
@@ -186,16 +195,16 @@ async function measureDirect(jobId, label) {
     networkErrors.push(traffic.networkErrors.slice(netBefore));
     jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
-      `${label} run ${run}: shell=${shellMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
+      `${label} run ${run}: shell=${shellMs}ms full=${fullSample.reached ? `${fullSample.ms}ms` : "invalida"} contentReached=${fullSample.reached} loadingText=${loadingTextSeen.at(-1)} skeleton=${skeletonSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { shellTimes, fullTimes, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors };
+  return { shellTimes, fullSamples, loadingTextSeen, skeletonSeen, jobKinds, rest, cache, opsEvents, networkErrors };
 }
 
 async function measureFromHome(jobId, label) {
   const usefulTimes = [];
-  const fullTimes = [];
+  const fullSamples = [];
   const loadingTextSeen = [];
   const jobKinds = [];
   const rest = [];
@@ -232,9 +241,9 @@ async function measureFromHome(jobId, label) {
     usefulTimes.push(usefulMs);
     loadingTextSeen.push(await loadingPromise);
 
-    await page.locator(".content-block p").first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
-    const fullMs = Date.now() - started;
-    fullTimes.push(fullMs);
+    const reached = await waitForDetailContent();
+    const fullSample = detailContentSample(Date.now() - started, reached);
+    fullSamples.push(fullSample);
 
     const restThis = restLog.slice(before).map(callRecord);
     rest.push(restThis);
@@ -249,11 +258,11 @@ async function measureFromHome(jobId, label) {
     networkErrors.push(traffic.networkErrors.slice(netBefore));
     jobKinds.push(...restThis.filter((row) => row.path === "jobs").map((row) => row.kind));
     console.log(
-      `${label} run ${run}: useful=${usefulMs}ms full=${fullMs}ms loadingText=${loadingTextSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
+      `${label} run ${run}: useful=${usefulMs}ms full=${fullSample.reached ? `${fullSample.ms}ms` : "invalida"} contentReached=${fullSample.reached} loadingText=${loadingTextSeen.at(-1)} rest=[${formatRest(restThis) || "nenhum"}]`,
     );
   }
 
-  return { usefulTimes, fullTimes, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors };
+  return { usefulTimes, fullSamples, loadingTextSeen, jobKinds, rest, cache, opsEvents, networkErrors };
 }
 
 console.log(`runs=${runs}`);
@@ -288,21 +297,23 @@ const countKind = (kinds, kind) => kinds.filter((k) => k === kind).length;
 
 console.log("\n=== RESUMO (UX-PERF-04) ===");
 console.log(summarize("anon cold shell (Voltar/skeleton)", anonDirect.shellTimes));
-console.log(summarize("anon cold full (content p)", anonDirect.fullTimes));
+console.log(summarize("anon cold full (content p)", validDetailLatencies(anonDirect.fullSamples)));
+console.log(`anon cold content reached: ${anonDirect.fullSamples.filter((sample) => sample.reached).length}/${runs}`);
 console.log(`anon cold "Carregando vaga…": ${anonDirect.loadingTextSeen.filter(Boolean).length}/${anonDirect.loadingTextSeen.length}`);
 console.log(`anon cold skeleton/aria-busy: ${anonDirect.skeletonSeen.filter(Boolean).length}/${anonDirect.skeletonSeen.length}`);
 console.log(`anon cold jobs select kinds: full=${countKind(anonDirect.jobKinds, "full")} heavy=${countKind(anonDirect.jobKinds, "heavy")} list=${countKind(anonDirect.jobKinds, "list")}`);
 console.log(summarize("anon from-home useful (h1)", anonHome.usefulTimes));
-console.log(summarize("anon from-home full (content p)", anonHome.fullTimes));
+console.log(summarize("anon from-home full (content p)", validDetailLatencies(anonHome.fullSamples)));
+console.log(`anon from-home content reached: ${anonHome.fullSamples.filter((sample) => sample.reached).length}/${runs}`);
 console.log(`anon from-home "Carregando vaga…": ${anonHome.loadingTextSeen.filter(Boolean).length}/${anonHome.loadingTextSeen.length}`);
 console.log(`anon from-home jobs select kinds: full=${countKind(anonHome.jobKinds, "full")} heavy=${countKind(anonHome.jobKinds, "heavy")} list=${countKind(anonHome.jobKinds, "list")}`);
 console.log("Meta PERF-04: from-home detail request = heavy (not full); cold miss = full");
 
 for (const [name, values] of [
   ["detalhe cold shell", anonDirect.shellTimes],
-  ["detalhe cold full", anonDirect.fullTimes],
+  ["detalhe cold full", anonDirect.fullSamples],
   ["detalhe warm útil", anonHome.usefulTimes],
-  ["detalhe warm full", anonHome.fullTimes],
+  ["detalhe warm full", anonHome.fullSamples],
 ]) {
   const countError = sampleCountError(values, runs, name);
   if (countError) {
@@ -320,7 +331,8 @@ writeFileSync(detailPath, `${JSON.stringify({
   runs,
   cold: {
     shellMs: anonDirect.shellTimes,
-    fullMs: anonDirect.fullTimes,
+    fullSamples: anonDirect.fullSamples,
+    fullMs: validDetailLatencies(anonDirect.fullSamples),
     rest: anonDirect.rest,
     httpErrors: httpErrors(anonDirect.rest),
     networkErrors: anonDirect.networkErrors,
@@ -329,7 +341,8 @@ writeFileSync(detailPath, `${JSON.stringify({
   },
   warm: {
     usefulMs: anonHome.usefulTimes,
-    fullMs: anonHome.fullTimes,
+    fullSamples: anonHome.fullSamples,
+    fullMs: validDetailLatencies(anonHome.fullSamples),
     rest: anonHome.rest,
     httpErrors: httpErrors(anonHome.rest),
     networkErrors: anonHome.networkErrors,

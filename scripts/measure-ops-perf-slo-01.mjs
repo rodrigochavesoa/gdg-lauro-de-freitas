@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
 import { attachObservers, cacheDelta, livePageError, readLiveProbe } from "./measure-observe.mjs";
-import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
+import { measurePreflightError, measureRuns, sampleCountError, classifyLatency, validDetailLatencies } from "./measure-target.mjs";
 
 const OUT_DIR = resolve(process.cwd(), "docs-local/perf/OPS-PERF-SLO-01");
 
@@ -59,6 +59,35 @@ function summary(values) {
     p50: nearestRank(values, 0.5),
     p95: nearestRank(values, 0.95),
   };
+}
+
+const LIMIT_MS = {
+  "portal-cold": 2000,
+  "portal-warm": 250,
+  "catalog-cold": 800,
+  "catalog-warm": 300,
+  "admin-cold": 2000,
+  "admin-warm": 800,
+  "admin-curadoria-cold": 2000,
+  "admin-curadoria-warm": 800,
+  "admin-vagas-cold": 2000,
+  "admin-vagas-warm": 800,
+  "admin-ingestao-cold": 2000,
+  "admin-ingestao-warm": 800,
+};
+
+function mark(label, samples, limitMs, expectedN = samples.length) {
+  const stats = summary(samples);
+  const status = classifyLatency({
+    validN: stats.n,
+    expectedN,
+    p95: stats.p95,
+    limitMs,
+  });
+  if (status === "fora do teto") {
+    console.log(`${label}: fora do teto (p95 ${stats.p95} ms, limite ${limitMs} ms). O limite permanece.`);
+  }
+  return { stats, limitMs, status };
 }
 
 function writeJson(name, body) {
@@ -199,11 +228,14 @@ function storyRecord(runStartedAt, sha, fields) {
 }
 
 function routeFile(id, phase, runStartedAt, sha, route, usefulMs, extra) {
+  const marked = mark(`${route} ${phase}`, usefulMs, LIMIT_MS[`${id}-${phase}`]);
   writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
     route,
     phase,
     coldMeans: "cache em memória da aba frio; o contexto do navegador e a sessão podem ser reutilizados",
-    usefulMs: summary(usefulMs),
+    usefulMs: marked.stats,
+    limitMs: marked.limitMs,
+    status: marked.status,
     restCalls: extra.restCalls,
     httpErrors: httpErrorsOf(extra.restCalls),
     networkErrors: extra.networkErrors,
@@ -370,11 +402,14 @@ for (const route of Object.keys(staffIds)) {
       hasReviews: Boolean(call.hasReviews),
       hasModeration: Boolean(call.hasModeration),
     }));
+    const marked = mark(`${route} ${phase}`, entry[`${phase}Ms`], LIMIT_MS[`${id}-${phase}`]);
     writeJson(`${id}-${phase}.json`, storyRecord(runStartedAt, sha, {
       route,
       phase,
       coldMeans: "reload do documento; a sessão staff permanece",
-      usefulMs: summary(entry[`${phase}Ms`]),
+      usefulMs: marked.stats,
+      limitMs: marked.limitMs,
+      status: marked.status,
       calls,
       httpErrors: calls.filter((call) => call.status >= 400),
       networkErrors: entry[`${phase}NetworkErrors`] || [],
@@ -393,26 +428,50 @@ if (!existsSync(detailPath)) {
 const detail = JSON.parse(readFileSync(detailPath, "utf8"));
 requireThisRun(detail, "Detalhe");
 requireSamples(detail.cold?.shellMs, runs, "detalhe cold shell");
-requireSamples(detail.cold?.fullMs, runs, "detalhe cold full");
+requireSamples(detail.cold?.fullSamples, runs, "detalhe cold full");
 requireSamples(detail.warm?.usefulMs, runs, "detalhe warm útil");
-requireSamples(detail.warm?.fullMs, runs, "detalhe warm full");
+requireSamples(detail.warm?.fullSamples, runs, "detalhe warm full");
+const coldShell = mark("/jobs/:id cold shell", detail.cold.shellMs, 500);
+const coldFull = mark(
+  "/jobs/:id cold full",
+  validDetailLatencies(detail.cold.fullSamples),
+  1500,
+  detail.cold.fullSamples.length,
+);
 writeJson("jobs-detail-cold.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
   phase: "cold",
   coldMeans: "cache em memória da aba frio; o contexto do navegador pode ser reutilizado",
-  shellMs: summary(detail.cold.shellMs),
-  fullMs: summary(detail.cold.fullMs),
+  shellMs: coldShell.stats,
+  shellLimitMs: coldShell.limitMs,
+  shellStatus: coldShell.status,
+  fullMs: coldFull.stats,
+  fullSamples: detail.cold.fullSamples,
+  fullLimitMs: coldFull.limitMs,
+  fullStatus: coldFull.status,
   restCalls: detail.cold.rest,
   httpErrors: detail.cold.httpErrors,
   networkErrors: detail.cold.networkErrors,
   cache: detail.cold.cache,
   opsEvents: detail.cold.opsEvents,
 }));
+const warmUseful = mark("/jobs/:id warm h1", detail.warm.usefulMs, 250);
+const warmFull = mark(
+  "/jobs/:id warm full",
+  validDetailLatencies(detail.warm.fullSamples),
+  1200,
+  detail.warm.fullSamples.length,
+);
 writeJson("jobs-detail-warm.json", storyRecord(runStartedAt, sha, {
   route: "/jobs/:id",
   phase: "warm",
-  usefulMs: summary(detail.warm.usefulMs),
-  fullMs: summary(detail.warm.fullMs),
+  usefulMs: warmUseful.stats,
+  usefulLimitMs: warmUseful.limitMs,
+  usefulStatus: warmUseful.status,
+  fullMs: warmFull.stats,
+  fullSamples: detail.warm.fullSamples,
+  fullLimitMs: warmFull.limitMs,
+  fullStatus: warmFull.status,
   restCalls: detail.warm.rest,
   httpErrors: detail.warm.httpErrors,
   networkErrors: detail.warm.networkErrors,
@@ -426,11 +485,15 @@ const apps = JSON.parse(readFileSync(appsPath, "utf8"));
 requireThisRun(apps, "Candidaturas");
 requireSamples(apps.t1?.ms, runs, "candidaturas cold");
 requireSamples(apps.t2?.ms, runs, "candidaturas warm");
+const appsCold = mark("/minhas-candidaturas cold", apps.t1.ms, 400);
+const appsWarm = mark("/minhas-candidaturas warm", apps.t2.ms, 200);
 writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
   route: "/minhas-candidaturas",
   phase: "cold",
   coldMeans: "cache em memória da aba frio depois de reload; a sessão do candidato permanece",
-  usefulMs: summary(apps.t1.ms),
+  usefulMs: appsCold.stats,
+  limitMs: appsCold.limitMs,
+  status: appsCold.status,
   restCalls: apps.t1.rest,
   httpErrors: httpErrorsOf(apps.t1.rest || []),
   networkErrors: apps.t1.networkErrors || [],
@@ -440,7 +503,9 @@ writeJson("minhas-candidaturas-cold.json", storyRecord(runStartedAt, sha, {
 writeJson("minhas-candidaturas-warm.json", storyRecord(runStartedAt, sha, {
   route: "/minhas-candidaturas",
   phase: "warm",
-  usefulMs: summary(apps.t2.ms),
+  usefulMs: appsWarm.stats,
+  limitMs: appsWarm.limitMs,
+  status: appsWarm.status,
   restCalls: apps.t2.rest,
   httpErrors: httpErrorsOf(apps.t2.rest || []),
   networkErrors: apps.t2.networkErrors || [],
@@ -453,3 +518,4 @@ writeJson("run.json", storyRecord(runStartedAt, sha, {
 }));
 
 console.log(`relatórios em docs-local/perf/OPS-PERF-SLO-01 (pii: false, sha ${sha})`);
+console.log("exit 0: a bateria terminou. Isso não afirma que todo p95 coube no teto.");

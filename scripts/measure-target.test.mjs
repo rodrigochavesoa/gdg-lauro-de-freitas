@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  classifyLatency,
+  detailContentSample,
   documentMayStoreSession,
   homologSupabaseHostnameError,
   loopbackBaseUrlError,
@@ -8,6 +10,7 @@ import {
   measureRuns,
   measureRunsError,
   sampleCountError,
+  validDetailLatencies,
 } from "./measure-target.mjs";
 import { cacheDelta, opsEventFromConsole, probeBackendError, safeFailureText, sanitizeCacheStats, supabaseHostError } from "./measure-observe.mjs";
 
@@ -80,5 +83,17 @@ describe("destinos da medição local", () => {
     expect(supabaseHostError("https://other-project.supabase.co/rest/v1/jobs")).not.toBe("");
     expect(supabaseHostError("https://pcdfxnfhgdmzmcmlhxuv.supabase.co/rest/v1/jobs")).toBe("");
     expect(safeFailureText("net::ERR_CONNECTION_REFUSED at https://secret.example/?token=abc")).toBe("net::ERR_CONNECTION_REFUSED");
+  });
+
+  it("não transforma timeout de conteúdo em latência e separa fora do teto", () => {
+    expect(detailContentSample(30_000, false)).toEqual({ reached: false });
+    expect(detailContentSample(1048, true)).toEqual({ reached: true, ms: 1048 });
+    expect(validDetailLatencies([
+      detailContentSample(1048, true),
+      detailContentSample(30_000, false),
+    ])).toEqual([1048]);
+    expect(classifyLatency({ validN: 5, expectedN: 5, p95: 383, limitMs: 250 })).toBe("fora do teto");
+    expect(classifyLatency({ validN: 5, expectedN: 5, p95: 122, limitMs: 250 })).toBe("medido");
+    expect(classifyLatency({ validN: 4, expectedN: 5, p95: 1048, limitMs: 1500 })).toBe("hipótese");
   });
 });

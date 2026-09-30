@@ -14,9 +14,14 @@ A evidência de uma rodada (SHA, horários, latências, payloads, status HTTP, f
 
 | Status | Significado |
 |---|---|
-| `medido` | Há o n da linha e os percentis cabem no limite |
+| `medido` | Há o n da linha, o marco foi alcançado em todas as amostras e o p95 cabe no limite |
+| `fora do teto` | Há o n da linha e o marco é válido, mas o p95 passa do limite. O limite permanece |
 | `herdado` | Estudo anterior, citado no doc local, sem repetir a bateria |
-| `hipótese` | Limite ainda sem amostra suficiente, ou relógio que não é o marco de UI |
+| `hipótese` | Amostra insuficiente, marco não confirmado, ou relógio que não é o marco de UI |
+
+O parágrafo do detalhe só entra no percentil se `.content-block p` ficar visível. Sem esse marco a amostra é inválida e não vira latência. Se alguma amostra da linha ficar inválida, a linha é `hipótese`.
+
+`exit 0` do script significa que a bateria terminou e gravou os JSON. Não significa que todo p95 coube no teto.
 
 Cada arquivo da rodada grava `runStartedAt`, `measuredAt` na hora em que o JSON é escrito e, no fim, `runFinishedAt`. Sessão staff AAL2 e candidato de teste ficam em `.env.local` / `docs-local/`. Nenhum segredo entra no Git.
 
@@ -73,5 +78,7 @@ O orquestrador não reimplementa o Playwright de detalhe, candidaturas e listas 
 Comandos avulsos usam o mesmo preflight, cada um no próprio processo: `pnpm qa:job-detail`, `pnpm qa:my-applications`, `pnpm qa:staff-lists`, `pnpm qa:admin-nav`. O orquestrador não cobre quem os executa direto.
 
 ## Próxima ação
+
+A rodada vigente classifica `/` quente como `fora do teto`. O limite de 250 ms permanece. A próxima ação é repetir essa rota e inspecionar a amostra lenta; uma rodada não autoriza subir o teto. O número está em `docs-local/decision-ops-perf-slo-homolog.md`.
 
 Nenhuma migration nesta história. Repetir a matriz quando o catálogo de homolog deixar de caber numa resposta pequena, ou quando um SLO de Production for decidido à parte. O item 6 do gate de Production continua com o Plan; esta página só registra o método e os tetos provisórios de homolog.
