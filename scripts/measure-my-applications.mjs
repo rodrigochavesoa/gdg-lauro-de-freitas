@@ -15,7 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
@@ -184,6 +184,9 @@ page.on("request", (request) => {
 page.on("requestfailed", (request) => {
   inflight.delete(request);
 });
+page.on("requestfinished", (request) => {
+  inflight.delete(request);
+});
 page.on("response", (response) => {
   const path = restPathFromUrl(response.url());
   if (!path) return;
@@ -219,11 +222,12 @@ async function navigationMark() {
     ops: traffic.opsEvents.length,
     net: traffic.networkErrors.length,
     cache: probe.cache,
+    inflightBefore: new Set(inflight),
   };
 }
 
 async function navigationSlice(start) {
-  const quiet = await waitForQuiet(() => inflight.size > 0);
+  const quiet = await waitForQuiet(() => requestsOpenedDuring(inflight, start.inflightBefore).length > 0);
   const opsDrain = await foreignError.drain();
   const probe = await readLiveProbe(page);
   if (probe.backendError) {
@@ -233,7 +237,7 @@ async function navigationSlice(start) {
   }
   const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
   const unsettled = [
-    ...[...inflight]
+    ...requestsOpenedDuring(inflight, start.inflightBefore)
       .map((request) => openRequestRow(restPathFromUrl(request.url())))
       .filter((row) => row.path),
     ...(opsDrain.unsettled || []),

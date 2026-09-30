@@ -163,14 +163,19 @@ function attachRest(page, bucket) {
   const onFailed = (request) => {
     inflight.delete(request);
   };
+  const onFinished = (request) => {
+    inflight.delete(request);
+  };
   page.on("request", onRequest);
   page.on("response", onResponse);
   page.on("requestfailed", onFailed);
+  page.on("requestfinished", onFinished);
   return async () => {
     const quiet = await waitForQuiet(() => inflight.size > 0);
     page.removeListener("request", onRequest);
     page.removeListener("response", onResponse);
     page.removeListener("requestfailed", onFailed);
+    page.removeListener("requestfinished", onFinished);
     const bodyUnsettled = [];
     const drained = await drainPromises(pending, undefined, () => {
       bodyUnsettled.push(...expiredReadRows(openReads, "body"));

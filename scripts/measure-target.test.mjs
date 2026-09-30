@@ -13,7 +13,7 @@ import {
   sampleCountError,
   validDetailLatencies,
 } from "./measure-target.mjs";
-import { cacheDelta, drainPromises, expiredReadRows, opsEventFromConsole, probeBackendError, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
+import { cacheDelta, drainPromises, expiredReadRows, opsEventFromConsole, probeBackendError, requestsOpenedDuring, restPathFromUrl, safeFailureText, sanitizeCacheStats, supabaseHostError, unsettledRows, waitForQuiet } from "./measure-observe.mjs";
 
 describe("destinos da medição local", () => {
   it("aceita só o hostname exato de homolog", () => {
@@ -165,6 +165,19 @@ describe("destinos da medição local", () => {
       { settled: false, pending: "console" },
     ]);
     expect(consoleSlot.drop).toBe(true);
+
+    const earlier = { id: "antes" };
+    const during = { id: "amostra" };
+    const open = new Set([earlier, during]);
+    expect(requestsOpenedDuring(open, new Set([earlier]))).toEqual([during]);
+    expect(lineStatus({
+      captureIncomplete: requestsOpenedDuring(open, new Set([earlier])).length > 0 && quiet.timedOut,
+      validN: 5,
+      expectedN: 5,
+      p95: 90,
+      limitMs: 800,
+    })).toBe("hipótese");
+    expect(requestsOpenedDuring(new Set([earlier]), new Set([earlier]))).toEqual([]);
   });
 
   it("descarta identificador pessoal e encerra o flush no prazo", async () => {

@@ -126,6 +126,16 @@ export function openRequestRow(path) {
   return { path: String(path || ""), settled: false, pending: "response" };
 }
 
+/** Pedido anterior à amostra não conta como captura incompleta desta linha. */
+export function requestsOpenedDuring(inflight, before) {
+  const opened = [];
+  for (const request of inflight) {
+    if (before?.has(request)) continue;
+    opened.push(request);
+  }
+  return opened;
+}
+
 export function unsettledRows(rows) {
   if (!Array.isArray(rows)) return [];
   return rows

@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { generateTotp } from "./totp.mjs";
 import { loadLocalEnv } from "./measure-env.mjs";
-import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { attachObservers, cacheDelta, drainPromises, expiredReadRows, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
 import { measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadAdminUser() {
@@ -110,6 +110,9 @@ page.on("request", (request) => {
 });
 
 page.on("requestfailed", (request) => {
+  inflight.delete(request);
+});
+page.on("requestfinished", (request) => {
   inflight.delete(request);
 });
 
@@ -251,6 +254,7 @@ async function timeStaffRoute(route, phase) {
       }
       cacheBefore = beforeProbe.cache;
     }
+    const inflightBefore = new Set(inflight);
     const started = Date.now();
     if (phase === "cold") {
       await page.goto(`${baseUrl}${route.path}`, { waitUntil: "domcontentloaded" });
@@ -261,13 +265,13 @@ async function timeStaffRoute(route, phase) {
     samples.push(Date.now() - started);
     await page.getByText(route.settle).first().waitFor({ state: "visible", timeout: 30_000 }).catch(() => {});
     await page.waitForTimeout(800);
-    const quiet = await waitForQuiet(() => inflight.size > 0);
+    const quiet = await waitForQuiet(() => requestsOpenedDuring(inflight, inflightBefore).length > 0);
     const bodyUnsettled = [];
     const bodyDrain = await drainPromises(pendingCalls, undefined, () => {
       bodyUnsettled.push(...expiredReadRows(openReads, "body"));
     });
     const opsDrain = await foreignError.drain();
-    const responseRows = [...inflight]
+    const responseRows = requestsOpenedDuring(inflight, inflightBefore)
       .map((request) => openRequestRow(restPathFromUrl(request.url())))
       .filter((row) => row.path);
     if (quiet.timedOut || bodyDrain.timedOut || opsDrain.timedOut || responseRows.length > 0) {
