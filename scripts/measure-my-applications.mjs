@@ -14,20 +14,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-
-function loadLocalEnv() {
-  const path = resolve(process.cwd(), ".env.local");
-  if (!existsSync(path)) return {};
-  const env = {};
-  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq < 1) continue;
-    env[trimmed.slice(0, eq)] = trimmed.slice(eq + 1).trim();
-  }
-  return env;
-}
+import { loadLocalEnv } from "./measure-env.mjs";
+import { attachObservers, cacheDelta, livePageError, openRequestRow, readLiveProbe, requestsOpenedDuring, restPathFromUrl, waitForQuiet } from "./measure-observe.mjs";
+import { documentMayStoreSession, measurePreflightError, measureRuns, sampleCountError } from "./measure-target.mjs";
 
 function loadCandidateUser() {
   const file = resolve(process.cwd(), "docs-local/candidate-test-user.md");
@@ -61,7 +50,17 @@ function hitsLabel(hits, total) {
 
 const env = { ...loadLocalEnv(), ...process.env };
 const baseUrl = (env.BASE_URL || "http://127.0.0.1:5173").replace(/\/$/, "");
-const runs = Math.max(1, Number(env.MEASURE_RUNS || 5));
+const preflightError = measurePreflightError({
+  supabaseUrl: env.VITE_SUPABASE_URL,
+  baseUrl,
+  measureRuns: env.MEASURE_RUNS,
+});
+if (preflightError) {
+  console.error(preflightError);
+  process.exit(1);
+}
+const runs = measureRuns(env.MEASURE_RUNS);
+const runId = env.MEASURE_RUN_ID || "";
 const label = (env.MEASURE_LABEL || "after").toLowerCase() === "before" ? "before" : "after";
 const supabaseUrl = env.VITE_SUPABASE_URL;
 const supabaseKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || env.VITE_SUPABASE_ANON_KEY;
@@ -140,18 +139,36 @@ async function sampleRaf(page, durationMs = 800) {
   }, durationMs);
 }
 
-const auth = await signInCandidateSession();
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-await context.addInitScript(
-  ({ storageKey, session }) => {
-    localStorage.setItem(storageKey, JSON.stringify(session));
-  },
-  auth,
-);
-
 const page = await context.newPage();
+const traffic = { foreign: [], networkErrors: [], opsEvents: [] };
+const foreignError = attachObservers(page, traffic);
+await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+const pageError = await livePageError(page, baseUrl);
+if (pageError || foreignError()) {
+  console.error(`${pageError || foreignError()} A sessão de teste não foi injetada.`);
+  await browser.close();
+  process.exit(1);
+}
+const auth = await signInCandidateSession();
+const expectedOrigin = new URL(baseUrl).origin;
+const stored = await page.evaluate(({ storageKey, session, expectedOrigin: origin }) => {
+  if (location.origin !== origin) return false;
+  localStorage.setItem(storageKey, JSON.stringify(session));
+  return true;
+}, { ...auth, expectedOrigin });
+if (!stored || !documentMayStoreSession(new URL(page.url()).origin, expectedOrigin)) {
+  console.error("A página aberta não está na origem exata de BASE_URL. A sessão de teste não foi injetada.");
+  await browser.close();
+  process.exit(1);
+}
+await page.reload({ waitUntil: "domcontentloaded" });
+const primaryNav = () => page.getByRole("navigation", { name: "Principal" });
+const myApplicationsLink = () => primaryNav().getByRole("link", { name: "Minhas candidaturas" });
+const vagasLink = () => primaryNav().getByRole("link", { name: "Vagas", exact: true });
 const restLog = [];
+const inflight = new Set();
 const lines = [];
 const log = (message) => {
   lines.push(message);
@@ -159,14 +176,27 @@ const log = (message) => {
 };
 
 page.on("request", (request) => {
-  const url = request.url();
-  if (url.includes("/rest/v1/")) {
-    restLog.push({ at: Date.now(), path: url.split("?")[0].replace(/^.*\/rest\/v1\//, "") });
-  }
+  const path = restPathFromUrl(request.url());
+  if (!path) return;
+  inflight.add(request);
+  restLog.push({ at: Date.now(), path, status: null });
+});
+page.on("requestfailed", (request) => {
+  inflight.delete(request);
+});
+page.on("requestfinished", (request) => {
+  inflight.delete(request);
+});
+page.on("response", (response) => {
+  const path = restPathFromUrl(response.url());
+  if (!path) return;
+  inflight.delete(response.request());
+  const entry = [...restLog].reverse().find((row) => row.path === path && row.status == null);
+  if (entry) entry.status = response.status();
 });
 
 await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-await page.getByRole("link", { name: "Minhas candidaturas" }).waitFor({ state: "visible", timeout: 30_000 });
+await myApplicationsLink().waitFor({ state: "visible", timeout: 30_000 });
 
 const t1 = [];
 const t1Ready = [];
@@ -174,19 +204,67 @@ let t1RouteHits = 0;
 let t1GateHits = 0;
 let t1SkeletonRuns = 0;
 const t1Rest = [];
+const t1Cache = [];
+const t1Ops = [];
+const t1Net = [];
+const t1Unsettled = [];
+let t1CaptureIncomplete = false;
 
-log(`BASE_URL=${baseUrl} label=${label} runs=${runs} (sem credenciais neste log)`);
+async function navigationMark() {
+  const probe = await readLiveProbe(page);
+  if (probe.backendError) {
+    console.error(probe.backendError);
+    await browser.close();
+    process.exit(1);
+  }
+  return {
+    rest: restLog.length,
+    ops: traffic.opsEvents.length,
+    net: traffic.networkErrors.length,
+    cache: probe.cache,
+    inflightBefore: new Set(inflight),
+  };
+}
+
+async function navigationSlice(start) {
+  const quiet = await waitForQuiet(() => requestsOpenedDuring(inflight, start.inflightBefore).length > 0);
+  const opsDrain = await foreignError.drain();
+  const probe = await readLiveProbe(page);
+  if (probe.backendError) {
+    console.error(probe.backendError);
+    await browser.close();
+    process.exit(1);
+  }
+  const rest = restLog.slice(start.rest).map((row) => ({ path: row.path, status: row.status }));
+  const unsettled = [
+    ...requestsOpenedDuring(inflight, start.inflightBefore)
+      .map((request) => openRequestRow(restPathFromUrl(request.url())))
+      .filter((row) => row.path),
+    ...(opsDrain.unsettled || []),
+  ];
+  return {
+    rest,
+    unsettled,
+    captureIncomplete: quiet.timedOut || opsDrain.timedOut || unsettled.length > 0,
+    cache: cacheDelta(start.cache, probe.cache),
+    ops: traffic.opsEvents.slice(start.ops),
+    net: traffic.networkErrors.slice(start.net),
+  };
+}
+
+log(`label=${label} runs=${runs} (sem credenciais neste log)`);
 log("\n=== T1 cold — reload / → clique Minhas candidaturas ===");
 
 for (let run = 1; run <= runs; run += 1) {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
-  await page.getByRole("link", { name: "Minhas candidaturas" }).waitFor({ state: "visible", timeout: 30_000 });
-  await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible", timeout: 30_000 });
+  await myApplicationsLink().waitFor({ state: "visible", timeout: 30_000 });
+  await page.getByRole("heading", { name: /Seu futuro em tech/i }).waitFor({ state: "visible", timeout: 30_000 });
   await page.waitForTimeout(200);
 
-  const beforeRest = restLog.length;
+  const startedMark = await navigationMark();
+  foreignError.beginSample();
   const started = Date.now();
-  await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+  await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
   const kind = await waitForReady(page);
   t1.push(Date.now() - started);
@@ -196,16 +274,21 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t1GateHits += 1;
   if (raf.skeletonHits > 0) t1SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => row.path);
-  t1Rest.push(restThisNav);
-  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.join(",") || "(nenhum)"}`);
+  const slice = await navigationSlice(startedMark);
+  t1Rest.push(slice.rest);
+  t1Unsettled.push(slice.unsettled);
+  if (slice.captureIncomplete) t1CaptureIncomplete = true;
+  t1Cache.push(slice.cache);
+  t1Ops.push(slice.ops);
+  t1Net.push(slice.net);
+  log(`T1 run ${run} ${Math.round(t1[t1.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${slice.rest.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`);
 }
 
 log("\n=== T2 remount — Vagas → Minhas candidaturas (cache SPA) ===");
 
-await page.getByRole("link", { name: "Vagas", exact: true }).click();
+await vagasLink().click();
 await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
-await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+await myApplicationsLink().click();
 await waitForReady(page);
 
 const t2 = [];
@@ -215,15 +298,21 @@ let t2RouteHits = 0;
 let t2GateHits = 0;
 let t2SkeletonRuns = 0;
 const t2Rest = [];
+const t2Cache = [];
+const t2Ops = [];
+const t2Net = [];
+const t2Unsettled = [];
+let t2CaptureIncomplete = false;
 
 for (let run = 1; run <= runs; run += 1) {
-  await page.getByRole("link", { name: "Vagas", exact: true }).click();
+  await vagasLink().click();
   await page.getByRole("heading", { name: "Vagas em destaque" }).waitFor({ state: "visible" });
   await page.waitForTimeout(300);
 
-  const beforeRest = restLog.length;
+  const startedMark = await navigationMark();
+  foreignError.beginSample();
   const started = Date.now();
-  await page.getByRole("link", { name: "Minhas candidaturas" }).click();
+  await myApplicationsLink().click();
   const rafPromise = sampleRaf(page, 800);
   const kind = await waitForReady(page);
   t2.push(Date.now() - started);
@@ -234,10 +323,15 @@ for (let run = 1; run <= runs; run += 1) {
   if (raf.gateHits > 0) t2GateHits += 1;
   if (raf.skeletonHits > 0) t2SkeletonRuns += 1;
 
-  const restThisNav = restLog.slice(beforeRest).map((row) => row.path);
-  t2Rest.push(restThisNav);
+  const slice = await navigationSlice(startedMark);
+  t2Rest.push(slice.rest);
+  t2Unsettled.push(slice.unsettled);
+  if (slice.captureIncomplete) t2CaptureIncomplete = true;
+  t2Cache.push(slice.cache);
+  t2Ops.push(slice.ops);
+  t2Net.push(slice.net);
   log(
-    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${restThisNav.join(",") || "(nenhum)"}`,
+    `T2 run ${run} ${Math.round(t2[t2.length - 1])} ms ready=${kind} rafGate=${raf.gateHits}/${raf.sampleCount} rafRoute=${raf.routeSpinnerHits} rafSkel=${raf.skeletonHits} rest=${slice.rest.map((row) => `${row.path}:${row.status ?? "sem-resposta"}`).join(",") || "(nenhum)"}`,
   );
 }
 
@@ -254,9 +348,19 @@ log(`T2 skeleton visível (amostra imediata): ${hitsLabel(t2SkeletonRuns, runs)}
 log(`T2 ready: ${t2Ready.join(", ")}`);
 log(`Meta remount: gate 0/${runs} · route 0/${runs} com cache quente · T2 mediana ≤500 ms`);
 
+for (const [name, values] of [["T1", t1], ["T2", t2]]) {
+  const countError = sampleCountError(values, runs, name);
+  if (countError) {
+    console.error(countError);
+    await browser.close();
+    process.exit(1);
+  }
+}
+
 const metrics = {
   name: label,
-  baseUrl,
+  runId,
+  pii: false,
   measuredAt: new Date().toISOString(),
   runs,
   t1: {
@@ -267,6 +371,11 @@ const metrics = {
     gateHits: t1GateHits,
     skeletonRuns: t1SkeletonRuns,
     rest: t1Rest,
+    unsettled: t1Unsettled,
+    captureIncomplete: t1CaptureIncomplete,
+    cache: t1Cache,
+    opsEvents: t1Ops,
+    networkErrors: t1Net,
   },
   t2: {
     ms: t2,
@@ -277,8 +386,19 @@ const metrics = {
     skeletonRuns: t2SkeletonRuns,
     raf: t2Raf,
     rest: t2Rest,
+    unsettled: t2Unsettled,
+    captureIncomplete: t2CaptureIncomplete,
+    cache: t2Cache,
+    opsEvents: t2Ops,
+    networkErrors: t2Net,
   },
 };
+
+if (foreignError()) {
+  console.error(foreignError());
+  await browser.close();
+  process.exit(1);
+}
 
 writeFileSync(resolve(outDir, `metrics-${label}.json`), `${JSON.stringify(metrics, null, 2)}\n`);
 writeFileSync(resolve(outDir, `measure-${label}.log`), `${lines.join("\n")}\n`);
