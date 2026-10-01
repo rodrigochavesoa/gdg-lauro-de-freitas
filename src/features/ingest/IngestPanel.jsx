@@ -12,6 +12,7 @@ import { LEVEL_TO_DB, MODEL_TO_DB, parseStack, structuredJobColumns } from "../.
 import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 import { mergeById } from "../../lib/merge-by-id.js";
 import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
+import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 
 const emptyForm = {
   locator: HOMOLOG_MANUAL_FIXTURE.locator,
@@ -202,7 +203,7 @@ export function IngestPanel() {
           </p>
         </div>
         {view === "list" ? <button className="primary small" type="button" onClick={() => { setView("new"); setError(""); setMessage(""); }}>Nova fixture</button> :
-          <button className="ghost" type="button" onClick={() => { setView("list"); setError(""); }}>Voltar às ingestões</button>}
+          <AdminBackButton type="button" onClick={() => { setView("list"); setError(""); }}>Voltar às ingestões</AdminBackButton>}
       </div>
       {message ? <div className="success" role="status">{message}</div> : null}
       {error ? <div className="form-alert" role="alert">{error}</div> : null}

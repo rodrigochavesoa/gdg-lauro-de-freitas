@@ -187,7 +187,7 @@ describe("JobDetail apply", () => {
         applicationStatus={null}
       />,
     );
-    expect(screen.getByRole("button", { name: "Voltar para minhas candidaturas" })).toHaveClass("back");
+    expect(screen.getByRole("button", { name: "Voltar para minhas candidaturas" })).toHaveClass("admin-back-button");
     expect(screen.queryByRole("button", { name: /Voltar para vagas/i })).not.toBeInTheDocument();
   });
 

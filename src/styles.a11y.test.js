@@ -46,5 +46,11 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
     expect(css).toMatch(/\.portal-member-cta__secondary\{[^}]*color:var\(--color-on-brand\)/);
     expect(css).not.toMatch(/\.portal-member-cta__copy p\{color:#dbeafe\}/);
     expect(css).toMatch(/\.portal-video-hint:focus-visible\{outline:3px solid var\(--color-focus\)/);
+    expect(css).toMatch(/\.admin-back-button\{[^}]*background-color:#fff/);
+    expect(css).toMatch(/\.admin-back-button\{[^}]*color:#18181b/);
+    expect(css).toMatch(/html\[data-theme="dark"\] \.admin-page \.admin-back-button[^}]*color:#f4f4f5/);
+    expect(css).toMatch(
+      /html\[data-theme="dark"\] \.admin-home-actions a:not\(\.admin-back-button\)/,
+    );
   });
 });

@@ -1,5 +1,6 @@
 import React from "react";
-import { ArrowLeft, ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
+import { ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
+import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import { useNavigate } from "react-router-dom";
 
 function isExternalHttp(href) {
@@ -34,9 +35,9 @@ export function EventLanding({ event }) {
         </svg>
       </div>
       <section className="shell event-layout">
-        <button className="back" type="button" onClick={() => navigate("/eventos")}>
-          <ArrowLeft size={17} aria-hidden="true" /> Voltar para eventos
-        </button>
+        <AdminBackButton type="button" onClick={() => navigate("/eventos")}>
+          Voltar para eventos
+        </AdminBackButton>
         <div className="job-card event-card event-summary">
           <div className="event-summary__meta">
             <h1>{event.title}</h1>
