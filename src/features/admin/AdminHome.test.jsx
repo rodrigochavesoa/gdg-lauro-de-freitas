@@ -101,6 +101,17 @@ describe("AdminHome", () => {
     expect(document.querySelector(".admin-dashboard-stat--ingest-attention")).toHaveTextContent("Ingestões pendentes");
   });
 
+  it("indicador de situação usa dois pontos e não repete Visão geral no foco", async () => {
+    loadAdminDashboardSummary.mockResolvedValue({ ...jobCounts, ingestAttention: 1 });
+    renderHome("admin");
+    await screen.findByText("Atenção");
+    const steps = document.querySelector(".admin-dashboard-steps");
+    expect(steps).toBeTruthy();
+    expect(steps.querySelectorAll(".admin-dashboard-steps__item")).toHaveLength(2);
+    expect(steps.textContent).not.toMatch(/Visão geral/);
+    expect(screen.getByRole("heading", { name: "Visão geral" })).toBeInTheDocument();
+  });
+
   it("sem pendência mostra estado positivo e não mantém o alerta laranja", async () => {
     let resolveSummary;
     loadAdminDashboardSummary.mockImplementation(
@@ -116,6 +127,7 @@ describe("AdminHome", () => {
     expect(screen.getByText("4")).toBeInTheDocument();
     expect(screen.getByText("Fila de revisão em dia")).toBeInTheDocument();
     expect(screen.queryByText("Atenção")).not.toBeInTheDocument();
+    expect(document.querySelector(".admin-dashboard-steps--clear .admin-dashboard-steps__label")).toHaveTextContent("Em dia");
     expect(screen.queryByRole("link", { name: "Revisar fila" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Ver ingestões/ })).not.toBeInTheDocument();
     expect(focusSection()).toHaveClass("admin-dashboard-focus--clear");

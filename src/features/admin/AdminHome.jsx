@@ -30,17 +30,18 @@ function FocusRing({ state, count }) {
 
 function FocusSteps({ state }) {
   const attention = state === "attention";
+  const statusLabel = attention ? "Atenção" : "Em dia";
   return (
-    <ol className={`admin-dashboard-steps admin-dashboard-steps--${state}`} aria-label="Situação do painel">
-      <li className="admin-dashboard-steps__item admin-dashboard-steps__item--current" aria-current="step">
+    <ol
+      className={`admin-dashboard-steps admin-dashboard-steps--${state}`}
+      aria-label={attention ? "Situação: atenção necessária" : "Situação: em dia"}
+    >
+      <li className="admin-dashboard-steps__item admin-dashboard-steps__item--current">
         <span className="admin-dashboard-steps__dot" />
-        <span className="admin-dashboard-steps__label">{attention ? "Atenção" : "Em dia"}</span>
+        <span className="admin-dashboard-steps__label">{statusLabel}</span>
       </li>
-      <li className="admin-dashboard-steps__item" aria-hidden="true"><span className="admin-dashboard-steps__dot" /></li>
-      <li className="admin-dashboard-steps__item" aria-hidden="true"><span className="admin-dashboard-steps__dot" /></li>
-      <li className="admin-dashboard-steps__item">
+      <li className="admin-dashboard-steps__item admin-dashboard-steps__item--end" aria-hidden="true">
         <span className="admin-dashboard-steps__dot" />
-        <span className="admin-dashboard-steps__label">Visão geral</span>
       </li>
     </ol>
   );
