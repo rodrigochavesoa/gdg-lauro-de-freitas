@@ -57,7 +57,7 @@ Visitantes exploram vagas aprovadas, filtram o catálogo e consultam os detalhes
 - detalhe da vaga e candidatura com estados claros de carregamento, erro e retry;
 - login do candidato, onboarding, perfil e preferências;
 - curadoria com fila, prioridade, pareceres, rodadas e moderação;
-- painel administrativo para empresas, vagas e ingestão controlada;
+- painel administrativo com próxima ação dinâmica para curadoria, ingestão e gestão de vagas;
 - experiência responsiva, tema claro/escuro e acessibilidade em evolução;
 - segurança de dados com RLS, autorização no banco, rate limit e trilha de auditoria;
 - pipeline de qualidade com testes, build e validações antes do merge.
