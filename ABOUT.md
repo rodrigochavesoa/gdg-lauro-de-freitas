@@ -125,6 +125,7 @@ Matching semântico, Gemini, conectores externos, portal de empresas e operaçã
 - Publicação administrativa transacional: empresa nova e vaga `pending` na mesma RPC.
 - Ingestão manual/fixture em homologação.
 - Observabilidade operacional dos fluxos principais via eventos `ops.*` no console local/Preview/homolog.
+- Painel administrativo com resumo agregado, indicadores independentes e próxima ação contextual; carregamento ou falha não são apresentados como zero confirmado.
 
 ### Qualidade e operação
 
@@ -150,7 +151,8 @@ gdg-senai/
 ├── .github/workflows/ci.yml         # CI de qualidade e RLS homolog
 ├── public/                          # Marca, favicon, imagens e vídeo do portal
 ├── src/
-│   ├── App.jsx                      # Shell, sessão, gates e rotas
+│   ├── App.jsx                      # Composição do shell
+│   ├── app/                          # Sessão, prefetch, avatar e composição das rotas
 │   ├── features/
 │   │   ├── admin/                   # Painel, vagas, dashboard e gates staff
 │   │   ├── auth/                    # Login, sessão, perfil, avatar e MFA
@@ -162,7 +164,7 @@ gdg-senai/
 │   │   ├── newsletter/              # Shell de newsletter
 │   │   ├── portal/                  # Página inicial e CTA contextual
 │   │   └── privacy/                 # Consentimento, preferências e auditoria
-│   ├── lib/                         # Cliente Supabase, APIs e adaptadores
+│   ├── lib/                          # Cliente Supabase, APIs, contratos e adaptadores
 │   ├── shared/ui/                   # Header, tema, diálogos e componentes comuns
 │   ├── styles.css                   # Tokens e estilos globais
 │   └── test/                        # Setup e utilitários de teste
@@ -176,6 +178,8 @@ gdg-senai/
 │   ├── migrations/held/             # Camada B ainda não promovida
 │   └── functions/                   # Edge Functions e código compartilhado
 ├── docs/                            # Documentação versionada do projeto
+│   ├── tech/                        # Contratos, cache, shell e SLO de homologação
+│   └── agents/                      # Mapa de contexto para agentes e ferramentas
 ├── docs-local/                      # Evidências e operação local, ignorado
 └── docs-local.example/              # Modelos sem segredos
 ```
@@ -349,6 +353,7 @@ Nunca use `service_role`, `sb_secret_*`, senha de banco ou segredo de provedor c
 | `pnpm qa:job-detail` | Mede detalhe de vaga |
 | `pnpm qa:my-applications` | Mede minhas candidaturas |
 | `pnpm qa:staff-lists` | Mede listas staff |
+| `pnpm qa:ops-perf-slo` | Executa a matriz de navegação e latência em homologação |
 | `pnpm clickup:sync` | Sincronizador Node das tarefas e handoff ClickUp |
 
 ## Rotas
@@ -413,14 +418,14 @@ O código e o manifesto estão preparados, mas este documento não afirma que a 
 
 ### Painel
 
-O dashboard mostra a próxima ação dinâmica e os indicadores de:
+O dashboard consulta um resumo agregado por uma RPC. Mostra a próxima ação conforme as pendências e os indicadores de:
 
 - vagas publicadas;
 - vagas rejeitadas;
 - vagas na fila;
 - ingestões pendentes.
 
-Quando não há pendência, a interface informa que a fila está em dia. Durante carregamento ou falha, não transforma ausência de resposta em zero nem em estado positivo.
+Quando não há pendência, a interface informa que a fila está em dia. Durante carregamento ou falha, não transforma ausência de resposta em zero nem em estado positivo. A estrutura do painel aparece antes dos indicadores e cada métrica mantém seu próprio estado de carregamento/erro.
 
 ### Curadoria
 
@@ -469,7 +474,7 @@ O projeto contém catálogo de finalidades, consentimento e auditoria em homolog
 
 ## IA e integrações futuras
 
-Existem Edge Functions preparadas para enriquecimento e matching, mas a SPA atual não chama matching.
+Há código de Edge Functions para fluxos futuros, mas matching não está ativo: `match-jobs` permanece despublicada e seu handler responde `403` sem ler dados do perfil nem chamar provedor. A SPA não invoca matching.
 
 Ordem recomendada:
 
@@ -502,7 +507,7 @@ Conectores externos, scrapers, portal de empresas/recrutadores, e-mail transacio
 - AAL2 de staff: UI e enforcement estão na cadeia versionada; aplicação efetiva em Production continua condicionada a aprovação, evidência e plano de reversão.
 - Upload de avatar: habilitado somente em homologação/Preview autorizado; Production permanece fail-closed.
 - Privacidade: controles técnicos existem, mas direitos, retenção e textos finais ainda não fecham o gate de produção.
-- Performance: há paginação e medições pontuais; SLO operacional ainda não está comprometido.
+- Performance: há paginação e uma matriz de medição com tetos provisórios em homologação (`docs/tech/PERF-SLO.md`). Isso não constitui SLO de produção; resultados de rodadas e decisões ficam em `docs-local/`.
 - Newsletter: interface existe, envio real não está ligado.
 - Produção: deploy separado existe, mas o projeto não deve operar com PII real neste recorte.
 

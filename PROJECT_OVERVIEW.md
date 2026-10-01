@@ -2,7 +2,7 @@
 
 > Documento de entrada para desenvolvedores. Ele explica o que o projeto é, como funciona, onde estão as responsabilidades e quais limites não podem ser ignorados.
 
-**Data da visão:** 28/09/2026
+**Data da visão:** 30/09/2026
 **Status:** MVP paralelo em homologação e portfólio; cadeia produtiva versionada, mas não aprovado para operar com titulares reais.
 **Repositório:** `rodrigochavesoa/gdg-lauro-de-freitas`  
 **Produto oficial de referência:** [`lfdev-gdg/GDGJobs`](https://github.com/lfdev-gdg/GDGJobs)
@@ -76,7 +76,10 @@ flowchart LR
 
 Arquivos principais:
 
-- `src/App.jsx`: shell, rotas e gates de autenticação/onboarding;
+- `src/App.jsx`: composição do shell; não concentra sessão, prefetch ou lógica de rota;
+- `src/app/`: hidratação de sessão, geração de auth, avatar, prefetch e composição das rotas;
+- `src/app/AppRoutes.jsx`: registro das rotas e composição dos gates;
+- `src/features/jobs/JobDetailRoute.jsx`: estado e fluxo do detalhe da vaga, candidatura e retirada;
 - `src/shared/ui/`: Header, Footer, tema, menu, acessibilidade e componentes compartilhados;
 - `src/features/catalog/`: catálogo, busca e filtros;
 - `src/features/auth/`: login, onboarding, sessão, avatar e MFA staff;
@@ -103,7 +106,7 @@ Os helpers de autorização (`is_admin`, `is_curator`, `is_moderator`, `can_revi
 
 #### Edge Functions
 
-Existem funções para preparação de enriquecimento e matching, mas a SPA atual não as invoca. Integrações externas e segredos nunca devem ser transferidos para o bundle do navegador.
+Há código de Edge Functions para fluxos futuros. `match-jobs` permanece despublicada e seu handler responde `403` antes de ler dados do perfil ou chamar provedor; a SPA não invoca matching. Integrações externas e segredos nunca devem ser transferidos para o bundle do navegador.
 
 ## 5. Usuários e domínio
 
@@ -191,6 +194,8 @@ erDiagram
 | `/admin/vagas/:id` | Admin (`AdminJobsGate`) | Detalhe e edição de vaga admin |
 
 Login staff e o desafio MFA não têm rota própria: vivem no shell `Admin` em `/admin`. O produto não provisiona contas staff por esta UI. Curadores e moderadores autenticados usam o painel e a curadoria; ingestão e gestão de vagas permanecem restritas ao papel `admin`. Catch-all desconhecido em `/admin/*` volta para `/admin`.
+
+O painel carrega os indicadores por `get_admin_dashboard_summary()` em uma RPC. A estrutura e o título aparecem antes dos dados; cada indicador representa carregamento, erro ou valor confirmado, sem converter falha em zero. A próxima ação varia conforme as pendências de curadoria, ingestão e vagas.
 
 ### Fluxo P0
 
@@ -400,21 +405,20 @@ Limites atuais:
 - MFA: UI `/admin` gated por flag; RLS AAL2 versionado na cadeia produtiva, com aplicação efetiva condicionada ao gate operacional;
 - avatar: fluxo endurecido em homologação, upload de produção desligado;
 - acessibilidade: meta interna, não certificação;
-- desempenho: paginação e medições pontuais, sem SLO comprometido;
+- desempenho: paginação e matriz de medições com tetos provisórios de homolog em `docs/tech/PERF-SLO.md`; não há SLO de Production. A linha opcional de candidaturas teve amostra fria acima do teto provisório; isso não justifica relaxar o limite nem, isoladamente, otimização de banco;
 - eventos e newsletter: shells públicos, sem Resend;
 - produção: demo/portfólio, não operação com PII real.
 
 ### Bloqueado ou backlog
 
-- `MVP-004`: direitos do titular, exportação, correção, exclusão e retenção;
-- `MVP-006`/F-020: Gemini e matching semântico;
-- `MVP-007`: backup, restore e incidentes reais;
-- `MVP-012`: matching determinístico explicável;
+- direitos do titular, exportação, correção, exclusão e retenção;
+- matching determinístico explicável e, após os gates de privacidade, matching semântico;
+- backup, restore exercitado e resposta a incidentes;
 - Aplicação efetiva da cadeia AAL2 em Production — gate operacional, evidência e aprovação do PO;
 - `SEC-STAFF-PROVISIONING-01`: convite e provisionamento staff controlados;
-- `SEC-CI-02`: política para PRs de fork;
+- política para PRs de fork, caso o projeto decida aceitá-los;
 - Resend/domínio/e-mail transacional;
-- portal completo de empresa/recrutador e currículo, revisão prevista na Sprint 28;
+- portal completo de empresa/recrutador e currículo;
 - VLibras na sprint final.
 
 ## 13. O que um desenvolvedor novo deve fazer
@@ -432,12 +436,12 @@ Limites atuais:
 
 Leia nesta ordem:
 
-1. `src/App.jsx` — rotas e gates;
-2. `src/features/auth/auth-api.js` — sessão e perfil;
+1. `src/App.jsx` e `src/app/` — composição, sessão e rotas;
+2. `src/features/auth/auth-api.js` — operações de identidade e perfil;
 3. `src/lib/supabase-client.js` — cliente browser;
 4. `src/lib/jobs-api.js` e `src/features/catalog/` — catálogo;
-5. `src/features/jobs/` — candidatura;
-6. `src/features/curation/` e `src/lib/admin-api.js` — staff;
+5. `src/features/jobs/` — detalhe e candidatura;
+6. `src/features/admin/` e `src/features/curation/` — painel e operações staff;
 7. `src/features/privacy/` — consentimento e fail-closed;
 8. `supabase/migrations/` — contratos reais de dados e autorização;
 9. `scripts/check-rls.mjs` — cenários defensivos;
