@@ -36,6 +36,31 @@ function resolveCurationSelection(visibleJobs, selectedId) {
   return visibleJobs.find((job) => job.id === selectedId) ?? null;
 }
 
+function CurationReviewFeedback({ feedbackRef, reviewBusy, reviewMessage, reviewError, hideWhenIdle = false }) {
+  const hasContent = reviewBusy || reviewMessage || reviewError;
+  if (hideWhenIdle && !hasContent) return null;
+
+  return (
+    <div ref={feedbackRef} className="curation-priority-feedback curation-review-feedback" aria-live="polite">
+      <div className="curation-priority-feedback__slot">
+        {reviewBusy ? (
+          <p className="tiny" role="status">Enviando parecer…</p>
+        ) : reviewMessage ? (
+          <div className="success" role="status">
+            <Check size={18} aria-hidden="true" /> {reviewMessage}
+          </div>
+        ) : reviewError ? (
+          <div className="form-alert" role="alert">
+            {reviewError}
+          </div>
+        ) : (
+          <span className="sr-only" role="status">{"\u00a0"}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function CurationQueue({ profile, includeRejected = false }) {
   const isAdmin = profile.role === "admin";
   const cached = peekCurationQueueCache({ scope: "pending", page: 1 });
@@ -53,7 +78,11 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [priorityReason, setPriorityReason] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [reviewMessage, setReviewMessage] = useState("");
+  const [reviewError, setReviewError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const reviewFeedbackRef = useRef(null);
   const [loading, setLoading] = useState(() => !cached);
   const [pendingLoadingMore, setPendingLoadingMore] = useState(false);
   const [rejectedLoadingMore, setRejectedLoadingMore] = useState(false);
@@ -246,20 +275,43 @@ export function CurationQueue({ profile, includeRejected = false }) {
     }
   };
 
-  const onReview = (event) => {
+  useEffect(() => {
+    if ((!reviewError && !reviewMessage) || !reviewFeedbackRef.current) return;
+    reviewFeedbackRef.current.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [reviewError, reviewMessage]);
+
+  const onReview = async (event) => {
     event.preventDefault();
-    if (!selected) return;
-    run(
-      () =>
-        submitCurationReview({
-          jobId: selected.id,
-          decision,
-          rubricCode,
-          internalComment: comment,
-        }),
-      decision === "approve" ? "Parecer de aprovação enviado." : "Parecer de rejeição enviado.",
-      () => { setShowReview(false); setDetailOpen(false); setRubricCode(""); setComment(""); },
-    );
+    if (!selected || reviewBusy) return;
+    setReviewBusy(true);
+    setReviewError("");
+    setReviewMessage("");
+    setError("");
+    setMessage("");
+    try {
+      await submitCurationReview({
+        jobId: selected.id,
+        decision,
+        rubricCode,
+        internalComment: comment,
+      });
+      const successCopy =
+        decision === "approve" ? "Parecer de aprovação enviado." : "Parecer de rejeição enviado.";
+      setReviewMessage(successCopy);
+      setShowReview(false);
+      setRubricCode("");
+      setComment("");
+      setDetailEpoch((value) => value + 1);
+      const generation = pendingGenerationRef.current;
+      const data = await loadCurationQueue({ scope: "pending", page: 1, forceRefresh: true });
+      if (generation !== pendingGenerationRef.current) return;
+      setError("");
+      applyPending(data);
+    } catch (err) {
+      setReviewError(err.message || "Não foi possível enviar o parecer.");
+    } finally {
+      setReviewBusy(false);
+    }
   };
 
   return (
@@ -315,6 +367,8 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setShowReview(false);
                 setMessage("");
                 setError("");
+                setReviewMessage("");
+                setReviewError("");
                 setPriorityReason("");
               }}
             >
@@ -367,10 +421,29 @@ export function CurationQueue({ profile, includeRejected = false }) {
               {detailReady ? <CurationTimeline reviews={detailReviews} /> : null}
             </details>
           </div>
-          {view === "pending" && !showReview ? <div className="curation-workspace__review-entry">
-            <button type="button" className="primary" onClick={() => setShowReview(true)}>Iniciar parecer</button>
-            <p>Confira a vaga antes de decidir. O parecer é enviado à curadoria, não publicado diretamente.</p>
-          </div> : null}
+          {view === "pending" && !showReview ? (
+            <div className="curation-workspace__review-entry">
+              <CurationReviewFeedback
+                feedbackRef={reviewFeedbackRef}
+                reviewBusy={reviewBusy}
+                reviewMessage={reviewMessage}
+                reviewError={reviewError}
+                hideWhenIdle
+              />
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setShowReview(true);
+                  setReviewError("");
+                  setReviewMessage("");
+                }}
+              >
+                Iniciar parecer
+              </button>
+              <p>Confira a vaga antes de decidir. O parecer é enviado à curadoria, não publicado diretamente.</p>
+            </div>
+          ) : null}
           {view === "pending" && showReview ? <>
           <div className="form-section">
             <h2>Registrar parecer</h2>
@@ -450,12 +523,33 @@ export function CurationQueue({ profile, includeRejected = false }) {
               }}
             />
           )}
-          {view === "pending" && showReview ? <div className="form-actions">
-            <button className="primary" type="submit" disabled={busy}>
-              <ListChecks size={17} /> Enviar parecer
-            </button>
-            <button className="ghost" type="button" onClick={() => setShowReview(false)} disabled={busy}>Cancelar</button>
-          </div> : null}
+          {view === "pending" && showReview ? (
+            <>
+              <CurationReviewFeedback
+                feedbackRef={reviewFeedbackRef}
+                reviewBusy={reviewBusy}
+                reviewMessage={reviewMessage}
+                reviewError={reviewError}
+              />
+              <div className="form-actions">
+                <button className="primary" type="submit" disabled={busy || reviewBusy}>
+                  <ListChecks size={17} /> {reviewBusy ? "Enviando…" : "Enviar parecer"}
+                </button>
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => {
+                    setShowReview(false);
+                    setReviewError("");
+                    setReviewMessage("");
+                  }}
+                  disabled={reviewBusy}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </>
+          ) : null}
           {view === "rejected" && isAdmin ? <div className="form-actions">
             <button type="button" className="outline" disabled={busy} onClick={() => run(() => resubmitJobForCuration(selected.id), "Vaga reenviada em nova rodada.", () => { setView("pending"); setSelectedId(""); setDetailOpen(false); })}>
               {busy ? "Reenviando…" : "Reenviar para curadoria"}

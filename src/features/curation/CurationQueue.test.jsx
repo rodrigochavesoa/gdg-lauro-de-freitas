@@ -16,6 +16,7 @@ const loadCurationJobDetail = vi.hoisted(() =>
 );
 const peekCurationQueueCache = vi.hoisted(() => vi.fn(() => null));
 const setJobCurationPriority = vi.hoisted(() => vi.fn());
+const submitCurationReview = vi.hoisted(() => vi.fn());
 
 vi.mock("./curation-api.js", () => ({
   loadCurationQueue: (...args) => loadCurationQueue(...args),
@@ -27,7 +28,7 @@ vi.mock("./curation-api.js", () => ({
       curationEvents.notify = () => {};
     };
   },
-  submitCurationReview: vi.fn(),
+  submitCurationReview: (...args) => submitCurationReview(...args),
   resubmitJobForCuration: vi.fn(),
   setJobCurationPriority: (...args) => setJobCurationPriority(...args),
 }));
@@ -683,7 +684,9 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     await markUrgent();
 
     const control = document.querySelector(".curation-priority-control");
-    expect(await within(control).findByRole("alert")).toHaveTextContent("cannot review own submission");
+    expect(await within(control).findByRole("alert")).toHaveTextContent(
+      "Não foi possível completar a operação. Tente de novo ou contate a equipe.",
+    );
     expect(screen.getByRole("button", { name: "Urgente" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("button", { name: "Urgente", pressed: true })).not.toBeInTheDocument();
     expect(document.querySelector(".success")).toBeNull();
@@ -840,5 +843,73 @@ describe("CurationQueue prioridade admin (UX-CURATION-PRIORITY-FEEDBACK-01)", ()
     const css = readFileSync(resolve("src/styles.css"), "utf8");
     expect(css).toMatch(/\.curation-priority-feedback\{[^}]*position:static/);
     expect(css).toMatch(/@media\(max-width:760px\)\{\s*\.curation-priority-feedback/);
+  });
+});
+
+describe("CurationQueue parecer (UX-CURATION-REVIEW-FEEDBACK-01)", () => {
+  beforeEach(() => {
+    loadCurationQueue.mockReset();
+    loadCurationQueue.mockResolvedValue(normalQueuePayload);
+    loadCurationJobDetail.mockReset();
+    loadCurationJobDetail.mockResolvedValue({
+      id: "job-1",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
+    peekCurationQueueCache.mockReset();
+    peekCurationQueueCache.mockReturnValue(null);
+    submitCurationReview.mockReset();
+    submitCurationReview.mockResolvedValue({ ok: true });
+  });
+
+  async function openReviewForm() {
+    await selectQueueJob(/Pessoa Dev Front-end \(fila\)/);
+    fireEvent.click(await screen.findByRole("button", { name: "Iniciar parecer" }));
+  }
+
+  async function submitReviewForm() {
+    fireEvent.click(screen.getByLabelText(/Empresa e oportunidade identificáveis/));
+    fireEvent.click(screen.getByRole("button", { name: /^Enviar parecer/i }));
+  }
+
+  it("mostra erro didático inline ao falhar o parecer, não só no topo", async () => {
+    submitCurationReview.mockRejectedValue(
+      new Error("Esta vaga foi enviada por você. Peça a um curador para registrar o parecer."),
+    );
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await openReviewForm();
+    await submitReviewForm();
+
+    const feedback = document.querySelector(".curation-review-feedback");
+    expect(feedback).toBeTruthy();
+    expect(feedback).toHaveAttribute("aria-live", "polite");
+    const inlineAlert = await within(feedback).findByRole("alert");
+    expect(inlineAlert).toHaveTextContent(/enviada por você/i);
+    expect(screen.getByRole("button", { name: /^Enviar parecer/i })).toBeInTheDocument();
+
+    const topAlerts = screen.getAllByRole("alert");
+    const topBanner = topAlerts.find((node) => !feedback.contains(node));
+    expect(topBanner).toBeUndefined();
+  });
+
+  it("confirma sucesso inline junto a Iniciar parecer e fecha o formulário", async () => {
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await openReviewForm();
+    await submitReviewForm();
+
+    const entry = await waitFor(() => {
+      const startButton = screen.getByRole("button", { name: "Iniciar parecer" });
+      const node = startButton.closest(".curation-workspace__review-entry");
+      if (!node) throw new Error("review-entry ausente");
+      return node;
+    });
+    expect(within(entry).getByText("Parecer de aprovação enviado.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Enviar parecer/i })).not.toBeInTheDocument();
+    expect(submitCurationReview).toHaveBeenCalled();
+
+    const titleBlock = document.querySelector(".admin-title");
+    expect(titleBlock?.textContent ?? "").not.toMatch(/Parecer de aprovação enviado/);
   });
 });
