@@ -14,7 +14,11 @@ import { curationDetailCache, curationQueueCache } from "../../lib/client-cache/
 import { LIST_CACHE_TTL_MS } from "../../lib/client-cache/ttl.js";
 import { invalidateApprovedJobsCache } from "../../lib/jobs-api.js";
 import { runObserved } from "../../lib/ops-observability.js";
-import { throwStaffApiError } from "../../lib/staff-api-errors.js";
+import {
+  throwStaffApiError,
+  throwStaffCurationAdminRpcError,
+  throwStaffCurationReviewError,
+} from "../../lib/staff-api-errors.js";
 import { mergeCurationQueue } from "./curation-queue.js";
 import { validateCurationReview, validateUrgentPriority } from "./rubric.js";
 
@@ -275,7 +279,7 @@ export async function submitCurationReview({ jobId, decision, rubricCode, intern
       p_rubric_code: rubricCode.trim(),
       p_internal_comment: String(internalComment ?? "").trim() || null,
     });
-    throwIfError(error);
+    if (error) throwStaffCurationReviewError(error);
     invalidateCurationJobSurfaces(jobId);
     invalidateApprovedJobsCache();
     return data;
@@ -287,7 +291,7 @@ export async function resubmitJobForCuration(jobId) {
     if (!jobId) throw new Error("Vaga para reenvio não informada.");
     const client = clientOrThrow();
     const { data, error } = await client.rpc("resubmit_job_for_curation", { p_job_id: jobId });
-    throwIfError(error);
+    if (error) throwStaffCurationAdminRpcError(error);
     invalidateCurationJobSurfaces(jobId);
     invalidateApprovedJobsCache();
     return data;
@@ -309,7 +313,7 @@ export async function setJobCurationPriority(jobId, priority, reason) {
       p_priority: priority,
       p_reason: priority === "urgent" ? String(reason).trim() : null,
     });
-    throwIfError(error);
+    if (error) throwStaffCurationAdminRpcError(error);
     invalidateCurationJobSurfaces(jobId, { scopes: ["pending"], includeDetail: false });
     return data;
   });

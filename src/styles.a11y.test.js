@@ -36,6 +36,12 @@ describe("MVP-019 — a11y e contraste via tokens", () => {
     expect(css).not.toMatch(/html\[data-theme="dark"\][\s\S]*--color-primary-700:\s*#93c5fd/);
     expect(css).not.toMatch(/html\[data-theme="dark"\][\s\S]*--color-action-primary:\s*#3b82f6/);
     expect(css).toMatch(/\.form-alert\{[^}]*border:1px solid var\(--color-danger-700\)/);
+    expect(css).toMatch(
+      /\.curation-priority-feedback__slot \.success[^}]*padding:12px 14px/,
+    );
+    expect(css).toMatch(
+      /\.curation-priority-feedback__slot \.form-alert[^}]*padding:12px 14px/,
+    );
     expect(css).toMatch(/\.portal-member-cta__copy p\{color:var\(--color-on-brand-muted\)\}/);
     expect(css).toMatch(/\.portal-member-cta__secondary\{[^}]*color:var\(--color-on-brand\)/);
     expect(css).not.toMatch(/\.portal-member-cta__copy p\{color:#dbeafe\}/);

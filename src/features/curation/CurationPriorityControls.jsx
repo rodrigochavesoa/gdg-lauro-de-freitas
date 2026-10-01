@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Check } from "lucide-react";
+import { formatStaffCurationAdminRpcError } from "../../lib/staff-api-errors.js";
 import { validateUrgentPriority } from "./rubric.js";
 
 const URGENT_STATUS = "Prioridade urgente registrada.";
@@ -55,7 +56,7 @@ export function CurationPriorityControls({
       setStatus(nextPriority === "urgent" ? URGENT_STATUS : NORMAL_STATUS);
     } catch (err) {
       if (jobIdRef.current !== requestedJobId) return;
-      setError(err.message || "Não foi possível salvar a prioridade.");
+      setError(formatStaffCurationAdminRpcError(err.message) || "Não foi possível salvar a prioridade.");
     } finally {
       if (jobIdRef.current === requestedJobId) setSavingTarget(null);
     }
