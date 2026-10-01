@@ -51,7 +51,7 @@ function CurationReviewFeedback({ feedbackRef, reviewBusy, reviewMessage, review
           </div>
         ) : reviewError ? (
           <div className="form-alert" role="alert">
-            {reviewError}
+            <p>{reviewError}</p>
           </div>
         ) : (
           <span className="sr-only" role="status">{"\u00a0"}</span>
@@ -524,14 +524,15 @@ export function CurationQueue({ profile, includeRejected = false }) {
             />
           )}
           {view === "pending" && showReview ? (
-            <>
+            <div className="form-actions form-actions--with-inline-feedback">
               <CurationReviewFeedback
                 feedbackRef={reviewFeedbackRef}
                 reviewBusy={reviewBusy}
                 reviewMessage={reviewMessage}
                 reviewError={reviewError}
+                hideWhenIdle
               />
-              <div className="form-actions">
+              <div className="form-actions__buttons">
                 <button className="primary" type="submit" disabled={busy || reviewBusy}>
                   <ListChecks size={17} /> {reviewBusy ? "Enviando…" : "Enviar parecer"}
                 </button>
@@ -548,7 +549,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
                   Cancelar
                 </button>
               </div>
-            </>
+            </div>
           ) : null}
           {view === "rejected" && isAdmin ? <div className="form-actions">
             <button type="button" className="outline" disabled={busy} onClick={() => run(() => resubmitJobForCuration(selected.id), "Vaga reenviada em nova rodada.", () => { setView("pending"); setSelectedId(""); setDetailOpen(false); })}>
