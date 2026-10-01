@@ -16,9 +16,23 @@ function CommunityPending() {
   return (
     <main className="community-page" aria-busy="true">
       <div className="shell community-shell">
-        <CommunityLoadingSkeleton />
+        <CommunityPageShellSkeleton />
       </div>
     </main>
+  );
+}
+
+/** Placeholder compacto enquanto o status da Comunidade carrega — não imita cards de perfil. */
+function CommunityPageShellSkeleton() {
+  return (
+    <section className="community-skeleton community-skeleton--page" aria-busy="true" aria-label="Carregando Comunidade">
+      <span className="detail-skeleton-sr" role="status">Carregando Comunidade…</span>
+      <div className="community-skeleton-card community-skeleton-card--page" aria-hidden="true">
+        <span className="community-skeleton-line community-skeleton-line--heading" />
+        <span className="community-skeleton-line" />
+        <span className="community-skeleton-line community-skeleton-line--short" />
+      </div>
+    </section>
   );
 }
 
@@ -112,6 +126,40 @@ function CommunityAvatar({ profile }) {
   );
 }
 
+function CommunitySharePanel({ publication, busy, onPublicationChange }) {
+  if (!publication) return null;
+  return (
+    <section className="community-share" aria-labelledby="community-share-heading">
+      <div>
+        <span className="eyebrow">Seu perfil</span>
+        <h2 id="community-share-heading">Escolha se quer aparecer na Comunidade</h2>
+        {publication.canPublish ? (
+          <>
+            <p>Ao ativar, seu perfil ficará visível para os membros autenticados da Comunidade, para que possam conhecer seu trabalho e fazer conexões profissionais.</p>
+            <p>Serão exibidos seu nome, foto (se houver), título profissional, competências, localização, experiência, modelo de trabalho, apresentação e links profissionais. E-mail, telefone, currículo e dados privados da conta não aparecem.</p>
+            <p>Você pode retirar seu perfil quando quiser. A retirada remove a publicação e bloqueia novas entregas da foto, mas não recolhe cópias que alguém já tenha feito.</p>
+            <Link to="/preferencias">Consulte a finalidade e o registro desta escolha em Preferências de privacidade.</Link>
+          </>
+        ) : (
+          <>
+            <p>Quando habilitado, o compartilhamento será opcional e visível somente a membros autenticados. O perfil pode incluir nome, foto, título profissional, competências, localização, experiência, modelo de trabalho, apresentação e links; e-mail, telefone, currículo e dados privados não são exibidos.</p>
+            <p>{publication.reasonCode === "profile_incomplete" ? "Complete seu perfil profissional para habilitar o compartilhamento." : "O piloto ainda não está habilitado neste ambiente. Nenhum perfil está sendo divulgado."}</p>
+            <Link to="/preferencias">Consulte a finalidade e o registro desta escolha em Preferências de privacidade.</Link>
+          </>
+        )}
+      </div>
+      {publication.canPublish ? (
+        <label className="community-share__toggle">
+          <input type="checkbox" checked={publication.published} disabled={busy} onChange={onPublicationChange} />
+          <span>Quero compartilhar meu perfil</span>
+        </label>
+      ) : (
+        <p className="community-share__pending">Compartilhamento temporariamente indisponível.</p>
+      )}
+    </section>
+  );
+}
+
 function CommunityProfileCard({ profile }) {
   return (
     <article className="community-person-card">
@@ -166,6 +214,7 @@ function CommunityPage({ userId }) {
           setDetail(profile);
           setPageState(profile ? "detail" : "not-found");
         } else {
+          setPageState("loading-list");
           const result = await listCommunityProfiles();
           if (!active) return;
           setProfiles(result.items);
@@ -220,7 +269,7 @@ function CommunityPage({ userId }) {
   };
 
   return (
-    <main id="conteudo" className="community-page" aria-busy={pageState === "loading"}>
+    <main id="conteudo" className="community-page" aria-busy={pageState === "loading" || pageState === "loading-list"}>
       <div className="shell community-shell">
         <header className="community-heading">
           <span className="eyebrow"><Users size={15} aria-hidden="true" /> Área de membros</span>
@@ -228,7 +277,13 @@ function CommunityPage({ userId }) {
           <p>Conheça profissionais que escolheram compartilhar seus perfis com a comunidade GDG Jobs.</p>
         </header>
 
-        {pageState === "loading" ? <CommunityLoadingSkeleton detail={Boolean(publicId)} /> : null}
+        {pageState === "loading" ? (publicId ? <CommunityLoadingSkeleton detail /> : <CommunityPageShellSkeleton />) : null}
+        {pageState === "loading-list" ? (
+          <>
+            <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            <CommunityLoadingSkeleton />
+          </>
+        ) : null}
         {pageState === "unavailable" ? (
           <section className="community-notice" role="status">
             <h2>Compartilhamento ainda não disponível</h2>
@@ -253,34 +308,7 @@ function CommunityPage({ userId }) {
         ) : null}
         {pageState === "list" || pageState === "empty" ? (
           <>
-            <section className="community-share" aria-labelledby="community-share-heading">
-              <div>
-                <span className="eyebrow">Seu perfil</span>
-                <h2 id="community-share-heading">Escolha se quer aparecer na Comunidade</h2>
-                {publication?.canPublish ? (
-                  <>
-                    <p>Ao ativar, seu perfil ficará visível para os membros autenticados da Comunidade, para que possam conhecer seu trabalho e fazer conexões profissionais.</p>
-                    <p>Serão exibidos seu nome, foto (se houver), título profissional, competências, localização, experiência, modelo de trabalho, apresentação e links profissionais. E-mail, telefone, currículo e dados privados da conta não aparecem.</p>
-                    <p>Você pode retirar seu perfil quando quiser. A retirada remove a publicação e bloqueia novas entregas da foto, mas não recolhe cópias que alguém já tenha feito.</p>
-                    <Link to="/preferencias">Consulte a finalidade e o registro desta escolha em Preferências de privacidade.</Link>
-                  </>
-                ) : (
-                  <>
-                    <p>Quando habilitado, o compartilhamento será opcional e visível somente a membros autenticados. O perfil pode incluir nome, foto, título profissional, competências, localização, experiência, modelo de trabalho, apresentação e links; e-mail, telefone, currículo e dados privados não são exibidos.</p>
-                    <p>{publication?.reasonCode === "profile_incomplete" ? "Complete seu perfil profissional para habilitar o compartilhamento." : "O piloto ainda não está habilitado neste ambiente. Nenhum perfil está sendo divulgado."}</p>
-                    <Link to="/preferencias">Consulte a finalidade e o registro desta escolha em Preferências de privacidade.</Link>
-                  </>
-                )}
-              </div>
-              {publication?.canPublish ? (
-                <label className="community-share__toggle">
-                  <input type="checkbox" checked={publication.published} disabled={busy} onChange={onPublicationChange} />
-                  <span>Quero compartilhar meu perfil</span>
-                </label>
-              ) : (
-                <p className="community-share__pending">Compartilhamento temporariamente indisponível.</p>
-              )}
-            </section>
+            <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
             {pageState === "empty" ? (
               <section className="community-empty">

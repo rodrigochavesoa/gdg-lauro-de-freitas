@@ -1152,6 +1152,8 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 @media(max-width:360px){.community-shell{width:calc(100% - 24px)}.community-profile__identity{gap:12px}.community-profile__identity h2{font-size:1.28rem}.community-profile__links a{flex:1;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.community-person-card,.community-person-card__view,.community-profile__links a{transition:none}.community-person-card:hover{transform:none}}
 .community-skeleton{display:grid;gap:16px}
+.community-skeleton--page{max-width:42rem}
+.community-skeleton-card--page{padding:20px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}
 .community-skeleton-card{overflow:hidden}
 .community-skeleton-identity{display:flex;align-items:center;gap:13px;margin-bottom:18px}
 .community-skeleton-identity>div{display:grid;gap:8px;flex:1}

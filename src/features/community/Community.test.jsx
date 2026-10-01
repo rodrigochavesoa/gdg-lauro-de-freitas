@@ -60,7 +60,7 @@ describe("CommunityRoute", () => {
 
   it("does not request community data until auth is hydrated", () => {
     renderCommunity({ auth: { session: null }, authReady: false });
-    expect(document.querySelector(".community-skeleton")).toBeTruthy();
+    expect(document.querySelector(".community-skeleton--page")).toBeTruthy();
     expect(screen.queryByText("Carregando conta…")).not.toBeInTheDocument();
     expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
     expect(api.listCommunityProfiles).not.toHaveBeenCalled();
@@ -123,8 +123,10 @@ describe("CommunityRoute", () => {
     api.listCommunityProfiles.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
     renderCommunity({ auth: authenticatedAuth });
 
-    expect(await screen.findByRole("heading", { name: "Comunidade" })).toBeInTheDocument();
-    expect(document.querySelectorAll(".community-skeleton-card")).toHaveLength(6);
+    expect(await screen.findByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /quero compartilhar meu perfil/i })).toBeInTheDocument();
+    expect(document.querySelectorAll(".community-person-card.community-skeleton-card")).toHaveLength(6);
+    expect(document.querySelector(".community-skeleton--page")).not.toBeInTheDocument();
     expect(screen.queryByText("Carregando comunidade…")).not.toBeInTheDocument();
 
     resolveList({ items: [], nextCursor: null });
