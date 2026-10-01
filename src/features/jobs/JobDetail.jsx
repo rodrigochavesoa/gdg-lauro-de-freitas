@@ -1,15 +1,16 @@
 import React from "react";
 import {
-  ArrowLeft, BadgeCheck, BriefcaseBusiness, Check,
+  BadgeCheck, BriefcaseBusiness, Check,
   Clock3, GraduationCap, MapPin, Send, Sparkles
 } from "lucide-react";
+import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import { APPLICATION_STATUS_COPY, canWithdrawStatus } from "./apply-api.js";
 
 export function JobDetailSkeleton({ goBack, backLabel = "Voltar para vagas" }) {
   return (
     <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy="true" aria-live="polite">
       <div className="shell">
-        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
+        <AdminBackButton type="button" onClick={goBack}>{backLabel}</AdminBackButton>
         <div className="detail-grid">
           <article className="detail-main" aria-hidden="true">
             <div className="detail-top">
@@ -103,7 +104,7 @@ export function JobDetail({
   return (
     <main id="conteudo" tabIndex={-1} className="detail-page" aria-busy={isPartial || undefined}>
       <div className="shell">
-        <button className="back" type="button" onClick={goBack}><ArrowLeft size={17}/> {backLabel}</button>
+        <AdminBackButton type="button" onClick={goBack}>{backLabel}</AdminBackButton>
         {loadError ? (
           <p className="tiny" role="alert">
             Não foi possível atualizar os detalhes desta vaga.{" "}

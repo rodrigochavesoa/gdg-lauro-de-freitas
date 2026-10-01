@@ -56,8 +56,8 @@ describe("EventLanding", () => {
     const logoLoading = logo.getAttribute("loading");
     expect(logoLoading === "eager" || logoLoading === null).toBe(true);
 
-    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("back");
-    expect(document.querySelector(".event-layout > .back")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("admin-back-button");
+    expect(document.querySelector(".event-layout > .admin-back-button")).toBeTruthy();
     expect(document.querySelector(".hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
@@ -105,8 +105,8 @@ describe("EventLanding", () => {
       DEVOPSDAYS_SALVADOR_2026.moreInfoUrl,
     );
 
-    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("back");
-    expect(document.querySelector(".event-layout > .back")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("admin-back-button");
+    expect(document.querySelector(".event-layout > .admin-back-button")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider__avatar")).toBeNull();
   });

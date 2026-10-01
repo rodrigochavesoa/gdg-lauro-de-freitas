@@ -5,6 +5,7 @@ import { CurationTimeline } from "../curation/CurationTimeline.jsx";
 import { loadAdminJob } from "../../lib/admin-api.js";
 import { adminJobStatusLabel } from "./job-form-state.js";
 import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
+import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
 
 export function AdminJobDetailRoute() {
   const { id } = useParams();
@@ -55,9 +56,7 @@ export function AdminJobDetailRoute() {
           </div>
         ) : null}
         <div className="admin-home-actions">
-          <Link className="ghost" to={backTo}>
-            Voltar às vagas
-          </Link>
+          <AdminBackLink to={backTo}>Voltar às vagas</AdminBackLink>
         </div>
       </>
     );
@@ -92,9 +91,7 @@ export function AdminJobDetailRoute() {
             Abrir curadoria
           </Link>
         )}
-        <Link className="ghost" to={backTo}>
-          Voltar às vagas
-        </Link>
+        <AdminBackLink to={backTo}>Voltar às vagas</AdminBackLink>
       </div>
       {pending ? null : <p className="admin-dashboard-quiet">Mudanças de vagas publicadas ou rejeitadas passam por uma nova rodada de curadoria.</p>}
     </>

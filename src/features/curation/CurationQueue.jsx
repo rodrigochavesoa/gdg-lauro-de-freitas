@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ListChecks } from "lucide-react";
+import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import {
   loadCurationJobDetail,
   loadCurationQueue,
@@ -391,7 +392,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
       </section>
       {selected && (
         <div className="curation-workspace__detail">
-          <button type="button" className="ghost curation-workspace__back" onClick={() => { setDetailOpen(false); setShowReview(false); }}>← Voltar à fila</button>
+          <AdminBackButton
+            type="button"
+            className="curation-workspace__back"
+            onClick={() => { setDetailOpen(false); setShowReview(false); }}
+          >
+            Voltar à fila
+          </AdminBackButton>
         <form className="job-form" onSubmit={onReview}>
           <div className="form-section">
             <h2>{selected.title}</h2>

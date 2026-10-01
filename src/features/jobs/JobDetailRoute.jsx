@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { findApprovedJobInCache, loadApprovedJob } from "../catalog/jobs-api.js";
 import { applyToJob, loadMyApplication, withdrawApplication } from "./apply-api.js";
 import { JobDetail, JobDetailSkeleton } from "./JobDetail.jsx";
+import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import { jobDetailBackFrom, jobDetailBackLabel } from "./job-detail-nav.js";
 import { canUseCandidateApply, isCandidateApplySurfaceReady, shouldLoadMyApplication } from "../auth/profile-completeness.js";
 
@@ -126,7 +127,7 @@ export function JobDetailRoute({ logged, userId, needsOnboarding, authReady, pro
       <main id="conteudo" tabIndex={-1} className="detail-page">
         <div className="shell">
           <p role="status">Vaga não encontrada.</p>
-          <button className="back" type="button" onClick={goBack}>{backLabel}</button>
+          <AdminBackButton type="button" onClick={goBack}>{backLabel}</AdminBackButton>
         </div>
       </main>
     );
@@ -139,7 +140,7 @@ export function JobDetailRoute({ logged, userId, needsOnboarding, authReady, pro
           <button className="outline" type="button" onClick={() => setReloadNonce((n) => n + 1)}>
             Tentar de novo
           </button>
-          <button className="back" type="button" onClick={goBack}>{backLabel}</button>
+          <AdminBackButton type="button" onClick={goBack}>{backLabel}</AdminBackButton>
         </div>
       </main>
     );
