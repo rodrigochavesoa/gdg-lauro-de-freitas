@@ -171,6 +171,15 @@ function isTransientAuthError(error) {
   );
 }
 
+function isTotpMismatchError(error) {
+  return /invalid totp/i.test(errorText(error));
+}
+
+function isRetryableAal2Error(error) {
+  if (isTransientAuthError(error)) return true;
+  return process.env.GITHUB_ACTIONS === "true" && isTotpMismatchError(error);
+}
+
 function authRetryOptions(overrides = {}) {
   const base =
     process.env.GITHUB_ACTIONS === "true"
@@ -263,7 +272,11 @@ async function promoteSessionToAal2Once(client, totpSecret) {
     return { message: "conta staff sem fator TOTP verificado" };
   }
   let lastError = { message: "verify TOTP falhou" };
-  for (const skewMs of [-60_000, -30_000, 0, 30_000, 60_000]) {
+  const skewSteps =
+    process.env.GITHUB_ACTIONS === "true"
+      ? [-90_000, -60_000, -30_000, 0, 30_000, 60_000, 90_000]
+      : [-60_000, -30_000, 0, 30_000, 60_000];
+  for (const skewMs of skewSteps) {
     const { data: challenge, error: challengeError } = await client.auth.mfa.challenge({
       factorId: totp.id,
     });
@@ -290,7 +303,7 @@ async function promoteSessionToAal2(client, totpSecret, options = {}) {
   for (let attempt = 1; attempt <= attempts; attempt++) {
     lastError = await promoteSessionToAal2Once(client, totpSecret);
     if (!lastError) return null;
-    if (!isTransientAuthError(lastError) || attempt === attempts) return lastError;
+    if (!isRetryableAal2Error(lastError) || attempt === attempts) return lastError;
     console.log(`AVISO: AAL2 (${errorText(lastError)}); tentativa ${attempt}/${attempts}…`);
     await new Promise((resolve) => setTimeout(resolve, pauseMs * attempt));
   }
@@ -546,9 +559,8 @@ async function scenario3_curatorSingleReview() {
   assert(!created.error && created.data?.id, "admin cria vaga pending para curadoria");
   const jobId = created.data?.id;
 
-  const { client: curator, error: curErr } = await signInStaff("curator");
-  assert(!curErr, `curador autentica (${curErr?.message ?? "ok"}`);
-  if (curErr || !jobId) {
+  const curator = await signInStaffForScenario(3, "curator");
+  if (!curator || !jobId) {
     await deleteJob(admin, jobId);
     await admin.auth.signOut();
     return null;
@@ -589,7 +601,12 @@ async function scenario4_selfReviewAndDuplicate() {
     assert(Boolean(self.error), "admin não autoavalia vaga própria");
   }
 
-  const { client: curator } = await signInStaff("curator");
+  const curator = await signInStaffForScenario(4, "curator");
+  if (!curator) {
+    await deleteJob(admin, jobId);
+    await admin.auth.signOut();
+    return;
+  }
   const ok = await rpcReview(curator, jobId, "approve");
   assert(!ok.error, "curador avalia vaga de outro autor");
   const dup = await rpcReview(curator, jobId, "reject");
@@ -806,14 +823,16 @@ async function scenario9_priority() {
   assert(!ok.error, "admin define urgent com motivo");
 
   if (testUsers.curator.email && testUsers.curator.password) {
-    const { client: curator } = await signInStaff("curator");
-    const denied = await curator.rpc("set_job_curation_priority", {
-      p_job_id: jobId,
-      p_priority: "urgent",
-      p_reason: "tentativa curador",
-    });
-    assert(Boolean(denied.error), "não-admin não define prioridade");
-    await curator.auth.signOut();
+    const curator = await signInStaffForScenario(9, "curator");
+    if (curator) {
+      const denied = await curator.rpc("set_job_curation_priority", {
+        p_job_id: jobId,
+        p_priority: "urgent",
+        p_reason: "tentativa curador",
+      });
+      assert(Boolean(denied.error), "não-admin não define prioridade");
+      await curator.auth.signOut();
+    }
   }
 
   await deleteJob(admin, jobId);
