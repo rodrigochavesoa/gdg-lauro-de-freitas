@@ -1153,6 +1153,8 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 @media(prefers-reduced-motion:reduce){.community-person-card,.community-person-card__view,.community-profile__links a{transition:none}.community-person-card:hover{transform:none}}
 .community-skeleton{display:grid;gap:16px}
 .community-skeleton--page{max-width:42rem}
+.community-results--loading{margin-top:8px}
+.community-results-skeleton{display:grid;gap:12px;max-width:36rem;padding:4px 0 8px}
 .community-skeleton-card--page{padding:20px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}
 .community-skeleton-card{overflow:hidden}
 .community-skeleton-identity{display:flex;align-items:center;gap:13px;margin-bottom:18px}

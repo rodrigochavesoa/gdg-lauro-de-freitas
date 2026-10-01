@@ -36,6 +36,22 @@ function CommunityPageShellSkeleton() {
   );
 }
 
+/** Lista em carregamento: não usa cards de perfil (evita grid 3 colunas no desktop ao lado do opt-in). */
+function CommunityResultsLoadingPlaceholder() {
+  return (
+    <section className="community-results community-results--loading" aria-busy="true" aria-labelledby="community-results-loading-label">
+      <span className="detail-skeleton-sr" id="community-results-loading-label" role="status">Carregando perfis da Comunidade…</span>
+      <div className="community-results__heading" aria-hidden="true">
+        <span className="community-skeleton-line community-skeleton-line--heading" />
+      </div>
+      <div className="community-results-skeleton" aria-hidden="true">
+        <span className="community-skeleton-line" />
+        <span className="community-skeleton-line community-skeleton-line--short" />
+      </div>
+    </section>
+  );
+}
+
 function CommunityLoadingSkeleton({ detail = false }) {
   return (
     <section className="community-skeleton" aria-busy="true" aria-label={detail ? "Carregando perfil profissional" : "Carregando perfis da Comunidade"}>
@@ -281,7 +297,7 @@ function CommunityPage({ userId }) {
         {pageState === "loading-list" ? (
           <>
             <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
-            <CommunityLoadingSkeleton />
+            <CommunityResultsLoadingPlaceholder />
           </>
         ) : null}
         {pageState === "unavailable" ? (

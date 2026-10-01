@@ -125,7 +125,8 @@ describe("CommunityRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /quero compartilhar meu perfil/i })).toBeInTheDocument();
-    expect(document.querySelectorAll(".community-person-card.community-skeleton-card")).toHaveLength(6);
+    expect(document.querySelector(".community-results--loading")).toBeTruthy();
+    expect(document.querySelectorAll(".community-person-card.community-skeleton-card")).toHaveLength(0);
     expect(document.querySelector(".community-skeleton--page")).not.toBeInTheDocument();
     expect(screen.queryByText("Carregando comunidade…")).not.toBeInTheDocument();
 
