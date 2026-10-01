@@ -468,6 +468,7 @@ describe("saveOnboardingProfile", () => {
       linkedin: "https://linkedin.com/in/ana",
       github: "",
       cvUrl: "https://cv.example/ana.pdf",
+      portfolioUrl: "https://portfolio.example/ana",
     });
 
     expect(saved.full_name).toBe("Ana Atualizada");
@@ -488,6 +489,7 @@ describe("saveOnboardingProfile", () => {
       linkedin: "https://linkedin.com/in/ana",
       github: null,
       cv_url: "https://cv.example/ana.pdf",
+      portfolio_url: "https://portfolio.example/ana",
     }));
     expect(eqUpdate).toHaveBeenCalledWith("id", "u1");
   });

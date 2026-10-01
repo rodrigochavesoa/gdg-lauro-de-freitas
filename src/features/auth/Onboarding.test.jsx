@@ -67,6 +67,7 @@ describe("Onboarding modo edição", () => {
       linkedin: "https://linkedin.com/in/vc",
       github: "https://github.com/vc",
       cv_url: "https://cv.example/vc.pdf",
+      portfolio_url: "https://portfolio.example/vc",
     },
   };
 
@@ -93,6 +94,7 @@ describe("Onboarding modo edição", () => {
     expect(bio).toHaveAttribute("maxlength", "500");
     expect(screen.getByText("17/500")).toBeInTheDocument();
     expect(screen.getByLabelText("LinkedIn")).toHaveValue("https://linkedin.com/in/vc");
+    expect(screen.getByLabelText(/Portfólio/)).toHaveValue("https://portfolio.example/vc");
     expect(screen.queryByLabelText(/papel|função|cargo/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: /papel|função|role/i })).not.toBeInTheDocument();
   });
@@ -104,6 +106,7 @@ describe("Onboarding modo edição", () => {
     render(<Onboarding mode="edit" profile={profile} email="vc@example.invalid" onSaved={onSaved} />);
     fireEvent.change(screen.getByLabelText("Nome"), { target: { value: "Vinicius C." } });
     fireEvent.change(screen.getByLabelText("Tecnologias (separe por vírgula)"), { target: { value: "Go" } });
+    fireEvent.change(screen.getByLabelText(/Portfólio/), { target: { value: "https://portfolio.example/vc" } });
     fireEvent.submit(screen.getByRole("button", { name: "Salvar perfil" }).closest("form"));
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(saved));
     expect(saveOnboardingProfile).toHaveBeenCalledWith(expect.objectContaining({
@@ -112,6 +115,7 @@ describe("Onboarding modo edição", () => {
       experienceLevel: "mid",
       workModel: "remote",
       location: "Salvador",
+      portfolioUrl: "https://portfolio.example/vc",
     }));
     expect(onSaved).toHaveBeenCalledWith(saved);
   });

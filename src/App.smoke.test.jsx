@@ -683,7 +683,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Comunidade" })).toHaveAttribute("href", "/comunidade");
     expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
     expect(document.querySelector(".cta")).toBeNull();
   });

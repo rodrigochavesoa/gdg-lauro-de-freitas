@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { Admin } from "../Admin.jsx";
 import { Home } from "../features/catalog/Home.jsx";
 import { EventosIndex } from "../features/events/Eventos.jsx";
+import { CommunityRoute } from "../features/community/Community.jsx";
 import { Newsletter } from "../features/newsletter/Newsletter.jsx";
 import { Portal } from "../features/portal/Portal.jsx";
 import { adminChildRoutes } from "../features/admin/admin-routes.jsx";
@@ -24,6 +25,8 @@ export function AppRoutes({ auth, setAuth, authReady, hydratedUserId, hydrateFai
       <Route path="/vagas" element={<CatalogGate auth={auth}><Home logged={logged} /></CatalogGate>} />
       <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={logged} /></CatalogGate>} />
       <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
+      <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} />} />
+      <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} />} />
       <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={logged} /></CatalogGate>} />
       <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={logged} userId={userId} needsOnboarding={auth.needsOnboarding} authReady={authReady} profile={auth.profile} /></CatalogGate>} />
       <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />

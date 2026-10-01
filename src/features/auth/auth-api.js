@@ -330,6 +330,7 @@ export async function saveOnboardingProfile({
   bio,
   linkedin,
   github,
+  portfolioUrl,
   cvUrl,
 }) {
   const { errors, skills } = validateOnboarding({
@@ -356,6 +357,7 @@ export async function saveOnboardingProfile({
     location: String(location).trim(),
     linkedin: String(linkedin ?? "").trim() || null,
     github: String(github ?? "").trim() || null,
+    portfolio_url: String(portfolioUrl ?? "").trim() || null,
     cv_url: String(cvUrl ?? "").trim() || null,
   };
 

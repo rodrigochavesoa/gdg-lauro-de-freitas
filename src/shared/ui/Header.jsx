@@ -202,6 +202,11 @@ export function Header({
       <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink>
       <NavLink to="/eventos" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Eventos</NavLink>
       <NavLink end to="/newsletter" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Newsletter</NavLink>
+      {logged ? (
+        <NavLink to="/comunidade" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>
+          Comunidade
+        </NavLink>
+      ) : null}
     </>
   );
 
