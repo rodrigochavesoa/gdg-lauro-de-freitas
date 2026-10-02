@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link, useParams } from "react-router-dom";
-import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Github, Globe, Linkedin, MapPin, Search, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Globe, MapPin, Search, Sparkles, Users } from "lucide-react";
 import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
 import {
   COMMUNITY_LEVEL_FILTER_OPTIONS,
@@ -160,9 +160,50 @@ function CommunityAvatar({ profile }) {
   );
 }
 
+function CommunityLinkedInIcon({ className, size = 18 }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-11h4v2" />
+      <rect width="4" height="12" x="2" y="9" />
+      <circle cx="4" cy="4" r="2" />
+    </svg>
+  );
+}
+
+function CommunityGitHubIcon({ className, size = 18 }) {
+  return (
+    <svg
+      className={className}
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-.1.56-.2.84-.3C15.64 2.8 14.5 2 13 2h-2c-1.5 0-2.64.8-3.15 1.95-.28.1-.56.2-.84.3-.73 1.02-1.08 2.25-1 3.5 0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4" />
+      <path d="M9 18c-4.51 2-5-2-7-2" />
+    </svg>
+  );
+}
+
 const COMMUNITY_SOCIAL_LINKS = [
-  { key: "linkedin", label: "LinkedIn", field: "linkedinUrl", Icon: Linkedin },
-  { key: "github", label: "GitHub", field: "githubUrl", Icon: Github },
+  { key: "linkedin", label: "LinkedIn", field: "linkedinUrl", Icon: CommunityLinkedInIcon },
+  { key: "github", label: "GitHub", field: "githubUrl", Icon: CommunityGitHubIcon },
   { key: "portfolio", label: "Portfólio", field: "portfolioUrl", Icon: Globe },
 ];
 
