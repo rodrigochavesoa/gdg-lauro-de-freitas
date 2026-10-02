@@ -29,6 +29,7 @@ export function Onboarding({ profile, email, onSaved, mode = "onboarding" }) {
   const [bio, setBio] = useState(profile?.bio ?? "");
   const [linkedin, setLinkedin] = useState(prefs.linkedin ?? "");
   const [github, setGithub] = useState(prefs.github ?? "");
+  const [portfolioUrl, setPortfolioUrl] = useState(prefs.portfolio_url ?? "");
   const [cvUrl, setCvUrl] = useState(prefs.cv_url ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,6 +48,7 @@ export function Onboarding({ profile, email, onSaved, mode = "onboarding" }) {
         bio,
         linkedin,
         github,
+        portfolioUrl,
         cvUrl,
       });
       onSaved(saved);
@@ -159,6 +161,10 @@ export function Onboarding({ profile, email, onSaved, mode = "onboarding" }) {
               <label>
                 GitHub
                 <input id={fieldId("github")} name="github" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="https://" />
+              </label>
+              <label className="wide">
+                Portfólio (URL)
+                <input id={fieldId("portfolio-url")} name="portfolioUrl" type="url" value={portfolioUrl} onChange={(e) => setPortfolioUrl(e.target.value)} placeholder="https://" />
               </label>
               <label className="wide">
                 Currículo (URL)

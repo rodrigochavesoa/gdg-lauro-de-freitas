@@ -1,6 +1,6 @@
 # Contratos de dados — UI ↔ PostgREST
 
-Seletores e DTOs das superfícies P1. O código canônico está em `src/lib/data-contracts/`. Este documento é a matriz humana; o teste `src/lib/data-contracts/data-contracts.test.js` recusa drift.
+Seletores e DTOs das superfícies P1. O código canônico compartilhado está em `src/lib/data-contracts/`; contratos estritamente de feature podem ficar junto da feature quando isso preserva uma fronteira própria (a Comunidade é documentada abaixo). Este documento é a matriz humana. Os testes centrais e os testes de contrato da feature verificam os respectivos limites.
 
 O aplicativo permanece JavaScript. `src/lib/database.types.ts` é gerado e versionado. `getSupabaseBrowserClient` devolve `SupabaseClient<Database>` (`src/lib/supabase-client.js`). `pnpm types:client` checa só esse módulo; o restante de `src/` não entra no compilador.
 
@@ -49,6 +49,10 @@ O predicado de atenção da ingestão continua em `docs-local/tech/INGEST-ATTENT
 | Perfil | `PROFILE_SELECT` — id, full_name, headline, bio, skills, preferences, role, avatar_path | `mapProfileRowToDto` exige id |
 | Privacidade finalidades | `PRIVACY_PURPOSE_SELECT` — purpose_code, version, title, specific_description, classification, status, legal_basis_status, retention_status, text_status, revocation_effect, created_at | `mapPrivacyPurposeRowToDto` exige purpose_code, version, title |
 | Privacidade eventos | `PRIVACY_EVENT_SELECT` — id, purpose_code, purpose_version, event_type, source, proof, created_at | linha crua |
+| Comunidade lista | RPC `list_community_profiles` — public_id, full_name, headline, skills, location, experience_level, work_model, avatar_available, published_at; máximo 24 e sem total exato | `mapCommunityListRowToDto` → DTO allowlisted; `avatarAvailable` é booleano e não expõe path |
+| Comunidade detalhe | RPC `get_community_profile` — lista + bio, linkedin_url, github_url, portfolio_url | `mapCommunityDetailRowToDto` → DTO allowlisted; sem UID, e-mail, papel, preferências ou avatar_path |
+| Comunidade status próprio | RPC `get_community_feature_status` — available, reason, published, can_publish | `mapCommunityFeatureStatus` → status próprio sem campos de perfil |
+| Comunidade publicação | RPC `set_community_profile_publication(p_published)` — booleano de confirmação da operação | `community-api.js` converte confirmação em estado solicitado; a UI não interpreta ACK como estado do banco |
 
 `specific_description` é coluna de finalidade de privacidade. O teste de tokens trata identificadores inteiros, então não conta como o token `description` das listas de vaga.
 
@@ -59,6 +63,7 @@ O predicado de atenção da ingestão continua em `docs-local/tech/INGEST-ATTENT
 - Cada superfície de `DETAIL_SURFACES` ainda contém as colunas pesadas (`description`, `requirements`, `canonical_payload`, `snapshot`).
 - Mapper de catálogo, admin, curadoria, ingestão e candidatura falha com a mensagem estável quando a chave obrigatória some, inclusive `description`, `requirements`, `canonical_payload` e `snapshot` no detalhe.
 - O DTO não contém coluna fora da superfície, mesmo se a linha trouxer campo a mais.
+- `community-contract.test.js` verifica a projeção allowlist da Comunidade, inclusive ausência de `avatar_path`, UID, e-mail e preferências.
 
 ## Fora deste contrato
 

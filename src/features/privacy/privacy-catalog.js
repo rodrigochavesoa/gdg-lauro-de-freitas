@@ -119,6 +119,18 @@ export const PRIVACY_PURPOSES = [
     text_status: "pending_dpo",
     revocation_effect: "A camada estritamente necessária de segurança não é desligada; métricas opcionais devem ser separadas e revogáveis.",
   },
+  {
+    purpose_code: "F-11",
+    version: 2,
+    title: "Compartilhar seu perfil profissional na Comunidade GDG Jobs",
+    specific_description: "Por escolha opcional e desligada por padrão, exibir aos membros autenticados da Comunidade GDG Jobs seu nome, foto de perfil (se houver), título profissional, competências, localização, experiência, modelo de trabalho, apresentação e links profissionais para descoberta e conexões profissionais. Não exibir e-mail, telefone, currículo, UID, papel ou preferências privadas. A publicação permanece enquanto o titular mantiver o opt-in; revogação ou exclusão da conta remove a projeção e bloqueia novas entregas do avatar. Cópias já obtidas por membros não podem ser recolhidas.",
+    classification: "optional_consent",
+    status: "inactive",
+    legal_basis_status: "pending_dpo",
+    retention_status: "pending_dpo",
+    text_status: "pending_dpo",
+    revocation_effect: "A revogação ou exclusão da conta remove a projeção das consultas e bloqueia novas entregas do avatar. Cópias já obtidas por membros não podem ser recolhidas.",
+  },
 ];
 
 export const OPTIONAL_PURPOSE = "optional_consent";

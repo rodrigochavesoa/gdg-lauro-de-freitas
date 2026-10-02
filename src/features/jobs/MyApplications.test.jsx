@@ -189,4 +189,216 @@ describe("MyApplications", () => {
     expect(screen.getByRole("heading", { name: "Vaga 1" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Página 1 atualizada" })).not.toBeInTheDocument();
   });
+
+  it("mostra hero pontilhado, busca e filtros no padrão da comunidade", async () => {
+    loadMyApplications.mockResolvedValue(applicationsPage([]));
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Minhas candidaturas" })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
+    expect(screen.getByRole("searchbox", { name: "Título da vaga, empresa ou status" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /buscar candidaturas/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /filtros/i })).toBeDisabled();
+    expect(await screen.findByRole("heading", { name: "Você ainda não se candidatou" })).toBeInTheDocument();
+    expect(screen.getByRole("searchbox", { name: "Título da vaga, empresa ou status" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /filtros/i })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("filtra a lista carregada por status e por busca enviada", async () => {
+    loadMyApplications.mockResolvedValue(
+      applicationsPage([
+        {
+          id: "a1",
+          jobId: "job-1",
+          status: "submitted",
+          jobTitle: "Pessoa Desenvolvedora Front-end",
+          companyName: "Nuvem Lauro Demo",
+          updatedAt: "2026-09-07T00:00:00.000Z",
+        },
+        {
+          id: "a2",
+          jobId: "job-2",
+          status: "withdrawn",
+          jobTitle: "Pessoa Analista de Dados",
+          companyName: "Oficina Norte",
+          updatedAt: "2026-09-08T00:00:00.000Z",
+        },
+      ]),
+    );
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.change(screen.getByLabelText("Filtrar por status da candidatura"), { target: { value: "withdrawn" } });
+    expect(screen.queryByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pessoa Analista de Dados" })).toBeInTheDocument();
+    expect(document.querySelector(".job-card .featured").textContent).toBe("Retirada");
+    expect(screen.queryByRole("button", { name: "Retirar candidatura" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Filtrar por status da candidatura"), { target: { value: "" } });
+    const search = screen.getByRole("searchbox", { name: "Título da vaga, empresa ou status" });
+    fireEvent.change(search, { target: { value: "oficina" } });
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /buscar candidaturas/i }));
+    expect(screen.queryByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Pessoa Analista de Dados" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Você ainda não se candidatou" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Nenhuma candidatura encontrada" })).not.toBeInTheDocument();
+  });
+
+  it("diz que a busca vazia ainda pode ter páginas não carregadas", async () => {
+    loadMyApplications.mockResolvedValue(
+      applicationsPage([
+        {
+          id: "a1",
+          jobId: "job-1",
+          status: "submitted",
+          jobTitle: "Pessoa Desenvolvedora Front-end",
+          companyName: "Nuvem Lauro Demo",
+          updatedAt: "2026-09-07T00:00:00.000Z",
+        },
+      ], true),
+    );
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Título da vaga, empresa ou status" }), {
+      target: { value: "inexistente" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /buscar candidaturas/i }));
+    expect(screen.getByRole("heading", { name: "Nenhuma candidatura encontrada" })).toBeInTheDocument();
+    expect(screen.getByText(/já carregadas corresponde/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Carregar mais" })).toBeInTheDocument();
+  });
+
+  it("mantém as linhas em cache quando o refresh falha", async () => {
+    peekMyApplicationsCache.mockReturnValue(
+      applicationsPage([
+        {
+          id: "a1",
+          jobId: "job-1",
+          status: "submitted",
+          jobTitle: "Pessoa Desenvolvedora Front-end",
+          companyName: "Nuvem Lauro Demo",
+          updatedAt: "2026-09-07T00:00:00.000Z",
+        },
+      ]),
+    );
+    loadMyApplications.mockRejectedValue(new Error("Falha ao atualizar"));
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao atualizar");
+    expect(screen.getByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Você ainda não se candidatou" })).not.toBeInTheDocument();
+  });
+
+  it("troca de usuário não renderiza o histórico anterior e ignora a resposta atrasada", async () => {
+    let resolveFirst;
+    peekMyApplicationsCache.mockImplementation((id) => (
+      id === "u1"
+        ? applicationsPage([
+          {
+            id: "a1",
+            jobId: "job-1",
+            status: "submitted",
+            jobTitle: "Vaga da conta anterior",
+            companyName: "Empresa A",
+            updatedAt: "2026-09-07T00:00:00.000Z",
+          },
+        ])
+        : null
+    ));
+    loadMyApplications.mockImplementation(({ userId }) => {
+      if (userId === "u1") {
+        return new Promise((resolve) => {
+          resolveFirst = resolve;
+        });
+      }
+      return Promise.resolve(applicationsPage([
+        {
+          id: "b1",
+          jobId: "job-2",
+          status: "submitted",
+          jobTitle: "Vaga da conta atual",
+          companyName: "Empresa B",
+          updatedAt: "2026-09-08T00:00:00.000Z",
+        },
+      ]));
+    });
+    const view = render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Vaga da conta anterior" })).toBeInTheDocument();
+    view.rerender(
+      <MemoryRouter>
+        <MyApplications userId="u2" />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("heading", { name: "Vaga da conta anterior" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Vaga da conta atual" })).toBeInTheDocument();
+    await act(async () => {
+      resolveFirst(applicationsPage([
+        {
+          id: "a1",
+          jobId: "job-1",
+          status: "submitted",
+          jobTitle: "Vaga da conta anterior",
+          companyName: "Empresa A",
+          updatedAt: "2026-09-07T00:00:00.000Z",
+        },
+      ]));
+    });
+    expect(screen.queryByRole("heading", { name: "Vaga da conta anterior" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Vaga da conta atual" })).toBeInTheDocument();
+  });
+
+  it("logout limpa as candidaturas que estavam na tela", async () => {
+    peekMyApplicationsCache.mockImplementation((id) => (
+      id
+        ? applicationsPage([
+          {
+            id: "a1",
+            jobId: "job-1",
+            status: "submitted",
+            jobTitle: "Vaga da conta anterior",
+            companyName: "Empresa A",
+            updatedAt: "2026-09-07T00:00:00.000Z",
+          },
+        ])
+        : null
+    ));
+    loadMyApplications.mockResolvedValue(applicationsPage([]));
+    const view = render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Vaga da conta anterior" })).toBeInTheDocument();
+    view.rerender(
+      <MemoryRouter>
+        <MyApplications userId="" />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByRole("heading", { name: "Vaga da conta anterior" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Você ainda não se candidatou" })).not.toBeInTheDocument();
+  });
 });
