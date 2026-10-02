@@ -37,6 +37,114 @@ insert into private.community_access_settings (singleton, audience)
 values (true, 'authenticated')
 on conflict (singleton) do update set audience = 'authenticated', updated_at = now();
 
+-- Separates the temporary Homolog/Preview authorization from formal privacy approval.
+-- Production and clean held installs remain disabled until an admin migration enables it.
+create table private.community_pilot_settings (
+  singleton boolean primary key default true check (singleton),
+  enabled boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+alter table private.community_pilot_settings enable row level security;
+revoke all on table private.community_pilot_settings from public, anon, authenticated, service_role;
+insert into private.community_pilot_settings (singleton, enabled)
+values (true, false)
+on conflict (singleton) do nothing;
+
+create or replace function private.community_pilot_enabled()
+returns boolean
+language sql
+stable
+security definer
+set search_path = private
+as $$
+  select coalesce((select enabled from private.community_pilot_settings where singleton), false);
+$$;
+revoke all on function private.community_pilot_enabled() from public, anon, authenticated, service_role;
+
+-- Narrow service-role control exists for isolated RLS fixtures and backend operations only.
+create or replace function public.set_community_pilot_enabled(p_enabled boolean)
+returns boolean
+language plpgsql
+security definer
+set search_path = private
+as $$
+begin
+  if p_enabled is null then raise exception 'invalid community pilot setting'; end if;
+  update private.community_pilot_settings
+  set enabled = p_enabled, updated_at = clock_timestamp()
+  where singleton;
+  return found;
+end;
+$$;
+revoke all on function public.set_community_pilot_enabled(boolean) from public, anon, authenticated;
+grant execute on function public.set_community_pilot_enabled(boolean) to service_role;
+
+create or replace function public.get_community_pilot_enabled()
+returns boolean
+language sql
+stable
+security definer
+set search_path = private
+as $$
+  select private.community_pilot_enabled();
+$$;
+revoke all on function public.get_community_pilot_enabled() from public, anon, authenticated;
+grant execute on function public.get_community_pilot_enabled() to service_role;
+
+create or replace function private.cleanup_community_when_pilot_disabled()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, private
+as $$
+declare
+  v_event record;
+begin
+  if old.enabled and not new.enabled and not exists (
+    select 1 from public.privacy_purposes p
+    where p.purpose_code = 'F-11' and p.status = 'active'
+      and p.legal_basis_status = 'approved'
+      and p.retention_status = 'approved'
+      and p.text_status = 'approved'
+  ) then
+    for v_event in
+      with latest_acceptance as (
+        select distinct on (e.subject_id)
+          e.subject_id, e.event_type
+        from public.privacy_consent_events e
+        where e.purpose_code = 'F-11'
+        order by e.subject_id, e.created_at desc, e.id desc
+      ), erased as (
+        insert into public.privacy_consent_events (
+          subject_id, purpose_code, purpose_version, event_type, source, proof
+        )
+        select c.subject_id, 'F-11', p.version, 'revoked', 'system',
+          jsonb_build_object('source', 'system', 'purpose_version', p.version, 'effect', 'community_pilot_disabled')
+        from public.community_profiles c
+        join latest_acceptance a on a.subject_id = c.subject_id and a.event_type = 'accepted'
+        join lateral (
+          select version from public.privacy_purposes
+          where purpose_code = 'F-11' order by version desc limit 1
+        ) p on true
+        returning subject_id, id
+      ) select subject_id, id from erased
+    loop
+      perform public.write_privacy_audit_event(
+        'consent.revoked', 'F-11', 'consent', v_event.id::text, 'revoked',
+        jsonb_build_object('effect', 'community_pilot_disabled', 'source', 'system'), v_event.subject_id
+      );
+    end loop;
+    delete from public.community_profiles;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function private.cleanup_community_when_pilot_disabled() from public, anon, authenticated, service_role;
+drop trigger if exists cleanup_community_when_pilot_disabled on private.community_pilot_settings;
+create trigger cleanup_community_when_pilot_disabled
+  after update of enabled on private.community_pilot_settings
+  for each row execute function private.cleanup_community_when_pilot_disabled();
+
 create table public.community_profiles (
   public_id uuid primary key default extensions.gen_random_uuid(),
   subject_id uuid not null unique references public.profiles(id) on delete cascade,
@@ -100,11 +208,11 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.privacy_purposes p
-    where p.purpose_code = 'F-11'
-      and p.status = 'active'
-      and p.legal_basis_status = 'approved'
-      and p.retention_status = 'approved'
-      and p.text_status = 'approved'
+    where p.purpose_code = 'F-11' and p.status = 'active'
+      and (
+        (p.legal_basis_status = 'approved' and p.retention_status = 'approved' and p.text_status = 'approved')
+        or private.community_pilot_enabled()
+      )
   );
 $$;
 revoke all on function private.community_purpose_enabled() from public, anon, authenticated, service_role;
@@ -129,9 +237,10 @@ as $$
     ) latest on true
     where p.purpose_code = 'F-11'
       and p.status = 'active'
-      and p.legal_basis_status = 'approved'
-      and p.retention_status = 'approved'
-      and p.text_status = 'approved'
+      and (
+        (p.legal_basis_status = 'approved' and p.retention_status = 'approved' and p.text_status = 'approved')
+        or private.community_pilot_enabled()
+      )
       and latest.event_type = 'accepted'
       and latest.purpose_version = p.version
   );
@@ -297,6 +406,7 @@ begin
     and old.legal_basis_status = 'approved'
     and old.retention_status = 'approved'
     and old.text_status = 'approved'
+    and not private.community_pilot_enabled()
     and not (
       new.status = 'active'
       and new.legal_basis_status = 'approved'
@@ -500,24 +610,33 @@ declare
   v_profile_ready boolean;
   v_has_current_consent boolean;
   v_purpose_approved boolean := false;
+  v_pilot_enabled boolean := false;
+  v_purpose record;
 begin
   if v_uid is null then raise exception 'authentication required'; end if;
   if p_published is null then raise exception 'invalid community publication choice'; end if;
 
-  -- On publication, lock F-11 before the profile row. DPO deactivation also
-  -- locks F-11 before its cleanup trigger locks profile rows, avoiding a
-  -- check/insert race and keeping one consistent lock order.
-  if p_published then
-    select p.version into v_purpose_version
-    from public.privacy_purposes p
-    where p.purpose_code = 'F-11'
-      and p.status = 'active'
-      and p.legal_basis_status = 'approved'
-      and p.retention_status = 'approved'
-      and p.text_status = 'approved'
-    for share;
-    v_purpose_approved := found;
-  end if;
+  -- Lock in one order: F-11, pilot setting, then subject profile. Thus pilot
+  -- disable waits for an in-flight publication and cleans it after commit.
+  select p.version, p.status, p.legal_basis_status, p.retention_status, p.text_status
+  into v_purpose
+  from public.privacy_purposes p
+  where p.purpose_code = 'F-11'
+  order by p.version desc limit 1
+  for share;
+  v_purpose_version := v_purpose.version;
+
+  select enabled into v_pilot_enabled
+  from private.community_pilot_settings
+  where singleton
+  for share;
+  v_pilot_enabled := coalesce(v_pilot_enabled, false);
+  v_purpose_approved := v_purpose.status = 'active' and (
+    (v_purpose.legal_basis_status = 'approved'
+      and v_purpose.retention_status = 'approved'
+      and v_purpose.text_status = 'approved')
+    or v_pilot_enabled
+  );
 
   -- Serialize both publish and revoke, including concurrent F-11 events.
   select p.role = 'candidate' and length(trim(p.full_name)) > 0

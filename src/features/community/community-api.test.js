@@ -78,21 +78,24 @@ describe("community API seam", () => {
     import.meta.env.VITE_SUPABASE_URL = "https://example.supabase.co";
     import.meta.env.VITE_SUPABASE_ANON_KEY = "anon-key";
     const client = fakeClient();
+    const expectedImage = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
     const fetchSpyOk = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      json: async () => ({ url: "https://example.supabase.co/storage/v1/object/sign/avatars/demo.jpg" }),
+      headers: new Headers({ "content-type": "image/jpeg", "content-length": "3" }),
+      blob: async () => expectedImage,
     });
-    await expect(getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", client)).resolves.toBe(
-      "https://example.supabase.co/storage/v1/object/sign/avatars/demo.jpg",
-    );
+    const image = await getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", client);
+    expect(image).toBe(expectedImage);
+    expect(image.size).toBe(3);
+    expect(image.type).toBe("image/jpeg");
     expect(fetchSpyOk).toHaveBeenCalledWith(
-      "https://example.supabase.co/functions/v1/community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01&format=signed",
+      "https://example.supabase.co/functions/v1/community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
           Authorization: "Bearer test-access-token",
           apikey: expect.any(String),
-          Accept: "application/json",
+          Accept: "image/jpeg, image/png, image/webp",
         }),
       }),
     );

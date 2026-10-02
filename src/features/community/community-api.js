@@ -2,6 +2,7 @@ import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 import {
   communityAvatarObjectUrl,
   peekCommunityAvatarObjectUrl,
+  revokeCommunityAvatarObjectUrls,
   warmCommunityAvatarCache,
 } from "./community-avatar-cache.js";
 import {
@@ -14,6 +15,7 @@ import {
 
 const COMMUNITY_FUNCTION_UNAVAILABLE = "A Comunidade está indisponível até a aprovação da finalidade de privacidade.";
 const GENERIC_ERROR = "Não foi possível carregar a Comunidade. Tente novamente.";
+const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
 
 function clientOrThrow(override) {
   const client = override ?? getSupabaseBrowserClient();
@@ -134,26 +136,29 @@ export async function getCommunityAvatar(publicId, clientOverride) {
     throw new Error("Entre na sua conta para acessar a Comunidade.");
   }
   const response = await fetch(
-    `${config.baseUrl}/functions/v1/community-avatar?publicId=${encodeURIComponent(publicId)}&format=signed`,
+    `${config.baseUrl}/functions/v1/community-avatar?publicId=${encodeURIComponent(publicId)}`,
     {
       method: "GET",
       headers: {
         Authorization: `Bearer ${sessionData.session.access_token}`,
         apikey: config.apikey,
-        Accept: "application/json",
+        Accept: "image/jpeg, image/png, image/webp",
       },
     },
   );
   if (!response.ok) throw new Error(GENERIC_ERROR);
-  const payload = await response.json();
-  const signedUrl = payload?.url;
-  if (typeof signedUrl !== "string" || !signedUrl.startsWith("https://")) throw new Error(GENERIC_ERROR);
-  return signedUrl;
+  const mediaType = (response.headers.get("content-type") ?? "").split(";")[0].trim().toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mediaType)) throw new Error(GENERIC_ERROR);
+  const contentLength = Number(response.headers.get("content-length"));
+  if (Number.isFinite(contentLength) && contentLength > MAX_AVATAR_BYTES) throw new Error(GENERIC_ERROR);
+  const image = await response.blob();
+  if (image.size > MAX_AVATAR_BYTES || image.type && image.type.toLowerCase() !== mediaType) {
+    throw new Error(GENERIC_ERROR);
+  }
+  return image;
 }
 
 export async function getCommunityAvatarObjectUrl(publicId, clientOverride) {
-  const cached = peekCommunityAvatarObjectUrl(publicId);
-  if (cached) return cached;
   return communityAvatarObjectUrl(publicId, () => getCommunityAvatar(publicId, clientOverride));
 }
 
@@ -167,7 +172,8 @@ export function prefetchCommunityAvatars(profiles, clientOverride) {
   return warmCommunityAvatarCache(publicIds, (publicId) => getCommunityAvatar(publicId, clientOverride));
 }
 
-export { peekCommunityAvatarObjectUrl, revokeCommunityAvatarObjectUrls } from "./community-avatar-cache.js";
+export { peekCommunityAvatarObjectUrl, revokeCommunityAvatarObjectUrls };
+
 export const setMyCommunityPublication = setCommunityProfilePublished;
 
 export { COMMUNITY_PAGE_SIZE };

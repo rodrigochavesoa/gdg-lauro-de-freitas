@@ -1,13 +1,15 @@
-/** URLs de avatar da comunidade (signed URL HTTPS) — dedupe de inflight e uma entrada por publicId na sessão. */
+/** Object URLs Blob de avatar da comunidade — dedupe de inflight e uma entrada por publicId na sessão. */
 const objectUrls = new Map();
 /** @type {Map<string, Promise<string>>} */
 const inflight = new Map();
+let generation = 0;
 
 export function peekCommunityAvatarObjectUrl(publicId) {
   return objectUrls.get(publicId) ?? null;
 }
 
 export function revokeCommunityAvatarObjectUrls() {
+  generation += 1;
   for (const url of objectUrls.values()) {
     if (!url.startsWith("blob:")) continue;
     try {
@@ -22,7 +24,7 @@ export function revokeCommunityAvatarObjectUrls() {
 
 /**
  * @param {string} publicId
- * @param {() => Promise<string>} loadUrl
+ * @param {() => Promise<Blob>} loadUrl
  * @returns {Promise<string>}
  */
 export async function communityAvatarObjectUrl(publicId, loadUrl) {
@@ -31,20 +33,31 @@ export async function communityAvatarObjectUrl(publicId, loadUrl) {
   const pending = inflight.get(publicId);
   if (pending) return pending;
 
-  const request = loadUrl().then((url) => {
-    if (typeof url !== "string" || !url.startsWith("https://")) {
-      throw new Error("Preview de avatar indisponível.");
-    }
-    objectUrls.set(publicId, url);
-    inflight.delete(publicId);
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new CustomEvent("community-avatar-cache", { detail: { publicId } }));
-    }
-    return url;
-  }).catch((error) => {
-    inflight.delete(publicId);
-    throw error;
-  });
+  const requestGeneration = generation;
+  let request;
+  request = Promise.resolve()
+    .then(loadUrl)
+    .then((url) => {
+      if (typeof Blob === "undefined" || !(url instanceof Blob)) {
+        throw new Error("Preview de avatar indisponível.");
+      }
+      if (requestGeneration !== generation) {
+        throw new Error("Preview de avatar indisponível.");
+      }
+      const objectUrl = URL.createObjectURL(url);
+      if (requestGeneration !== generation) {
+        URL.revokeObjectURL(objectUrl);
+        throw new Error("Preview de avatar indisponível.");
+      }
+      objectUrls.set(publicId, objectUrl);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("community-avatar-cache", { detail: { publicId } }));
+      }
+      return objectUrl;
+    })
+    .finally(() => {
+      if (inflight.get(publicId) === request) inflight.delete(publicId);
+    });
 
   inflight.set(publicId, request);
   return request;
@@ -53,7 +66,7 @@ export async function communityAvatarObjectUrl(publicId, loadUrl) {
 /**
  * Dispara downloads em paralelo (limite de concorrência) para esquentar o cache antes dos cards montarem.
  * @param {string[]} publicIds
- * @param {(publicId: string) => Promise<string>} loadUrlForId
+ * @param {(publicId: string) => Promise<Blob>} loadUrlForId
  * @param {{ concurrency?: number }} [options]
  */
 export async function warmCommunityAvatarCache(publicIds, loadUrlForId, { concurrency = 6 } = {}) {

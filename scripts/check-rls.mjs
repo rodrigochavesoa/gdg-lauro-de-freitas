@@ -220,10 +220,12 @@ function createServiceClient() {
   });
 }
 
-/** Piloto Homolog/Preview: homolog-only SQL ativa F-11 v2; produção nunca aplica. */
+/** Piloto Homolog/Preview usa flag privada; aprovação formal continua independente. */
 async function isHomologCommunityPilotActive() {
   const svc = createServiceClient();
   if (!svc) return false;
+  const pilot = await svc.rpc("get_community_pilot_enabled");
+  if (pilot.error || pilot.data !== true) return false;
   const { data, error } = await svc
     .from("privacy_purposes")
     .select("status,legal_basis_status,retention_status,text_status,version")
@@ -233,9 +235,9 @@ async function isHomologCommunityPilotActive() {
   if (error || !data) return false;
   return (
     data.status === "active" &&
-    data.legal_basis_status === "approved" &&
-    data.retention_status === "approved" &&
-    data.text_status === "approved"
+    data.legal_basis_status === "pending_dpo" &&
+    data.retention_status === "pending_dpo" &&
+    data.text_status === "pending_dpo"
   );
 }
 
@@ -1719,28 +1721,32 @@ async function scenario27_adminDashboardSummary() {
   }
 }
 
-/** Cenário 28 — UX-COMMUNITY-PROFILES-01: F-11 e leitura da Comunidade fail-closed. */
+/** Cenário 28 — checks não mutantes de privacidade e grants da Comunidade. */
 async function scenario28_communityProfilesFailClosed() {
-  if (await isHomologCommunityPilotActive()) {
-    skip(
-      "cenário 28: piloto Homolog com F-11 v2 ativa — contrato fail-closed pendente não se aplica (docs-local/community-homolog-preview-pilot.md)",
-    );
-    return;
-  }
-  const anonStatus = await anon.rpc("get_community_feature_status");
-  if (/could not find the function|schema cache/i.test(errorText(anonStatus.error))) {
+  // The RPC body consumes the read budget, but anon has no EXECUTE grant.
+  // This denied call only distinguishes an absent schema from an installed RPC.
+  const communitySchemaProbe = await anon.rpc("get_community_feature_status");
+  if (/could not find the function|schema cache/i.test(errorText(communitySchemaProbe.error))) {
     skipRequired(28, "migration da Comunidade não aplicada no ambiente");
     return;
   }
-  assert(Boolean(anonStatus.error) && isExecuteDenied(anonStatus.error), "anon não executa status da Comunidade");
+  assert(
+    Boolean(communitySchemaProbe.error) && isExecuteDenied(communitySchemaProbe.error),
+    "preflight da RPC de status é negado para anon antes de executar o corpo",
+  );
 
-  const anonList = await anon.rpc("list_community_profiles", {
-    p_limit: 1,
-    p_before_id: null,
-    p_before_published_at: null,
-  });
-  assert(Boolean(anonList.error) && isExecuteDenied(anonList.error), "anon não executa lista da Comunidade");
-
+  const communityPilot = await isHomologCommunityPilotActive();
+  const purposeCatalog = await anon
+    .from("privacy_purposes")
+    .select("status,legal_basis_status,retention_status,text_status")
+    .eq("purpose_code", "F-11")
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const communityFormallyApproved = purposeCatalog.data?.status === "active" &&
+    purposeCatalog.data?.legal_basis_status === "approved" &&
+    purposeCatalog.data?.retention_status === "approved" &&
+    purposeCatalog.data?.text_status === "approved";
   const anonProjection = await anon.from("community_profiles").select("public_id").limit(1);
   assert(Boolean(anonProjection.error) && isExecuteDenied(anonProjection.error), "anon não lê a projeção diretamente");
 
@@ -1756,69 +1762,22 @@ async function scenario28_communityProfilesFailClosed() {
     assert(!signed.error && candidate, `candidato autentica (${errorText(signed.error) || "ok"})`);
     if (signed.error || !candidate) return;
 
-    const status = await candidate.rpc("get_community_feature_status");
-    const communityStatus = status.data ?? {};
-    assert(!status.error, `status próprio da Comunidade disponível (${errorText(status.error) || "ok"})`);
-    assert(
-      Object.keys(communityStatus).sort().join(",") === "available,can_publish,published,reason",
-      "status não contém campos de perfil nem identificadores",
-    );
-    assert(
-      communityStatus.available === false &&
-        communityStatus.can_publish === false &&
-        communityStatus.published === false &&
-        communityStatus.reason === "approval_pending",
-      "F-11 pendente mantém Comunidade indisponível e compartilhamento desligado",
-    );
-
     const purposeGate = await candidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-11" });
-    assert(!purposeGate.error && purposeGate.data === false, "F-11 não autoriza leitura enquanto aguarda o DPO");
-
-    const serviceClient = createServiceClient();
-    if (!serviceClient) {
-      skipRequired(28, "falta service role para verificar o bloqueio do lookup interno do avatar");
-    } else {
-      const avatarPath = await serviceClient.rpc("community_avatar_storage_path", {
-        p_public_id: "00000000-0000-4000-8000-000000000001",
-        p_viewer_id: signed.user.id,
-      });
-      assert(!avatarPath.error && avatarPath.data == null, "F-11 pendente não resolve caminho nem entrega avatar");
+    if (!communityFormallyApproved) {
+      assert(!purposeGate.error && purposeGate.data === false, "F-11 permanece sem autorização genérica enquanto aguarda o DPO");
     }
-
-    const accepted = await candidate.rpc("record_privacy_event", {
-      p_purpose_code: "F-11",
-      p_event_type: "accepted",
-      p_source: "preferences",
-    });
-    assert(Boolean(accepted.error), "usuário não consegue aceitar F-11 antes da aprovação");
-
-    const list = await candidate.rpc("list_community_profiles", {
-      p_limit: 24,
-      p_before_id: null,
-      p_before_published_at: null,
-    });
-    assert(/community approval pending/i.test(errorText(list.error)), "lista falha fechada enquanto F-11 está pendente");
-    assert(list.data == null, "lista indisponível não devolve perfis");
-
-    const detail = await candidate.rpc("get_community_profile", { p_public_id: "00000000-0000-4000-8000-000000000001" });
-    assert(/community approval pending/i.test(errorText(detail.error)), "detalhe falha fechado antes de procurar o perfil");
-    assert(detail.data == null, "detalhe indisponível não devolve perfil");
-
-    const publish = await candidate.rpc("set_community_profile_publication", { p_published: true });
-    assert(/community approval pending/i.test(errorText(publish.error)), "opt-in não pode ser ativado antes da aprovação");
-    assert(publish.data == null, "opt-in bloqueado não publica perfil");
-
     const directProjection = await candidate.from("community_profiles").select("public_id").limit(1);
     assert(Boolean(directProjection.error) && isExecuteDenied(directProjection.error), "candidato não lê a projeção via Data API");
-
-    const selfRevoke = await candidate.rpc("set_community_profile_publication", { p_published: false });
-    assert(!selfRevoke.error && selfRevoke.data === true, "revogação própria permanece disponível no estado fail-closed");
-
-    const forgedOtherUserMutation = await candidate.rpc("set_community_profile_publication", {
-      p_published: false,
-      p_subject_id: "00000000-0000-4000-8000-000000000001",
-    });
-    assert(Boolean(forgedOtherUserMutation.error), "RPC não aceita subject_id fornecido pelo cliente");
+    if (communityPilot) {
+      assert(
+        purposeCatalog.data?.status === "active" &&
+          purposeCatalog.data?.legal_basis_status === "pending_dpo" &&
+          purposeCatalog.data?.retention_status === "pending_dpo" &&
+          purposeCatalog.data?.text_status === "pending_dpo",
+        "flag de piloto não altera estados formais de F-11",
+      );
+    }
+    skip("cenário 28: RPCs de leitura com contador e mutações de consentimento/publicação ficam fora do shared Homolog; mutações no cenário 29 isolado");
   } finally {
     try {
       await candidate?.auth.signOut();
@@ -1862,6 +1821,12 @@ async function scenario29_communityOptInFixture() {
     return;
   }
 
+  const pilotBefore = await svc.rpc("get_community_pilot_enabled");
+  if (pilotBefore.error || pilotBefore.data !== false) {
+    assert(false, `cenário 29 exige flag de piloto inicialmente desligada (${errorText(pilotBefore.error) || pilotBefore.data})`);
+    return;
+  }
+
   const purposeBefore = await svc
     .from("privacy_purposes")
     .select("version,status,legal_basis_status,retention_status,text_status")
@@ -1874,7 +1839,7 @@ async function scenario29_communityOptInFixture() {
     purposeBefore.data?.retention_status !== "pending_dpo" ||
     purposeBefore.data?.text_status !== "pending_dpo"
   ) {
-    assert(false, "cenário 29 só começa com F-11 inativa");
+    assert(false, "cenário 29 só começa com F-11 inativa e estados formais pending_dpo");
     return;
   }
 
@@ -1882,17 +1847,23 @@ async function scenario29_communityOptInFixture() {
   let candidate = null;
   let subjectId = null;
   let fixtureActivated = false;
+  let pilotActivated = false;
   try {
     const activate = await svc
       .from("privacy_purposes")
-      .update({ status: "active", legal_basis_status: "approved", retention_status: "approved", text_status: "approved" })
+      .update({ status: "active", legal_basis_status: "pending_dpo", retention_status: "pending_dpo", text_status: "pending_dpo" })
       .eq("purpose_code", "F-11")
       .eq("version", original.version)
-      .select("status")
+      .select("status,legal_basis_status,retention_status,text_status")
       .single();
-    assert(!activate.error && activate.data?.status === "active", `aprova fixture temporária F-11 (${errorText(activate.error) || "ok"})`);
+    assert(!activate.error && activate.data?.status === "active", `ativa F-11 sem aprovar estados formais (${errorText(activate.error) || "ok"})`);
     if (activate.error || activate.data?.status !== "active") return;
     fixtureActivated = true;
+
+    const pilotOn = await svc.rpc("set_community_pilot_enabled", { p_enabled: true });
+    assert(!pilotOn.error && pilotOn.data === true, `ativa flag técnica no projeto isolado (${errorText(pilotOn.error) || pilotOn.data})`);
+    if (pilotOn.error || pilotOn.data !== true) return;
+    pilotActivated = true;
 
     const signed = await signInWithRetry(testUsers.candidate, { label: "candidato (fixture Comunidade)" });
     candidate = signed.client ?? null;
@@ -1901,8 +1872,10 @@ async function scenario29_communityOptInFixture() {
     if (signed.error || !candidate || !subjectId) return;
 
     const statusBefore = await candidate.rpc("get_community_feature_status");
-    assert(!statusBefore.error && statusBefore.data?.available === true, "status próprio permite consentimento após aprovação de teste");
+    assert(!statusBefore.error && statusBefore.data?.available === true, "status próprio disponível pela flag do piloto");
     assert(statusBefore.data?.published === false, "opt-in continua desligado antes da ação explícita");
+    const genericGate = await candidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-11" });
+    assert(!genericGate.error && genericGate.data === false, "F-11 pending_dpo não é autorizada pelo gate genérico durante o piloto");
     const ownProfile = await candidate.from("profiles").select("full_name").eq("id", subjectId).single();
     assert(!ownProfile.error && Boolean(ownProfile.data?.full_name), "fixture usa o perfil próprio do candidate de teste");
 
@@ -1937,7 +1910,7 @@ async function scenario29_communityOptInFixture() {
       .limit(1)
       .maybeSingle();
     assert(!latestConsent.error && latestConsent.data?.event_type === "accepted", "RPC grava o aceite explícito atual");
-    assert(latestConsent.data?.purpose_version === original.version, "aceite aponta para a versão aprovada atual");
+    assert(latestConsent.data?.purpose_version === original.version, "aceite aponta para a versão atual de F-11");
 
     const list = await candidate.rpc("list_community_profiles", {
       p_limit: 24,
@@ -1956,6 +1929,31 @@ async function scenario29_communityOptInFixture() {
       assert(!detailAfterRevoke.error && detailAfterRevoke.data == null, "revogação remove imediatamente o detalhe da projeção");
     }
 
+    const republish = await candidate.rpc("set_community_profile_publication", { p_published: true });
+    assert(!republish.error && republish.data === true, "titular pode publicar novamente com novo aceite explícito no piloto isolado");
+    const pilotOff = await svc.rpc("set_community_pilot_enabled", { p_enabled: false });
+    assert(!pilotOff.error && pilotOff.data === true, `desligar piloto conclui no ambiente isolado (${errorText(pilotOff.error) || "ok"})`);
+    if (!pilotOff.error && pilotOff.data === true) pilotActivated = false;
+
+    const statusAfterPilotOff = await candidate.rpc("get_community_feature_status");
+    assert(
+      !statusAfterPilotOff.error && statusAfterPilotOff.data?.available === false && statusAfterPilotOff.data?.published === false,
+      "desligar flag bloqueia status e remove publicação no mesmo commit",
+    );
+    const listAfterPilotOff = await candidate.rpc("list_community_profiles", {
+      p_limit: 24, p_before_id: null, p_before_published_at: null,
+    });
+    assert(/community approval pending/i.test(errorText(listAfterPilotOff.error)), "desligar flag bloqueia listagem");
+    const detailAfterPilotOff = await candidate.rpc("get_community_profile", {
+      p_public_id: ownListedProfile?.public_id ?? "00000000-0000-4000-8000-000000000001",
+    });
+    assert(/community approval pending/i.test(errorText(detailAfterPilotOff.error)), "desligar flag bloqueia detalhe");
+    const avatarAfterPilotOff = await svc.rpc("community_avatar_storage_path", {
+      p_public_id: ownListedProfile?.public_id ?? "00000000-0000-4000-8000-000000000001",
+      p_viewer_id: subjectId,
+    });
+    assert(!avatarAfterPilotOff.error && avatarAfterPilotOff.data == null, "desligar flag bloqueia lookup e entrega de avatar");
+
     const revokedConsent = await candidate
       .from("privacy_consent_events")
       .select("event_type")
@@ -1967,6 +1965,9 @@ async function scenario29_communityOptInFixture() {
     assert(!revokedConsent.error && revokedConsent.data?.event_type === "revoked", "revogação registra evento de privacidade");
   } finally {
     try {
+      if (pilotActivated) {
+        await svc.rpc("set_community_pilot_enabled", { p_enabled: false });
+      }
       if (candidate && subjectId) {
         await candidate.rpc("set_community_profile_publication", { p_published: false });
       }
@@ -2073,8 +2074,8 @@ async function scenario15_rpcExecuteHardening() {
 
 /** Cenário 16 — MVP-003: catálogo, escolhas próprias e gate pending_dpo. */
 async function scenario16_privacyConsent() {
-  if (!hasCreds(testUsers.candidate) || !hasCreds(testUsers.admin)) {
-    skipRequired(16, "faltam admin e/ou candidate em docs-local");
+  if (!hasCreds(testUsers.candidate)) {
+    skipRequired(16, "falta candidate em docs-local");
     return;
   }
 
@@ -2092,6 +2093,10 @@ async function scenario16_privacyConsent() {
   const communityPilot = await isHomologCommunityPilotActive();
   const communityPurpose = catalog.data?.find((row) => row.purpose_code === "F-11");
   const communitySchemaApplied = communityPurpose?.version === 2;
+  const communityFormallyApproved = communityPurpose?.status === "active" &&
+    communityPurpose?.legal_basis_status === "approved" &&
+    communityPurpose?.retention_status === "approved" &&
+    communityPurpose?.text_status === "approved";
   assert(
     catalog.data?.every((row) => {
       if (row.purpose_code === "F-11") return row.version === 1 || row.version === 2;
@@ -2108,18 +2113,20 @@ async function scenario16_privacyConsent() {
   if (communityPilot) {
     assert(
       communityPurpose?.status === "active" &&
-        communityPurpose?.legal_basis_status === "approved" &&
-        communityPurpose?.retention_status === "approved" &&
-        communityPurpose?.text_status === "approved",
-      "piloto Homolog: F-11 v2 ativa para validação técnica (ver docs-local/community-homolog-preview-pilot.md)",
-    );
-  } else if (communitySchemaApplied) {
-    assert(
-      communityPurpose?.status === "inactive" &&
         communityPurpose?.legal_basis_status === "pending_dpo" &&
         communityPurpose?.retention_status === "pending_dpo" &&
         communityPurpose?.text_status === "pending_dpo",
-      "F-11 v2 permanece inativa e pendente do gate formal",
+      "piloto Homolog: flag técnica ativa, estados formais de F-11 permanecem pending_dpo",
+    );
+  } else if (communitySchemaApplied && communityFormallyApproved) {
+    assert(true, "F-11 formalmente aprovada segue pelo gate canônico, sem depender do flag do piloto");
+  } else if (communitySchemaApplied) {
+    assert(
+      (communityPurpose?.status === "inactive" || communityPurpose?.status === "active") &&
+        communityPurpose?.legal_basis_status === "pending_dpo" &&
+        communityPurpose?.retention_status === "pending_dpo" &&
+        communityPurpose?.text_status === "pending_dpo",
+      "F-11 v2 mantém os três estados formais pending_dpo, com ou sem flag do piloto",
     );
   } else {
     assert(
@@ -2128,6 +2135,42 @@ async function scenario16_privacyConsent() {
         communityPurpose?.retention_status === "pending_dpo",
       "F-11 v1 mantém estados pending_dpo antes da migration da Comunidade",
     );
+  }
+
+  // F-11 is read-only whenever active (shared pilot or formal approval).
+  // Do not clear consent history or create an acceptance for the shared user.
+  if (communityPurpose?.status === "active") {
+    const { client: readOnlyCandidate, user, error } = await signInWithRetry(testUsers.candidate, {
+      label: "candidato (gate F-11 somente leitura)",
+    });
+    assert(!error && readOnlyCandidate && user?.id, `candidato autentica para conferir gate F-11 (${errorText(error) || "ok"})`);
+    if (!error && readOnlyCandidate && user?.id) {
+      try {
+        const gate = await readOnlyCandidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-11" });
+        if (!communityFormallyApproved) {
+          assert(!gate.error && gate.data === false, "F-11 pending_dpo permanece não autorizada pelo gate genérico");
+        } else {
+          const latest = await readOnlyCandidate
+            .from("privacy_consent_events")
+            .select("event_type,purpose_version")
+            .eq("purpose_code", "F-11")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          const expected = !latest.error && latest.data?.event_type === "accepted" && latest.data?.purpose_version === communityPurpose.version;
+          assert(!gate.error && gate.data === expected, "gate formal corresponde ao aceite F-11 já existente, sem criar evento");
+        }
+      } finally {
+        await readOnlyCandidate.auth.signOut();
+      }
+    }
+    return;
+  }
+
+  if (!hasCreds(testUsers.admin)) {
+    skipRequired(16, "falta admin em docs-local");
+    return;
   }
 
   const anonChoice = await anon.rpc("record_privacy_event", {
@@ -2155,7 +2198,7 @@ async function scenario16_privacyConsent() {
     return;
   }
 
-  await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+  await svc.from("privacy_consent_events").delete().eq("subject_id", user.id).eq("purpose_code", "F-06");
   try {
     const accepted = await candidate.rpc("record_privacy_event", {
       p_purpose_code: "F-06",
@@ -2175,21 +2218,12 @@ async function scenario16_privacyConsent() {
     });
     assert(Boolean(inactiveChoice.error), "finalidade inativa não aceita escolha");
 
-    const communityChoice = await candidate.rpc("record_privacy_event", {
-      p_purpose_code: "F-11",
-      p_event_type: "accepted",
-      p_source: "preferences",
-    });
     const communityGate = await candidate.rpc("privacy_purpose_is_authorized", { p_purpose_code: "F-11" });
     if (communityPilot) {
-      assert(!communityChoice.error, `piloto Homolog: F-11 aceita consentimento (${errorText(communityChoice.error) || "ok"})`);
-      assert(!communityGate.error && communityGate.data === true, "piloto Homolog: F-11 autoriza após gate técnico homolog-only");
-      await svc.from("privacy_consent_events").delete().eq("subject_id", user.id).eq("purpose_code", "F-11");
-    } else if (communitySchemaApplied) {
-      assert(Boolean(communityChoice.error), "F-11 v2 não aceita consentimento antes do gate formal");
-      assert(!communityGate.error && communityGate.data === false, "F-11 v2 não autoriza compartilhamento enquanto pendente");
+      assert(!communityGate.error && communityGate.data === false, "F-11 pending_dpo permanece não autorizada pelo gate genérico, inclusive no piloto");
+    } else if (communityFormallyApproved) {
+      assert(!communityGate.error && typeof communityGate.data === "boolean", "gate formal responde sem alterar consentimento compartilhado");
     } else {
-      assert(Boolean(communityChoice.error), "F-11 não aceita consentimento antes da aprovação do gate formal");
       assert(!communityGate.error && communityGate.data === false, "F-11 não autoriza compartilhamento enquanto pendente");
     }
 
@@ -2264,7 +2298,7 @@ async function scenario16_privacyConsent() {
       .order("created_at", { ascending: true });
     assert(history.data?.map((row) => row.event_type).join(",") === "accepted,revoked", "histórico preserva aceite e revogação");
   } finally {
-    await svc.from("privacy_consent_events").delete().eq("subject_id", user.id);
+    await svc.from("privacy_consent_events").delete().eq("subject_id", user.id).eq("purpose_code", "F-06");
     await candidate.auth.signOut();
     await admin.auth.signOut();
   }
