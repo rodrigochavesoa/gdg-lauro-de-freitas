@@ -78,12 +78,36 @@ describe("CommunityRoute", () => {
   it("fails closed while F-11 is pending and does not load profiles or photos", async () => {
     renderCommunity({ auth: authenticatedAuth });
     expect(await screen.findByRole("heading", { name: "Compartilhamento ainda não disponível" })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-members-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(screen.getByText(/opcional e visível somente a membros autenticados/i)).toBeInTheDocument();
     expect(screen.getByText(/Ao retirar a autorização ou excluir a conta/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /finalidades e os registros de privacidade/i })).toHaveAttribute("href", "/preferencias");
     expect(api.loadMyCommunityPublicationStatus).toHaveBeenCalledTimes(1);
     expect(api.listCommunityProfiles).not.toHaveBeenCalled();
     expect(api.loadCommunityAvatar).not.toHaveBeenCalled();
+  });
+
+  it("shows dotted hero and wave on profile detail", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId: "2e2fbaf7-e292-4c5d-8b77-928639845e01",
+      fullName: "Ana Example",
+      headline: "Desenvolvedora Front-end",
+      skills: ["React"],
+      location: "Salvador, BA",
+      experienceLevel: "junior",
+      workModel: "remote",
+      avatarAvailable: false,
+      bio: null,
+      preferences: {},
+    });
+    renderCommunity({ auth: authenticatedAuth, route: "/comunidade/2e2fbaf7-e292-4c5d-8b77-928639845e01" });
+
+    expect(await screen.findByRole("heading", { name: "Perfil profissional" })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-members-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ana Example", level: 2 })).toBeInTheDocument();
   });
 
   it("loads an allowlisted member card and retrieves its avatar only through the proxy", async () => {

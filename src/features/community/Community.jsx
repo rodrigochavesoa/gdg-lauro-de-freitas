@@ -245,6 +245,24 @@ function CommunityBrowseWaveDivider() {
   );
 }
 
+function CommunityMembersHero({ profileView }) {
+  const titleId = profileView ? "community-profile-page-title" : "community-page-title";
+  return (
+    <>
+      <section className="hero community-members-hero" aria-labelledby={titleId}>
+        <div className="shell hero-content">
+          <span className="eyebrow"><Users size={16} aria-hidden="true" /> Área de membros</span>
+          <h1 id={titleId}>
+            {profileView ? <>Perfil <em>profissional</em></> : <>Comunidade <em>GDG Jobs</em></>}
+          </h1>
+          <p>Conheça profissionais que escolheram compartilhar seus perfis com a comunidade GDG Jobs.</p>
+        </div>
+      </section>
+      <CommunityBrowseWaveDivider />
+    </>
+  );
+}
+
 function CommunityBrowseHero({ query, disabled, onQueryChange, onSearch }) {
   return (
     <section className="hero community-browse-hero" aria-labelledby="community-browse-title">
@@ -579,6 +597,9 @@ function CommunityPage({ userId }) {
     }
   };
 
+  const showMembersHero = !showBrowseChrome;
+  const hasTopHero = showBrowseLayout || showMembersHero;
+
   const browseHero = showBrowseLayout ? (
     <>
       <CommunityBrowseHero
@@ -591,18 +612,13 @@ function CommunityPage({ userId }) {
     </>
   ) : null;
 
-  return (
-    <main id="conteudo" className={`community-page${showBrowseLayout ? " community-page--browse" : ""}`} aria-busy={pageState === "loading" || pageState === "loading-list"}>
-      {browseHero}
-      <div className="shell community-shell">
-        {!showBrowseChrome ? (
-          <header className="community-heading">
-            <span className="eyebrow"><Users size={15} aria-hidden="true" /> Área de membros</span>
-            <h1>{publicId ? "Perfil profissional" : "Comunidade"}</h1>
-            <p>Conheça profissionais que escolheram compartilhar seus perfis com a comunidade GDG Jobs.</p>
-          </header>
-        ) : null}
+  const membersHero = showMembersHero ? <CommunityMembersHero profileView={Boolean(publicId)} /> : null;
 
+  return (
+    <main id="conteudo" className={`community-page${hasTopHero ? " community-page--browse" : ""}`} aria-busy={pageState === "loading" || pageState === "loading-list"}>
+      {browseHero}
+      {membersHero}
+      <div className="shell community-shell">
         {pageState === "loading" ? (publicId ? <CommunityLoadingSkeleton detail /> : <CommunityPageShellSkeleton />) : null}
         {pageState === "loading-list" ? (
           <>
