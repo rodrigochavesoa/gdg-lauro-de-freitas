@@ -37,6 +37,9 @@ export async function communityAvatarObjectUrl(publicId, loadBlob) {
     const url = URL.createObjectURL(blob);
     objectUrls.set(publicId, url);
     inflight.delete(publicId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("community-avatar-cache", { detail: { publicId } }));
+    }
     return url;
   }).catch((error) => {
     inflight.delete(publicId);
@@ -45,4 +48,28 @@ export async function communityAvatarObjectUrl(publicId, loadBlob) {
 
   inflight.set(publicId, request);
   return request;
+}
+
+/**
+ * Dispara downloads em paralelo (limite de concorrência) para esquentar o cache antes dos cards montarem.
+ * @param {string[]} publicIds
+ * @param {(publicId: string) => Promise<Blob>} loadBlobForId
+ * @param {{ concurrency?: number }} [options]
+ */
+export async function warmCommunityAvatarCache(publicIds, loadBlobForId, { concurrency = 6 } = {}) {
+  const queue = [...new Set(publicIds)].filter((id) => id && !peekCommunityAvatarObjectUrl(id));
+  if (!queue.length) return;
+  const limit = Math.max(1, Math.min(concurrency, queue.length));
+  const workers = Array.from({ length: limit }, async () => {
+    while (queue.length) {
+      const publicId = queue.shift();
+      if (!publicId) break;
+      try {
+        await communityAvatarObjectUrl(publicId, () => loadBlobForId(publicId));
+      } catch {
+        /* o card cai para iniciais se o proxy falhar */
+      }
+    }
+  });
+  await Promise.all(workers);
 }

@@ -13,6 +13,8 @@ import {
   listCommunityProfiles,
   loadCommunityProfile,
   loadMyCommunityPublicationStatus,
+  peekCommunityAvatarObjectUrl,
+  prefetchCommunityAvatars,
   revokeCommunityAvatarObjectUrls,
   setMyCommunityPublication,
 } from "./community-api.js";
@@ -117,15 +119,39 @@ function isViewerCommunityProfile(profile, viewerDisplayName) {
   return cardName.length > 0 && viewerName.length > 0 && cardName === viewerName;
 }
 
-function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName }) {
+function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = false }) {
   const rootRef = useRef(null);
-  const [src, setSrc] = useState(null);
+  const publicId = profile?.publicId;
+  const [src, setSrc] = useState(() => peekCommunityAvatarObjectUrl(publicId));
   const [loadFailed, setLoadFailed] = useState(false);
-  const [nearViewport, setNearViewport] = useState(() => typeof IntersectionObserver === "undefined");
+  const [nearViewport, setNearViewport] = useState(
+    () => eager || typeof IntersectionObserver === "undefined",
+  );
   const shouldLoadAvatar = profile?.avatarAvailable === true;
   const viewerPhotoUrl = viewerAvatarUrl && isViewerCommunityProfile(profile, viewerDisplayName)
     ? viewerAvatarUrl
     : null;
+
+  useEffect(() => {
+    const cached = peekCommunityAvatarObjectUrl(publicId);
+    if (cached) {
+      setSrc(cached);
+      setLoadFailed(false);
+    }
+  }, [publicId]);
+
+  useEffect(() => {
+    const onCache = (event) => {
+      if (event.detail?.publicId !== publicId) return;
+      const cached = peekCommunityAvatarObjectUrl(publicId);
+      if (cached) {
+        setSrc(cached);
+        setLoadFailed(false);
+      }
+    };
+    window.addEventListener("community-avatar-cache", onCache);
+    return () => window.removeEventListener("community-avatar-cache", onCache);
+  }, [publicId]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -442,12 +468,13 @@ function CommunityDiscoverySection({
       ) : (
         <>
           <div className="community-people-grid">
-            {filteredProfiles.map((profile) => (
+            {filteredProfiles.map((profile, index) => (
               <CommunityProfileCard
                 key={profile.publicId}
                 profile={profile}
                 viewerAvatarUrl={viewerAvatarUrl}
                 viewerDisplayName={viewerDisplayName}
+                eagerAvatar={index < 12}
               />
             ))}
           </div>
@@ -496,11 +523,16 @@ function CommunitySharePanel({ publication, busy, onPublicationChange }) {
   );
 }
 
-function CommunityProfileCard({ profile, viewerAvatarUrl, viewerDisplayName }) {
+function CommunityProfileCard({ profile, viewerAvatarUrl, viewerDisplayName, eagerAvatar = false }) {
   return (
     <article className="community-person-card">
       <Link className="community-person-card__identity" to={`/comunidade/${profile.publicId}`} aria-label={`Ver perfil de ${profile.fullName}`}>
-        <CommunityAvatar profile={profile} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />
+        <CommunityAvatar
+          profile={profile}
+          viewerAvatarUrl={viewerAvatarUrl}
+          viewerDisplayName={viewerDisplayName}
+          eager={eagerAvatar}
+        />
         <span className="community-person-card__heading">
           <strong>{profile.fullName}</strong>
           {profile.location ? <span><MapPin size={15} aria-hidden="true" /> {profile.location}</span> : null}
@@ -539,6 +571,12 @@ function CommunityPage({ userId, viewerAvatarUrl, viewerDisplayName }) {
   const browseActiveFilterCount = Number(Boolean(browseExperienceLevel)) + Number(Boolean(browseWorkModel));
 
   useEffect(() => () => revokeCommunityAvatarObjectUrls(), []);
+
+  useEffect(() => {
+    if (!profiles.length) return undefined;
+    prefetchCommunityAvatars(profiles).catch(() => {});
+    return undefined;
+  }, [profiles]);
 
   const showBrowseChrome = !publicId && (pageState === "loading-list" || pageState === "list" || pageState === "empty");
   const showBrowseLayout = showBrowseChrome;

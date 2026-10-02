@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   loadMyCommunityPublicationStatus: vi.fn(),
   setMyCommunityPublication: vi.fn(),
   getCommunityAvatarObjectUrl: vi.fn(),
+  prefetchCommunityAvatars: vi.fn(),
+  peekCommunityAvatarObjectUrl: vi.fn(() => null),
   revokeCommunityAvatarObjectUrls: vi.fn(),
 }));
 
@@ -19,6 +21,8 @@ vi.mock("./community-api.js", () => ({
   loadMyCommunityPublicationStatus: api.loadMyCommunityPublicationStatus,
   setMyCommunityPublication: api.setMyCommunityPublication,
   getCommunityAvatarObjectUrl: api.getCommunityAvatarObjectUrl,
+  prefetchCommunityAvatars: api.prefetchCommunityAvatars,
+  peekCommunityAvatarObjectUrl: api.peekCommunityAvatarObjectUrl,
   revokeCommunityAvatarObjectUrls: api.revokeCommunityAvatarObjectUrls,
 }));
 
@@ -64,6 +68,7 @@ describe("CommunityRoute", () => {
     api.loadCommunityProfile.mockResolvedValue(null);
     api.setMyCommunityPublication.mockImplementation(async (enabled) => enabled);
     api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:mock-community-avatar");
+    api.prefetchCommunityAvatars.mockResolvedValue(undefined);
     api.revokeCommunityAvatarObjectUrls.mockImplementation(() => {});
   });
 

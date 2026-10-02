@@ -1,5 +1,9 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
-import { communityAvatarObjectUrl, peekCommunityAvatarObjectUrl } from "./community-avatar-cache.js";
+import {
+  communityAvatarObjectUrl,
+  peekCommunityAvatarObjectUrl,
+  warmCommunityAvatarCache,
+} from "./community-avatar-cache.js";
 import {
   COMMUNITY_PAGE_SIZE,
   isCommunityPublicId,
@@ -152,6 +156,15 @@ export async function getCommunityAvatarObjectUrl(publicId, clientOverride) {
 }
 
 export const loadCommunityAvatar = getCommunityAvatar;
+
+export function prefetchCommunityAvatars(profiles, clientOverride) {
+  const publicIds = (profiles ?? [])
+    .filter((profile) => profile?.avatarAvailable === true && isCommunityPublicId(profile.publicId))
+    .map((profile) => profile.publicId);
+  if (!publicIds.length) return Promise.resolve();
+  return warmCommunityAvatarCache(publicIds, (publicId) => getCommunityAvatar(publicId, clientOverride));
+}
+
 export { peekCommunityAvatarObjectUrl, revokeCommunityAvatarObjectUrls } from "./community-avatar-cache.js";
 export const setMyCommunityPublication = setCommunityProfilePublished;
 
