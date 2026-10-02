@@ -23,8 +23,6 @@ export function AppRoutes({
   hydratedUserId,
   hydrateFailedUserId,
   sessionUserId,
-  viewerAvatarUrl = null,
-  viewerDisplayName = "",
 }) {
   const logged = Boolean(auth.session);
   const userId = auth.session?.user?.id;
@@ -34,8 +32,8 @@ export function AppRoutes({
       <Route path="/vagas" element={<CatalogGate auth={auth}><Home logged={logged} /></CatalogGate>} />
       <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={logged} /></CatalogGate>} />
       <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
-      <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
-      <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
+      <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} />} />
+      <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} />} />
       <Route path="/newsletter" element={<CatalogGate auth={auth}><Newsletter logged={logged} /></CatalogGate>} />
       <Route path="/jobs/:id" element={<CatalogGate auth={auth}><JobDetailRoute logged={logged} userId={userId} needsOnboarding={auth.needsOnboarding} authReady={authReady} profile={auth.profile} /></CatalogGate>} />
       <Route path="/minhas-candidaturas" element={<MyApplicationsRoute auth={auth} authReady={authReady} />} />

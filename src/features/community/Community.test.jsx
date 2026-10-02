@@ -1,7 +1,7 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommunityRoute } from "./Community.jsx";
 
 const api = vi.hoisted(() => ({
@@ -26,12 +26,12 @@ vi.mock("./community-api.js", () => ({
   revokeCommunityAvatarObjectUrls: api.revokeCommunityAvatarObjectUrls,
 }));
 
-function renderCommunity({ auth, authReady = true, route = "/comunidade" }) {
+function renderCommunity({ auth, authReady = true, route = "/comunidade", viewerAvatarUrl = null, viewerDisplayName = "" }) {
   return render(
     <MemoryRouter initialEntries={[route]}>
       <Routes>
-        <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} />} />
-        <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} />} />
+        <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
+        <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
         <Route path="/login" element={<h1>Entrar</h1>} />
         <Route path="/onboarding" element={<h1>Completar perfil</h1>} />
       </Routes>
@@ -57,6 +57,10 @@ const authenticatedAuth = {
 };
 
 describe("CommunityRoute", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     api.loadMyCommunityPublicationStatus.mockResolvedValue({
@@ -69,6 +73,7 @@ describe("CommunityRoute", () => {
     api.setMyCommunityPublication.mockImplementation(async (enabled) => enabled);
     api.getCommunityAvatarObjectUrl.mockResolvedValue("https://example.test/community-avatar.jpg");
     api.prefetchCommunityAvatars.mockResolvedValue(undefined);
+    api.peekCommunityAvatarObjectUrl.mockReturnValue(null);
     api.revokeCommunityAvatarObjectUrls.mockImplementation(() => {});
   });
 
@@ -122,6 +127,121 @@ describe("CommunityRoute", () => {
     expect(document.querySelector(".hero.community-members-hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Ana Example", level: 2 })).toBeInTheDocument();
+  });
+
+  it("shows a prefetched member avatar after list-to-detail navigation without a visibility event", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e02";
+    const cachedUrl = "blob:another-member-avatar";
+    const member = {
+      publicId,
+      fullName: "Outra Pessoa",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      publishedAt: "2026-10-01T12:00:00.000Z",
+      bio: null,
+    };
+    let cacheReady = false;
+    vi.stubGlobal("IntersectionObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    api.peekCommunityAvatarObjectUrl.mockImplementation((id) => cacheReady && id === publicId ? cachedUrl : null);
+    api.prefetchCommunityAvatars.mockImplementation(async () => { cacheReady = true; });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue(cachedUrl);
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.listCommunityProfiles.mockResolvedValue({ items: [member], nextCursor: null });
+    api.loadCommunityProfile.mockResolvedValue(member);
+
+    renderCommunity({ auth: authenticatedAuth });
+    await screen.findByRole("link", { name: "Ver perfil de Outra Pessoa" });
+    await waitFor(() => expect(cacheReady).toBe(true));
+    api.getCommunityAvatarObjectUrl.mockClear();
+    fireEvent.click(screen.getByRole("link", { name: "Ver perfil de Outra Pessoa" }));
+
+    expect(await screen.findByRole("heading", { name: "Outra Pessoa" })).toBeInTheDocument();
+    await act(async () => { await Promise.resolve(); });
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "Foto de Outra Pessoa" })).toHaveAttribute("src", cachedUrl);
+  });
+
+  it("does not show the viewer's header photo for another member with the same name", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e03";
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Ana Example",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      bio: null,
+    });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:other-member-avatar");
+
+    renderCommunity({
+      auth: authenticatedAuth,
+      route: `/comunidade/${publicId}`,
+      viewerAvatarUrl: "blob:viewer-header-avatar",
+      viewerDisplayName: "Ana Example",
+    });
+
+    expect(await screen.findByRole("img", { name: "Foto de Ana Example" })).toHaveAttribute("src", "blob:other-member-avatar");
+  });
+
+  it("loads the visible detail avatar through the proxy when no cache or visibility event is available", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e04";
+    vi.stubGlobal("IntersectionObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Pessoa Sem Cache",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      bio: null,
+    });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:detail-avatar");
+
+    renderCommunity({ auth: authenticatedAuth, route: `/comunidade/${publicId}` });
+
+    expect(await screen.findByRole("img", { name: "Foto de Pessoa Sem Cache" })).toHaveAttribute("src", "blob:detail-avatar");
+  });
+
+  it("does not display a cached avatar after the profile reports no photo", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e05";
+    api.peekCommunityAvatarObjectUrl.mockReturnValue("blob:stale-avatar");
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Pessoa Sem Foto",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: false,
+      bio: null,
+    });
+
+    renderCommunity({ auth: authenticatedAuth, route: `/comunidade/${publicId}` });
+
+    expect(await screen.findByLabelText("Sem foto de Pessoa Sem Foto")).toBeInTheDocument();
+    act(() => window.dispatchEvent(new CustomEvent("community-avatar-cache", { detail: { publicId } })));
+    expect(screen.getByLabelText("Sem foto de Pessoa Sem Foto")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Foto de Pessoa Sem Foto" })).not.toBeInTheDocument();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
   });
 
   it("loads an allowlisted member card and retrieves its avatar only through the proxy", async () => {

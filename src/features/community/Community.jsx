@@ -89,7 +89,7 @@ function CommunityLoadingSkeleton({ detail = false }) {
   );
 }
 
-export function CommunityRoute({ auth, authReady, viewerAvatarUrl = null, viewerDisplayName = "" }) {
+export function CommunityRoute({ auth, authReady }) {
   if (!authReady || (auth.session && !auth.profile)) return <CommunityPending />;
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
@@ -97,8 +97,6 @@ export function CommunityRoute({ auth, authReady, viewerAvatarUrl = null, viewer
     <CommunityPage
       key={auth.session.user.id}
       userId={auth.session.user.id}
-      viewerAvatarUrl={viewerAvatarUrl}
-      viewerDisplayName={viewerDisplayName}
     />
   );
 }
@@ -113,36 +111,19 @@ function safeExternalUrl(value) {
   }
 }
 
-function isViewerCommunityProfile(profile, viewerDisplayName) {
-  const cardName = String(profile?.fullName ?? "").trim();
-  const viewerName = String(viewerDisplayName ?? "").trim();
-  return cardName.length > 0 && viewerName.length > 0 && cardName === viewerName;
-}
-
-function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = false }) {
+function CommunityAvatar({ profile, eager = false }) {
   const rootRef = useRef(null);
   const publicId = profile?.publicId;
-  const [src, setSrc] = useState(() => peekCommunityAvatarObjectUrl(publicId));
+  const shouldLoadAvatar = profile?.avatarAvailable === true;
+  const [src, setSrc] = useState(() => shouldLoadAvatar ? peekCommunityAvatarObjectUrl(publicId) : null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [nearViewport, setNearViewport] = useState(
     () => eager || typeof IntersectionObserver === "undefined",
   );
-  const shouldLoadAvatar = profile?.avatarAvailable === true;
-  const viewerPhotoUrl = viewerAvatarUrl && isViewerCommunityProfile(profile, viewerDisplayName)
-    ? viewerAvatarUrl
-    : null;
-
-  useEffect(() => {
-    const cached = peekCommunityAvatarObjectUrl(publicId);
-    if (cached) {
-      setSrc(cached);
-      setLoadFailed(false);
-    }
-  }, [publicId]);
 
   useEffect(() => {
     const onCache = (event) => {
-      if (event.detail?.publicId !== publicId) return;
+      if (!shouldLoadAvatar || event.detail?.publicId !== publicId) return;
       const cached = peekCommunityAvatarObjectUrl(publicId);
       if (cached) {
         setSrc(cached);
@@ -151,7 +132,7 @@ function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = 
     };
     window.addEventListener("community-avatar-cache", onCache);
     return () => window.removeEventListener("community-avatar-cache", onCache);
-  }, [publicId]);
+  }, [publicId, shouldLoadAvatar]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -167,14 +148,11 @@ function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = 
 
   useEffect(() => {
     let active = true;
-    setSrc(null);
     setLoadFailed(false);
-    if (viewerPhotoUrl) {
-      setSrc(viewerPhotoUrl);
-      return () => { active = false; };
-    }
-    if (nearViewport && shouldLoadAvatar) {
-      getCommunityAvatarObjectUrl(profile.publicId)
+    const cached = shouldLoadAvatar ? peekCommunityAvatarObjectUrl(publicId) : null;
+    setSrc(cached);
+    if (nearViewport && shouldLoadAvatar && !cached) {
+      getCommunityAvatarObjectUrl(publicId)
         .then((objectUrl) => {
           if (active) setSrc(objectUrl);
         })
@@ -188,7 +166,7 @@ function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = 
     return () => {
       active = false;
     };
-  }, [profile?.publicId, shouldLoadAvatar, nearViewport, viewerPhotoUrl]);
+  }, [publicId, shouldLoadAvatar, nearViewport]);
 
   const initials = String(profile?.fullName ?? "?").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   if (src) {
@@ -207,7 +185,7 @@ function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName, eager = 
       />
     );
   }
-  if ((shouldLoadAvatar || viewerPhotoUrl) && !loadFailed) {
+  if (shouldLoadAvatar && !loadFailed) {
     return <span ref={rootRef} className="community-avatar community-avatar--loading" aria-hidden="true" />;
   }
   return (
@@ -444,8 +422,6 @@ function CommunityDiscoverySection({
   nextCursor,
   busy,
   onLoadMore,
-  viewerAvatarUrl,
-  viewerDisplayName,
 }) {
   const filterEmpty = !catalogEmpty && filteredProfiles.length === 0;
   return (
@@ -472,8 +448,6 @@ function CommunityDiscoverySection({
               <CommunityProfileCard
                 key={profile.publicId}
                 profile={profile}
-                viewerAvatarUrl={viewerAvatarUrl}
-                viewerDisplayName={viewerDisplayName}
                 eagerAvatar={index < 12}
               />
             ))}
@@ -523,14 +497,12 @@ function CommunitySharePanel({ publication, busy, onPublicationChange }) {
   );
 }
 
-function CommunityProfileCard({ profile, viewerAvatarUrl, viewerDisplayName, eagerAvatar = false }) {
+function CommunityProfileCard({ profile, eagerAvatar = false }) {
   return (
     <article className="community-person-card">
       <Link className="community-person-card__identity" to={`/comunidade/${profile.publicId}`} aria-label={`Ver perfil de ${profile.fullName}`}>
         <CommunityAvatar
           profile={profile}
-          viewerAvatarUrl={viewerAvatarUrl}
-          viewerDisplayName={viewerDisplayName}
           eager={eagerAvatar}
         />
         <span className="community-person-card__heading">
@@ -552,7 +524,7 @@ function CommunityProfileCard({ profile, viewerAvatarUrl, viewerDisplayName, eag
   );
 }
 
-function CommunityPage({ userId, viewerAvatarUrl, viewerDisplayName }) {
+function CommunityPage({ userId }) {
   const { publicId } = useParams();
   const [publication, setPublication] = useState(null);
   const [profiles, setProfiles] = useState([]);
@@ -768,8 +740,6 @@ function CommunityPage({ userId, viewerAvatarUrl, viewerDisplayName }) {
               nextCursor={nextCursor}
               busy={busy}
               onLoadMore={loadMore}
-              viewerAvatarUrl={viewerAvatarUrl}
-              viewerDisplayName={viewerDisplayName}
             />
           </>
         ) : null}
@@ -777,7 +747,7 @@ function CommunityPage({ userId, viewerAvatarUrl, viewerDisplayName }) {
           <article className="community-profile">
             <AdminBackLink className="community-profile__back" to="/comunidade">Voltar à Comunidade</AdminBackLink>
             <section className="community-profile__hero">
-              <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
+              <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} eager /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
               <CommunityProfileSocialLinks profile={detail} />
             </section>
             {detail.bio ? <section className="community-profile__section"><h3>Sobre</h3><p>{detail.bio}</p></section> : null}

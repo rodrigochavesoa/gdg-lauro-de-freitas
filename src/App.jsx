@@ -53,8 +53,6 @@ export function App() {
         hydratedUserId={shell.hydratedUserId}
         hydrateFailedUserId={shell.hydrateFailedUserId}
         sessionUserId={shell.sessionUserId}
-        viewerAvatarUrl={avatar.identity.avatarUrl}
-        viewerDisplayName={avatar.identity.displayName}
       />
       <Footer />
     </>
