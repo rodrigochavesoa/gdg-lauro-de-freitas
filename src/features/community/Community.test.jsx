@@ -106,7 +106,11 @@ describe("CommunityRoute", () => {
 
     expect(await screen.findByRole("heading", { name: "Encontre sua próxima conexão em tech." })).toBeInTheDocument();
     expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "true");
     const searchInput = screen.getByRole("searchbox", { name: "Nome, tecnologia ou área de atuação" });
     fireEvent.change(searchInput, { target: { value: "React" } });
     fireEvent.click(screen.getByRole("button", { name: /buscar profissionais/i }));

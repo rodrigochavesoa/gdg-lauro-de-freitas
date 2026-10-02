@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link, useParams } from "react-router-dom";
-import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Globe, MapPin, Network, Search, Users } from "lucide-react";
+import { ArrowUp, ArrowUpRight, BriefcaseBusiness, ChevronDown, Filter, Globe, MapPin, Network, Search, Users } from "lucide-react";
 import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
 import {
   COMMUNITY_LEVEL_FILTER_OPTIONS,
@@ -234,10 +234,21 @@ function CommunityProfileSocialLinks({ profile }) {
   );
 }
 
+function CommunityBrowseWaveDivider() {
+  return (
+    <div className="home-divider" aria-hidden="true">
+      <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
+        <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
+      </svg>
+      <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
+    </div>
+  );
+}
+
 function CommunityBrowseHero({ query, disabled, onQueryChange, onSearch }) {
   return (
     <section className="hero community-browse-hero" aria-labelledby="community-browse-title">
-      <div className="shell hero-content community-browse-hero__content">
+      <div className="shell hero-content">
         <span className="eyebrow"><Network size={16} aria-hidden="true" /> Comunidade GDG Jobs</span>
         <h1 id="community-browse-title">Encontre sua próxima <em>conexão em tech.</em></h1>
         <p>
@@ -262,47 +273,80 @@ function CommunityBrowseHero({ query, disabled, onQueryChange, onSearch }) {
 }
 
 function CommunityBrowseToolbar({
+  filtersOpen,
+  activeFilterCount,
   experienceLevel,
   workModel,
   disabled,
+  onToggleFilters,
   onExperienceLevelChange,
   onWorkModelChange,
 }) {
   return (
-    <div className="community-browse-toolbar" role="group" aria-label="Filtros da comunidade">
-      <label className="community-browse-select">
-        <span className="community-browse-select__label">Nível de experiência</span>
-        <select
-          className="sort"
-          name="community-experience-level"
-          value={experienceLevel}
-          disabled={disabled}
-          onChange={(event) => onExperienceLevelChange(event.target.value)}
-          aria-label="Filtrar por nível de experiência"
-        >
-          {COMMUNITY_LEVEL_FILTER_OPTIONS.map((option) => (
-            <option key={option.value || "all-levels"} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
-      </label>
-      <label className="community-browse-select">
-        <span className="community-browse-select__label">Modalidade de trabalho</span>
-        <select
-          className="sort"
-          name="community-work-model"
-          value={workModel}
-          disabled={disabled}
-          onChange={(event) => onWorkModelChange(event.target.value)}
-          aria-label="Filtrar por modalidade de trabalho"
-        >
-          {COMMUNITY_WORK_MODEL_FILTER_OPTIONS.map((option) => (
-            <option key={option.value || "all-models"} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-        <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
-      </label>
+    <div className="community-browse-toolbar">
+      <button
+        type="button"
+        className="outline community-browse-filters-toggle"
+        aria-expanded={filtersOpen}
+        aria-controls="community-browse-filters-panel"
+        disabled={disabled}
+        onClick={onToggleFilters}
+      >
+        <Filter size={16} aria-hidden="true" />
+        Filtros
+        {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
+      </button>
+      {filtersOpen ? (
+        <div id="community-browse-filters-panel" className="community-browse-filters-panel" role="group" aria-label="Filtros da comunidade">
+          <label className="community-browse-select">
+            <span className="community-browse-select__label">Nível de experiência</span>
+            <select
+              className="sort"
+              name="community-experience-level"
+              value={experienceLevel}
+              disabled={disabled}
+              onChange={(event) => onExperienceLevelChange(event.target.value)}
+              aria-label="Filtrar por nível de experiência"
+            >
+              {COMMUNITY_LEVEL_FILTER_OPTIONS.map((option) => (
+                <option key={option.value || "all-levels"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
+          </label>
+          <label className="community-browse-select">
+            <span className="community-browse-select__label">Modalidade de trabalho</span>
+            <select
+              className="sort"
+              name="community-work-model"
+              value={workModel}
+              disabled={disabled}
+              onChange={(event) => onWorkModelChange(event.target.value)}
+              aria-label="Filtrar por modalidade de trabalho"
+            >
+              {COMMUNITY_WORK_MODEL_FILTER_OPTIONS.map((option) => (
+                <option key={option.value || "all-models"} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
+          </label>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function CommunityBackToTop({ visible }) {
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      className="community-back-to-top"
+      aria-label="Voltar ao topo"
+      onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+    >
+      <ArrowUp size={18} aria-hidden="true" />
+    </button>
   );
 }
 
@@ -431,8 +475,13 @@ function CommunityPage({ userId }) {
   const [browseQueryDraft, setBrowseQueryDraft] = useState("");
   const [browseExperienceLevel, setBrowseExperienceLevel] = useState("");
   const [browseWorkModel, setBrowseWorkModel] = useState("");
+  const [browseFiltersOpen, setBrowseFiltersOpen] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
+  const browseActiveFilterCount = Number(Boolean(browseExperienceLevel)) + Number(Boolean(browseWorkModel));
 
   const showBrowseChrome = !publicId && (pageState === "loading-list" || pageState === "list" || pageState === "empty");
+  const showBrowseLayout = showBrowseChrome;
+  const browseHeroDisabled = pageState === "loading-list";
   const filteredProfiles = useMemo(
     () => filterCommunityProfiles(profiles, {
       query: browseQuery,
@@ -442,6 +491,17 @@ function CommunityPage({ userId }) {
     [profiles, browseQuery, browseExperienceLevel, browseWorkModel],
   );
   const resultCountLabel = formatCommunityLoadedCount(filteredProfiles.length, Boolean(nextCursor));
+
+  useEffect(() => {
+    if (!showBrowseLayout || profiles.length < 4) {
+      setShowBackToTop(false);
+      return undefined;
+    }
+    const onScroll = () => setShowBackToTop(window.scrollY > 480);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [showBrowseLayout, profiles.length]);
 
   useEffect(() => {
     let active = true;
@@ -519,8 +579,21 @@ function CommunityPage({ userId }) {
     }
   };
 
+  const browseHero = showBrowseLayout ? (
+    <>
+      <CommunityBrowseHero
+        query={browseQueryDraft}
+        disabled={browseHeroDisabled}
+        onQueryChange={setBrowseQueryDraft}
+        onSearch={() => setBrowseQuery(browseQueryDraft.trim())}
+      />
+      <CommunityBrowseWaveDivider />
+    </>
+  ) : null;
+
   return (
-    <main id="conteudo" className="community-page" aria-busy={pageState === "loading" || pageState === "loading-list"}>
+    <main id="conteudo" className={`community-page${showBrowseLayout ? " community-page--browse" : ""}`} aria-busy={pageState === "loading" || pageState === "loading-list"}>
+      {browseHero}
       <div className="shell community-shell">
         {!showBrowseChrome ? (
           <header className="community-heading">
@@ -536,11 +609,13 @@ function CommunityPage({ userId }) {
             {showShareOnboarding ? (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             ) : publication?.published ? <CommunityPublishedBanner /> : null}
-            <CommunityBrowseHero query={browseQueryDraft} disabled onQueryChange={setBrowseQueryDraft} onSearch={() => setBrowseQuery(browseQueryDraft.trim())} />
             <CommunityBrowseToolbar
+              filtersOpen={browseFiltersOpen}
+              activeFilterCount={browseActiveFilterCount}
               experienceLevel={browseExperienceLevel}
               workModel={browseWorkModel}
               disabled
+              onToggleFilters={() => setBrowseFiltersOpen((open) => !open)}
               onExperienceLevelChange={setBrowseExperienceLevel}
               onWorkModelChange={setBrowseWorkModel}
             />
@@ -579,11 +654,13 @@ function CommunityPage({ userId }) {
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             )}
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
-            <CommunityBrowseHero query={browseQueryDraft} disabled={false} onQueryChange={setBrowseQueryDraft} onSearch={() => setBrowseQuery(browseQueryDraft.trim())} />
             <CommunityBrowseToolbar
+              filtersOpen={browseFiltersOpen}
+              activeFilterCount={browseActiveFilterCount}
               experienceLevel={browseExperienceLevel}
               workModel={browseWorkModel}
               disabled={false}
+              onToggleFilters={() => setBrowseFiltersOpen((open) => !open)}
               onExperienceLevelChange={setBrowseExperienceLevel}
               onWorkModelChange={setBrowseWorkModel}
             />
@@ -617,6 +694,7 @@ function CommunityPage({ userId }) {
           </article>
         ) : null}
       </div>
+      <CommunityBackToTop visible={showBackToTop} />
     </main>
   );
 }
