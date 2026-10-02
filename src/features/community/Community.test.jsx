@@ -104,7 +104,12 @@ describe("CommunityRoute", () => {
     });
     renderCommunity({ auth: authenticatedAuth });
 
-    expect(await screen.findByRole("heading", { name: "Conecte-se com a comunidade tech." })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Encontre sua próxima conexão em tech." })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
+    expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
+    const searchInput = screen.getByRole("searchbox", { name: "Nome, tecnologia ou área de atuação" });
+    fireEvent.change(searchInput, { target: { value: "React" } });
+    fireEvent.click(screen.getByRole("button", { name: /buscar profissionais/i }));
     expect(await screen.findByText("Ana Example")).toBeInTheDocument();
     expect(screen.getByText(/visível para os membros autenticados da Comunidade/i)).toBeInTheDocument();
     expect(screen.getByText(/E-mail, telefone, currículo e dados privados da conta não aparecem/i)).toBeInTheDocument();

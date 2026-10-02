@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link, useParams } from "react-router-dom";
-import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Globe, MapPin, Search, Sparkles, Users } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Globe, MapPin, Network, Search, Users } from "lucide-react";
 import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
 import {
   COMMUNITY_LEVEL_FILTER_OPTIONS,
@@ -234,55 +234,46 @@ function CommunityProfileSocialLinks({ profile }) {
   );
 }
 
-function CommunityBrowseHero() {
+function CommunityBrowseHero({ query, disabled, onQueryChange, onSearch }) {
   return (
-    <section className="community-browse-hero" aria-labelledby="community-browse-title">
-      <div className="community-browse-hero__copy">
-        <span className="eyebrow"><Sparkles size={15} aria-hidden="true" /> Comunidade GDG Jobs</span>
-        <h1 id="community-browse-title">Conecte-se com a comunidade tech.</h1>
+    <section className="hero community-browse-hero" aria-labelledby="community-browse-title">
+      <div className="shell hero-content community-browse-hero__content">
+        <span className="eyebrow"><Network size={16} aria-hidden="true" /> Comunidade GDG Jobs</span>
+        <h1 id="community-browse-title">Encontre sua próxima <em>conexão em tech.</em></h1>
         <p>
-          Conheça profissionais que escolheram compartilhar seu perfil. Busque por área, tecnologia ou localidade e
-          descubra novas conexões.
+          Conheça profissionais que escolheram compartilhar seus perfis e descubra novas conexões na comunidade.
         </p>
-      </div>
-      <div className="community-browse-hero__orbit" aria-hidden="true">
-        <span className="community-browse-hero__orbit-ring community-browse-hero__orbit-ring--outer" />
-        <span className="community-browse-hero__orbit-ring community-browse-hero__orbit-ring--inner" />
-        <span className="community-browse-hero__orbit-core">GDG</span>
-        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--one" />
-        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--two" />
-        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--three" />
+        <form className="searchbox community-browse-searchbox" role="search" aria-label="Buscar profissionais da comunidade" onSubmit={(event) => { event.preventDefault(); onSearch(); }}>
+          <Search size={21} aria-hidden="true" />
+          <input
+            type="search"
+            name="community-query"
+            value={query}
+            disabled={disabled}
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Nome, tecnologia ou área de atuação"
+            aria-label="Nome, tecnologia ou área de atuação"
+          />
+          <button className="primary" type="submit" disabled={disabled}>Buscar profissionais <ArrowUpRight size={17} aria-hidden="true" /></button>
+        </form>
       </div>
     </section>
   );
 }
 
 function CommunityBrowseToolbar({
-  query,
   experienceLevel,
   workModel,
   disabled,
-  onQueryChange,
   onExperienceLevelChange,
   onWorkModelChange,
 }) {
   return (
-    <div className="community-browse-toolbar" role="search" aria-label="Buscar profissionais da comunidade">
-      <label className="community-browse-search">
-        <Search size={20} aria-hidden="true" />
-        <input
-          type="search"
-          name="community-query"
-          value={query}
-          disabled={disabled}
-          onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Buscar por nome, tecnologia ou área"
-          aria-label="Buscar por nome, tecnologia ou área"
-        />
-      </label>
+    <div className="community-browse-toolbar" role="group" aria-label="Filtros da comunidade">
       <label className="community-browse-select">
         <span className="community-browse-select__label">Nível de experiência</span>
         <select
+          className="sort"
           name="community-experience-level"
           value={experienceLevel}
           disabled={disabled}
@@ -298,6 +289,7 @@ function CommunityBrowseToolbar({
       <label className="community-browse-select">
         <span className="community-browse-select__label">Modalidade de trabalho</span>
         <select
+          className="sort"
           name="community-work-model"
           value={workModel}
           disabled={disabled}
@@ -436,6 +428,7 @@ function CommunityPage({ userId }) {
   const [busy, setBusy] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const [browseQuery, setBrowseQuery] = useState("");
+  const [browseQueryDraft, setBrowseQueryDraft] = useState("");
   const [browseExperienceLevel, setBrowseExperienceLevel] = useState("");
   const [browseWorkModel, setBrowseWorkModel] = useState("");
 
@@ -543,13 +536,11 @@ function CommunityPage({ userId }) {
             {showShareOnboarding ? (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             ) : publication?.published ? <CommunityPublishedBanner /> : null}
-            <CommunityBrowseHero />
+            <CommunityBrowseHero query={browseQueryDraft} disabled onQueryChange={setBrowseQueryDraft} onSearch={() => setBrowseQuery(browseQueryDraft.trim())} />
             <CommunityBrowseToolbar
-              query={browseQuery}
               experienceLevel={browseExperienceLevel}
               workModel={browseWorkModel}
               disabled
-              onQueryChange={setBrowseQuery}
               onExperienceLevelChange={setBrowseExperienceLevel}
               onWorkModelChange={setBrowseWorkModel}
             />
@@ -588,13 +579,11 @@ function CommunityPage({ userId }) {
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             )}
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
-            <CommunityBrowseHero />
+            <CommunityBrowseHero query={browseQueryDraft} disabled={false} onQueryChange={setBrowseQueryDraft} onSearch={() => setBrowseQuery(browseQueryDraft.trim())} />
             <CommunityBrowseToolbar
-              query={browseQuery}
               experienceLevel={browseExperienceLevel}
               workModel={browseWorkModel}
               disabled={false}
-              onQueryChange={setBrowseQuery}
               onExperienceLevelChange={setBrowseExperienceLevel}
               onWorkModelChange={setBrowseWorkModel}
             />
