@@ -9,10 +9,18 @@ const api = vi.hoisted(() => ({
   loadCommunityProfile: vi.fn(),
   loadMyCommunityPublicationStatus: vi.fn(),
   setMyCommunityPublication: vi.fn(),
-  loadCommunityAvatar: vi.fn(),
+  getCommunityAvatarObjectUrl: vi.fn(),
+  revokeCommunityAvatarObjectUrls: vi.fn(),
 }));
 
-vi.mock("./community-api.js", () => api);
+vi.mock("./community-api.js", () => ({
+  listCommunityProfiles: api.listCommunityProfiles,
+  loadCommunityProfile: api.loadCommunityProfile,
+  loadMyCommunityPublicationStatus: api.loadMyCommunityPublicationStatus,
+  setMyCommunityPublication: api.setMyCommunityPublication,
+  getCommunityAvatarObjectUrl: api.getCommunityAvatarObjectUrl,
+  revokeCommunityAvatarObjectUrls: api.revokeCommunityAvatarObjectUrls,
+}));
 
 function renderCommunity({ auth, authReady = true, route = "/comunidade" }) {
   return render(
@@ -55,7 +63,8 @@ describe("CommunityRoute", () => {
     api.listCommunityProfiles.mockResolvedValue({ items: [], nextCursor: null });
     api.loadCommunityProfile.mockResolvedValue(null);
     api.setMyCommunityPublication.mockImplementation(async (enabled) => enabled);
-    api.loadCommunityAvatar.mockResolvedValue(new Blob(["image"], { type: "image/jpeg" }));
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:mock-community-avatar");
+    api.revokeCommunityAvatarObjectUrls.mockImplementation(() => {});
   });
 
   it("does not request community data until auth is hydrated", () => {
@@ -72,7 +81,7 @@ describe("CommunityRoute", () => {
     expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
     expect(api.listCommunityProfiles).not.toHaveBeenCalled();
     expect(api.loadCommunityProfile).not.toHaveBeenCalled();
-    expect(api.loadCommunityAvatar).not.toHaveBeenCalled();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
   });
 
   it("fails closed while F-11 is pending and does not load profiles or photos", async () => {
@@ -85,7 +94,7 @@ describe("CommunityRoute", () => {
     expect(screen.getByRole("link", { name: /finalidades e os registros de privacidade/i })).toHaveAttribute("href", "/preferencias");
     expect(api.loadMyCommunityPublicationStatus).toHaveBeenCalledTimes(1);
     expect(api.listCommunityProfiles).not.toHaveBeenCalled();
-    expect(api.loadCommunityAvatar).not.toHaveBeenCalled();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
   });
 
   it("shows dotted hero and wave on profile detail", async () => {
@@ -135,6 +144,9 @@ describe("CommunityRoute", () => {
     expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
     expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Filtrar por nível de experiência")).toBeVisible();
+    expect(screen.getByLabelText("Filtrar por modalidade de trabalho")).toBeVisible();
+    expect(screen.getByLabelText("Filtrar por nível de experiência").tagName).toBe("SELECT");
     const searchInput = screen.getByRole("searchbox", { name: "Nome, tecnologia ou área de atuação" });
     fireEvent.change(searchInput, { target: { value: "React" } });
     fireEvent.click(screen.getByRole("button", { name: /buscar profissionais/i }));
@@ -142,7 +154,7 @@ describe("CommunityRoute", () => {
     expect(screen.getByText(/visível para os membros autenticados da Comunidade/i)).toBeInTheDocument();
     expect(screen.getByText(/E-mail, telefone, currículo e dados privados da conta não aparecem/i)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /preferências de privacidade/i }).length).toBeGreaterThan(0);
-    expect(api.loadCommunityAvatar).toHaveBeenCalledWith("2e2fbaf7-e292-4c5d-8b77-928639845e01");
+    expect(api.getCommunityAvatarObjectUrl).toHaveBeenCalledWith("2e2fbaf7-e292-4c5d-8b77-928639845e01");
     expect(screen.getByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeChecked();
     expect(screen.getByRole("link", { name: "Ver perfil de Ana Example" })).toHaveAttribute(
       "href",

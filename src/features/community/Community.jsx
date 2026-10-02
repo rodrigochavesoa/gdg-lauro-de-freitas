@@ -9,10 +9,11 @@ import {
   formatCommunityLoadedCount,
 } from "../../lib/filter-community.js";
 import {
+  getCommunityAvatarObjectUrl,
   listCommunityProfiles,
-  loadCommunityAvatar,
   loadCommunityProfile,
   loadMyCommunityPublicationStatus,
+  revokeCommunityAvatarObjectUrls,
   setMyCommunityPublication,
 } from "./community-api.js";
 
@@ -86,11 +87,18 @@ function CommunityLoadingSkeleton({ detail = false }) {
   );
 }
 
-export function CommunityRoute({ auth, authReady }) {
+export function CommunityRoute({ auth, authReady, viewerAvatarUrl = null, viewerDisplayName = "" }) {
   if (!authReady || (auth.session && !auth.profile)) return <CommunityPending />;
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
-  return <CommunityPage key={auth.session.user.id} userId={auth.session.user.id} />;
+  return (
+    <CommunityPage
+      key={auth.session.user.id}
+      userId={auth.session.user.id}
+      viewerAvatarUrl={viewerAvatarUrl}
+      viewerDisplayName={viewerDisplayName}
+    />
+  );
 }
 
 function safeExternalUrl(value) {
@@ -103,12 +111,22 @@ function safeExternalUrl(value) {
   }
 }
 
-function CommunityAvatar({ profile }) {
+function isViewerCommunityProfile(profile, viewerDisplayName) {
+  const cardName = String(profile?.fullName ?? "").trim();
+  const viewerName = String(viewerDisplayName ?? "").trim();
+  return cardName.length > 0 && viewerName.length > 0 && cardName === viewerName;
+}
+
+function CommunityAvatar({ profile, viewerAvatarUrl, viewerDisplayName }) {
   const rootRef = useRef(null);
   const [src, setSrc] = useState(null);
   const [loadFailed, setLoadFailed] = useState(false);
   const [nearViewport, setNearViewport] = useState(() => typeof IntersectionObserver === "undefined");
   const shouldLoadAvatar = profile?.avatarAvailable === true;
+  const viewerPhotoUrl = viewerAvatarUrl && isViewerCommunityProfile(profile, viewerDisplayName)
+    ? viewerAvatarUrl
+    : null;
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root || nearViewport || typeof IntersectionObserver === "undefined") return undefined;
@@ -120,18 +138,19 @@ function CommunityAvatar({ profile }) {
     observer.observe(root);
     return () => observer.disconnect();
   }, [nearViewport]);
+
   useEffect(() => {
     let active = true;
-    let objectUrl = null;
     setSrc(null);
     setLoadFailed(false);
+    if (viewerPhotoUrl) {
+      setSrc(viewerPhotoUrl);
+      return () => { active = false; };
+    }
     if (nearViewport && shouldLoadAvatar) {
-      loadCommunityAvatar(profile.publicId)
-        .then((blob) => {
-          if (!active) return;
-          if (typeof URL.createObjectURL !== "function") return;
-          objectUrl = URL.createObjectURL(blob);
-          setSrc(objectUrl);
+      getCommunityAvatarObjectUrl(profile.publicId)
+        .then((objectUrl) => {
+          if (active) setSrc(objectUrl);
         })
         .catch(() => {
           if (active) {
@@ -142,15 +161,27 @@ function CommunityAvatar({ profile }) {
     }
     return () => {
       active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [profile?.publicId, shouldLoadAvatar, nearViewport]);
+  }, [profile?.publicId, shouldLoadAvatar, nearViewport, viewerPhotoUrl]);
 
   const initials = String(profile?.fullName ?? "?").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   if (src) {
-    return <img ref={rootRef} className="community-avatar" loading="lazy" src={src} alt={`Foto de ${profile.fullName}`} />;
+    return (
+      <img
+        ref={rootRef}
+        className="community-avatar"
+        loading="lazy"
+        decoding="async"
+        src={src}
+        alt={`Foto de ${profile.fullName}`}
+        onError={() => {
+          setSrc(null);
+          setLoadFailed(true);
+        }}
+      />
+    );
   }
-  if (shouldLoadAvatar && !loadFailed) {
+  if ((shouldLoadAvatar || viewerPhotoUrl) && !loadFailed) {
     return <span ref={rootRef} className="community-avatar community-avatar--loading" aria-hidden="true" />;
   }
   return (
@@ -319,7 +350,7 @@ function CommunityBrowseToolbar({
           <label className="community-browse-select">
             <span className="community-browse-select__label">Nível de experiência</span>
             <select
-              className="sort"
+              className="community-browse-select__control"
               name="community-experience-level"
               value={experienceLevel}
               disabled={disabled}
@@ -335,7 +366,7 @@ function CommunityBrowseToolbar({
           <label className="community-browse-select">
             <span className="community-browse-select__label">Modalidade de trabalho</span>
             <select
-              className="sort"
+              className="community-browse-select__control"
               name="community-work-model"
               value={workModel}
               disabled={disabled}
@@ -386,6 +417,8 @@ function CommunityDiscoverySection({
   nextCursor,
   busy,
   onLoadMore,
+  viewerAvatarUrl,
+  viewerDisplayName,
 }) {
   const filterEmpty = !catalogEmpty && filteredProfiles.length === 0;
   return (
@@ -408,7 +441,14 @@ function CommunityDiscoverySection({
       ) : (
         <>
           <div className="community-people-grid">
-            {filteredProfiles.map((profile) => <CommunityProfileCard key={profile.publicId} profile={profile} />)}
+            {filteredProfiles.map((profile) => (
+              <CommunityProfileCard
+                key={profile.publicId}
+                profile={profile}
+                viewerAvatarUrl={viewerAvatarUrl}
+                viewerDisplayName={viewerDisplayName}
+              />
+            ))}
           </div>
           {nextCursor ? (
             <button type="button" className="outline community-load-more" disabled={busy} onClick={onLoadMore}>
@@ -455,11 +495,11 @@ function CommunitySharePanel({ publication, busy, onPublicationChange }) {
   );
 }
 
-function CommunityProfileCard({ profile }) {
+function CommunityProfileCard({ profile, viewerAvatarUrl, viewerDisplayName }) {
   return (
     <article className="community-person-card">
       <Link className="community-person-card__identity" to={`/comunidade/${profile.publicId}`} aria-label={`Ver perfil de ${profile.fullName}`}>
-        <CommunityAvatar profile={profile} />
+        <CommunityAvatar profile={profile} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />
         <span className="community-person-card__heading">
           <strong>{profile.fullName}</strong>
           {profile.location ? <span><MapPin size={15} aria-hidden="true" /> {profile.location}</span> : null}
@@ -479,7 +519,7 @@ function CommunityProfileCard({ profile }) {
   );
 }
 
-function CommunityPage({ userId }) {
+function CommunityPage({ userId, viewerAvatarUrl, viewerDisplayName }) {
   const { publicId } = useParams();
   const [publication, setPublication] = useState(null);
   const [profiles, setProfiles] = useState([]);
@@ -496,6 +536,8 @@ function CommunityPage({ userId }) {
   const [browseFiltersOpen, setBrowseFiltersOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const browseActiveFilterCount = Number(Boolean(browseExperienceLevel)) + Number(Boolean(browseWorkModel));
+
+  useEffect(() => () => revokeCommunityAvatarObjectUrls(), []);
 
   const showBrowseChrome = !publicId && (pageState === "loading-list" || pageState === "list" || pageState === "empty");
   const showBrowseLayout = showBrowseChrome;
@@ -687,6 +729,8 @@ function CommunityPage({ userId }) {
               nextCursor={nextCursor}
               busy={busy}
               onLoadMore={loadMore}
+              viewerAvatarUrl={viewerAvatarUrl}
+              viewerDisplayName={viewerDisplayName}
             />
           </>
         ) : null}
@@ -694,7 +738,7 @@ function CommunityPage({ userId }) {
           <article className="community-profile">
             <AdminBackLink className="community-profile__back" to="/comunidade">Voltar à Comunidade</AdminBackLink>
             <section className="community-profile__hero">
-              <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
+              <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
               <CommunityProfileSocialLinks profile={detail} />
             </section>
             {detail.bio ? <section className="community-profile__section"><h3>Sobre</h3><p>{detail.bio}</p></section> : null}

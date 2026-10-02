@@ -9,7 +9,7 @@ import {
   setMyCommunityPublication,
 } from "./community-api.js";
 
-function fakeClient({ session = { user: { id: "private-auth-id" } }, rpcData = [], rpcError = null } = {}) {
+function fakeClient({ session = { user: { id: "private-auth-id" }, access_token: "test-access-token" }, rpcData = [], rpcError = null } = {}) {
   const rpc = vi.fn(async () => ({ data: rpcData, error: rpcError }));
   const getSession = vi.fn(async () => ({ data: { session }, error: null }));
   return { auth: { getSession }, rpc, functions: { invoke: vi.fn() } };
@@ -68,18 +68,32 @@ describe("community API seam", () => {
     expect(client.rpc).not.toHaveBeenCalled();
   });
 
-  it("uses only the authenticated avatar proxy and does not invoke it without a session", async () => {
+  it("uses only the authenticated avatar proxy and does not fetch it without a session", async () => {
     const visitor = fakeClient({ session: null });
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
     await expect(getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", visitor)).rejects.toThrow(/Entre na sua conta/i);
-    expect(visitor.functions.invoke).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
 
+    import.meta.env.VITE_SUPABASE_URL = "https://example.supabase.co";
+    import.meta.env.VITE_SUPABASE_ANON_KEY = "anon-key";
     const client = fakeClient();
-    client.functions.invoke.mockResolvedValue({ data: new Blob(["image"], { type: "image/jpeg" }), error: null });
+    const fetchSpyOk = vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      blob: async () => new Blob(["image"], { type: "image/jpeg" }),
+    });
     await getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", client);
-    expect(client.functions.invoke).toHaveBeenCalledWith(
-      "community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01",
-      { method: "GET", responseType: "blob" },
+    expect(fetchSpyOk).toHaveBeenCalledWith(
+      "https://example.supabase.co/functions/v1/community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-access-token",
+          apikey: expect.any(String),
+        }),
+      }),
     );
+    fetchSpyOk.mockRestore();
   });
 
   it("sends publish and revoke through self-scoped RPCs, never table writes", async () => {

@@ -1,4 +1,5 @@
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
+import { communityAvatarObjectUrl, peekCommunityAvatarObjectUrl } from "./community-avatar-cache.js";
 import {
   COMMUNITY_PAGE_SIZE,
   isCommunityPublicId,
@@ -110,20 +111,48 @@ export function revokeCommunityProfile(clientOverride) {
   return setCommunityProfilePublished(false, clientOverride);
 }
 
+function supabaseFunctionsBaseUrl() {
+  const baseUrl = String(import.meta.env.VITE_SUPABASE_URL ?? "").replace(/\/$/, "");
+  const apikey =
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!baseUrl || !apikey) return null;
+  return { baseUrl, apikey };
+}
+
 export async function getCommunityAvatar(publicId, clientOverride) {
   if (!isCommunityPublicId(publicId)) throw new Error("Perfil não encontrado na Comunidade.");
   const client = await authenticatedClient(clientOverride);
-  if (!client.functions?.invoke) throw new Error(GENERIC_ERROR);
-  const { data, error } = await client.functions.invoke(
-    `community-avatar?publicId=${encodeURIComponent(publicId)}`,
-    { method: "GET", responseType: "blob" },
+  const config = supabaseFunctionsBaseUrl();
+  if (!config) throw new Error(GENERIC_ERROR);
+  const { data: sessionData, error: sessionError } = await client.auth.getSession();
+  if (sessionError || !sessionData?.session?.access_token) {
+    throw new Error("Entre na sua conta para acessar a Comunidade.");
+  }
+  const response = await fetch(
+    `${config.baseUrl}/functions/v1/community-avatar?publicId=${encodeURIComponent(publicId)}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+        apikey: config.apikey,
+      },
+    },
   );
-  throwIfRpcError(error);
-  if (!(data instanceof Blob) || !/^image\/(jpeg|png|webp)$/.test(data.type)) throw new Error(GENERIC_ERROR);
-  return data;
+  if (!response.ok) throw new Error(GENERIC_ERROR);
+  const blob = await response.blob();
+  if (!(blob instanceof Blob) || !/^image\/(jpeg|png|webp)$/.test(blob.type)) throw new Error(GENERIC_ERROR);
+  return blob;
+}
+
+export async function getCommunityAvatarObjectUrl(publicId, clientOverride) {
+  const cached = peekCommunityAvatarObjectUrl(publicId);
+  if (cached) return cached;
+  return communityAvatarObjectUrl(publicId, () => getCommunityAvatar(publicId, clientOverride));
 }
 
 export const loadCommunityAvatar = getCommunityAvatar;
+export { peekCommunityAvatarObjectUrl, revokeCommunityAvatarObjectUrls } from "./community-avatar-cache.js";
 export const setMyCommunityPublication = setCommunityProfilePublished;
 
 export { COMMUNITY_PAGE_SIZE };

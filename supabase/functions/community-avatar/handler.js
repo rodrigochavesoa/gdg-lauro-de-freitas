@@ -83,7 +83,7 @@ export function createCommunityAvatarHandler({
       }
       const storagePath = pathResult?.data;
       if (typeof storagePath !== "string" || !storagePath) return jsonError(404, "Perfil não encontrado.", cors);
-      const internalAvatarPath = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[A-Za-z0-9._-]+[.]jpg$/i;
+      const internalAvatarPath = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[A-Za-z0-9._-]+[.](?:jpg|jpeg|png|webp)$/i;
       if (storagePath.includes("..") || !internalAvatarPath.test(storagePath)) {
         return jsonError(503, "Imagem temporariamente indisponível.", cors);
       }
