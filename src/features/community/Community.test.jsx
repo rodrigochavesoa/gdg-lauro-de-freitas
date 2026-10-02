@@ -140,6 +140,8 @@ describe("CommunityRoute", () => {
     expect(await screen.findByRole("heading", { name: "Encontre sua próxima conexão em tech." })).toBeInTheDocument();
     expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider--pair")).toBeTruthy();
+    expect(document.querySelector(".home-divider__avatar--secondary")).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
     expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
     expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
