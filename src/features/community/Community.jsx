@@ -142,6 +142,48 @@ function CommunityAvatar({ profile }) {
   );
 }
 
+function CommunityPublishedBanner() {
+  return (
+    <section className="community-published-banner" aria-live="polite">
+      <p>
+        Seu perfil está visível para membros autenticados da Comunidade.{" "}
+        <Link to="/preferencias">Gerenciar compartilhamento</Link>
+      </p>
+    </section>
+  );
+}
+
+function CommunityDiscoverySection({ pageState, profiles, nextCursor, busy, onLoadMore }) {
+  return (
+    <section className="community-results" aria-labelledby="community-results-heading">
+      <div className="community-results__heading">
+        <div>
+          <span className="eyebrow">Conexões profissionais</span>
+          <h2 id="community-results-heading">Profissionais da comunidade</h2>
+        </div>
+      </div>
+      {pageState === "empty" ? (
+        <div className="community-empty community-empty--in-results">
+          <div className="community-empty__icon"><Users size={22} aria-hidden="true" /></div>
+          <h3>A comunidade está começando</h3>
+          <p>Ainda não há outros perfis compartilhados. Quando alguém optar por participar, aparecerá aqui.</p>
+        </div>
+      ) : (
+        <>
+          <div className="community-people-grid">
+            {profiles.map((profile) => <CommunityProfileCard key={profile.publicId} profile={profile} />)}
+          </div>
+          {nextCursor ? (
+            <button type="button" className="outline community-load-more" disabled={busy} onClick={onLoadMore}>
+              {busy ? "Carregando…" : "Carregar mais perfis"}
+            </button>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
+
 function CommunitySharePanel({ publication, busy, onPublicationChange }) {
   if (!publication) return null;
   return (
@@ -269,6 +311,8 @@ function CommunityPage({ userId }) {
     }
   };
 
+  const showShareOnboarding = Boolean(publication?.canPublish && !publication?.published);
+
   const loadMore = async () => {
     if (!nextCursor || busy) return;
     setBusy(true);
@@ -296,7 +340,9 @@ function CommunityPage({ userId }) {
         {pageState === "loading" ? (publicId ? <CommunityLoadingSkeleton detail /> : <CommunityPageShellSkeleton />) : null}
         {pageState === "loading-list" ? (
           <>
-            <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            {showShareOnboarding ? (
+              <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            ) : publication?.published ? <CommunityPublishedBanner /> : null}
             <CommunityResultsLoadingPlaceholder />
           </>
         ) : null}
@@ -324,24 +370,21 @@ function CommunityPage({ userId }) {
         ) : null}
         {pageState === "list" || pageState === "empty" ? (
           <>
-            <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            {showShareOnboarding ? (
+              <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            ) : publication?.published ? (
+              <CommunityPublishedBanner />
+            ) : (
+              <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
+            )}
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
-            {pageState === "empty" ? (
-              <section className="community-empty">
-                <div className="community-empty__icon"><Users size={22} aria-hidden="true" /></div>
-                <h2>A comunidade está começando</h2>
-                <p>Ainda não há perfis compartilhados. Quando alguém optar por participar, seu perfil aparecerá aqui.</p>
-              </section>
-            ) : null}
-            {pageState === "list" ? <section className="community-results" aria-labelledby="community-results-heading">
-              <div className="community-results__heading">
-                <div><span className="eyebrow">Conexões profissionais</span><h2 id="community-results-heading">Profissionais da comunidade</h2></div>
-              </div>
-              <div className="community-people-grid">
-                {profiles.map((profile) => <CommunityProfileCard key={profile.publicId} profile={profile} />)}
-              </div>
-              {nextCursor ? <button type="button" className="outline community-load-more" disabled={busy} onClick={loadMore}>{busy ? "Carregando…" : "Carregar mais perfis"}</button> : null}
-            </section> : null}
+            <CommunityDiscoverySection
+              pageState={pageState}
+              profiles={profiles}
+              nextCursor={nextCursor}
+              busy={busy}
+              onLoadMore={loadMore}
+            />
           </>
         ) : null}
         {pageState === "detail" && detail ? (

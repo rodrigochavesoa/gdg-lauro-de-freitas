@@ -131,21 +131,29 @@ describe("CommunityRoute", () => {
     expect(screen.queryByText("Carregando comunidade…")).not.toBeInTheDocument();
 
     resolveList({ items: [], nextCursor: null });
-    expect(await screen.findByRole("heading", { name: "A comunidade está começando" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "A comunidade está começando", level: 3 })).toBeInTheDocument();
   });
 
-  it("can explicitly enable then revoke the signed-in user's own publication", async () => {
+  it("after opt-in, hides the share onboarding panel and shows discovery", async () => {
     api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: false, canPublish: true, reasonCode: null });
     renderCommunity({ auth: authenticatedAuth });
     const toggle = await screen.findByRole("checkbox", { name: /quero compartilhar meu perfil/i });
 
     fireEvent.click(toggle);
     await waitFor(() => expect(api.setMyCommunityPublication).toHaveBeenCalledWith(true));
-    expect(toggle).toBeChecked();
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.getByText(/seu perfil está visível/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /gerenciar compartilhamento/i })).toHaveAttribute("href", "/preferencias");
+  });
 
-    fireEvent.click(toggle);
-    await waitFor(() => expect(api.setMyCommunityPublication).toHaveBeenCalledWith(false));
-    await waitFor(() => expect(toggle).not.toBeChecked());
+  it("loads discovery without the onboarding panel when already published", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    renderCommunity({ auth: authenticatedAuth });
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeInTheDocument();
   });
 
   it("remove os dados renderizados ao sair da sessão sem reutilizá-los no visitante", async () => {

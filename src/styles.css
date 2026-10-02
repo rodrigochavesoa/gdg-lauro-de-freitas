@@ -1107,6 +1107,11 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 .community-notice .outline{margin-top:18px;min-height:44px}
 .community-empty{text-align:center;margin:16px auto 0}
 .community-empty__icon{width:48px;height:48px;margin:0 auto 12px;display:grid;place-items:center;border-radius:var(--radius-pill);background:var(--color-primary-50);color:var(--color-action-primary)}
+.community-published-banner{margin:0 0 24px;padding:14px 18px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-primary-50)}
+.community-published-banner p{margin:0;color:var(--color-text-muted);line-height:1.55}
+.community-published-banner a{font-weight:600}
+.community-empty--in-results{margin-top:8px;text-align:center;padding:28px 12px 8px}
+.community-empty--in-results h3{margin:0 0 8px;font-size:1.15rem}
 .community-share{display:flex;align-items:center;justify-content:space-between;gap:28px;padding:22px 24px;margin:0 0 34px}
 .community-share>div{max-width:62ch}
 .community-share h2{margin:9px 0 6px}
