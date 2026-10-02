@@ -54,6 +54,20 @@ describe("community-avatar authenticated proxy", () => {
     expect(response.status).toBe(403);
   });
 
+  it("returns a signed URL when format=signed without streaming bytes through the edge", async () => {
+    const { handler, getStoragePath, downloadImage } = makeHandler({
+      createSignedAvatarUrl: vi.fn(async () => "https://storage.example.test/signed/avatar.jpg"),
+    });
+    const response = await handler(new Request(`https://edge.example.test/community-avatar?publicId=${PUBLIC_ID}&format=signed`, {
+      headers: { authorization: "Bearer user-jwt", origin: ORIGIN },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ url: "https://storage.example.test/signed/avatar.jpg" });
+    expect(getStoragePath).toHaveBeenCalledWith(PUBLIC_ID, "auth-user-1");
+    expect(downloadImage).not.toHaveBeenCalled();
+  });
+
   it("returns bytes only for authenticated users and never serializes the storage path", async () => {
     const { handler, getStoragePath, downloadImage } = makeHandler();
     const response = await handler(new Request(`https://edge.example.test/community-avatar?publicId=${PUBLIC_ID}`, {

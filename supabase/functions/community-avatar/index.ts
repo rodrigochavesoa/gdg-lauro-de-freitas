@@ -37,6 +37,11 @@ const handler = createCommunityAvatarHandler({
       },
     });
   },
+  createSignedAvatarUrl: async (path: string, ttlSec: number) => {
+    const { data, error } = await privilegedClient.storage.from("avatars").createSignedUrl(path, ttlSec);
+    if (error || !data?.signedUrl) return null;
+    return data.signedUrl;
+  },
 });
 
 Deno.serve(handler);

@@ -44,11 +44,14 @@ function allowedPreflight(request) {
   return requestedHeaders.every((header) => ALLOWED_CORS_HEADERS.has(header));
 }
 
+const SIGNED_URL_TTL_SEC = 60 * 60;
+
 export function createCommunityAvatarHandler({
   allowedOrigins = [],
   verifyAccessToken,
   getPrivateAvatarPath,
   downloadPrivateAvatar,
+  createSignedAvatarUrl,
 }) {
   const allowed = new Set(allowedOrigins.filter((origin) => typeof origin === "string" && origin.length > 0));
 
@@ -66,8 +69,10 @@ export function createCommunityAvatarHandler({
     const tokenMatch = /^Bearer\s+([^\s]+)$/i.exec(authorization);
     if (!tokenMatch) return jsonError(401, "Autenticação necessária.", cors);
 
-    const publicId = new URL(request.url).searchParams.get("publicId");
-    if (!PUBLIC_ID_PATTERN.test(publicId ?? "")) return jsonError(400, "Solicitação inválida.", cors);
+    const requestUrl = new URL(request.url);
+    const publicId = requestUrl.searchParams.get("publicId");
+    const delivery = requestUrl.searchParams.get("format");
+    if (PUBLIC_ID_PATTERN.test(publicId ?? "") === false) return jsonError(400, "Solicitação inválida.", cors);
 
     try {
       const authResult = await verifyAccessToken(tokenMatch[1]);
@@ -86,6 +91,22 @@ export function createCommunityAvatarHandler({
       const internalAvatarPath = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[A-Za-z0-9._-]+[.](?:jpg|jpeg|png|webp)$/i;
       if (storagePath.includes("..") || !internalAvatarPath.test(storagePath)) {
         return jsonError(503, "Imagem temporariamente indisponível.", cors);
+      }
+
+      if (delivery === "signed") {
+        if (!createSignedAvatarUrl) return jsonError(503, "Imagem temporariamente indisponível.", cors);
+        const signedUrl = await createSignedAvatarUrl(storagePath, SIGNED_URL_TTL_SEC);
+        if (typeof signedUrl !== "string" || !signedUrl.startsWith("https://")) {
+          return jsonError(503, "Imagem temporariamente indisponível.", cors);
+        }
+        return Response.json({ url: signedUrl }, {
+          status: 200,
+          headers: {
+            ...cors,
+            "cache-control": "private, max-age=300",
+            "x-content-type-options": "nosniff",
+          },
+        });
       }
 
       const imageResponse = await downloadPrivateAvatar(storagePath);

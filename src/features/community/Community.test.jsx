@@ -67,7 +67,7 @@ describe("CommunityRoute", () => {
     api.listCommunityProfiles.mockResolvedValue({ items: [], nextCursor: null });
     api.loadCommunityProfile.mockResolvedValue(null);
     api.setMyCommunityPublication.mockImplementation(async (enabled) => enabled);
-    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:mock-community-avatar");
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("https://example.test/community-avatar.jpg");
     api.prefetchCommunityAvatars.mockResolvedValue(undefined);
     api.revokeCommunityAvatarObjectUrls.mockImplementation(() => {});
   });

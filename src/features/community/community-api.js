@@ -134,19 +134,21 @@ export async function getCommunityAvatar(publicId, clientOverride) {
     throw new Error("Entre na sua conta para acessar a Comunidade.");
   }
   const response = await fetch(
-    `${config.baseUrl}/functions/v1/community-avatar?publicId=${encodeURIComponent(publicId)}`,
+    `${config.baseUrl}/functions/v1/community-avatar?publicId=${encodeURIComponent(publicId)}&format=signed`,
     {
       method: "GET",
       headers: {
         Authorization: `Bearer ${sessionData.session.access_token}`,
         apikey: config.apikey,
+        Accept: "application/json",
       },
     },
   );
   if (!response.ok) throw new Error(GENERIC_ERROR);
-  const blob = await response.blob();
-  if (!(blob instanceof Blob) || !/^image\/(jpeg|png|webp)$/.test(blob.type)) throw new Error(GENERIC_ERROR);
-  return blob;
+  const payload = await response.json();
+  const signedUrl = payload?.url;
+  if (typeof signedUrl !== "string" || !signedUrl.startsWith("https://")) throw new Error(GENERIC_ERROR);
+  return signedUrl;
 }
 
 export async function getCommunityAvatarObjectUrl(publicId, clientOverride) {

@@ -1,4 +1,4 @@
-/** Object URLs do proxy community-avatar — dedupe de inflight e uma URL por publicId na sessão. */
+/** URLs de avatar da comunidade (signed URL HTTPS) — dedupe de inflight e uma entrada por publicId na sessão. */
 const objectUrls = new Map();
 /** @type {Map<string, Promise<string>>} */
 const inflight = new Map();
@@ -9,6 +9,7 @@ export function peekCommunityAvatarObjectUrl(publicId) {
 
 export function revokeCommunityAvatarObjectUrls() {
   for (const url of objectUrls.values()) {
+    if (!url.startsWith("blob:")) continue;
     try {
       URL.revokeObjectURL(url);
     } catch {
@@ -21,20 +22,19 @@ export function revokeCommunityAvatarObjectUrls() {
 
 /**
  * @param {string} publicId
- * @param {() => Promise<Blob>} loadBlob
+ * @param {() => Promise<string>} loadUrl
  * @returns {Promise<string>}
  */
-export async function communityAvatarObjectUrl(publicId, loadBlob) {
+export async function communityAvatarObjectUrl(publicId, loadUrl) {
   const cached = peekCommunityAvatarObjectUrl(publicId);
   if (cached) return cached;
   const pending = inflight.get(publicId);
   if (pending) return pending;
 
-  const request = loadBlob().then((blob) => {
-    if (typeof URL.createObjectURL !== "function") {
+  const request = loadUrl().then((url) => {
+    if (typeof url !== "string" || !url.startsWith("https://")) {
       throw new Error("Preview de avatar indisponível.");
     }
-    const url = URL.createObjectURL(blob);
     objectUrls.set(publicId, url);
     inflight.delete(publicId);
     if (typeof window !== "undefined") {
@@ -53,10 +53,10 @@ export async function communityAvatarObjectUrl(publicId, loadBlob) {
 /**
  * Dispara downloads em paralelo (limite de concorrência) para esquentar o cache antes dos cards montarem.
  * @param {string[]} publicIds
- * @param {(publicId: string) => Promise<Blob>} loadBlobForId
+ * @param {(publicId: string) => Promise<string>} loadUrlForId
  * @param {{ concurrency?: number }} [options]
  */
-export async function warmCommunityAvatarCache(publicIds, loadBlobForId, { concurrency = 6 } = {}) {
+export async function warmCommunityAvatarCache(publicIds, loadUrlForId, { concurrency = 6 } = {}) {
   const queue = [...new Set(publicIds)].filter((id) => id && !peekCommunityAvatarObjectUrl(id));
   if (!queue.length) return;
   const limit = Math.max(1, Math.min(concurrency, queue.length));
@@ -65,7 +65,7 @@ export async function warmCommunityAvatarCache(publicIds, loadBlobForId, { concu
       const publicId = queue.shift();
       if (!publicId) break;
       try {
-        await communityAvatarObjectUrl(publicId, () => loadBlobForId(publicId));
+        await communityAvatarObjectUrl(publicId, () => loadUrlForId(publicId));
       } catch {
         /* o card cai para iniciais se o proxy falhar */
       }

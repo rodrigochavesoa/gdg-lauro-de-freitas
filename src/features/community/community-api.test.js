@@ -80,16 +80,19 @@ describe("community API seam", () => {
     const client = fakeClient();
     const fetchSpyOk = vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
-      blob: async () => new Blob(["image"], { type: "image/jpeg" }),
+      json: async () => ({ url: "https://example.supabase.co/storage/v1/object/sign/avatars/demo.jpg" }),
     });
-    await getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", client);
+    await expect(getCommunityAvatar("2e2fbaf7-e292-4c5d-8b77-928639845e01", client)).resolves.toBe(
+      "https://example.supabase.co/storage/v1/object/sign/avatars/demo.jpg",
+    );
     expect(fetchSpyOk).toHaveBeenCalledWith(
-      "https://example.supabase.co/functions/v1/community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01",
+      "https://example.supabase.co/functions/v1/community-avatar?publicId=2e2fbaf7-e292-4c5d-8b77-928639845e01&format=signed",
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({
           Authorization: "Bearer test-access-token",
           apikey: expect.any(String),
+          Accept: "application/json",
         }),
       }),
     );
