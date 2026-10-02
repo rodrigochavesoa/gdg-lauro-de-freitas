@@ -104,7 +104,7 @@ describe("CommunityRoute", () => {
     });
     renderCommunity({ auth: authenticatedAuth });
 
-    expect(await screen.findByRole("heading", { name: "Comunidade" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Conecte-se com a comunidade tech." })).toBeInTheDocument();
     expect(await screen.findByText("Ana Example")).toBeInTheDocument();
     expect(screen.getByText(/visível para os membros autenticados da Comunidade/i)).toBeInTheDocument();
     expect(screen.getByText(/E-mail, telefone, currículo e dados privados da conta não aparecem/i)).toBeInTheDocument();
@@ -115,6 +115,7 @@ describe("CommunityRoute", () => {
       "href",
       "/comunidade/2e2fbaf7-e292-4c5d-8b77-928639845e01",
     );
+    expect(screen.getByRole("link", { name: "Ver perfil" })).toHaveClass("primary", "community-person-card__cta");
   });
 
   it("shows card-shaped shimmer, not visible loading copy, while the list request is pending", async () => {

@@ -242,7 +242,7 @@ $$;
 revoke all on function private.sync_community_profile_after_update() from public, anon, authenticated, service_role;
 drop trigger if exists sync_community_profile_after_profile_update on public.profiles;
 create trigger sync_community_profile_after_profile_update
-  after update of full_name, headline, bio, skills, preferences, role on public.profiles
+  after update of full_name, headline, bio, skills, preferences, role, avatar_path on public.profiles
   for each row execute function private.sync_community_profile_after_update();
 
 create or replace function private.erase_community_projection_after_revoke()
@@ -384,6 +384,17 @@ $$;
 revoke all on function public.get_community_feature_status() from public, anon;
 grant execute on function public.get_community_feature_status() to authenticated;
 
+create or replace function private.community_profile_avatar_available(p_avatar_path text, p_subject_id uuid)
+returns boolean
+language sql
+immutable
+as $$
+  select p_avatar_path is not null
+    and p_avatar_path ~ ('^' || p_subject_id::text || '/[A-Za-z0-9._-]+[.]jpg$')
+    and position('..' in p_avatar_path) = 0;
+$$;
+revoke all on function private.community_profile_avatar_available(text, uuid) from public, anon, authenticated, service_role;
+
 create or replace function public.list_community_profiles(
   p_limit integer default 24,
   p_before_id uuid default null,
@@ -420,7 +431,7 @@ begin
 
   return query
   select c.public_id, c.full_name, c.headline, c.skills, c.location, c.experience_level, c.work_model,
-    (p.avatar_path is not null) as avatar_available, c.published_at
+    private.community_profile_avatar_available(p.avatar_path, p.id), c.published_at
   from public.community_profiles c
   join public.profiles p on p.id = c.subject_id
   where private.community_subject_consented(c.subject_id)
@@ -459,7 +470,7 @@ begin
     'location', c.location,
     'experience_level', c.experience_level,
     'work_model', c.work_model,
-    'avatar_available', (p.avatar_path is not null),
+    'avatar_available', private.community_profile_avatar_available(p.avatar_path, p.id),
     'published_at', c.published_at,
     'bio', c.bio,
     'linkedin_url', c.linkedin_url,

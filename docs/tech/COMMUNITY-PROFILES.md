@@ -16,6 +16,16 @@
 - Publicação exige simultaneamente: sessão autenticada, papel `candidate`, perfil mínimo, F-11 ativa com base legal, retenção e texto aprovados pelo DPO, e aceite válido da versão atual. A ação explícita de opt-in chama um único `set_community_profile_publication(true)`: a RPC trava F-11 `FOR SHARE` e depois a linha do perfil `FOR UPDATE`, verifica os estados aprovados, grava o aceite F-11 e seu evento de auditoria apenas quando ainda não há aceite válido, cria/atualiza a projeção e retorna tudo na mesma transação. A desativação da finalidade adquire os locks na mesma ordem e remove a projeção/grava revogações no commit administrativo; isso evita corrida entre aprovação e inserção de projeção. Não se deve encadear uma chamada de consentimento no cliente com outra de publicação. Escritas de consentimento F-11 também travam a linha do titular. A migration cria F-11 como `inactive`/`pending_dpo`; enquanto assim permanecer, status próprio retorna apenas `{ available: false, reason: "approval_pending", published: false, can_publish: false }`, e lista, detalhe, avatar e publicação falham fechados.
 - Opt-in inicia desligado: nenhuma linha de projeção é criada por default. Retirada remove a projeção e grava evento de revogação; o trigger também apaga a projeção se o aceite for revogado ou se F-11 deixar de estar aprovada/ativa. Não é possível recolher bytes que já tenham sido baixados por terceiros nem cancelar uma resposta que já estava em voo.
 
+## Interface de descoberta (produto)
+
+A listagem autenticada segue o layout de referência do piloto: **hero** (“Conecte-se com a comunidade tech”), **barra de busca** (“Buscar por nome, tecnologia ou área”) e **filtros** de nível e modalidade no cliente, seguidos do bloco **Profissionais da comunidade** com contagem dos perfis **já carregados** na sessão.
+
+- A busca e os filtros atuam somente sobre o array retornado por `list_community_profiles` (paginação opaca de até 24 por chamada). Não há RPC de busca server-side nesta entrega.
+- O texto de contagem **não** inventa total global: usa `formatCommunityLoadedCount` — quando existe `nextCursor`, indica “há mais” em vez de um número exato de catálogo (alinhado ao contrato sem `count exact`).
+- O painel de opt-in (`community-share`) some após publicação; o hero e a barra permanecem como superfície principal de descoberta, no mesmo padrão visual de `/eventos` e do hero de vagas.
+
+Implementação: `CommunityBrowseHero`, `CommunityBrowseToolbar` e `src/lib/filter-community.js`.
+
 ## DTO permitido
 
 Lista: `publicId`, `fullName`, `headline`, `skills`, `location`, `experienceLevel`, `workModel`, `avatarAvailable`, `publishedAt`. `avatarAvailable` é apenas um booleano para evitar chamadas ao proxy quando não há foto; não revela path, UID nem URL.  

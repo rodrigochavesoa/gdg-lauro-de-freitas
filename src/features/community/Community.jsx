@@ -1,6 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link, useParams } from "react-router-dom";
-import { ArrowLeft, BriefcaseBusiness, ExternalLink, MapPin, Users } from "lucide-react";
+import { ArrowUpRight, BriefcaseBusiness, ChevronDown, Github, Globe, Linkedin, MapPin, Search, Sparkles, Users } from "lucide-react";
+import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
+import {
+  COMMUNITY_LEVEL_FILTER_OPTIONS,
+  COMMUNITY_WORK_MODEL_FILTER_OPTIONS,
+  filterCommunityProfiles,
+  formatCommunityLoadedCount,
+} from "../../lib/filter-community.js";
 import {
   listCommunityProfiles,
   loadCommunityAvatar,
@@ -99,7 +106,9 @@ function safeExternalUrl(value) {
 function CommunityAvatar({ profile }) {
   const rootRef = useRef(null);
   const [src, setSrc] = useState(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [nearViewport, setNearViewport] = useState(() => typeof IntersectionObserver === "undefined");
+  const shouldLoadAvatar = profile?.avatarAvailable === true;
   useEffect(() => {
     const root = rootRef.current;
     if (!root || nearViewport || typeof IntersectionObserver === "undefined") return undefined;
@@ -114,7 +123,9 @@ function CommunityAvatar({ profile }) {
   useEffect(() => {
     let active = true;
     let objectUrl = null;
-    if (nearViewport && profile?.avatarAvailable !== false) {
+    setSrc(null);
+    setLoadFailed(false);
+    if (nearViewport && shouldLoadAvatar) {
       loadCommunityAvatar(profile.publicId)
         .then((blob) => {
           if (!active) return;
@@ -123,22 +134,139 @@ function CommunityAvatar({ profile }) {
           setSrc(objectUrl);
         })
         .catch(() => {
-          if (active) setSrc(null);
+          if (active) {
+            setSrc(null);
+            setLoadFailed(true);
+          }
         });
     }
     return () => {
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [profile?.publicId, profile?.avatarAvailable, nearViewport]);
+  }, [profile?.publicId, shouldLoadAvatar, nearViewport]);
 
   const initials = String(profile?.fullName ?? "?").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  return src ? (
-    <img ref={rootRef} className="community-avatar" loading="lazy" src={src} alt={`Foto de ${profile.fullName}`} />
-  ) : (
+  if (src) {
+    return <img ref={rootRef} className="community-avatar" loading="lazy" src={src} alt={`Foto de ${profile.fullName}`} />;
+  }
+  if (shouldLoadAvatar && !loadFailed) {
+    return <span ref={rootRef} className="community-avatar community-avatar--loading" aria-hidden="true" />;
+  }
+  return (
     <span ref={rootRef} className="community-avatar community-avatar--fallback" aria-label={`Sem foto de ${profile?.fullName ?? "profissional"}`}>
       {initials || "?"}
     </span>
+  );
+}
+
+const COMMUNITY_SOCIAL_LINKS = [
+  { key: "linkedin", label: "LinkedIn", field: "linkedinUrl", Icon: Linkedin },
+  { key: "github", label: "GitHub", field: "githubUrl", Icon: Github },
+  { key: "portfolio", label: "Portfólio", field: "portfolioUrl", Icon: Globe },
+];
+
+function CommunityProfileSocialLinks({ profile }) {
+  const links = COMMUNITY_SOCIAL_LINKS.map(({ key, label, field, Icon }) => {
+    const href = safeExternalUrl(profile?.[field]);
+    return href ? { key, label, href, Icon } : null;
+  }).filter(Boolean);
+  if (!links.length) return null;
+  return (
+    <div className="community-profile__links">
+      {links.map(({ key, label, href, Icon }) => (
+        <a
+          key={key}
+          className="outline community-social-link"
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon className="community-social-link__icon" size={18} aria-hidden="true" />
+          <span>{label}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function CommunityBrowseHero() {
+  return (
+    <section className="community-browse-hero" aria-labelledby="community-browse-title">
+      <div className="community-browse-hero__copy">
+        <span className="eyebrow"><Sparkles size={15} aria-hidden="true" /> Comunidade GDG Jobs</span>
+        <h1 id="community-browse-title">Conecte-se com a comunidade tech.</h1>
+        <p>
+          Conheça profissionais que escolheram compartilhar seu perfil. Busque por área, tecnologia ou localidade e
+          descubra novas conexões.
+        </p>
+      </div>
+      <div className="community-browse-hero__orbit" aria-hidden="true">
+        <span className="community-browse-hero__orbit-ring community-browse-hero__orbit-ring--outer" />
+        <span className="community-browse-hero__orbit-ring community-browse-hero__orbit-ring--inner" />
+        <span className="community-browse-hero__orbit-core">GDG</span>
+        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--one" />
+        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--two" />
+        <span className="community-browse-hero__orbit-dot community-browse-hero__orbit-dot--three" />
+      </div>
+    </section>
+  );
+}
+
+function CommunityBrowseToolbar({
+  query,
+  experienceLevel,
+  workModel,
+  disabled,
+  onQueryChange,
+  onExperienceLevelChange,
+  onWorkModelChange,
+}) {
+  return (
+    <div className="community-browse-toolbar" role="search" aria-label="Buscar profissionais da comunidade">
+      <label className="community-browse-search">
+        <Search size={20} aria-hidden="true" />
+        <input
+          type="search"
+          name="community-query"
+          value={query}
+          disabled={disabled}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Buscar por nome, tecnologia ou área"
+          aria-label="Buscar por nome, tecnologia ou área"
+        />
+      </label>
+      <label className="community-browse-select">
+        <span className="community-browse-select__label">Nível de experiência</span>
+        <select
+          name="community-experience-level"
+          value={experienceLevel}
+          disabled={disabled}
+          onChange={(event) => onExperienceLevelChange(event.target.value)}
+          aria-label="Filtrar por nível de experiência"
+        >
+          {COMMUNITY_LEVEL_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || "all-levels"} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
+      </label>
+      <label className="community-browse-select">
+        <span className="community-browse-select__label">Modalidade de trabalho</span>
+        <select
+          name="community-work-model"
+          value={workModel}
+          disabled={disabled}
+          onChange={(event) => onWorkModelChange(event.target.value)}
+          aria-label="Filtrar por modalidade de trabalho"
+        >
+          {COMMUNITY_WORK_MODEL_FILTER_OPTIONS.map((option) => (
+            <option key={option.value || "all-models"} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <ChevronDown size={16} className="community-browse-select__chevron" aria-hidden="true" />
+      </label>
+    </div>
   );
 }
 
@@ -153,25 +281,36 @@ function CommunityPublishedBanner() {
   );
 }
 
-function CommunityDiscoverySection({ pageState, profiles, nextCursor, busy, onLoadMore }) {
+function CommunityDiscoverySection({
+  catalogEmpty,
+  filteredProfiles,
+  resultCountLabel,
+  nextCursor,
+  busy,
+  onLoadMore,
+}) {
+  const filterEmpty = !catalogEmpty && filteredProfiles.length === 0;
   return (
     <section className="community-results" aria-labelledby="community-results-heading">
       <div className="community-results__heading">
-        <div>
-          <span className="eyebrow">Conexões profissionais</span>
-          <h2 id="community-results-heading">Profissionais da comunidade</h2>
-        </div>
+        <h2 id="community-results-heading">Profissionais da comunidade</h2>
+        <p className="community-results__meta">{resultCountLabel}</p>
       </div>
-      {pageState === "empty" ? (
+      {catalogEmpty ? (
         <div className="community-empty community-empty--in-results">
           <div className="community-empty__icon"><Users size={22} aria-hidden="true" /></div>
           <h3>A comunidade está começando</h3>
           <p>Ainda não há outros perfis compartilhados. Quando alguém optar por participar, aparecerá aqui.</p>
         </div>
+      ) : filterEmpty ? (
+        <div className="community-empty community-empty--in-results">
+          <h3>Nenhum perfil encontrado</h3>
+          <p>Ajuste a busca ou os filtros para ver outros profissionais compartilhados.</p>
+        </div>
       ) : (
         <>
           <div className="community-people-grid">
-            {profiles.map((profile) => <CommunityProfileCard key={profile.publicId} profile={profile} />)}
+            {filteredProfiles.map((profile) => <CommunityProfileCard key={profile.publicId} profile={profile} />)}
           </div>
           {nextCursor ? (
             <button type="button" className="outline community-load-more" disabled={busy} onClick={onLoadMore}>
@@ -234,8 +373,9 @@ function CommunityProfileCard({ profile }) {
         {profile.experienceLevel ? <p><span>Nível</span><strong>{EXPERIENCE_LEVEL_NAMES[profile.experienceLevel] ?? profile.experienceLevel}</strong></p> : null}
         {profile.workModel ? <p><span>Modalidade</span><strong>{WORK_MODEL_NAMES[profile.workModel] ?? profile.workModel}</strong></p> : null}
       </div>
-      <Link className="community-person-card__view" to={`/comunidade/${profile.publicId}`}>
-        Ver perfil <span aria-hidden="true">→</span>
+      <Link className="primary community-person-card__cta" to={`/comunidade/${profile.publicId}`}>
+        <span>Ver perfil</span>
+        <span className="round-arrow" aria-hidden="true"><ArrowUpRight size={18} /></span>
       </Link>
     </article>
   );
@@ -251,6 +391,20 @@ function CommunityPage({ userId }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const [browseQuery, setBrowseQuery] = useState("");
+  const [browseExperienceLevel, setBrowseExperienceLevel] = useState("");
+  const [browseWorkModel, setBrowseWorkModel] = useState("");
+
+  const showBrowseChrome = !publicId && (pageState === "loading-list" || pageState === "list" || pageState === "empty");
+  const filteredProfiles = useMemo(
+    () => filterCommunityProfiles(profiles, {
+      query: browseQuery,
+      experienceLevel: browseExperienceLevel,
+      workModel: browseWorkModel,
+    }),
+    [profiles, browseQuery, browseExperienceLevel, browseWorkModel],
+  );
+  const resultCountLabel = formatCommunityLoadedCount(filteredProfiles.length, Boolean(nextCursor));
 
   useEffect(() => {
     let active = true;
@@ -331,11 +485,13 @@ function CommunityPage({ userId }) {
   return (
     <main id="conteudo" className="community-page" aria-busy={pageState === "loading" || pageState === "loading-list"}>
       <div className="shell community-shell">
-        <header className="community-heading">
-          <span className="eyebrow"><Users size={15} aria-hidden="true" /> Área de membros</span>
-          <h1>{publicId ? "Perfil profissional" : "Comunidade"}</h1>
-          <p>Conheça profissionais que escolheram compartilhar seus perfis com a comunidade GDG Jobs.</p>
-        </header>
+        {!showBrowseChrome ? (
+          <header className="community-heading">
+            <span className="eyebrow"><Users size={15} aria-hidden="true" /> Área de membros</span>
+            <h1>{publicId ? "Perfil profissional" : "Comunidade"}</h1>
+            <p>Conheça profissionais que escolheram compartilhar seus perfis com a comunidade GDG Jobs.</p>
+          </header>
+        ) : null}
 
         {pageState === "loading" ? (publicId ? <CommunityLoadingSkeleton detail /> : <CommunityPageShellSkeleton />) : null}
         {pageState === "loading-list" ? (
@@ -343,6 +499,16 @@ function CommunityPage({ userId }) {
             {showShareOnboarding ? (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             ) : publication?.published ? <CommunityPublishedBanner /> : null}
+            <CommunityBrowseHero />
+            <CommunityBrowseToolbar
+              query={browseQuery}
+              experienceLevel={browseExperienceLevel}
+              workModel={browseWorkModel}
+              disabled
+              onQueryChange={setBrowseQuery}
+              onExperienceLevelChange={setBrowseExperienceLevel}
+              onWorkModelChange={setBrowseWorkModel}
+            />
             <CommunityResultsLoadingPlaceholder />
           </>
         ) : null}
@@ -365,7 +531,7 @@ function CommunityPage({ userId }) {
           <section className="community-notice" role="status">
             <h2>Este perfil não está disponível</h2>
             <p>Pode ter sido removido da Comunidade ou o endereço está incorreto.</p>
-            <Link className="outline" to="/comunidade"><ArrowLeft size={16} /> Voltar à Comunidade</Link>
+            <AdminBackLink to="/comunidade">Voltar à Comunidade</AdminBackLink>
           </section>
         ) : null}
         {pageState === "list" || pageState === "empty" ? (
@@ -378,9 +544,20 @@ function CommunityPage({ userId }) {
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             )}
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
+            <CommunityBrowseHero />
+            <CommunityBrowseToolbar
+              query={browseQuery}
+              experienceLevel={browseExperienceLevel}
+              workModel={browseWorkModel}
+              disabled={false}
+              onQueryChange={setBrowseQuery}
+              onExperienceLevelChange={setBrowseExperienceLevel}
+              onWorkModelChange={setBrowseWorkModel}
+            />
             <CommunityDiscoverySection
-              pageState={pageState}
-              profiles={profiles}
+              catalogEmpty={profiles.length === 0}
+              filteredProfiles={filteredProfiles}
+              resultCountLabel={resultCountLabel}
               nextCursor={nextCursor}
               busy={busy}
               onLoadMore={loadMore}
@@ -389,15 +566,10 @@ function CommunityPage({ userId }) {
         ) : null}
         {pageState === "detail" && detail ? (
           <article className="community-profile">
-            <Link className="community-back" to="/comunidade"><ArrowLeft size={16} /> Voltar à Comunidade</Link>
+            <AdminBackLink className="community-profile__back" to="/comunidade">Voltar à Comunidade</AdminBackLink>
             <section className="community-profile__hero">
               <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
-              <div className="community-profile__links">
-                {[["LinkedIn", detail.linkedinUrl], ["GitHub", detail.githubUrl], ["Portfólio", detail.portfolioUrl]].map(([label, rawUrl]) => {
-                  const href = safeExternalUrl(rawUrl);
-                  return href ? <a key={label} className="outline" href={href} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} /> {label}</a> : null;
-                })}
-              </div>
+              <CommunityProfileSocialLinks profile={detail} />
             </section>
             {detail.bio ? <section className="community-profile__section"><h3>Sobre</h3><p>{detail.bio}</p></section> : null}
             <section className="community-profile__section">
