@@ -167,25 +167,28 @@ const COMMUNITY_SOCIAL_LINKS = [
 ];
 
 function CommunityProfileSocialLinks({ profile }) {
-  const links = COMMUNITY_SOCIAL_LINKS.map(({ key, label, field, Icon }) => {
-    const href = safeExternalUrl(profile?.[field]);
-    return href ? { key, label, href, Icon } : null;
+  const links = COMMUNITY_SOCIAL_LINKS.map((entry) => {
+    const href = safeExternalUrl(profile?.[entry.field]);
+    return href ? { ...entry, href } : null;
   }).filter(Boolean);
   if (!links.length) return null;
   return (
     <div className="community-profile__links">
-      {links.map(({ key, label, href, Icon }) => (
-        <a
-          key={key}
-          className="outline community-social-link"
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Icon className="community-social-link__icon" size={18} aria-hidden="true" />
-          <span>{label}</span>
-        </a>
-      ))}
+      {links.map((link) => {
+        const SocialIcon = link.Icon;
+        return (
+          <a
+            key={link.key}
+            className="outline community-social-link"
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <SocialIcon className="community-social-link__icon" size={18} aria-hidden="true" />
+            <span>{link.label}</span>
+          </a>
+        );
+      })}
     </div>
   );
 }
