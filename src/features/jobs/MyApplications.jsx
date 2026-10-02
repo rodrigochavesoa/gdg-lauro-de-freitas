@@ -48,7 +48,20 @@ export function MyApplications({ userId }) {
   const [queryDraft, setQueryDraft] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [rowsUserId, setRowsUserId] = useState(userId);
   const listGenerationRef = useRef(0);
+
+  if (rowsUserId !== userId) {
+    const nextCache = userId ? peekMyApplicationsCache(userId) : null;
+    setRowsUserId(userId);
+    setRows(applicationsFromPage(nextCache));
+    setHasMore(Boolean(nextCache?.hasMore));
+    setPage(1);
+    setError("");
+    setLoadingMore(false);
+    setBusyJobId(null);
+    setStatus(nextCache ? "ready" : "loading");
+  }
 
   useEffect(() => {
     if (!userId) return undefined;
@@ -72,10 +85,14 @@ export function MyApplications({ userId }) {
       })
       .catch((err) => {
         if (cancelled || generation !== listGenerationRef.current) return;
+        setError(err.message || "Não foi possível carregar suas candidaturas.");
+        if (hadCache) {
+          setStatus("ready");
+          return;
+        }
         setRows([]);
         setHasMore(false);
         setPage(1);
-        setError(err.message || "Não foi possível carregar suas candidaturas.");
         setStatus("error");
       });
     return () => { cancelled = true; };
@@ -203,6 +220,9 @@ export function MyApplications({ userId }) {
             </div>
           ) : null}
         </div>
+        {(query || statusFilter) && hasMore ? (
+          <p className="tiny">A busca e o filtro usam só as candidaturas já carregadas. Carregue mais para incluir as próximas.</p>
+        ) : null}
         {loading ? <ApplicationSkeletons /> : null}
         {catalogEmpty ? (
           <div className="empty">
@@ -215,7 +235,11 @@ export function MyApplications({ userId }) {
         {filterEmpty ? (
           <div className="empty">
             <h3>Nenhuma candidatura encontrada</h3>
-            <p>Ajuste a busca ou o filtro de status para ver outras candidaturas.</p>
+            <p>
+              {hasMore
+                ? "Nenhuma das candidaturas já carregadas corresponde. Carregue mais para ampliar a busca."
+                : "Ajuste a busca ou o filtro de status para ver outras candidaturas."}
+            </p>
           </div>
         ) : null}
         {visibleRows.length > 0 ? (
