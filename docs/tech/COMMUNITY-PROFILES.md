@@ -39,6 +39,10 @@ O bucket `avatars` segue privado. A Edge Function `community-avatar` valida orig
 
 `COMMUNITY_AVATAR_ALLOWED_ORIGINS` deve conter origens exatas do app. Lista vazia falha fechada. Não usar CORS `*`.
 
+No frontend, `CommunityAvatar` (`Community.jsx`) usa cache em memória (`peekCommunityAvatarObjectUrl`), prefetch da listagem e proxy via `getCommunityAvatarObjectUrl`. O detalhe monta o avatar com `eager` para não depender só de `IntersectionObserver`. Não reutilizar a foto do header por nome igual ao do card — cada membro usa apenas o proxy por `publicId`.
+
+**Troubleshooting (Preview, CORS, shimmer lista→detalhe, o que não fazer):** [COMMUNITY-AVATARS-TROUBLESHOOTING.md](./COMMUNITY-AVATARS-TROUBLESHOOTING.md).
+
 ## Migrations, testes e gates
 
 `20261001120000_ux_community_profiles_01.sql` fica em `supabase/migrations/held/`, fora de `prod.manifest.json` e da raiz lida por `supabase db push`. Usei `held/` (Camada B), não `homolog/`, porque é uma fronteira de schema/privacidade potencialmente promovível depois de decisão formal; não é SQL exclusivo de seed/teste. O cabeçalho marca **Produção: não aplicar** e `pnpm migrations:prod` confirma `hold`, sem adicionar ao manifesto. Após aprovação para homolog, a cadeia existente inclui arquivos `held/` e pode ser aplicada somente pelo gate `pnpm migrations:homolog:apply`, que exige URL/ref oficiais de homolog. `supabase db push` não lê `held/`. Nenhum apply, deploy ou push remoto foi feito neste trabalho.
