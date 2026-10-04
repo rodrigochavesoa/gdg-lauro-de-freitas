@@ -266,7 +266,14 @@ describe("CommunityRoute", () => {
     expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
     expect(document.querySelector(".home-divider__curve")).toBeTruthy();
     expect(document.querySelector(".home-divider--pair")).toBeTruthy();
-    expect(document.querySelector(".home-divider__avatar--secondary")).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
+    const communityAvatars = document.querySelectorAll(".home-divider__avatar");
+    expect(communityAvatars).toHaveLength(2);
+    expect(communityAvatars[0]).toHaveAttribute("loading", "lazy");
+    expect(communityAvatars[1]).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
+    expect(communityAvatars[1]).toHaveAttribute("loading", "lazy");
+    expect(communityAvatars[1]).toHaveAttribute("width", "1365");
+    expect(communityAvatars[1]).toHaveAttribute("height", "1152");
+    expect(communityAvatars[1].closest("picture").querySelector('source[type="image/avif"]')).toBeTruthy();
     expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
     expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
     fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
@@ -326,6 +333,18 @@ describe("CommunityRoute", () => {
     renderCommunity({ auth: authenticatedAuth });
     expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeInTheDocument();
+  });
+
+  it("lets admin browse community without loading or rendering personal publication state", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    renderCommunity({ auth: { ...authenticatedAuth, profile: { role: "admin" } } });
+
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(api.listCommunityProfiles).toHaveBeenCalledTimes(1);
+    expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/seu perfil está visível/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeInTheDocument();
   });
 

@@ -33,6 +33,10 @@ describe("EventLanding", () => {
     expect(bannerWrap).toHaveClass("event-banner-wrap", "event-banner-wrap--seamless");
     expect(banner).toHaveAttribute("loading", "eager");
     expect(banner.getAttribute("fetchpriority") ?? banner.getAttribute("fetchPriority")).toBe("high");
+    expect(banner.closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/events/1788886782636-320.avif 320w, /events/1788886782636-640.avif 640w, /events/1788886782636-1280.avif 1280w",
+    );
 
     expect(screen.getByRole("heading", { name: DEVFEST_2026.title })).toBeInTheDocument();
     expect(screen.getByText(DEVFEST_2026.datetimeLabel)).toBeInTheDocument();
@@ -53,8 +57,7 @@ describe("EventLanding", () => {
     expect(logo).toHaveAttribute("width", "48");
     expect(logo).toHaveAttribute("height", "48");
     expect(logo).toHaveAttribute("decoding", "async");
-    const logoLoading = logo.getAttribute("loading");
-    expect(logoLoading === "eager" || logoLoading === null).toBe(true);
+    expect(logo).toHaveAttribute("loading", "lazy");
 
     expect(screen.getByRole("button", { name: /Voltar para eventos/i })).toHaveClass("admin-back-button");
     expect(document.querySelector(".event-layout > .admin-back-button")).toBeTruthy();
@@ -72,6 +75,10 @@ describe("EventLanding", () => {
     expect(banner).toHaveAttribute("src", DEVOPSDAYS_SALVADOR_2026.banner.src);
     expect(banner).toHaveAttribute("height", "312");
     expect(banner).toHaveClass("event-banner--portrait");
+    expect(banner.closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/events/d570782909129eef51789263259b10a0.1170x5000-320.avif 320w, /events/d570782909129eef51789263259b10a0.1170x5000-640.avif 640w, /events/d570782909129eef51789263259b10a0.1170x5000-1170.avif 1170w",
+    );
     expect(bannerWrap).toHaveClass("event-banner-wrap", "event-banner-wrap--seamless");
     expect(bannerWrap).toHaveClass("event-banner-wrap--wide");
 
@@ -87,8 +94,7 @@ describe("EventLanding", () => {
     expect(screen.getByText(DEVOPSDAYS_SALVADOR_2026.organizer.name)).toBeInTheDocument();
     const organizerLogo = document.querySelector(".event-organizer__brand img");
     expect(organizerLogo).toHaveAttribute("src", DEVOPSDAYS_SALVADOR_2026.organizer.logoSrc);
-    const organizerLoading = organizerLogo.getAttribute("loading");
-    expect(organizerLoading === "eager" || organizerLoading === null).toBe(true);
+    expect(organizerLogo).toHaveAttribute("loading", "lazy");
     expect(organizerLogo).toHaveAttribute("width", "48");
     expect(organizerLogo).toHaveAttribute("height", "48");
     expect(organizerLogo).toHaveAttribute("decoding", "async");
