@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { BriefcaseBusiness, ClipboardCheck, Database, LayoutDashboard, PanelLeftClose, PanelLeftOpen, SquarePlus } from "lucide-react";
+import { BriefcaseBusiness, ClipboardCheck, Database, LayoutDashboard, PanelLeftClose, PanelLeftOpen, SquarePlus, Users } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { adminNavItemsForRole, isAdminNavItemActive } from "./admin-nav-items.js";
 
-const ICONS = { panel: LayoutDashboard, curation: ClipboardCheck, jobs: BriefcaseBusiness, publish: SquarePlus, ingest: Database };
+const ICONS = { panel: LayoutDashboard, curation: ClipboardCheck, community: Users, jobs: BriefcaseBusiness, publish: SquarePlus, ingest: Database };
 const STORAGE_KEY = "gdgjobs-admin-sidebar-collapsed";
 
 function storedCollapsed() {

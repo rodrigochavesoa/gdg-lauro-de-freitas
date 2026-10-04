@@ -196,6 +196,21 @@ describe("CurationQueue", () => {
     expect(unnamed).toEqual([]);
   });
 
+  it("busca localmente por título ou empresa e oferece limpeza rápida sem refetch", async () => {
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Título ou empresa" }), {
+      target: { value: "inexistente" },
+    });
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("search", { name: "Buscar na fila de curadoria" })).getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByText("Nenhuma vaga corresponde à busca.")).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(screen.getByRole("region", { name: "Vagas pendentes" })).getByRole("button", { name: "Limpar busca" }));
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledTimes(1);
+  });
+
   it("mantém a vaga selecionada no reload e não troca o detalhe se ela sair da página", async () => {
     const job1 = queuePayload.queue[0];
     const job2 = {

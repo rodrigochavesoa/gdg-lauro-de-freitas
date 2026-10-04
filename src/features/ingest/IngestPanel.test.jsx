@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const loadJobIngestions = vi.hoisted(() => vi.fn(async () => ({ items: [], hasNext: false, page: 1, pageSize: 24 })));
@@ -49,6 +49,46 @@ describe("IngestPanel", () => {
     loadJobIngestions.mockRejectedValue(new Error("Falha fictícia de leitura."));
     render(<IngestPanel />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha fictícia de leitura.");
+  });
+
+  it("busca e filtra localmente por status e fonte, sem refetch ao digitar", async () => {
+    loadJobIngestions.mockResolvedValue({
+      items: [
+        {
+          id: "ing-manual",
+          source_kind: "manual_fixture",
+          normalized_locator: "fixture:front-end",
+          payload_title: "Pessoa Desenvolvedora Front-end",
+          latest_outcome: "materialized",
+        },
+        {
+          id: "ing-replay",
+          source_kind: "staff_replay",
+          normalized_locator: "fixture:back-end",
+          payload_title: "Pessoa Desenvolvedora Back-end",
+          latest_outcome: "failed",
+        },
+      ],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    });
+    render(<IngestPanel />);
+    expect(await screen.findByText("Pessoa Desenvolvedora Front-end")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Título, localizador ou fonte" }), { target: { value: "back-end" } });
+    expect(screen.getByText("Pessoa Desenvolvedora Front-end")).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("search", { name: "Buscar ingestões" })).getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByText("Pessoa Desenvolvedora Back-end")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument());
+    expect(loadJobIngestions).toHaveBeenCalledTimes(1);
+    fireEvent.change(document.querySelector("#ingest-status-filter-desktop"), { target: { value: "materialized" } });
+    expect(screen.getByRole("status")).toHaveTextContent("Nenhuma ingestão corresponde à busca e aos filtros.");
+    fireEvent.click(screen.getByRole("button", { name: "Limpar busca e filtros" }));
+    expect(await screen.findByText("Pessoa Desenvolvedora Front-end")).toBeInTheDocument();
+    fireEvent.change(document.querySelector("#ingest-source-filter-desktop"), { target: { value: "staff_replay" } });
+    await waitFor(() => expect(screen.queryByText("Pessoa Desenvolvedora Front-end")).not.toBeInTheDocument());
+    expect(screen.getByText("Pessoa Desenvolvedora Back-end")).toBeInTheDocument();
+    expect(loadJobIngestions).toHaveBeenCalledTimes(1);
   });
 
   it("ingere fixture e permite reprocessar", async () => {

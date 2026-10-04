@@ -92,7 +92,7 @@ function CommunityLoadingSkeleton({ detail = false }) {
   );
 }
 
-export function CommunityRoute({ auth, authReady }) {
+export function CommunityRoute({ auth, authReady, embedded = false }) {
   if (!authReady || (auth.session && !auth.profile)) return <CommunityPending />;
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
@@ -102,6 +102,7 @@ export function CommunityRoute({ auth, authReady }) {
       key={auth.session.user.id}
       userId={auth.session.user.id}
       canManagePublication={canManagePublication}
+      embedded={embedded}
     />
   );
 }
@@ -449,6 +450,7 @@ function CommunityDiscoverySection({
   nextCursor,
   busy,
   onLoadMore,
+  communityBasePath,
 }) {
   const filterEmpty = !catalogEmpty && filteredProfiles.length === 0;
   return (
@@ -476,6 +478,7 @@ function CommunityDiscoverySection({
                 key={profile.publicId}
                 profile={profile}
                 eagerAvatar={index < 12}
+                communityBasePath={communityBasePath}
               />
             ))}
           </div>
@@ -524,10 +527,10 @@ function CommunitySharePanel({ publication, busy, onPublicationChange }) {
   );
 }
 
-function CommunityProfileCard({ profile, eagerAvatar = false }) {
+function CommunityProfileCard({ profile, eagerAvatar = false, communityBasePath = "/comunidade" }) {
   return (
     <article className="community-person-card">
-      <Link className="community-person-card__identity" to={`/comunidade/${profile.publicId}`} aria-label={`Ver perfil de ${profile.fullName}`}>
+      <Link className="community-person-card__identity" to={`${communityBasePath}/${profile.publicId}`} aria-label={`Ver perfil de ${profile.fullName}`}>
         <CommunityAvatar
           profile={profile}
           eager={eagerAvatar}
@@ -543,7 +546,7 @@ function CommunityProfileCard({ profile, eagerAvatar = false }) {
         {profile.experienceLevel ? <p><span>Nível</span><strong>{EXPERIENCE_LEVEL_NAMES[profile.experienceLevel] ?? profile.experienceLevel}</strong></p> : null}
         {profile.workModel ? <p><span>Modalidade</span><strong>{WORK_MODEL_NAMES[profile.workModel] ?? profile.workModel}</strong></p> : null}
       </div>
-      <Link className="primary community-person-card__cta" to={`/comunidade/${profile.publicId}`}>
+      <Link className="primary community-person-card__cta" to={`${communityBasePath}/${profile.publicId}`}>
         <span>Ver perfil</span>
         <span className="round-arrow" aria-hidden="true"><ArrowUpRight size={18} /></span>
       </Link>
@@ -551,8 +554,9 @@ function CommunityProfileCard({ profile, eagerAvatar = false }) {
   );
 }
 
-function CommunityPage({ userId, canManagePublication }) {
+function CommunityPage({ userId, canManagePublication, embedded = false }) {
   const { publicId } = useParams();
+  const communityBasePath = embedded ? "/admin/comunidade" : "/comunidade";
   const [publication, setPublication] = useState(null);
   const [profiles, setProfiles] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
@@ -697,8 +701,9 @@ function CommunityPage({ userId, canManagePublication }) {
 
   const membersHero = showMembersHero ? <CommunityMembersHero profileView={Boolean(publicId)} /> : null;
 
+  const PageContainer = embedded ? "div" : "main";
   return (
-    <main id="conteudo" className={`community-page${hasTopHero ? " community-page--browse" : ""}`} aria-busy={pageState === "loading" || pageState === "loading-list"}>
+    <PageContainer id={embedded ? undefined : "conteudo"} className={`community-page${hasTopHero ? " community-page--browse" : ""}${embedded ? " community-page--embedded" : ""}`} aria-busy={pageState === "loading" || pageState === "loading-list"}>
       {browseHero}
       {membersHero}
       <div className="shell community-shell">
@@ -740,7 +745,7 @@ function CommunityPage({ userId, canManagePublication }) {
           <section className="community-notice" role="status">
             <h2>Este perfil não está disponível</h2>
             <p>Pode ter sido removido da Comunidade ou o endereço está incorreto.</p>
-            <AdminBackLink to="/comunidade">Voltar à Comunidade</AdminBackLink>
+            <AdminBackLink to={communityBasePath}>Voltar à Comunidade</AdminBackLink>
           </section>
         ) : null}
         {pageState === "list" || pageState === "empty" ? (
@@ -770,12 +775,13 @@ function CommunityPage({ userId, canManagePublication }) {
               nextCursor={nextCursor}
               busy={busy}
               onLoadMore={loadMore}
+              communityBasePath={communityBasePath}
             />
           </>
         ) : null}
         {pageState === "detail" && detail ? (
           <article className="community-profile">
-            <AdminBackLink className="community-profile__back" to="/comunidade">Voltar à Comunidade</AdminBackLink>
+            <AdminBackLink className="community-profile__back" to={communityBasePath}>Voltar à Comunidade</AdminBackLink>
             <section className="community-profile__hero">
               <div className="community-profile__identity"><CommunityAvatar key={detail.publicId} profile={detail} eager /><div><h2>{detail.fullName}</h2>{detail.headline ? <p className="community-profile__headline"><BriefcaseBusiness size={16} /> {detail.headline}</p> : null}{detail.location ? <p className="community-profile__location"><MapPin size={16} /> {detail.location}</p> : null}</div></div>
               <CommunityProfileSocialLinks profile={detail} />
@@ -794,6 +800,6 @@ function CommunityPage({ userId, canManagePublication }) {
         ) : null}
       </div>
       <CommunityBackToTop visible={showBackToTop} />
-    </main>
+    </PageContainer>
   );
 }

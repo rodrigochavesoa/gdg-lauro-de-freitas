@@ -526,14 +526,15 @@ describe("Header", () => {
       expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
         "Painel",
         "Curadoria",
+        "Comunidade",
         "Vagas",
         "Nova vaga",
         "Ingestão",
-        "Vagas",
         "Eventos",
         "Newsletter",
-        "Comunidade",
       ]);
+      expect(within(mobile).getAllByRole("link", { name: "Comunidade" })).toHaveLength(1);
+      expect(within(mobile).getAllByRole("link", { name: "Vagas" })).toHaveLength(1);
       fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
       expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
       expect(document.getElementById("mobile-navigation")).toBeNull();
@@ -582,7 +583,7 @@ describe("Header", () => {
     }
   });
 
-  it("curator em /admin/curadoria no drawer vê só Painel e Curadoria na administração", () => {
+  it("curator em /admin/curadoria no drawer vê Comunidade na administração", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({
       matches: String(query).includes("1024"),
@@ -603,7 +604,7 @@ describe("Header", () => {
       const mobile = document.getElementById("mobile-navigation");
       const adminSection = mobile.querySelector(".mobile-nav__admin");
       const adminLinks = within(adminSection).getAllByRole("link");
-      expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
+      expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria", "Comunidade"]);
       expect(within(adminSection).queryByRole("link", { name: "Nova vaga" })).not.toBeInTheDocument();
     } finally {
       window.matchMedia = originalMatchMedia;
