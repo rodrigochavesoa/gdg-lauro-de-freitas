@@ -1,0 +1,872 @@
+{
+  "runs": 3,
+  "indicators": {
+    "cardsOnPage": 2,
+    "avatarsRenderedCold": 2,
+    "avatarProxyRequestsCold": 2,
+    "avatarProxyRequestsAfterLeaveCommunity": 2,
+    "storageDirectRequests": 0,
+    "medianAvatarGetHeadersMs": 1972,
+    "medianAvatarBlobConsumeMs": 1,
+    "avatarGetBodyBytes": [
+      10306,
+      7306,
+      10306,
+      7306,
+      7306,
+      10306
+    ],
+    "medianListReadyMs": 1368,
+    "medianAvatarSettleMs": 1900,
+    "medianRevisitAvatarSettleMs": 1719,
+    "shimmerAfterRevisit": 0
+  },
+  "scenarios": [
+    {
+      "run": 1,
+      "cold": {
+        "wallMs": 12305,
+        "listReadyMs": 3466,
+        "avatarSettleMs": 2302,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "list",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 340,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 340,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2197,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2612,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 2,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 3,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 17,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 13,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "detail": {
+        "detailMs": 919,
+        "ui": {
+          "cards": 0,
+          "loading": 0,
+          "withImg": 0,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityDetail",
+          "phase": "detail",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 322,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcDetail",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 356,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "backToList": {
+        "avatarSettleMs": 3,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "backToList",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 324,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 276,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "leaveAndReturn": {
+        "listReadyMs": 1429,
+        "avatarSettleMs": 2144,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "outsideAndCommunity",
+          "phase": "leaveAndReturn",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 279,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 307,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2086,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2504,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 19,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 17,
+              "bodyBytes": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "run": 2,
+      "cold": {
+        "wallMs": 8395,
+        "listReadyMs": 1367,
+        "avatarSettleMs": 1505,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "list",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 263,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 314,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1731,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1771,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 3,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 14,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 4,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 22,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "detail": {
+        "detailMs": 893,
+        "ui": {
+          "cards": 0,
+          "loading": 0,
+          "withImg": 0,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityDetail",
+          "phase": "detail",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 309,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcDetail",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 277,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "backToList": {
+        "avatarSettleMs": 3,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "backToList",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 287,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 279,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "leaveAndReturn": {
+        "listReadyMs": 1369,
+        "avatarSettleMs": 1281,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "outsideAndCommunity",
+          "phase": "leaveAndReturn",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 271,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 310,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1323,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1667,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 15,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 4,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 18,
+              "bodyBytes": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "run": 3,
+      "cold": {
+        "wallMs": 9270,
+        "listReadyMs": 1368,
+        "avatarSettleMs": 1900,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "list",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 286,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 281,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1755,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2173,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 17,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 16,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "detail": {
+        "detailMs": 888,
+        "ui": {
+          "cards": 0,
+          "loading": 0,
+          "withImg": 0,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityDetail",
+          "phase": "detail",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 293,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcDetail",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 298,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "backToList": {
+        "avatarSettleMs": 2,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "communityList",
+          "phase": "backToList",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 287,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 312,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            }
+          ]
+        }
+      },
+      "leaveAndReturn": {
+        "listReadyMs": 1375,
+        "avatarSettleMs": 1719,
+        "ui": {
+          "cards": 2,
+          "loading": 0,
+          "withImg": 2,
+          "fallbacks": 0
+        },
+        "traffic": {
+          "route": "outsideAndCommunity",
+          "phase": "leaveAndReturn",
+          "requests": [
+            {
+              "kind": "rpcStatus",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 279,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "rpcList",
+              "method": "POST",
+              "status": "ok",
+              "durationMs": 266,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 1986,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarGet",
+              "method": "GET",
+              "status": "ok",
+              "durationMs": 2044,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 0,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 10306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 18,
+              "bodyBytes": null
+            },
+            {
+              "kind": "avatarBlobBody",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": null,
+              "bodyDurationMs": 1,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "objectUrl",
+              "method": "OTHER",
+              "status": "unknown",
+              "durationMs": 0,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": null,
+              "bodyBytes": 7306
+            },
+            {
+              "kind": "imageDecode",
+              "method": "OTHER",
+              "status": "ok",
+              "durationMs": 1,
+              "bodyDurationMs": null,
+              "objectUrlToDecodeMs": 8,
+              "bodyBytes": null
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
