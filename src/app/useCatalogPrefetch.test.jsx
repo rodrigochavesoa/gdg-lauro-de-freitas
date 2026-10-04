@@ -1,7 +1,6 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, useNavigate } from "react-router-dom";
 
 const loadApprovedJobsMock = vi.hoisted(() => vi.fn(async () => ({ jobs: [], count: 0 })));
 
@@ -12,11 +11,10 @@ vi.mock("../features/catalog/jobs-api.js", () => ({
 import { useCatalogPrefetch } from "./useCatalogPrefetch.js";
 
 function Harness() {
-  useCatalogPrefetch();
-  const navigate = useNavigate();
+  const prefetchCatalog = useCatalogPrefetch();
   return (
-    <button type="button" onClick={() => navigate("/")}>
-      Ir para a home
+    <button type="button" onMouseEnter={prefetchCatalog} onFocus={prefetchCatalog}>
+      Vagas
     </button>
   );
 }
@@ -26,14 +24,10 @@ describe("useCatalogPrefetch", () => {
     loadApprovedJobsMock.mockClear();
   });
 
-  it("não aquece o catálogo em /admin e dispara uma vez fora da área admin", () => {
-    render(
-      <MemoryRouter initialEntries={["/admin/curadoria"]}>
-        <Harness />
-      </MemoryRouter>,
-    );
+  it("só aquece o catálogo quando o link de Vagas recebe intenção", () => {
+    render(<Harness />);
     expect(loadApprovedJobsMock).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Ir para a home" }));
+    fireEvent.mouseEnter(screen.getByRole("button", { name: "Vagas" }));
     expect(loadApprovedJobsMock).toHaveBeenCalledTimes(1);
   });
 });
