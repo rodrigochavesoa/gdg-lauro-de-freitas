@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import {
   HOMOLOG_MANUAL_FIXTURE,
@@ -110,6 +110,11 @@ export function IngestPanel() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [filterOpen, setFilterOpen] = useState(false);
+  const mountedRef = useRef(false);
+  const listRequestRef = useRef(0);
+  const loadMoreRequestRef = useRef(0);
+  const detailRequestRef = useRef(0);
+  const viewGenerationRef = useRef(0);
   const listRow = rows.find((row) => row.id === selectedId) ?? null;
   const filteredRows = useMemo(() => rows.filter((row) => {
     if (statusFilter !== "all" && ingestionStatusValue(row) !== statusFilter) return false;
@@ -158,25 +163,42 @@ export function IngestPanel() {
   };
 
   const refresh = async ({ append = false, nextPage = 1 } = {}) => {
+    if (!mountedRef.current) return;
+    const listRequest = append ? listRequestRef.current : ++listRequestRef.current;
+    const loadMoreRequest = append ? ++loadMoreRequestRef.current : null;
+    const isCurrentRequest = () => mountedRef.current
+      && listRequest === listRequestRef.current
+      && (!append || loadMoreRequest === loadMoreRequestRef.current);
     if (append) setLoadingMore(true);
-    else setLoading(true);
+    else {
+      setLoading(true);
+      setLoadingMore(false);
+    }
     try {
       const result = await loadJobIngestions(undefined, { page: nextPage });
+      if (!isCurrentRequest()) return;
       setRows((current) => (append ? mergeById(current, result.items) : result.items));
       setHasNext(Boolean(result.hasNext));
       setPage(result.page ?? nextPage);
       setError("");
     } catch (err) {
+      if (!isCurrentRequest()) return;
       if (!append) setRows([]);
       setHasNext(false);
       setError(err.message || "Não foi possível carregar as ingestões.");
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (isCurrentRequest()) {
+        if (append) setLoadingMore(false);
+        else setLoading(false);
+      }
     }
   };
 
   const openDetail = async (id) => {
+    if (!mountedRef.current) return;
+    viewGenerationRef.current += 1;
+    const detailRequest = ++detailRequestRef.current;
+    const isCurrentRequest = () => mountedRef.current && detailRequest === detailRequestRef.current;
     setSelectedId(id);
     setView("detail");
     setDetail(null);
@@ -185,42 +207,62 @@ export function IngestPanel() {
     setMessage("");
     try {
       const row = await loadJobIngestionDetail(undefined, id);
+      if (!isCurrentRequest()) return;
       setDetail(row);
       setDetailStatus(row ? "ready" : "error");
       if (!row) setError("Registro indisponível. Volte à lista e tente novamente.");
     } catch (err) {
+      if (!isCurrentRequest()) return;
       setDetailStatus("error");
       setError(err.message || "Não foi possível carregar o detalhe da ingestão.");
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
     void refresh();
+    return () => {
+      mountedRef.current = false;
+      listRequestRef.current += 1;
+      loadMoreRequestRef.current += 1;
+      detailRequestRef.current += 1;
+    };
   }, []);
 
   const runProcess = async (input, returnView = "list") => {
+    const viewGeneration = viewGenerationRef.current;
     setBusy(true);
     setError("");
     setMessage("");
     try {
       const result = await processJobIngestion(undefined, input);
+      if (!mountedRef.current) return;
       const jobStatus = result.job?.status;
       if (jobStatus && jobStatus !== "pending" && result.outcome === "materialized") {
-        setError("A ingestão recusou publicar fora de pending.");
+        if (viewGenerationRef.current === viewGeneration) setError("A ingestão recusou publicar fora de pending.");
         return;
       }
-      setMessage(
-        `${describeIngestionOutcome(result.outcome)}${
-          result.job?.title ? ` · ${result.job.title}` : ""
-        }${result.failure_detail ? ` — ${result.failure_detail}` : ""}`,
-      );
+      if (viewGenerationRef.current === viewGeneration) {
+        setMessage(
+          `${describeIngestionOutcome(result.outcome)}${
+            result.job?.title ? ` · ${result.job.title}` : ""
+          }${result.failure_detail ? ` — ${result.failure_detail}` : ""}`,
+        );
+      }
       await refresh();
-      if (returnView === "detail" && selectedId) await openDetail(selectedId);
+      if (!mountedRef.current || viewGenerationRef.current !== viewGeneration) return;
+      if (returnView === "detail" && selectedId) {
+        await openDetail(selectedId);
+        return;
+      }
+      viewGenerationRef.current += 1;
       setView(returnView);
     } catch (err) {
-      setError(err.message || "Falha ao processar a ingestão.");
+      if (mountedRef.current && viewGenerationRef.current === viewGeneration) {
+        setError(err.message || "Falha ao processar a ingestão.");
+      }
     } finally {
-      setBusy(false);
+      if (mountedRef.current) setBusy(false);
     }
   };
 
@@ -268,8 +310,8 @@ export function IngestPanel() {
               "Acompanhe as entradas controladas. Nenhuma ingestão publica automaticamente."}
           </p>
         </div>
-        {view === "list" ? <button className="primary small" type="button" onClick={() => { setView("new"); setError(""); setMessage(""); }}>Nova fixture</button> :
-          <AdminBackButton type="button" onClick={() => { setView("list"); setError(""); }}>Voltar às ingestões</AdminBackButton>}
+        {view === "list" ? <button className="primary small" type="button" onClick={() => { viewGenerationRef.current += 1; setView("new"); setError(""); setMessage(""); }}>Nova fixture</button> :
+          <AdminBackButton type="button" onClick={() => { viewGenerationRef.current += 1; detailRequestRef.current += 1; setView("list"); setError(""); }}>Voltar às ingestões</AdminBackButton>}
       </div>
       {message ? <div className="success" role="status">{message}</div> : null}
       {error ? <div className="form-alert" role="alert">{error}</div> : null}
@@ -500,6 +542,11 @@ export function IngestPanel() {
                 {busy ? "Reprocessando…" : "Reprocessar"}
               </button>
             </>
+          ) : null}
+          {detailStatus === "error" ? (
+            <button type="button" className="outline small" onClick={() => { void openDetail(selectedId); }}>
+              Tentar novamente
+            </button>
           ) : null}
         </section>
       ) : null}

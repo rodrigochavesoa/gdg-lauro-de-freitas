@@ -115,6 +115,23 @@ describe("MyApplications", () => {
     expect(loadMyApplications).toHaveBeenCalledWith({ userId: "u1", forceRefresh: true });
   });
 
+  it("permite repetir o carregamento após falha sem cache", async () => {
+    loadMyApplications
+      .mockRejectedValueOnce(new Error("Falha transitória."))
+      .mockResolvedValueOnce(applicationsPage([applicationItem(0)]));
+    render(
+      <MemoryRouter>
+        <MyApplications userId="u1" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha transitória.");
+    expect(screen.queryByRole("heading", { name: "Você ainda não se candidatou" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByRole("heading", { name: "Pessoa Desenvolvedora Front-end" })).toBeInTheDocument();
+    expect(loadMyApplications).toHaveBeenCalledTimes(2);
+  });
+
   it("mostra retirar quando o status é submitted", async () => {
     loadMyApplications.mockResolvedValue(
       applicationsPage([

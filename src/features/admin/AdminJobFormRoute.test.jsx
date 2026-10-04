@@ -99,6 +99,29 @@ describe("AdminJobFormRoute empresas", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("não oferece formulário de criação quando a carga de edição falha e permite retry", async () => {
+    loadCompanies.mockResolvedValue({ companies: [], truncated: false });
+    loadAdminJob
+      .mockRejectedValueOnce(new Error("Falha ao carregar rascunho."))
+      .mockResolvedValueOnce({
+        id: "job-2",
+        status: "pending",
+        title: "Rascunho recuperado",
+        company_id: "c2",
+        description: "Descrição fictícia.",
+        level: "mid",
+        work_model: "remote",
+        stack: [],
+      });
+
+    renderForm("/admin/vagas/nova?editar=job-2");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha ao carregar rascunho.");
+    expect(screen.queryByRole("button", { name: "Enviar à curadoria" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByLabelText("Título da vaga")).toHaveValue("Rascunho recuperado");
+    expect(loadAdminJob).toHaveBeenCalledTimes(2);
+  });
+
   it("não mostra tipo de contrato porque o schema não persiste o campo", async () => {
     loadCompanies.mockResolvedValue({ companies: [], truncated: false });
     renderForm();

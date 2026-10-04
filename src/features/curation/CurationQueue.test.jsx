@@ -338,6 +338,7 @@ describe("CurationQueue", () => {
     render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("fila indisponível");
+    expect(screen.queryByText("Nenhuma vaga pendente nesta fila.")).not.toBeInTheDocument();
     curationEvents.notify();
     expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();

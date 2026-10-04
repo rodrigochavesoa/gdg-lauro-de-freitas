@@ -51,6 +51,151 @@ describe("IngestPanel", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Falha fictícia de leitura.");
   });
 
+  it("mantém o resultado do refresh quando a carga inicial termina atrasada", async () => {
+    let resolveInitial;
+    const initialRequest = new Promise((resolve) => { resolveInitial = resolve; });
+    loadJobIngestions.mockReturnValueOnce(initialRequest);
+    processJobIngestion.mockResolvedValue({ outcome: "registered", job: {} });
+    const refreshedPage = {
+      items: [{ id: "ing-current", payload_title: "Resultado atualizado", source_kind: "manual_fixture" }],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    };
+    render(<IngestPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "Nova fixture" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ingerir fixture (pendente)" }));
+    loadJobIngestions.mockResolvedValueOnce(refreshedPage);
+
+    expect(await screen.findByText("Resultado atualizado")).toBeInTheDocument();
+    resolveInitial(emptyPage);
+    await waitFor(() => expect(screen.getByText("Resultado atualizado")).toBeInTheDocument());
+  });
+
+  it("descarta o detalhe antigo quando outra ingestão é selecionada", async () => {
+    let resolveFirstDetail;
+    const firstDetail = new Promise((resolve) => { resolveFirstDetail = resolve; });
+    const secondDetail = {
+      id: "ing-2",
+      source_kind: "manual_fixture",
+      normalized_locator: "fixture:second",
+      payload_title: "Segunda ingestão",
+      latest_outcome: "registered",
+      job_ingestion_attempts: [],
+    };
+    loadJobIngestions.mockResolvedValue({
+      items: [
+        { id: "ing-1", payload_title: "Primeira ingestão", source_kind: "manual_fixture" },
+        { id: "ing-2", payload_title: "Segunda ingestão", source_kind: "manual_fixture" },
+      ],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    });
+
+    render(<IngestPanel />);
+    const firstRow = await screen.findByText("Primeira ingestão");
+    loadJobIngestionDetail.mockReturnValueOnce(firstDetail);
+    fireEvent.click(within(firstRow.closest(".admin-ingest__row")).getByRole("button", { name: "Ver detalhes" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar às ingestões" }));
+    loadJobIngestionDetail.mockResolvedValueOnce(secondDetail);
+    fireEvent.click(within(screen.getByText("Segunda ingestão").closest(".admin-ingest__row")).getByRole("button", { name: "Ver detalhes" }));
+
+    expect(await screen.findByText("fixture:second")).toBeInTheDocument();
+    resolveFirstDetail({
+      id: "ing-1",
+      source_kind: "manual_fixture",
+      normalized_locator: "fixture:first",
+      payload_title: "Primeira ingestão",
+      latest_outcome: "registered",
+      job_ingestion_attempts: [],
+    });
+
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Segunda ingestão" })).toBeInTheDocument());
+    expect(screen.queryByText("fixture:first")).not.toBeInTheDocument();
+  });
+
+  it("permite tentar novamente após falha ao carregar um detalhe", async () => {
+    loadJobIngestions.mockResolvedValue({
+      items: [{ id: "ing-retry", payload_title: "Ingestão recuperável", source_kind: "manual_fixture" }],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    });
+    loadJobIngestionDetail
+      .mockRejectedValueOnce(new Error("Falha transitória."))
+      .mockResolvedValueOnce({
+        id: "ing-retry",
+        source_kind: "manual_fixture",
+        normalized_locator: "fixture:recovered",
+        payload_title: "Ingestão recuperável",
+        latest_outcome: "registered",
+        job_ingestion_attempts: [],
+      });
+
+    render(<IngestPanel />);
+    const row = await screen.findByText("Ingestão recuperável");
+    fireEvent.click(within(row.closest(".admin-ingest__row")).getByRole("button", { name: "Ver detalhes" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Falha transitória.");
+    fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }));
+    expect(await screen.findByText("fixture:recovered")).toBeInTheDocument();
+  });
+
+  it("não reabre o detalhe se a pessoa voltar à lista durante um reprocessamento", async () => {
+    loadJobIngestions.mockResolvedValue({
+      items: [{
+        id: "ing-reprocess",
+        source_kind: "manual_fixture",
+        normalized_locator: "fixture:reprocess",
+        payload_title: "Ingestão em reprocessamento",
+        latest_outcome: "registered",
+      }],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    });
+    loadJobIngestionDetail.mockResolvedValue({
+      id: "ing-reprocess",
+      source_kind: "manual_fixture",
+      normalized_locator: "fixture:reprocess",
+      payload_title: "Ingestão em reprocessamento",
+      latest_outcome: "registered",
+      canonical_payload: { title: "Ingestão em reprocessamento", company_name: "Empresa fictícia" },
+      job_ingestion_attempts: [],
+    });
+    let resolveProcess;
+    processJobIngestion.mockReturnValueOnce(new Promise((resolve) => { resolveProcess = resolve; }));
+
+    render(<IngestPanel />);
+    const row = await screen.findByText("Ingestão em reprocessamento");
+    fireEvent.click(within(row.closest(".admin-ingest__row")).getByRole("button", { name: "Ver detalhes" }));
+    expect(await screen.findByRole("button", { name: "Reprocessar" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Reprocessar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar às ingestões" }));
+    resolveProcess({ outcome: "registered", job: { status: "pending" } });
+
+    expect(await screen.findByRole("button", { name: "Nova fixture" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByLabelText("Detalhe da ingestão")).not.toBeInTheDocument());
+  });
+
+  it("ignora a carga pendente depois que a tela é desmontada", async () => {
+    let resolveRows;
+    const pendingRows = new Promise((resolve) => { resolveRows = resolve; });
+    loadJobIngestions.mockReturnValueOnce(pendingRows);
+    const { unmount } = render(<IngestPanel />);
+    unmount();
+
+    resolveRows({
+      items: [{ id: "ing-unmounted", payload_title: "Resposta após saída", source_kind: "manual_fixture" }],
+      hasNext: false,
+      page: 1,
+      pageSize: 24,
+    });
+    await pendingRows;
+    await Promise.resolve();
+    expect(screen.queryByText("Resposta após saída")).not.toBeInTheDocument();
+  });
+
   it("busca e filtra localmente por status e fonte, sem refetch ao digitar", async () => {
     loadJobIngestions.mockResolvedValue({
       items: [
