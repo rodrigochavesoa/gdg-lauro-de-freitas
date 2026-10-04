@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ListChecks } from "lucide-react";
+import { Check, Filter, ListChecks } from "lucide-react";
 import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import {
   loadCurationJobDetail,
@@ -17,6 +17,9 @@ import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeT
 import { CurationPriorityControls } from "./CurationPriorityControls.jsx";
 import { mergeById } from "../../lib/merge-by-id.js";
 import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
+import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
+import { useDebouncedValue } from "../../shared/ui/useDebouncedValue.js";
+import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 
 const LEVEL_LABEL = {
   intern: "Estágio",
@@ -79,6 +82,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [priorityReason, setPriorityReason] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [queueLoadError, setQueueLoadError] = useState("");
   const [reviewMessage, setReviewMessage] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -88,6 +92,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [pendingLoadingMore, setPendingLoadingMore] = useState(false);
   const [rejectedLoadingMore, setRejectedLoadingMore] = useState(false);
   const [view, setView] = useState("pending");
+  const [queryInput, setQueryInput] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const query = useDebouncedValue(submittedQuery).trim().toLocaleLowerCase("pt-BR");
+  const [filterOpen, setFilterOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -125,11 +133,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
       .then((data) => {
         if (cancelled || generation !== pendingGenerationRef.current) return;
         setError("");
+        setQueueLoadError("");
         applyPending(data);
       })
       .catch((err) => {
         if (cancelled || generation !== pendingGenerationRef.current) return;
         setError(err.message);
+        setQueueLoadError(err.message || "Não foi possível carregar a fila de curadoria.");
       })
       .finally(() => {
         if (!cancelled && loadingEpoch === pendingLoadingEpochRef.current) setLoading(false);
@@ -162,6 +172,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
       .then((data) => {
         if (cancelled || generation !== rejectedGenerationRef.current) return;
         setError("");
+        setQueueLoadError("");
         setRejected(data.rejected);
         setRejectedHasNext(Boolean(data.hasNext));
         setRejectedPage(data.page ?? 1);
@@ -171,6 +182,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
         if (cancelled || generation !== rejectedGenerationRef.current) return;
         setRejectedStatus("error");
         setError(err.message);
+        setQueueLoadError(err.message || "Não foi possível carregar a fila de curadoria.");
       })
       .finally(() => {
         if (cancelled || loadingEpoch !== rejectedLoadingEpochRef.current) return;
@@ -182,7 +194,19 @@ export function CurationQueue({ profile, includeRejected = false }) {
   }, [view, includeRejected, reloadToken]);
 
   const visibleJobs = view === "rejected" ? rejected : queue;
-  const selected = resolveCurationSelection(visibleJobs, selectedId);
+  const filteredJobs = visibleJobs.filter((job) => {
+    if (!query) return true;
+    return `${job.title ?? ""} ${job.companies?.name ?? ""}`.toLocaleLowerCase("pt-BR").includes(query);
+  });
+  const applySearch = (event) => {
+    event.preventDefault();
+    setSubmittedQuery(queryInput.trim());
+  };
+  const clearSearch = () => {
+    setQueryInput("");
+    setSubmittedQuery("");
+  };
+  const selected = resolveCurationSelection(filteredJobs, selectedId);
   const detailForSelection = Boolean(selected) && detailJobId === selected.id;
   const detailReady = detailForSelection && detailStatus === "ready";
   const detailFailed = detailForSelection && detailStatus === "error";
@@ -237,10 +261,12 @@ export function CurationQueue({ profile, includeRejected = false }) {
     const generation = ++generationRef.current;
     setScopeLoadingMore(true);
     setError("");
+    setQueueLoadError("");
     try {
       const data = await loadCurationQueue({ scope, page: page + 1, forceRefresh: true });
       if (generation !== generationRef.current) return;
       setError("");
+      setQueueLoadError("");
       if (isRejected) {
         setRejected((current) => mergeById(current, data.rejected));
         setRejectedHasNext(Boolean(data.hasNext));
@@ -251,6 +277,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     } catch (err) {
       if (generation !== generationRef.current) return;
       setError(err.message);
+      setQueueLoadError(err.message || "Não foi possível carregar a fila de curadoria.");
     } finally {
       if (generation === generationRef.current) setScopeLoadingMore(false);
     }
@@ -259,6 +286,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const run = async (action, successMessage, afterSuccess) => {
     setBusy(true);
     setError("");
+    setQueueLoadError("");
     setMessage("");
     try {
       await action();
@@ -288,6 +316,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
     setReviewError("");
     setReviewMessage("");
     setError("");
+    setQueueLoadError("");
     setMessage("");
     try {
       await submitCurationReview({
@@ -332,8 +361,36 @@ export function CurationQueue({ profile, includeRejected = false }) {
       {error && (
         <div className="form-alert" role="alert">
           {error}
+          {queueLoadError ? <button type="button" className="outline small" onClick={() => setReloadToken((value) => value + 1)}>Tentar novamente</button> : null}
         </div>
       )}
+      {filterOpen ? (
+        <FilterSheet open onClose={() => setFilterOpen(false)} resultCount={filteredJobs.length} titleId="curation-filters-title">
+          <div className="filter-head">
+            <h2 id="curation-filters-title"><Filter size={18} /> Filtros</h2>
+            <button type="button" onClick={() => setView("pending")}>Limpar</button>
+          </div>
+          <div className="filters__body">
+            <div className="filter-group">
+              <h3>Status</h3>
+              <div className="admin-jobs-status" role="group" aria-label="Status da curadoria">
+                <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => setView("pending")}>Pendentes</button>
+                {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => setView("rejected")}>Rejeitadas</button> : null}
+              </div>
+            </div>
+          </div>
+        </FilterSheet>
+      ) : null}
+      <AdminListSearch
+        className="curation-list-search"
+        id="curation-list-search-query"
+        value={queryInput}
+        onChange={setQueryInput}
+        onSubmit={applySearch}
+        onClear={clearSearch}
+        label="Buscar na fila de curadoria"
+        placeholder="Título ou empresa"
+      />
       <div className="curation-workspace__filters" role="group" aria-label="Visão da curadoria">
         <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => { setView("pending"); setSelectedId(""); setDetailOpen(false); setShowReview(false); }}>
           Pendentes <span>{queue.length}</span>
@@ -342,6 +399,9 @@ export function CurationQueue({ profile, includeRejected = false }) {
           Rejeitadas{rejectedStatus === "ready" ? <> <span>{rejected.length}</span></> : null}
         </button> : null}
       </div>
+      <button className="filter-mobile curation-filter-mobile" type="button" aria-expanded={filterOpen} onClick={() => setFilterOpen(true)}>
+        <Filter size={16} /> Filtros {view !== "pending" ? <b>1</b> : null}
+      </button>
       <div className={`curation-workspace${detailOpen ? " curation-workspace--detail-open" : ""}`}>
       <section
         className="curation-workspace__queue"
@@ -356,7 +416,13 @@ export function CurationQueue({ profile, includeRejected = false }) {
         {visibleJobs.length === 0 && !queueLoading ? (
           <p role="status">{view === "pending" ? "Nenhuma vaga pendente nesta fila." : "Nenhuma vaga rejeitada para reenvio."}</p>
         ) : null}
-        {visibleJobs.map((job) => (
+        {visibleJobs.length > 0 && filteredJobs.length === 0 && !queueLoading ? (
+          <div className="admin-jobs-list-panel__empty" role="status">
+            <p>Nenhuma vaga corresponde à busca.</p>
+            <button type="button" className="ghost small" onClick={clearSearch}>Limpar busca</button>
+          </div>
+        ) : null}
+        {filteredJobs.map((job) => (
           <div key={job.id} className="curation-workspace__queue-item">
             <button
               type="button"
@@ -368,6 +434,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
                 setShowReview(false);
                 setMessage("");
                 setError("");
+                setQueueLoadError("");
                 setReviewMessage("");
                 setReviewError("");
                 setPriorityReason("");
@@ -382,6 +449,9 @@ export function CurationQueue({ profile, includeRejected = false }) {
             </button>
           </div>
         ))}
+        {(view === "pending" ? pendingHasNext : rejectedHasNext) && query ? (
+          <p className="filter-hint">A busca considera apenas as vagas já carregadas.</p>
+        ) : null}
         {(view === "pending" ? pendingHasNext : rejectedHasNext) ? (
           <div className="admin-jobs-more">
             <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || (view === "pending" ? loading : rejectedStatus === "loading")}>

@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { Filter, Search } from "lucide-react";
+import { Filter } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
+import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
 import {
   ADMIN_JOB_PAGE_SIZE,
   ADMIN_JOB_SORT_OLDEST,
@@ -160,6 +161,11 @@ export function AdminJobsRoute() {
     commitFilters({ query: queryInput, page: 1 });
   };
 
+  const clearQuery = () => {
+    setQueryInput("");
+    commitFilters({ query: "", page: 1 });
+  };
+
   const loadMore = () => {
     if (loadingMore || listStatus !== "ready" || !hasNext) return;
     commitFilters({ page: filters.page + 1 });
@@ -223,20 +229,15 @@ export function AdminJobsRoute() {
         </div>
       </FilterSheet>
 
-      <form className="searchbox admin-jobs-searchbox" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
-        <Search size={21} aria-hidden="true" />
-        <input
-          id="admin-jobs-query"
-          name="q"
-          value={queryInput}
-          onChange={(event) => setQueryInput(event.target.value)}
-          placeholder="Título ou empresa"
-          aria-label="Título ou empresa"
-        />
-        <button className="primary" type="submit">
-          Buscar
-        </button>
-      </form>
+      <AdminListSearch
+        id="admin-jobs-query"
+        value={queryInput}
+        onChange={setQueryInput}
+        onSubmit={applyQuery}
+        onClear={clearQuery}
+        label="Buscar vagas na gestão"
+        placeholder="Título ou empresa"
+      />
 
       {error ? (
         <div className="form-alert" role="alert">

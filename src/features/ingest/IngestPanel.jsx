@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Filter } from "lucide-react";
 import {
   HOMOLOG_MANUAL_FIXTURE,
   describeIngestionOutcome,
@@ -13,6 +14,24 @@ import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 import { mergeById } from "../../lib/merge-by-id.js";
 import { AdminPanelShimmer } from "../../shared/ui/AdminPanelShimmer.jsx";
 import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
+import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
+import { useDebouncedValue } from "../../shared/ui/useDebouncedValue.js";
+import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
+
+const INGESTION_STATUS_FILTERS = [
+  ["all", "Todos os status"],
+  ["registered", "Registrada"],
+  ["materialized", "Materializada"],
+  ["idempotent", "Já processada"],
+  ["failed", "Falha"],
+  ["expired", "Expirada"],
+  ["duplicate_010", "Duplicata 010"],
+];
+
+function ingestionStatusValue(row) {
+  if (isIngestionExpired(row?.expires_at)) return "expired";
+  return row?.latest_outcome || latestIngestionAttempt(row)?.outcome || "registered";
+}
 
 const emptyForm = {
   locator: HOMOLOG_MANUAL_FIXTURE.locator,
@@ -85,7 +104,54 @@ export function IngestPanel() {
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailStatus, setDetailStatus] = useState("idle");
+  const [queryInput, setQueryInput] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const query = useDebouncedValue(submittedQuery).trim().toLocaleLowerCase("pt-BR");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [filterOpen, setFilterOpen] = useState(false);
   const listRow = rows.find((row) => row.id === selectedId) ?? null;
+  const filteredRows = useMemo(() => rows.filter((row) => {
+    if (statusFilter !== "all" && ingestionStatusValue(row) !== statusFilter) return false;
+    if (sourceFilter !== "all" && row.source_kind !== sourceFilter) return false;
+    if (!query) return true;
+    const searchable = `${ingestionListTitle(row)} ${row.normalized_locator ?? ""} ${row.source_kind ?? ""} ${ingestionListStatus(row)}`;
+    return searchable.toLocaleLowerCase("pt-BR").includes(query);
+  }), [query, rows, sourceFilter, statusFilter]);
+  const activeFilterCount = Number(statusFilter !== "all") + Number(sourceFilter !== "all");
+  const resetFilters = () => {
+    setStatusFilter("all");
+    setSourceFilter("all");
+    setQueryInput("");
+    setSubmittedQuery("");
+  };
+  const applySearch = (event) => {
+    event.preventDefault();
+    setSubmittedQuery(queryInput.trim());
+  };
+  const clearSearch = () => {
+    setQueryInput("");
+    setSubmittedQuery("");
+  };
+
+  const renderFilterControls = (suffix) => (
+    <>
+      <label className="admin-jobs-sort" htmlFor={`ingest-status-filter-${suffix}`}>
+        Status
+        <select id={`ingest-status-filter-${suffix}`} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          {INGESTION_STATUS_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </label>
+      <label className="admin-jobs-sort" htmlFor={`ingest-source-filter-${suffix}`}>
+        Fonte
+        <select id={`ingest-source-filter-${suffix}`} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
+          <option value="all">Todas as fontes</option>
+          {SOURCE_KINDS.MANUAL_FIXTURE ? <option value={SOURCE_KINDS.MANUAL_FIXTURE}>Fixture manual</option> : null}
+          {SOURCE_KINDS.STAFF_REPLAY ? <option value={SOURCE_KINDS.STAFF_REPLAY}>Reprocessamento interno</option> : null}
+        </select>
+      </label>
+    </>
+  );
 
   const field = (name) => (event) => {
     setForm((current) => ({ ...current, [name]: event.target.value }));
@@ -338,12 +404,33 @@ export function IngestPanel() {
       </form>
       ) : null}
       {view === "list" ? (
+        <>
+        {filterOpen ? (
+          <FilterSheet open onClose={() => setFilterOpen(false)} resultCount={filteredRows.length} titleId="ingest-filters-title">
+            <div className="filter-head">
+              <h2 id="ingest-filters-title"><Filter size={18} /> Filtros</h2>
+              <button type="button" onClick={resetFilters}>Limpar</button>
+            </div>
+            <div className="filters__body">
+              <div className="filter-group admin-ingest__filter-controls">{renderFilterControls("mobile")}</div>
+            </div>
+          </FilterSheet>
+        ) : null}
+        <AdminListSearch id="ingest-list-search-query" value={queryInput} onChange={setQueryInput} onSubmit={applySearch} onClear={clearSearch} label="Buscar ingestões" placeholder="Título, localizador ou fonte" />
+        <div className="admin-jobs-toolbar-row admin-jobs-toolbar--desktop admin-ingest__toolbar">
+          {renderFilterControls("desktop")}
+        </div>
         <section
           className="admin-ingest__list"
           aria-label="Ingestões registradas"
           aria-busy={loading || loadingMore ? "true" : undefined}
         >
-        <h2>Registros <span className="admin-ingest__count">{!loading && !error ? rows.length : ""}</span></h2>
+        <div className="result-head admin-jobs-result-head">
+          <div><h2>Registros</h2><p className="admin-jobs-count" aria-live="polite">{!loading && !error ? `${filteredRows.length} de ${rows.length} carregadas` : ""}</p></div>
+          <button className="filter-mobile" type="button" aria-expanded={filterOpen} onClick={() => setFilterOpen(true)}>
+            <Filter size={16} /> Filtros {activeFilterCount > 0 ? <b>{activeFilterCount}</b> : null}
+          </button>
+        </div>
         {loading ? (
           <>
             <p className="sr-only" role="status">Carregando ingestões…</p>
@@ -353,8 +440,14 @@ export function IngestPanel() {
         {!loading && rows.length === 0 && !error ? (
           <p role="status">Nenhuma ingestão registrada.</p>
         ) : null}
+        {!loading && rows.length > 0 && filteredRows.length === 0 ? (
+          <div className="admin-jobs-list-panel__empty" role="status">
+            <p>Nenhuma ingestão corresponde à busca e aos filtros.</p>
+            <button type="button" className="ghost small" onClick={resetFilters}>Limpar busca e filtros</button>
+          </div>
+        ) : null}
         {error ? <button type="button" className="outline small" onClick={() => { void refresh(); }}>Tentar novamente</button> : null}
-        {rows.map((row) => (
+        {filteredRows.map((row) => (
             <div key={row.id} className="admin-ingest__row">
               <div>
                 <strong>{ingestionListTitle(row)}</strong>
@@ -368,12 +461,14 @@ export function IngestPanel() {
         ))}
         {hasNext ? (
           <div className="admin-jobs-more">
+            {(query || activeFilterCount > 0) ? <p className="filter-hint">Busca e filtros consideram apenas as ingestões já carregadas.</p> : null}
             <button type="button" className="outline" onClick={() => { void refresh({ append: true, nextPage: page + 1 }); }} disabled={loadingMore}>
               {loadingMore ? "Carregando…" : "Carregar mais"}
             </button>
           </div>
         ) : null}
       </section>
+        </>
       ) : null}
       {view === "detail" && selectedId ? (
         <section

@@ -373,7 +373,7 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       <div className="shell admin-shell">
         <AdminNav profile={profile} />
         <section className="admin-content">
-          <Outlet context={{ profile }} />
+          <Outlet context={{ profile, session }} />
         </section>
       </div>
     </main>

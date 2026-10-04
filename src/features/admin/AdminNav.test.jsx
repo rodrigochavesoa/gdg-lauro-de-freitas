@@ -12,18 +12,24 @@ function renderNav(role, path = "/admin") {
 describe("AdminNav Sprint 20A", () => {
   beforeEach(() => window.localStorage.clear());
 
-  it("admin tem os cinco destinos e o ativo é anunciado", () => {
+  it("admin tem os seis destinos e o ativo é anunciado", () => {
     const nav = renderNav("admin", "/admin/ingestao");
-    expect(within(nav).getAllByRole("link")).toHaveLength(5);
+    expect(within(nav).getAllByRole("link")).toHaveLength(6);
     expect(within(nav).getByRole("link", { name: "Ingestão" })).toHaveAttribute("aria-current", "page");
     expect(within(nav).getByRole("link", { name: "Vagas" })).not.toHaveAttribute("aria-current");
   });
 
-  it("curator não recebe destinos exclusivos do admin", () => {
+  it("curator recebe Comunidade, mas não destinos exclusivos do admin", () => {
     const nav = renderNav("curator", "/admin/curadoria");
-    expect(within(nav).getAllByRole("link")).toHaveLength(2);
+    expect(within(nav).getAllByRole("link")).toHaveLength(3);
+    expect(within(nav).getByRole("link", { name: "Comunidade" })).toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Ingestão" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Curadoria" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("Comunidade fica ativa em lista e detalhe dentro do shell admin", () => {
+    const nav = renderNav("moderator", "/admin/comunidade/member-1");
+    expect(within(nav).getByRole("link", { name: "Comunidade" })).toHaveAttribute("aria-current", "page");
   });
 
   it("em Nova vaga não marca Vagas como seção ativa", () => {
