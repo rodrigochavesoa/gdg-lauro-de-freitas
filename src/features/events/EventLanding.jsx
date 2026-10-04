@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowUpRight, CalendarDays, MapPin } from "lucide-react";
 import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import { useNavigate } from "react-router-dom";
+import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
 
 function isExternalHttp(href) {
   return href.startsWith("http://") || href.startsWith("https://");
@@ -16,9 +17,12 @@ export function EventLanding({ event }) {
       <section className="hero">
         <div className="shell hero-content">
           <div className={`event-banner-wrap event-banner-wrap--seamless${portrait ? " event-banner-wrap--wide" : ""}`}>
-            <img
+            <ResponsiveAssetImage
               className={portrait ? "event-banner event-banner--portrait" : "event-banner"}
               src={event.banner.src}
+              sourceBase={event.banner.optimizedBase}
+              sourceWidths={event.banner.optimizedWidths}
+              sizes="(max-width: 720px) 100vw, 720px"
               alt={event.banner.alt}
               width={event.banner.width}
               height={event.banner.height}
@@ -99,7 +103,7 @@ export function EventLanding({ event }) {
               alt={event.organizer.logoAlt}
               width={48}
               height={48}
-              loading="eager"
+              loading="lazy"
               decoding="async"
             />
             <p>{event.organizer.name}</p>

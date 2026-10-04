@@ -8,6 +8,8 @@ export const DEVFEST_2026 = {
   location: "SENAI Lauro de Freitas — Lauro de Freitas — Bahia — Brasil",
   banner: {
     src: "/events/1788886782636.png",
+    optimizedBase: "/events/1788886782636",
+    optimizedWidths: [320, 640, 1280],
     alt: "DevFest Lauro de Freitas 2026",
     width: 1280,
     height: 720,

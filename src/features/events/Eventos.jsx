@@ -24,6 +24,7 @@ import {
   sortEvents,
 } from "../../lib/filter-events.js";
 import { EVENTS_INDEX, EVENT_SUMMARIES } from "./events-catalog.js";
+import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
 
 const FORMAT_FILTERS = ["Presencial", "Híbrido", "Online"];
 const POPULAR_QUERIES = [
@@ -99,7 +100,18 @@ export function EventosIndex({ logged = false }) {
         <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
           <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
         </svg>
-        <img className="home-divider__avatar" src="/avatar-eventos-lgbtqia.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
+        <ResponsiveAssetImage
+          className="home-divider__avatar"
+          src="/avatar-eventos-lgbtqia.png"
+          sourceBase="/avatar-eventos-lgbtqia"
+          sourceWidths={[480, 768]}
+          sizes="(max-width: 760px) min(42vw, 148px), (max-width: 1024px) min(34vw, 220px), 280px"
+          alt=""
+          width={1365}
+          height={1152}
+          loading="eager"
+          decoding="async"
+        />
       </div>
       <section className="shell jobs-layout">
         <FilterSheet
@@ -142,8 +154,8 @@ export function EventosIndex({ logged = false }) {
             <SortMenu value={sortOrder} onChange={setSortOrder} />
           </div>
           <div className="cards events-index__cards">
-            {visibleEvents.map((event) => (
-              <EventIndexCard key={event.slug} event={event} />
+            {visibleEvents.map((event, index) => (
+              <EventIndexCard key={event.slug} event={event} eager={index === 0} />
             ))}
             {visibleEvents.length === 0 && (
               <div className="empty">
@@ -174,19 +186,23 @@ export function EventosIndex({ logged = false }) {
   );
 }
 
-function EventIndexCard({ event }) {
+function EventIndexCard({ event, eager }) {
   const status = getEventStatus(event);
 
   return (
     <article className="job-card event-index-card">
       <div className="event-index-card__thumb-wrap">
-        <img
+        <ResponsiveAssetImage
           className="event-index-card__thumb"
           src={event.bannerThumb}
+          sourceBase={event.bannerThumbBase}
+          sourceWidths={event.bannerThumbWidths}
+          sizes="(max-width: 640px) 100vw, 640px"
           alt=""
           width={event.bannerWidth}
           height={event.bannerHeight}
-          loading="eager"
+          loading={eager ? "eager" : "lazy"}
+          fetchPriority={eager ? "high" : undefined}
           decoding="async"
         />
       </div>

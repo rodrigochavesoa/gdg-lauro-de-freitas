@@ -8,6 +8,8 @@ export const DEVOPSDAYS_SALVADOR_2026 = {
   location: "Auditório da UCSAL (Universidade Católica do Salvador) — Av. Prof. Pinto de Aguiar, 2589, Pituaçu — Salvador — Bahia — Brasil",
   banner: {
     src: "/events/d570782909129eef51789263259b10a0.1170x5000.png",
+    optimizedBase: "/events/d570782909129eef51789263259b10a0.1170x5000",
+    optimizedWidths: [320, 640, 1170],
     alt: "DevOpsDays Salvador 2026",
     width: 1170,
     height: 312,

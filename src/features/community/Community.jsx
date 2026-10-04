@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Link, useParams } from "react-router-dom";
 import { ArrowUp, ArrowUpRight, BriefcaseBusiness, ChevronDown, Filter, Globe, MapPin, Network, Search, Users } from "lucide-react";
 import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
+import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
+import { isCandidateProfile } from "../auth/profile-completeness.js";
+import { isStaffRole } from "../admin/staff-access.js";
 import {
   COMMUNITY_LEVEL_FILTER_OPTIONS,
   COMMUNITY_WORK_MODEL_FILTER_OPTIONS,
@@ -93,10 +96,12 @@ export function CommunityRoute({ auth, authReady }) {
   if (!authReady || (auth.session && !auth.profile)) return <CommunityPending />;
   if (!auth.session) return <Navigate to="/login" replace />;
   if (auth.needsOnboarding) return <Navigate to="/onboarding" replace />;
+  const canManagePublication = isCandidateProfile(auth.profile) && !isStaffRole(auth.profile?.role);
   return (
     <CommunityPage
       key={auth.session.user.id}
       userId={auth.session.user.id}
+      canManagePublication={canManagePublication}
     />
   );
 }
@@ -275,8 +280,30 @@ function CommunityBrowseWaveDivider() {
       <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
         <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
       </svg>
-      <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
-      <img className="home-divider__avatar home-divider__avatar--secondary" src="/avatar-eventos-lgbtqia.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
+      <ResponsiveAssetImage
+        className="home-divider__avatar"
+        src="/avatar-gdgjobs.png"
+        sourceBase="/avatar-gdgjobs"
+        sourceWidths={[480, 768]}
+        sizes="(max-width: 760px) min(42vw, 148px), (max-width: 1024px) min(34vw, 220px), 280px"
+        alt=""
+        width={1169}
+        height={987}
+        loading="lazy"
+        decoding="async"
+      />
+      <ResponsiveAssetImage
+        className="home-divider__avatar home-divider__avatar--secondary"
+        src="/avatar-eventos-lgbtqia.png"
+        sourceBase="/avatar-eventos-lgbtqia"
+        sourceWidths={[480, 768]}
+        sizes="(max-width: 760px) min(42vw, 148px), (max-width: 1024px) min(34vw, 220px), 280px"
+        alt=""
+        width={1365}
+        height={1152}
+        loading="lazy"
+        decoding="async"
+      />
     </div>
   );
 }
@@ -524,7 +551,7 @@ function CommunityProfileCard({ profile, eagerAvatar = false }) {
   );
 }
 
-function CommunityPage({ userId }) {
+function CommunityPage({ userId, canManagePublication }) {
   const { publicId } = useParams();
   const [publication, setPublication] = useState(null);
   const [profiles, setProfiles] = useState([]);
@@ -581,12 +608,14 @@ function CommunityPage({ userId }) {
       setError("");
       setDetail(null);
       try {
-        const status = await loadMyCommunityPublicationStatus();
-        if (!active) return;
-        setPublication(status);
-        if (status.reasonCode === "approval_pending") {
-          setPageState("unavailable");
-          return;
+        if (canManagePublication) {
+          const status = await loadMyCommunityPublicationStatus();
+          if (!active) return;
+          setPublication(status);
+          if (status.reasonCode === "approval_pending") {
+            setPageState("unavailable");
+            return;
+          }
         }
         if (publicId) {
           const profile = await loadCommunityProfile(publicId);
@@ -609,9 +638,10 @@ function CommunityPage({ userId }) {
     };
     run();
     return () => { active = false; };
-  }, [userId, publicId, reloadToken]);
+  }, [userId, publicId, reloadToken, canManagePublication]);
 
   const onPublicationChange = async (event) => {
+    if (!canManagePublication) return;
     const enabled = event.target.checked;
     setBusy(true);
     setError("");
@@ -633,7 +663,7 @@ function CommunityPage({ userId }) {
     }
   };
 
-  const showShareOnboarding = Boolean(publication?.canPublish && !publication?.published);
+  const showShareOnboarding = Boolean(canManagePublication && publication?.canPublish && !publication?.published);
 
   const loadMore = async () => {
     if (!nextCursor || busy) return;
@@ -675,9 +705,9 @@ function CommunityPage({ userId }) {
         {pageState === "loading" ? (publicId ? <CommunityLoadingSkeleton detail /> : <CommunityPageShellSkeleton />) : null}
         {pageState === "loading-list" ? (
           <>
-            {showShareOnboarding ? (
+            {canManagePublication ? (showShareOnboarding ? (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
-            ) : publication?.published ? <CommunityPublishedBanner /> : null}
+            ) : publication?.published ? <CommunityPublishedBanner /> : null) : null}
             <CommunityBrowseToolbar
               filtersOpen={browseFiltersOpen}
               activeFilterCount={browseActiveFilterCount}
@@ -715,13 +745,13 @@ function CommunityPage({ userId }) {
         ) : null}
         {pageState === "list" || pageState === "empty" ? (
           <>
-            {showShareOnboarding ? (
+            {canManagePublication ? (showShareOnboarding ? (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
             ) : publication?.published ? (
               <CommunityPublishedBanner />
             ) : (
               <CommunitySharePanel publication={publication} busy={busy} onPublicationChange={onPublicationChange} />
-            )}
+            )) : null}
             {error ? <p className="community-inline-error" role="alert">{error}</p> : null}
             <CommunityBrowseToolbar
               filtersOpen={browseFiltersOpen}
