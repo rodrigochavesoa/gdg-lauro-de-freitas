@@ -14,14 +14,15 @@ import { resolve } from "node:path";
 import { loadLocalEnv } from "./measure-env.mjs";
 import { attachObservers, livePageError } from "./measure-observe.mjs";
 import { documentMayStoreSession, measurePreflightError, measureRuns } from "./measure-target.mjs";
-import {
-  COMMUNITY_EAGER_AVATAR_CARDS,
-  COMMUNITY_PAGE_SIZE,
-  COMMUNITY_READ_BUDGET_PER_MINUTE,
-  estimateListVisitBudget,
-  estimatePrefetchWaves,
-  classifyBudgetRisk,
-} from "./lib/community-avatar-budget.mjs";
+import { createCommunityAvatarRecorder, installAvatarBrowserMetrics } from "./lib/community-avatar-metrics.mjs";
+
+let safeStage = "preflight";
+const failSanitized = () => {
+  console.error(`Falha na medição (${safeStage}); detalhes técnicos foram omitidos para proteger dados de teste.`);
+  process.exit(1);
+};
+process.on("uncaughtException", failSanitized);
+process.on("unhandledRejection", failSanitized);
 
 function loadCandidateUser() {
   const file = resolve(process.cwd(), "docs-local/candidate-test-user.md");
@@ -42,34 +43,6 @@ function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-function p95(values) {
-  if (!values.length) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const idx = Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1);
-  return sorted[idx];
-}
-
-function redactUrl(url) {
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return String(url).split("?")[0];
-  }
-}
-
-function classifyRequest(url) {
-  const path = redactUrl(url);
-  if (path.includes("/functions/v1/community-avatar")) return "communityAvatarProxy";
-  if (path.includes("/rest/v1/rpc/list_community_profiles")) return "rpcList";
-  if (path.includes("/rest/v1/rpc/get_community_feature_status")) return "rpcStatus";
-  if (path.includes("/rest/v1/rpc/get_community_profile")) return "rpcDetail";
-  if (/\/storage\/v1\/object\//i.test(path) && !path.includes("/functions/v1/community-avatar")) {
-    return "storageDirect";
-  }
-  return null;
 }
 
 const env = { ...loadLocalEnv(), ...process.env };
@@ -113,51 +86,12 @@ async function signInCandidateSession() {
   });
   const { data, error } = await client.auth.signInWithPassword({ email, password });
   if (error || !data.session) {
-    throw new Error(`login candidato falhou: ${error?.message || "sem sessão"}`);
+    throw new Error("login de teste não concluído");
   }
   const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
   return {
     storageKey: `sb-${projectRef}-auth-token`,
     session: data.session,
-  };
-}
-
-function createTrafficRecorder() {
-  const rows = [];
-  return {
-    rows,
-    onResponse(response) {
-      const kind = classifyRequest(response.url());
-      if (!kind) return;
-      const timing = response.request().timing();
-      rows.push({
-        kind,
-        status: response.status(),
-        ms: timing?.responseEnd > 0 ? timing.responseEnd : null,
-        at: Date.now(),
-      });
-    },
-    snapshot() {
-      const byKind = {};
-      for (const row of rows) {
-        byKind[row.kind] = (byKind[row.kind] ?? 0) + 1;
-      }
-      const proxyLatencies = rows
-        .filter((r) => r.kind === "communityAvatarProxy" && r.status === 200 && Number.isFinite(r.ms))
-        .map((r) => r.ms);
-      return {
-        total: rows.length,
-        byKind,
-        proxyLatencyMs: {
-          count: proxyLatencies.length,
-          median: median(proxyLatencies),
-          p95: p95(proxyLatencies),
-        },
-      };
-    },
-    reset() {
-      rows.length = 0;
-    },
   };
 }
 
@@ -208,30 +142,41 @@ async function injectSession(page, sessionPack) {
   await page.reload({ waitUntil: "domcontentloaded" });
 }
 
+safeStage = "inicialização do navegador";
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 const page = await context.newPage();
 const foreignTraffic = { foreign: [], networkErrors: [], opsEvents: [] };
 const foreignError = attachObservers(page, foreignTraffic);
-const recorder = createTrafficRecorder();
+const recorder = createCommunityAvatarRecorder();
+let activePhase = null;
+page.addInitScript(installAvatarBrowserMetrics);
+page.on("request", (request) => recorder.onRequest(request, activePhase));
 page.on("response", (response) => recorder.onResponse(response));
+page.on("requestfailed", (request) => recorder.onRequestFailed(request));
+async function beginPhase(run, name) {
+  activePhase = { run, name };
+  await page.evaluate((phase) => {
+    sessionStorage.setItem("__gdgAvatarMetricsPhase", JSON.stringify(phase));
+    globalThis.__gdgAvatarMetrics?.setPhase?.(phase);
+  }, activePhase).catch(() => {});
+  // Ensure the next document can attribute object URL and decode events to this phase.
+  await page.evaluate((phase) => globalThis.__gdgAvatarMetrics?.setPhase?.(phase), activePhase).catch(() => {});
+  return { run, name };
+}
 
+async function collectBrowserEvents() {
+  try {
+    const events = await page.evaluate(() => globalThis.__gdgAvatarMetrics?.takeEvents?.() || []);
+    for (const event of events) recorder.recordBrowserEvent(event);
+  } catch {
+    // Keep capture failures generic and exclude browser-provided details.
+  }
+}
+
+safeStage = "login";
 const sessionPack = await signInCandidateSession();
-const probeClient = createClient(supabaseUrl, supabaseKey, {
-  auth: { persistSession: false, autoRefreshToken: false },
-});
-await probeClient.auth.setSession({
-  access_token: sessionPack.session.access_token,
-  refresh_token: sessionPack.session.refresh_token,
-});
-const { data: probeList } = await probeClient.rpc("list_community_profiles", { p_limit: 24 });
-const homologBackendProbe = {
-  publishedProfiles: Array.isArray(probeList) ? probeList.length : null,
-  profilesWithAvatarFlag: Array.isArray(probeList)
-    ? probeList.filter((row) => row.avatar_available === true).length
-    : null,
-};
-
+safeStage = "sessão local";
 await injectSession(page, sessionPack);
 if (foreignError()) {
   console.error(foreignError());
@@ -241,16 +186,18 @@ if (foreignError()) {
 
 const scenarios = [];
 
+safeStage = "medição das rotas";
 for (let run = 0; run < runs; run += 1) {
-  recorder.reset();
+  const coldPhase = await beginPhase(run + 1, "list");
   const coldStart = Date.now();
   await page.goto(`${baseUrl}/comunidade`, { waitUntil: "domcontentloaded" });
   const listReadyMs = await waitForCommunityReady(page);
   const avatarSettle = await waitForAvatarsSettled(page);
   const uiCold = await countAvatarUiState(page);
-  const trafficCold = recorder.snapshot();
+  await collectBrowserEvents();
+  const trafficCold = coldPhase;
 
-  recorder.reset();
+  const detailPhase = await beginPhase(run + 1, "detail");
   const detailStart = Date.now();
   const firstProfile = page.locator(".community-person-card__cta").first();
   let detailMs = null;
@@ -262,25 +209,28 @@ for (let run = 0; run < runs; run += 1) {
     await waitForAvatarsSettled(page, 15_000);
     detailUi = await countAvatarUiState(page);
   }
-  const trafficDetail = recorder.snapshot();
+  await collectBrowserEvents();
+  const trafficDetail = detailPhase;
 
-  recorder.reset();
+  const backPhase = await beginPhase(run + 1, "backToList");
   await page.getByRole("link", { name: /voltar à comunidade/i }).click().catch(async () => {
     await page.goto(`${baseUrl}/comunidade`, { waitUntil: "domcontentloaded" });
   });
   await waitForCommunityReady(page);
   const backSettle = await waitForAvatarsSettled(page);
   const uiBack = await countAvatarUiState(page);
-  const trafficBack = recorder.snapshot();
+  await collectBrowserEvents();
+  const trafficBack = backPhase;
 
-  recorder.reset();
+  const revisitPhase = await beginPhase(run + 1, "leaveAndReturn");
   await page.goto(`${baseUrl}/vagas`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(300);
   await page.goto(`${baseUrl}/comunidade`, { waitUntil: "domcontentloaded" });
   const revisitReadyMs = await waitForCommunityReady(page);
   const revisitSettle = await waitForAvatarsSettled(page);
   const uiRevisit = await countAvatarUiState(page);
-  const trafficRevisit = recorder.snapshot();
+  await collectBrowserEvents();
+  const trafficRevisit = revisitPhase;
 
   scenarios.push({
     run: run + 1,
@@ -302,54 +252,45 @@ for (let run = 0; run < runs; run += 1) {
   });
 }
 
+await new Promise((resolve) => setTimeout(resolve, 100));
+await collectBrowserEvents();
 await browser.close();
 
+for (const scenario of scenarios) {
+  scenario.cold.traffic = recorder.snapshot(scenario.cold.traffic);
+  scenario.detail.traffic = recorder.snapshot(scenario.detail.traffic);
+  scenario.backToList.traffic = recorder.snapshot(scenario.backToList.traffic);
+  scenario.leaveAndReturn.traffic = recorder.snapshot(scenario.leaveAndReturn.traffic);
+}
+
+const countKind = (traffic, kind) => traffic?.requests?.filter((row) => row.kind === kind).length ?? 0;
 const lastCold = scenarios.at(-1)?.cold ?? {};
 const avatarsWithPhoto = lastCold.ui?.withImg ?? 0;
 const cards = lastCold.ui?.cards ?? 0;
-const avatarSlots = Math.max(
-  avatarsWithPhoto + (lastCold.ui?.loading ?? 0),
-  lastCold.traffic?.byKind?.communityAvatarProxy ?? 0,
-);
-const theoretical = estimateListVisitBudget({
-  profilesOnPage: cards || COMMUNITY_PAGE_SIZE,
-  withAvatars: avatarSlots || (cards > 0 ? cards : 0),
-});
-const prefetchWaves = estimatePrefetchWaves(theoretical.avatarProxies);
-const coldProxyCount = lastCold.traffic?.byKind?.communityAvatarProxy ?? 0;
-const revisitProxyCount = scenarios.at(-1)?.leaveAndReturn?.traffic?.byKind?.communityAvatarProxy ?? 0;
+const coldProxyCount = countKind(lastCold.traffic, "avatarGet");
+const revisitProxyCount = countKind(scenarios.at(-1)?.leaveAndReturn?.traffic, "avatarGet");
 
 const report = {
-  measuredAt: new Date().toISOString(),
-  baseUrl,
-  supabaseHost: new URL(supabaseUrl).hostname,
-  homologBackendProbe,
   runs,
-  model: {
-    readBudgetPerMinute: COMMUNITY_READ_BUDGET_PER_MINUTE,
-    pageSize: 24,
-    prefetchConcurrency: 6,
-    eagerAvatarCards: COMMUNITY_EAGER_AVATAR_CARDS,
-    theoreticalFirstListVisit: theoretical,
-    prefetchWaves,
-    budgetRiskFirstVisit: classifyBudgetRisk(theoretical.total),
-    note:
-      "Cada proxy community-avatar conta 1 leitura no orçamento (RPC interna). Prefetch limita paralelismo, não o total.",
-  },
   indicators: {
     cardsOnPage: cards,
     avatarsRenderedCold: avatarsWithPhoto,
     avatarProxyRequestsCold: coldProxyCount,
     avatarProxyRequestsAfterLeaveCommunity: revisitProxyCount,
-    storageDirectRequests: scenarios.flatMap((s) => [
-      s.cold?.traffic?.byKind?.storageDirect ?? 0,
-      s.leaveAndReturn?.traffic?.byKind?.storageDirect ?? 0,
-    ]).reduce((a, b) => a + b, 0),
-    medianAvatarProxyLatencyMs: median(
-      scenarios.flatMap((s) =>
-        (s.cold?.traffic?.proxyLatencyMs?.median != null ? [s.cold.traffic.proxyLatencyMs.median] : []),
-      ),
-    ),
+    storageDirectRequests: scenarios.flatMap((s) => [s.cold, s.detail, s.backToList, s.leaveAndReturn])
+      .flatMap((phase) => phase.traffic.requests)
+      .filter((row) => row.kind === "storageDirect").length,
+    medianAvatarGetHeadersMs: median(scenarios.flatMap((s) =>
+      s.cold.traffic.requests.filter((row) => row.kind === "avatarGet" && row.status === "ok" && row.durationMs != null)
+        .map((row) => row.durationMs),
+    )),
+    medianAvatarBlobConsumeMs: median(scenarios.flatMap((s) =>
+      s.cold.traffic.requests.filter((row) => row.kind === "avatarBlobBody" && row.status === "ok" && row.bodyDurationMs != null)
+        .map((row) => row.bodyDurationMs),
+    )),
+    avatarGetBodyBytes: scenarios.flatMap((s) => s.cold.traffic.requests)
+      .filter((row) => row.kind === "avatarBlobBody" && row.bodyBytes != null)
+      .map((row) => row.bodyBytes),
     medianListReadyMs: median(scenarios.map((s) => s.cold.listReadyMs)),
     medianAvatarSettleMs: median(scenarios.map((s) => s.cold.avatarSettleMs)),
     medianRevisitAvatarSettleMs: median(scenarios.map((s) => s.leaveAndReturn.avatarSettleMs)),
@@ -358,24 +299,19 @@ const report = {
   scenarios,
 };
 
+safeStage = "gravação do relatório sanitizado";
 const jsonPath = resolve(outDir, "latest.json");
 writeFileSync(jsonPath, `${JSON.stringify(report, null, 2)}\n`);
 
 const lines = [
   "UX-COMMUNITY-AVATARS — indicadores",
-  `amostras: ${runs} | origem: ${baseUrl} | backend: ${report.supabaseHost}`,
-  "",
-  "Modelo (1ª visita à lista, pior caso com prefetch de todos os avatares da página):",
-  `  RPC status+lista: ${theoretical.listRpc} | proxies avatar: ${theoretical.avatarProxies} | total: ${theoretical.total}/${COMMUNITY_READ_BUDGET_PER_MINUTE} (${classifyBudgetRisk(theoretical.total)})`,
-  `  ondas de prefetch (6 workers): ${prefetchWaves.waves}`,
-  "",
-  "Medido (última corrida):",
-  `  cards: ${cards} | <img> na lista: ${avatarsWithPhoto} | shimmer ao voltar de /vagas: ${report.indicators.shimmerAfterRevisit}`,
+  `amostras: ${runs}`,
+  `rotas medidas: ${scenarios.length * 4}`,
+  `  cards: ${cards} | imagens na lista: ${avatarsWithPhoto} | loading ao voltar: ${report.indicators.shimmerAfterRevisit}`,
   `  GET community-avatar (lista fria): ${coldProxyCount} | após sair da Comunidade: ${revisitProxyCount}`,
-  `  GET Storage direto (esperado 0 com proxy): ${report.indicators.storageDirectRequests}`,
-  `  mediana listReady: ${Math.round(report.indicators.medianListReadyMs ?? 0)} ms | mediana settle avatares: ${Math.round(report.indicators.medianAvatarSettleMs ?? 0)} ms | revisit settle: ${Math.round(report.indicators.medianRevisitAvatarSettleMs ?? 0)} ms`,
+  `  GET mediana até headers: ${Math.round(report.indicators.medianAvatarGetHeadersMs ?? 0)} ms | Blob consumido: ${Math.round(report.indicators.medianAvatarBlobConsumeMs ?? 0)} ms | bytes: ${report.indicators.avatarGetBodyBytes.reduce((a, b) => a + b, 0)}`,
+  `  mediana lista pronta: ${Math.round(report.indicators.medianListReadyMs ?? 0)} ms | settle imagem: ${Math.round(report.indicators.medianAvatarSettleMs ?? 0)} ms | retorno: ${Math.round(report.indicators.medianRevisitAvatarSettleMs ?? 0)} ms`,
   "",
-  `JSON: ${jsonPath}`,
 ];
 writeFileSync(resolve(outDir, "measure.log"), `${lines.join("\n")}\n`);
 console.log(lines.join("\n"));
