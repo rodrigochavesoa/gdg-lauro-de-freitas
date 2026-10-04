@@ -524,6 +524,7 @@ html[data-theme="dark"] .avatar--pending{
 body:has(.hero) .topbar,body:has(.portal-hero) .topbar,body:has(.login-page) .topbar,body:has(.admin-page) .topbar,body:has(.detail-page) .topbar{border-bottom:none}
 .home-divider{position:relative;z-index:2;height:120px;margin-top:-108px;overflow-x:clip;overflow-y:visible;pointer-events:none}
 .home-divider__curve{display:block;position:relative;width:calc(100% + 16px);height:100%;margin-left:-8px}
+.community-connection-wave-line{fill:none;stroke:#438dff;stroke-width:2.5;stroke-linecap:round;stroke-opacity:.68;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 4px rgb(59 130 246 / 45%))}
 .home-divider__avatar{position:absolute;left:max(16px,calc((100% - 1180px) / 2));bottom:-12px;width:min(280px,32vw);max-height:200px;height:auto;object-fit:contain;z-index:3;display:block}
 .home-divider--pair .home-divider__avatar--secondary{left:auto;right:max(16px,calc((100% - 1180px) / 2))}
 .home-divider + .jobs-layout,.home-divider + .event-layout,.home-divider + .newsletter-layout,.home-divider + .community-shell{padding-top:52px}
@@ -1198,6 +1199,7 @@ html[data-theme="dark"] .community-person-card__cta .round-arrow svg{color:var(-
 @media(max-width:700px){.community-page{padding:28px 0 48px}.community-page--embedded{padding:0}.community-share{align-items:flex-start;flex-direction:column;gap:16px;padding:19px}.community-share__toggle{width:100%}.community-browse-toolbar{justify-items:stretch}.community-browse-filters-toggle{width:100%;justify-content:center}.community-browse-filters-panel{justify-content:stretch}.community-browse-select{max-width:none}.community-back-to-top{right:16px;bottom:80px}.community-results__heading{align-items:flex-start;flex-direction:column}.community-people-grid{grid-template-columns:minmax(0,1fr)}.community-person-card{padding:17px}.community-profile__identity{align-items:flex-start}.community-profile__identity .community-avatar{width:68px;height:68px;flex-basis:68px}.community-profile__facts{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:360px){.community-shell{width:calc(100% - 24px)}.community-profile__identity{gap:12px}.community-profile__identity h2{font-size:1.28rem}.community-profile__links a{flex:1;justify-content:center}}
 @media(prefers-reduced-motion:reduce){.community-person-card,.community-person-card__cta,.community-social-link,.community-social-link__icon,.community-avatar--loading{transition:none;animation:none}.community-person-card:hover{transform:none}}
+@media(prefers-reduced-motion:reduce){.community-connection-packet{display:none}}
 .community-skeleton{display:grid;gap:16px}
 .community-skeleton--page{max-width:42rem}
 .community-results--loading{margin-top:8px}
