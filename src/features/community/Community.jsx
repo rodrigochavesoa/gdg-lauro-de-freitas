@@ -5,6 +5,7 @@ import { AdminBackLink } from "../../shared/ui/AdminBackControl.jsx";
 import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
 import { isCandidateProfile } from "../auth/profile-completeness.js";
 import { isStaffRole } from "../admin/staff-access.js";
+import { CommunityConnectionEffect } from "./CommunityConnectionEffect.jsx";
 import {
   COMMUNITY_LEVEL_FILTER_OPTIONS,
   COMMUNITY_WORK_MODEL_FILTER_OPTIONS,
@@ -280,6 +281,7 @@ function CommunityBrowseWaveDivider() {
     <div className="home-divider home-divider--pair" aria-hidden="true">
       <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
         <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
+        <CommunityConnectionEffect />
       </svg>
       <ResponsiveAssetImage
         className="home-divider__avatar"
