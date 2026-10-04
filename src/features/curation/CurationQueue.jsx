@@ -413,7 +413,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <p className="sr-only" role="status">{queueLoadingAnnouncement}</p>
         ) : null}
         {queueLoading && visibleJobs.length === 0 ? <AdminPanelShimmer variant="list" /> : null}
-        {visibleJobs.length === 0 && !queueLoading ? (
+        {visibleJobs.length === 0 && !queueLoading && !queueLoadError ? (
           <p role="status">{view === "pending" ? "Nenhuma vaga pendente nesta fila." : "Nenhuma vaga rejeitada para reenvio."}</p>
         ) : null}
         {visibleJobs.length > 0 && filteredJobs.length === 0 && !queueLoading ? (

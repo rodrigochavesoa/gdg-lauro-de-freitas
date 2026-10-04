@@ -23,6 +23,9 @@ export function AdminJobFormRoute() {
   const editingFromQuery = searchParams.get("editar") || "";
   const [form, setForm] = useState(emptyJobForm);
   const [editingId, setEditingId] = useState("");
+  const [editLoadStatus, setEditLoadStatus] = useState(() => (editingFromQuery ? "loading" : "idle"));
+  const [editReloadToken, setEditReloadToken] = useState(0);
+  const [loadedEditingQuery, setLoadedEditingQuery] = useState("");
   const [companies, setCompanies] = useState([]);
   const [companyQuery, setCompanyQuery] = useState("");
   const [companySearch, setCompanySearch] = useState("");
@@ -58,30 +61,40 @@ export function AdminJobFormRoute() {
   useEffect(() => {
     if (!editingFromQuery) {
       setEditingId("");
+      setEditLoadStatus("idle");
       return undefined;
     }
     let cancelled = false;
+    setEditLoadStatus("loading");
+    setError("");
     loadAdminJob(editingFromQuery)
       .then((job) => {
         if (cancelled) return;
         if (!job || job.status !== "pending") {
           setMessage(job ? "Edite via nova rodada na Curadoria." : "Vaga não encontrada ou indisponível.");
           setEditingId("");
+          setEditLoadStatus("unavailable");
           return;
         }
         setEditingId(job.id);
         setForm(jobToForm(job));
         setMessage(`Editando ${job.title}.`);
+        setLoadedEditingQuery(editingFromQuery);
+        setEditLoadStatus("ready");
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) {
+          setError(err.message || "Não foi possível carregar a vaga para edição.");
+          setEditLoadStatus("error");
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [editingFromQuery]);
+  }, [editReloadToken, editingFromQuery]);
 
   const persist = async (asUpdate) => {
+    if (editingFromQuery && editLoadStatus !== "ready") return;
     setBusy(true);
     setError("");
     setFormErrors([]);
@@ -127,7 +140,17 @@ export function AdminJobFormRoute() {
           <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
         </div>
       </div>
-      <form className="job-form" onSubmit={onSubmit}>
+      {editingFromQuery && editLoadStatus !== "error" && editLoadStatus !== "unavailable" && loadedEditingQuery !== editingFromQuery ? <p role="status">Carregando vaga para edição…</p> : null}
+      {editingFromQuery && editLoadStatus === "error" ? (
+        <div className="form-alert" role="alert">
+          <p>{error}</p>
+          <button type="button" className="outline small" onClick={() => setEditReloadToken((token) => token + 1)}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : null}
+      {editingFromQuery && editLoadStatus === "unavailable" ? <p role="status">{message}</p> : null}
+      {(!editingFromQuery || (editLoadStatus === "ready" && loadedEditingQuery === editingFromQuery)) ? <form className="job-form" onSubmit={onSubmit}>
         <div className="form-section">
           <h2>Informações da vaga</h2>
           <div className="form-grid">
@@ -308,7 +331,7 @@ export function AdminJobFormRoute() {
             <span className="job-form-submit-mobile">Enviar à curadoria</span>
           </button>
         </div>
-      </form>
+      </form> : null}
     </>
   );
 }

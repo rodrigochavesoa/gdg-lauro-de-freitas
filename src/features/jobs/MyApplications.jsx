@@ -49,6 +49,7 @@ export function MyApplications({ userId }) {
   const [statusFilter, setStatusFilter] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [rowsUserId, setRowsUserId] = useState(userId);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const listGenerationRef = useRef(0);
 
   if (rowsUserId !== userId) {
@@ -96,7 +97,7 @@ export function MyApplications({ userId }) {
         setStatus("error");
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [reloadNonce, userId]);
 
   const withdraw = async (jobId) => {
     const generation = ++listGenerationRef.current;
@@ -185,7 +186,14 @@ export function MyApplications({ userId }) {
       </section>
       <BrowseWaveDivider />
       <div className="shell community-shell">
-        {error ? <p className="tiny" role="alert">{error}</p> : null}
+        {error ? (
+          <div className="form-alert" role="alert">
+            <p>{error}</p>
+            <button type="button" className="outline small" onClick={() => setReloadNonce((nonce) => nonce + 1)}>
+              Tentar novamente
+            </button>
+          </div>
+        ) : null}
         <div className="community-browse-toolbar">
           <button
             type="button"

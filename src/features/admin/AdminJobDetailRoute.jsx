@@ -15,6 +15,7 @@ export function AdminJobDetailRoute() {
   const [job, setJob] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +36,7 @@ export function AdminJobDetailRoute() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, reloadToken]);
 
   if (status === "loading") {
     return (
@@ -53,6 +54,9 @@ export function AdminJobDetailRoute() {
         {error ? (
           <div className="form-alert" role="alert">
             {error}
+            <button type="button" className="outline small" onClick={() => setReloadToken((token) => token + 1)}>
+              Tentar novamente
+            </button>
           </div>
         ) : null}
         <div className="admin-home-actions">
