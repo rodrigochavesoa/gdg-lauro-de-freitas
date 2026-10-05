@@ -1014,6 +1014,12 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 .curation-workspace__detail .form-section:first-child{padding-bottom:8px}
 .curation-workspace__detail .form-section h2{font-size:1.125rem}
 .curation-workspace__detail .form-section p{line-height:1.5;overflow-wrap:anywhere}
+.curation-workspace__detail-copy{display:flex;flex-direction:column;gap:13px;min-height:2.5rem}
+.curation-workspace__detail-copy>p{margin:0}
+.curation-workspace__detail-copy>.tags{margin:0}
+.curation-workspace__detail-skeleton{box-sizing:border-box;display:flex;flex-direction:column;align-items:flex-start;min-height:2.5rem}
+.curation-workspace__detail-skeleton .admin-dashboard-skeleton-value{display:block;border-radius:var(--radius-sm);background:linear-gradient(90deg,var(--color-grey-100) 25%,var(--color-grey-50) 50%,var(--color-grey-100) 75%);background-size:200% 100%;animation:admin-dashboard-shimmer 1.2s ease-in-out infinite}
+.curation-workspace__detail-skeleton-line{width:min(280px,72%);height:18px}
 .curation-workspace__history{margin-top:16px;padding:12px 0;border-top:1px solid var(--color-border)}
 .curation-workspace__history summary{cursor:pointer;font-weight:600;color:var(--color-text-link)}
 .curation-workspace__history:focus-within{outline-color:var(--color-focus)}

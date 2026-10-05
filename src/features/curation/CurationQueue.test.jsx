@@ -889,6 +889,38 @@ describe("CurationQueue parecer (UX-CURATION-REVIEW-FEEDBACK-01)", () => {
     fireEvent.click(screen.getByRole("button", { name: /^Enviar parecer/i }));
   }
 
+  it("reserva a mesma área de contexto durante o shimmer e após carregar o detalhe", async () => {
+    const pendingRlsJob = {
+      ...normalQueuePayload.queue[0],
+      id: "job-rls",
+      title: "RLS self-review 1790868460202",
+      companies: { name: "Nuvem Lauro Demo" },
+    };
+    loadCurationQueue.mockResolvedValue({ ...normalQueuePayload, queue: [pendingRlsJob] });
+    let resolveDetail;
+    loadCurationJobDetail.mockImplementation(() => new Promise((resolve) => { resolveDetail = resolve; }));
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await selectQueueJob(/RLS self-review 1790868460202/);
+
+    const contextSlot = document.querySelector(".curation-workspace__detail-copy");
+    expect(contextSlot).toHaveAttribute("aria-busy", "true");
+    expect(contextSlot.querySelector(".curation-workspace__detail-skeleton")).toBeInTheDocument();
+
+    resolveDetail({
+      id: "job-rls",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
+    expect(await within(contextSlot).findByText("Vaga fictícia para curadoria.")).toBeInTheDocument();
+    expect(contextSlot).toHaveAttribute("aria-busy", "false");
+    expect(contextSlot.querySelector(".curation-workspace__detail-skeleton")).not.toBeInTheDocument();
+
+    const css = readFileSync(resolve("src/styles.css"), "utf8");
+    expect(css).toMatch(/\.curation-workspace__detail-copy\{[^}]*min-height:/);
+  });
+
   it("mostra erro didático inline ao falhar o parecer, não só no topo", async () => {
     submitCurationReview.mockRejectedValue(
       new Error("Esta vaga foi enviada por você. Peça a um curador para registrar o parecer."),
