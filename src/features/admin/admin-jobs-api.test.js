@@ -16,6 +16,7 @@ import {
   adminJobListHeading,
   adminJobListSearchParams,
   countAdminJobActiveFilters,
+  deleteAdminJob,
   formatAdminJobTotalLabel,
   loadAdminJobPage,
   parseAdminJobListSearch,
@@ -205,5 +206,35 @@ describe("loadAdminJobPage", () => {
       error: { message: "permission denied for table jobs" },
     });
     await expect(loadAdminJobPage()).rejects.toThrow("Não foi possível completar a operação. Tente de novo ou contate a equipe.");
+  });
+});
+
+describe("deleteAdminJob", () => {
+  beforeEach(() => fromMock.mockReset());
+
+  it("remove a vaga, invalida catálogo e superfícies de curadoria", async () => {
+    const builder = {};
+    builder.delete = vi.fn(() => builder);
+    builder.eq = vi.fn(() => builder);
+    builder.select = vi.fn(() => builder);
+    builder.maybeSingle = vi.fn().mockResolvedValue({ data: { id: "job-1" }, error: null });
+    fromMock.mockReturnValue(builder);
+
+    await expect(deleteAdminJob("job-1")).resolves.toEqual({ id: "job-1" });
+    expect(fromMock).toHaveBeenCalledWith("jobs");
+    expect(builder.delete).toHaveBeenCalledOnce();
+    expect(builder.eq).toHaveBeenCalledWith("id", "job-1");
+    expect(builder.select).toHaveBeenCalledWith("id");
+  });
+
+  it("mapeia remoção invisível por RLS para orientação de sessão/AAL2", async () => {
+    const builder = {};
+    builder.delete = vi.fn(() => builder);
+    builder.eq = vi.fn(() => builder);
+    builder.select = vi.fn(() => builder);
+    builder.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
+    fromMock.mockReturnValue(builder);
+
+    await expect(deleteAdminJob("job-hidden")).rejects.toThrow(/segundo fator|operação/i);
   });
 });

@@ -2899,6 +2899,42 @@ async function scenario20_staffAal1Blocked() {
     await deleteJob(aal2, probe.data.id);
   }
 
+  const deleteMarker = `RLS admin delete ${Date.now()}`;
+  const deleteFixture = await createPendingJob(aal2, deleteMarker);
+  const deleteFixtureId = deleteFixture.data?.id;
+  assert(!deleteFixture.error && deleteFixtureId, "AAL2 cria fixture isolada para teste de exclusão");
+  if (deleteFixtureId) {
+    if (!hasCreds(testUsers.curator)) {
+      skipRequired(20, "falta curator para validar DELETE negado");
+    } else {
+      const curator = await assertPasswordOnlyNotAal2("curator");
+      if (curator) {
+        const deniedDelete = await curator.from("jobs").delete().eq("id", deleteFixtureId).select("id").maybeSingle();
+        const remains = await aal2.from("jobs").select("id").eq("id", deleteFixtureId).maybeSingle();
+        assert(!deniedDelete.error && !deniedDelete.data && remains.data?.id === deleteFixtureId,
+          "curator AAL1 não exclui vaga protegida pela policy de jobs");
+        await curator.auth.signOut();
+      }
+    }
+
+    const { data: adminData } = await aal2.auth.getUser();
+    const deleted = await aal2.from("jobs").delete().eq("id", deleteFixtureId).select("id").maybeSingle();
+    assert(!deleted.error && deleted.data?.id === deleteFixtureId, "admin AAL2 exclui a própria fixture");
+    if (!deleted.error && deleted.data?.id) {
+      const audit = await aal2.from("privacy_audit_events")
+        .select("event_type,actor_id,resource_id,metadata_minimal")
+        .eq("event_type", "admin.job_deleted")
+        .eq("resource_id", deleteFixtureId)
+        .maybeSingle();
+      assert(!audit.error, `auditoria da exclusão consultável (${errorText(audit.error) || "ok"})`);
+      assert(audit.data?.actor_id === adminData?.user?.id, "auditoria associa a exclusão ao actor admin");
+      assert(audit.data?.metadata_minimal?.job_id === deleteFixtureId, "auditoria registra o job_id excluído");
+      assert(audit.data?.metadata_minimal?.title === deleteMarker, "auditoria registra o título da vaga excluída");
+    } else {
+      await deleteJob(aal2, deleteFixtureId);
+    }
+  }
+
   const okMarker = `RLS aal2 ok ${Date.now()}`;
   const createdAal2 = await createPendingJob(aal2, okMarker);
   assert(!createdAal2.error && createdAal2.data?.id, "AAL2 cadastra pending");

@@ -66,4 +66,9 @@ describe("AdminJobsRoute", () => {
     expect(input).toHaveValue("");
     await waitFor(() => expect(loadAdminJobPage).toHaveBeenLastCalledWith(expect.objectContaining({ query: "" })));
   });
+
+  it("mostra feedback ao retornar de uma exclusão confirmada", async () => {
+    renderRoute({ pathname: "/admin/vagas", state: { deletedJobTitle: "Vaga removida" } });
+    expect(await screen.findByText("Vaga “Vaga removida” excluída com sucesso.")).toHaveAttribute("role", "status");
+  });
 });
