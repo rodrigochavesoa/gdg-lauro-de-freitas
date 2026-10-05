@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Filter } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
 import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
@@ -85,7 +85,12 @@ function JobListRow({ job, returnSearch }) {
 }
 
 export function AdminJobsRoute() {
-  const { search } = useLocation();
+  const location = useLocation();
+  const { search } = location;
+  const navigate = useNavigate();
+  const [deletedNotice] = useState(() =>
+    location.state?.deletedJobTitle ? `Vaga “${location.state.deletedJobTitle}” excluída com sucesso.` : "",
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseAdminJobListSearch(searchParams), [searchParams]);
   const [queryInput, setQueryInput] = useState(() => filters.query);
@@ -98,6 +103,11 @@ export function AdminJobsRoute() {
   const [reloadToken, setReloadToken] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const closeFilters = useCallback(() => setFilterOpen(false), []);
+
+  useEffect(() => {
+    if (!location.state?.deletedJobTitle) return;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.key, location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     setQueryInput((current) => (current === filters.query ? current : filters.query));
@@ -238,6 +248,8 @@ export function AdminJobsRoute() {
         label="Buscar vagas na gestão"
         placeholder="Título ou empresa"
       />
+
+      {deletedNotice ? <p className="admin-job-delete-success" role="status">{deletedNotice}</p> : null}
 
       {error ? (
         <div className="form-alert" role="alert">
