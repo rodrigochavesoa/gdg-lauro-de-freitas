@@ -303,5 +303,11 @@ Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test an
 
 **RLS homolog — atenção operacional:** falhas com `Request rate limit reached` no Auth de homolog **não** são, por si só, TOTP errado; evite `test:rls` local e re-runs de CI em rajada. Secrets TOTP: `.env.local` / `homolog-rls` (CI não lê `staff-mfa-totp-secrets.md`). Ver `SETUP.md` (§ rate limit vs TOTP), `pnpm verify:staff-mfa` e runbook local `docs-local/rls-homolog-auth-troubleshooting.md` (modelo em `docs-local.example/`).
 
+### Baseline de segurança para novos workflows de CI (Dia 0)
+
+Todo workflow novo ou alterado deve seguir o princípio de menor privilégio: declarar `permissions` explicitamente; fixar Actions de terceiros por SHA completo de 40 caracteres com comentário de versão; manter secrets apenas no step que os consome e em jobs protegidos por Environment quando aplicável; e definir `persist-credentials: false` no checkout quando nenhum passo posterior precisar de Git autenticado. Não executar código de PR não confiável em jobs que recebem secrets. Atualizações de Actions devem preservar o SHA fixo e passar pela CI.
+
+Essas medidas reduzem exposição e risco de supply chain; não substituem revisão do código executado junto aos secrets nem controles de branch e Environment. Para o checklist completo de bootstrap e os testes de regressão, consulte [`docs-local.example/security-project-bootstrap.example.md`](docs-local.example/security-project-bootstrap.example.md). O job `quality` deste workflow ainda usa referências de Actions por tag; a migração desse job para SHA deve ser acompanhada como follow-up antes de considerar o padrão aplicado a todo o workflow.
+
 Evidência (mantenedor): [`docs-local/s1-04-branch-protection.md`](docs-local/s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
 
