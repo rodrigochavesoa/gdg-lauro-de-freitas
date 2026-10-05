@@ -473,26 +473,28 @@ export function CurationQueue({ profile, includeRejected = false }) {
           <div className="form-section">
             <h2>{selected.title}</h2>
             <p className="company-name">{selected.companies?.name}</p>
-            {detailLoading ? (
-              <>
-                <p className="sr-only" role="status">Carregando detalhes da vaga…</p>
-                <AdminPanelShimmer variant="detail" />
-              </>
-            ) : null}
-            {detailFailed ? <p role="alert">{detailError}</p> : null}
-            {detailReady ? <p>{detailDescription}</p> : null}
+            {detailLoading ? <p className="sr-only" role="status">Carregando detalhes da vaga…</p> : null}
+            <div className="curation-workspace__detail-copy" aria-busy={detailLoading ? "true" : "false"}>
+              {detailLoading ? (
+                <div className="curation-workspace__detail-skeleton" aria-hidden="true">
+                  <span className="admin-dashboard-skeleton-value curation-workspace__detail-skeleton-line" />
+                </div>
+              ) : null}
+              {detailFailed ? <p role="alert">{detailError}</p> : null}
+              {detailReady ? <>
+                {detailDescription ? <p>{detailDescription}</p> : null}
+                <div className="tags">
+                  {detailStack.map((item) => (
+                    <span key={item}>{item}</span>
+                  ))}
+                </div>
+              </> : null}
+            </div>
             <p>
               {LEVEL_LABEL[selected.level] ?? selected.level} ·{" "}
               {MODEL_LABEL[selected.work_model] ?? selected.work_model}
               {selected.location ? ` · ${selected.location}` : ""}
             </p>
-            {detailReady ? (
-              <div className="tags">
-                {detailStack.map((item) => (
-                  <span key={item}>{item}</span>
-                ))}
-              </div>
-            ) : null}
             <details className="curation-workspace__history">
               <summary>Histórico de pareceres{detailReady ? ` (${detailReviews.length})` : ""}</summary>
               {detailReady ? <CurationTimeline reviews={detailReviews} /> : null}
