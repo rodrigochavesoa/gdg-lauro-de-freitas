@@ -1150,7 +1150,15 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 /* UX-COMMUNITY-PROFILES-01 — layouts para a área autenticada de membros. */
 .community-page{min-height:calc(100vh - 75px);padding:42px 0 72px;background:var(--color-surface);overflow-x:clip}
 .community-page--browse{padding-top:0}
-.community-page--embedded{min-height:0;padding:0;background:transparent}
+.community-page--embedded{min-height:calc(100vh - 75px);padding:0;background:var(--color-surface)}
+.admin-workspace .admin-shell:has(.community-page--embedded){width:100%;margin:0}
+.admin-workspace .admin-content:has(.community-page--embedded){width:calc(100% - 236px);max-width:none;margin:0 0 0 236px;padding:0}
+.admin-workspace:has(.admin-sidebar--collapsed) .admin-content:has(.community-page--embedded){width:calc(100% - 66px);margin-left:66px}
+@media(max-width:760px){
+  .admin-workspace .admin-content:has(.community-page--embedded),
+  .admin-workspace:has(.admin-sidebar--collapsed) .admin-content:has(.community-page--embedded){width:100%;margin:0;padding-top:0}
+  .community-page--embedded{min-height:calc(100vh - 62px)}
+}
 .community-shell{max-width:1120px}
 .community-notice,.community-empty,.community-share,.community-person-card,.community-profile__hero,.community-profile__section{border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-card)}
 .community-notice,.community-empty{padding:clamp(22px,4vw,36px);max-width:760px}
