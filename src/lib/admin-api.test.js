@@ -152,20 +152,9 @@ describe("listas staff com teto", () => {
     expect(builder.limit).toHaveBeenCalledWith(COMPANY_LIST_LIMIT + 1);
   });
 
-  it("loadCompanies inclui a empresa da vaga quando ela fica fora da página", async () => {
-    const page = chain({ data: [{ id: "c1", name: "Nuvem" }], error: null });
-    const current = chain({ data: { id: "c-late", name: "Fora do corte" }, error: null });
-    fromMock.mockReturnValueOnce(page).mockReturnValueOnce(current);
-
-    await expect(loadCompanies({ includeId: "c-late" })).resolves.toEqual({
-      companies: [
-        { id: "c-late", name: "Fora do corte" },
-        { id: "c1", name: "Nuvem" },
-      ],
-      truncated: false,
-    });
-    expect(current.eq).toHaveBeenCalledWith("id", "c-late");
-    expect(current.maybeSingle).toHaveBeenCalled();
+  it("loadCompanies ignora termos curtos sem consultar a tabela", async () => {
+    await expect(loadCompanies({ query: "a" })).resolves.toEqual({ companies: [], truncated: false });
+    expect(fromMock).not.toHaveBeenCalled();
   });
 
   it("admin-api não exporta a lista legada loadAdminJobs", () => {
@@ -179,10 +168,11 @@ describe("listas staff com teto", () => {
     const root = resolve(import.meta.dirname, "..");
     const jobsRoute = readFileSync(resolve(root, "features/admin/AdminJobsRoute.jsx"), "utf8");
     const formRoute = readFileSync(resolve(root, "features/admin/AdminJobFormRoute.jsx"), "utf8");
+    const companyPicker = readFileSync(resolve(root, "features/admin/AdminCompanyPicker.jsx"), "utf8");
     expect(jobsRoute).not.toContain("loadAdminJobs");
     expect(formRoute).not.toContain("loadAdminJobs");
     expect(jobsRoute).toContain("loadAdminJobPage");
-    expect(formRoute).toContain("loadCompanies");
+    expect(companyPicker).toContain("loadCompanies");
   });
 
   it("createPendingJob sonda o título e publica pela RPC, sem insert direto", async () => {

@@ -622,7 +622,8 @@ describe("Admin", () => {
     expect(await screen.findByLabelText("País")).toBeInTheDocument();
     expect(screen.getByLabelText("País")).toHaveAttribute("id", "admin-job-country");
     fireEvent.change(screen.getByLabelText("Título da vaga"), { target: { value: "Pessoa Dev" } });
-    fireEvent.change(screen.getByLabelText("Nova empresa fictícia"), { target: { value: "Empresa Fictícia Lab" } });
+    fireEvent.click(screen.getByRole("button", { name: "Não encontrou? Informar empresa fictícia" }));
+    fireEvent.change(screen.getByLabelText("Nome da empresa fictícia"), { target: { value: "Empresa Fictícia Lab" } });
     fireEvent.change(screen.getByLabelText("Nível"), { target: { value: "Pleno" } });
     fireEvent.change(screen.getByLabelText("Descrição"), { target: { value: "Vaga fictícia de teste." } });
     fireEvent.change(screen.getByLabelText("Localidade"), { target: { value: "Brasil" } });

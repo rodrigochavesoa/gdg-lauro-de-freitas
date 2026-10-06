@@ -168,30 +168,27 @@ export async function loadIsAdmin() {
   return true;
 }
 
-/** Teto de cada busca de empresa. A página pede um a mais para saber se há resto. */
-export const COMPANY_LIST_LIMIT = 100;
+/** Limite curto para manter buscas responsivas e evitar transferir diretório inteiro. */
+export const COMPANY_LIST_LIMIT = 20;
+export const COMPANY_SEARCH_MIN_LENGTH = 2;
+export const COMPANY_SEARCH_MAX_LENGTH = 100;
 
 /**
- * Empresas do formulário de vaga, com busca e teto.
- * `truncated` avisa que há mais além desta página. `includeId` devolve a empresa
- * da vaga em edição mesmo quando ela fica fora do corte.
+ * Empresas do formulário de vaga, somente por busca textual e com teto.
+ * Consultas curtas não fazem leitura; `truncated` orienta a refinar resultados.
  * @returns {Promise<{ companies: {id: string, name: string}[], truncated: boolean }>}
  */
-export async function loadCompanies({ query = "", includeId = "" } = {}) {
+export async function loadCompanies({ query = "" } = {}) {
+  const term = String(query ?? "").trim().slice(0, COMPANY_SEARCH_MAX_LENGTH);
+  if (term.length < COMPANY_SEARCH_MIN_LENGTH) return { companies: [], truncated: false };
   const client = clientOrThrow();
-  const term = String(query ?? "").trim();
   let request = client.from("companies").select(COMPANY_PICKER_SELECT).order("name", { ascending: true }).order("id", { ascending: true });
-  if (term) request = request.ilike("name", `%${ilikeExact(term)}%`);
+  request = request.ilike("name", `%${ilikeExact(term)}%`);
   const { data, error } = await request.limit(COMPANY_LIST_LIMIT + 1);
   throwIfError(error);
   const rows = data ?? [];
   const truncated = rows.length > COMPANY_LIST_LIMIT;
   const companies = truncated ? rows.slice(0, COMPANY_LIST_LIMIT) : [...rows];
-  if (includeId && !companies.some((row) => row.id === includeId)) {
-    const extra = await client.from("companies").select(COMPANY_PICKER_SELECT).eq("id", includeId).maybeSingle();
-    throwIfError(extra.error);
-    if (extra.data) companies.unshift(extra.data);
-  }
   return { companies, truncated };
 }
 
