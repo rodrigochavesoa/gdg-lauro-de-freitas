@@ -74,7 +74,7 @@ export function isOwnAvatarStoragePath(userId, path) {
   return rest.length > 0 && !rest.includes("/") && !rest.includes("..");
 }
 
-/** Homologação/Preview: VITE_AVATAR_UPLOAD_ENABLED=true. Production: ausente até Camada B. */
+/** Ligue em Production somente após bucket privado, policies RLS e proxy autenticado estarem implantados. */
 export function isAvatarUploadEnabled() {
   return import.meta.env.VITE_AVATAR_UPLOAD_ENABLED === "true";
 }

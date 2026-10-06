@@ -1,13 +1,9 @@
 -- UX-COMMUNITY-PROFILES-01 — projeção privada da Comunidade e gate F-11.
--- Produção: não aplicar. A finalidade F-11 permanece inativa/pending_dpo.
--- Escopo do piloto Homolog/Preview aprovado pelo PO em 2026-10-01: opt-in,
--- audiência autenticada, remoção ao revogar/excluir e limpeza das fixtures.
--- Isso não altera os gates formais de finalidade: status permanece pending_dpo.
+-- Projeção com allowlist, audiência autenticada, opt-in desligado por padrão,
+-- remoção ao revogar/excluir e acesso a avatar somente via proxy autenticado.
+-- Esta migration estabelece o schema; a aprovação vigente de F-11 é registrada
+-- pela migration versionada posterior community_f11_production_approval.
 -- Nenhum GRANT para anon nem acesso direto às tabelas da projeção.
---
--- Futuro modo público exige revisão de segurança e migration explícita para a
--- configuração do gate e EXECUTE apenas nas RPCs de leitura apropriadas. Não
--- alterar RLS/grants de profiles, Storage ou a flag do frontend para abrir acesso.
 
 insert into public.privacy_purposes (
   purpose_code, version, title, specific_description, classification, status,
@@ -37,8 +33,8 @@ insert into private.community_access_settings (singleton, audience)
 values (true, 'authenticated')
 on conflict (singleton) do update set audience = 'authenticated', updated_at = now();
 
--- Separates the temporary Homolog/Preview authorization from formal privacy approval.
--- Production and clean held installs remain disabled until an admin migration enables it.
+-- Separates the temporary pilot switch from formal privacy approval.
+-- The pilot switch defaults to disabled; production uses the approved F-11 state.
 create table private.community_pilot_settings (
   singleton boolean primary key default true check (singleton),
   enabled boolean not null default false,

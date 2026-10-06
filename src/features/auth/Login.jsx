@@ -56,6 +56,12 @@ export function Login() {
         ) : null}
         <div className="login-paths">
           <h3>Você é novo no GDG Jobs?</h3>
+          <p className="login-beta-notice" role="note" aria-label="Aviso da fase beta">
+            <strong>Aviso de versão beta — 06/10/2026:</strong> o GDG Jobs está em validação e pode apresentar falhas,
+            inclusive de segurança, com risco de exposição de dados. Avalie essa condição antes de criar uma conta ou
+            cadastrar informações. A publicação na Comunidade é opcional e só acontece se você ativar essa escolha nas
+            Preferências de privacidade.
+          </p>
           <div className="login-path">
             <p className="login-path__label">Candidato</p>
             <button className="google full" type="button" onClick={onGoogle} disabled={busy}>
@@ -71,8 +77,8 @@ export function Login() {
           </div>
         </div>
         <p className="terms">
-          Ao continuar, você concorda com nossos Termos de uso e Política de privacidade. O cadastro
-          do perfil não é consentimento LGPD — a base legal é definida pelo DPO.
+          Ao continuar, você concorda com nossos Termos de uso e Política de privacidade. Criar um perfil não o publica
+          na Comunidade; essa escolha é separada e opcional.
         </p>
       </section>
     </main>
