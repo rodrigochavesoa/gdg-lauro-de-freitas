@@ -12,6 +12,13 @@ const STAT_ICONS = {
   "ingest-attention": Database,
 };
 
+const STAT_ROUTES = {
+  approved: "/admin/vagas?status=approved",
+  "rejected-jobs": "/admin/vagas?status=rejected",
+  "rejected-queue": "/admin/curadoria?view=rejected",
+  "ingest-attention": "/admin/ingestao",
+};
+
 function FocusRing({ state, count }) {
   return (
     <div className={`admin-dashboard-ring admin-dashboard-ring--${state}`} aria-hidden="true">
@@ -166,19 +173,18 @@ export function AdminHome({ refreshKey = 0 }) {
       {secondaryMetrics.length ? (
         <>
           <h2 className="admin-dashboard-subheading">Visão geral</h2>
-          <dl className="admin-dashboard-stats">
+          <div className="admin-dashboard-stats">
             {secondaryMetrics.map((metric) => {
               const isIngest = metric.id === "ingest-attention";
               const busy = isIngest ? ingestBusy : jobsBusy;
               const unavailable = isIngest && ingestUnavailable && !busy;
               const pending = metric.value == null && !unavailable;
               const Icon = STAT_ICONS[metric.id];
-              return (
-                <div
-                  key={metric.id}
-                  className={pending ? `admin-dashboard-stat admin-dashboard-stat--${metric.id} admin-dashboard-stat--skeleton` : `admin-dashboard-stat admin-dashboard-stat--${metric.id}`}
-                  aria-busy={busy || undefined}
-                >
+              const className = pending
+                ? `admin-dashboard-stat admin-dashboard-stat--${metric.id} admin-dashboard-stat--skeleton`
+                : `admin-dashboard-stat admin-dashboard-stat--${metric.id}`;
+              const contents = (
+                <dl className="admin-dashboard-stat__content">
                   <dt>
                     {Icon ? (
                       <span className="admin-dashboard-stat__icon" aria-hidden="true">
@@ -189,17 +195,28 @@ export function AdminHome({ refreshKey = 0 }) {
                   </dt>
                   <dd aria-describedby={metric.hint ? `admin-metric-${metric.id}-hint` : undefined}>
                     {unavailable ? "Indisponível" : pending ? <span className="admin-dashboard-skeleton-value" /> : metric.value}
+                    {metric.hint ? (
+                      <p className="admin-dashboard-stat-hint" id={`admin-metric-${metric.id}-hint`}>{metric.hint}</p>
+                    ) : null}
                   </dd>
+                </dl>
+              );
+              return (
+                <div key={metric.id} className={className} aria-busy={busy || undefined}>
+                  <Link
+                    className="admin-dashboard-stat__link"
+                    to={STAT_ROUTES[metric.id]}
+                    aria-label={pending ? `${metric.label}: carregando` : `${metric.label}: ${unavailable ? "indisponível" : metric.value}`}
+                  >
+                    {contents}
+                  </Link>
                   {unavailable ? (
-                    <button className="outline small" type="button" onClick={retry}>Tentar novamente</button>
-                  ) : null}
-                  {metric.hint ? (
-                    <p className="admin-dashboard-stat-hint" id={`admin-metric-${metric.id}-hint`}>{metric.hint}</p>
+                    <button className="outline small admin-dashboard-stat__retry" type="button" onClick={retry}>Tentar novamente</button>
                   ) : null}
                 </div>
               );
             })}
-          </dl>
+          </div>
         </>
       ) : null}
       {otherCtas.length > 0 ? (
