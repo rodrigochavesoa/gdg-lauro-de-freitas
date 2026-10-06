@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,6 +16,7 @@ import {
   isHomologOnlyMigration,
   isProdSafeMigration,
   HOMOLOG_HISTORY_REPAIRS,
+  MIGRATIONS_DIR,
   listHomologChain,
   listHomologOnlyMigrations,
   listProdSafeMigrations,
@@ -48,6 +49,19 @@ function writeTempMigrations({ manifest, files = {}, homologFiles = {}, heldFile
 }
 
 describe("prod migrations", () => {
+  it("limita RPCs de ingestão em Production a staff_replay", () => {
+    const productionRpcMigrations = [
+      "20261006222043_job_ingestions_register_rpc_prod.sql",
+      "20261006222045_job_ingestions_process_prod.sql",
+    ];
+
+    for (const migration of productionRpcMigrations) {
+      const sql = readFileSync(join(MIGRATIONS_DIR, migration), "utf8");
+      expect(sql).toMatch(/v_kind\s*<>\s*'staff_replay'/i);
+      expect(sql).toMatch(/source_kind não suportado nesta camada/i);
+    }
+  });
+
   it("classifica seed fictício e avatars como homolog-only por pattern", () => {
     expect(isHomologOnlyMigration("202608160002_seed_fictitious_catalog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260916122300_avatars_storage_homolog.sql")).toBe(true);
