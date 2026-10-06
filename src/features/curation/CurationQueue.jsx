@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Check, Filter, ListChecks } from "lucide-react";
 import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import {
@@ -67,6 +68,8 @@ function CurationReviewFeedback({ feedbackRef, reviewBusy, reviewMessage, review
 
 export function CurationQueue({ profile, includeRejected = false }) {
   const isAdmin = profile.role === "admin";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = isAdmin && includeRejected && searchParams.get("view") === "rejected" ? "rejected" : "pending";
   const cached = peekCurationQueueCache({ scope: "pending", page: 1 });
   const [queue, setQueue] = useState(() => cached?.queue ?? []);
   const [rejected, setRejected] = useState([]);
@@ -91,7 +94,6 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const [loading, setLoading] = useState(() => !cached);
   const [pendingLoadingMore, setPendingLoadingMore] = useState(false);
   const [rejectedLoadingMore, setRejectedLoadingMore] = useState(false);
-  const [view, setView] = useState("pending");
   const [queryInput, setQueryInput] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const query = useDebouncedValue(submittedQuery).trim().toLocaleLowerCase("pt-BR");
@@ -110,6 +112,19 @@ export function CurationQueue({ profile, includeRejected = false }) {
   const rejectedGenerationRef = useRef(0);
   const pendingLoadingEpochRef = useRef(0);
   const rejectedLoadingEpochRef = useRef(0);
+
+  const selectView = (nextView) => {
+    const safeView = nextView === "rejected" && isAdmin && includeRejected ? "rejected" : "pending";
+    setSelectedId("");
+    setDetailOpen(false);
+    setShowReview(false);
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (safeView === "rejected") next.set("view", "rejected");
+      else next.delete("view");
+      return next;
+    }, { replace: true });
+  };
 
   const applyPending = useCallback((data, { append = false } = {}) => {
     setQueue((current) => (append ? mergeById(current, data.queue) : data.queue));
@@ -368,14 +383,14 @@ export function CurationQueue({ profile, includeRejected = false }) {
         <FilterSheet open onClose={() => setFilterOpen(false)} resultCount={filteredJobs.length} titleId="curation-filters-title">
           <div className="filter-head">
             <h2 id="curation-filters-title"><Filter size={18} /> Filtros</h2>
-            <button type="button" onClick={() => setView("pending")}>Limpar</button>
+            <button type="button" onClick={() => selectView("pending")}>Limpar</button>
           </div>
           <div className="filters__body">
             <div className="filter-group">
               <h3>Status</h3>
               <div className="admin-jobs-status" role="group" aria-label="Status da curadoria">
-                <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => setView("pending")}>Pendentes</button>
-                {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => setView("rejected")}>Rejeitadas</button> : null}
+                <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => selectView("pending")}>Pendentes</button>
+                {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => selectView("rejected")}>Rejeitadas</button> : null}
               </div>
             </div>
           </div>
@@ -392,10 +407,10 @@ export function CurationQueue({ profile, includeRejected = false }) {
         placeholder="Título ou empresa"
       />
       <div className="curation-workspace__filters" role="group" aria-label="Visão da curadoria">
-        <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => { setView("pending"); setSelectedId(""); setDetailOpen(false); setShowReview(false); }}>
+        <button type="button" className="ghost small" aria-pressed={view === "pending"} onClick={() => selectView("pending")}>
           Pendentes <span>{queue.length}</span>
         </button>
-        {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => { setView("rejected"); setSelectedId(""); setDetailOpen(false); setShowReview(false); }}>
+        {isAdmin ? <button type="button" className="ghost small" aria-pressed={view === "rejected"} onClick={() => selectView("rejected")}>
           Rejeitadas{rejectedStatus === "ready" ? <> <span>{rejected.length}</span></> : null}
         </button> : null}
       </div>
@@ -631,7 +646,7 @@ export function CurationQueue({ profile, includeRejected = false }) {
             </div>
           ) : null}
           {view === "rejected" && isAdmin ? <div className="form-actions">
-            <button type="button" className="outline" disabled={busy} onClick={() => run(() => resubmitJobForCuration(selected.id), "Vaga reenviada em nova rodada.", () => { setView("pending"); setSelectedId(""); setDetailOpen(false); })}>
+            <button type="button" className="outline" disabled={busy} onClick={() => run(() => resubmitJobForCuration(selected.id), "Vaga reenviada em nova rodada.", () => selectView("pending"))}>
               {busy ? "Reenviando…" : "Reenviar para curadoria"}
             </button>
           </div> : null}

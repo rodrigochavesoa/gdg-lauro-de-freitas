@@ -1,5 +1,6 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render as testingLibraryRender, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -35,6 +36,15 @@ vi.mock("./curation-api.js", () => ({
 
 import { CurationQueue } from "./CurationQueue.jsx";
 import { mergeCurationQueue } from "./curation-queue.js";
+
+function render(ui, options) {
+  return testingLibraryRender(<MemoryRouter>{ui}</MemoryRouter>, options);
+}
+
+function SearchParamProbe({ name }) {
+  const [searchParams] = useSearchParams();
+  return <output data-testid={`${name}-search-param`}>{searchParams.get(name) ?? ""}</output>;
+}
 
 const queuePayload = {
   queue: [
@@ -630,6 +640,24 @@ describe("CurationQueue Sprint 20A", () => {
     expect(await screen.findByRole("heading", { name: "Vaga rejeitada" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reenviar para curadoria" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
+  });
+
+  it("abre a visão rejeitada por query param e limpa o parâmetro ao voltar para pendentes", async () => {
+    testingLibraryRender(
+      <MemoryRouter initialEntries={["/admin/curadoria"]}>
+        <>
+          <CurationQueue includeRejected profile={adminProfile} />
+          <SearchParamProbe name="view" />
+        </>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
+    expect(screen.getByTestId("view-search-param")).toHaveTextContent("rejected");
+    expect(await screen.findByRole("button", { name: /Vaga rejeitada/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Pendentes/ }));
+    expect(screen.getByTestId("view-search-param")).toHaveTextContent("");
   });
 
   it("curator não recebe a vista de rejeitadas nem prioridade admin", async () => {
