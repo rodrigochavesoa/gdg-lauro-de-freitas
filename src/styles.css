@@ -624,6 +624,17 @@ body:has(.detail-page) .footer-inner{color:var(--color-text-subtle)}
 .admin-auth-shell .admin-title p{margin-left:auto;margin-right:auto}
 .admin-auth-shell .admin-title a{color:var(--color-text-link)}
 .admin-auth-shell .admin-auth-form{width:100%;max-width:none;margin:0}
+.admin-auth-motion-screen{position:relative;isolation:isolate;overflow:hidden;background-image:radial-gradient(color-mix(in srgb,var(--color-primary-500) 20%,transparent) 1px,transparent 1px);background-size:16px 16px}
+.admin-auth-motion-screen .admin-auth-shell{position:relative;z-index:1}
+.admin-login-screen .admin-auth-form{border-color:color-mix(in srgb,var(--color-border) 48%,transparent);background:linear-gradient(145deg,color-mix(in srgb,var(--color-surface) 9%,transparent),color-mix(in srgb,var(--color-surface) 2%,transparent) 42%,color-mix(in srgb,var(--color-surface) 14%,transparent));box-shadow:inset 0 1px 0 color-mix(in srgb,var(--color-white) 34%,transparent),inset 0 0 22px color-mix(in srgb,var(--color-white) 4%,transparent),0 18px 48px color-mix(in srgb,var(--color-grey-900) 22%,transparent);backdrop-filter:blur(1px) saturate(165%);-webkit-backdrop-filter:blur(1px) saturate(165%)}
+.admin-login-screen .admin-auth-form .form-section,.admin-login-screen .admin-auth-form .form-actions{background:transparent}
+.admin-login-screen .admin-auth-form .form-section{border-bottom:0}
+.admin-login-screen .admin-auth-form label{color:var(--color-text)}
+.admin-login-screen .admin-auth-form input{border-color:color-mix(in srgb,var(--color-border-strong) 54%,transparent);background:linear-gradient(135deg,color-mix(in srgb,var(--color-surface) 16%,transparent),color-mix(in srgb,var(--color-surface) 10%,transparent));box-shadow:inset 0 1px 2px color-mix(in srgb,var(--color-grey-900) 10%,transparent);font-size:var(--font-size-body-1);backdrop-filter:blur(1px) saturate(150%);-webkit-backdrop-filter:blur(1px) saturate(150%)}
+.admin-login-screen .admin-auth-form .form-actions .primary{border:1px solid color-mix(in srgb,var(--color-action-primary) 72%,var(--color-white) 28%);background:var(--color-action-primary);box-shadow:inset 0 1px 0 color-mix(in srgb,var(--color-white) 22%,transparent),0 3px 7px color-mix(in srgb,var(--color-action-primary) 24%,transparent);backdrop-filter:blur(8px) saturate(170%);-webkit-backdrop-filter:blur(8px) saturate(170%)}
+.admin-login-screen .admin-auth-form .form-actions .primary:hover{background:var(--color-action-primary-hover)}
+.admin-login-screen .admin-auth-form .form-actions .primary:active{background:var(--color-action-primary-active)}
+.admin-pointer-particles{position:absolute;z-index:0;inset:0;width:100%;height:100%;pointer-events:none;opacity:.86}
 
 /* F-010 — staff login is a compact column; do not reuse .job-form CRUD width. */
 .admin-auth-form{
@@ -958,6 +969,8 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 /* Sprint 20A — workspace staff. O shell de autenticação mantém o layout anterior. */
 .admin-workspace{padding:0;min-height:calc(100vh - 75px);background:var(--color-surface-subtle);background-image:none}
 .admin-workspace .admin-shell{display:block;min-height:calc(100vh - 75px);padding:0}
+.admin-workspace--dashboard{position:relative;isolation:isolate;overflow:hidden}
+.admin-workspace--dashboard .admin-shell{position:relative;z-index:1}
 .admin-workspace .admin-content{width:min(1120px,calc(100% - 300px));min-width:0;margin:0 32px 0 268px;padding:42px 0 80px}
 .admin-workspace .admin-title{margin-bottom:28px}
 .admin-workspace .admin-title h1{font-size:clamp(1.65rem,2.5vw,2.25rem);line-height:1.16}
@@ -1048,7 +1061,7 @@ fieldset.filter-group{border:0;border-top:1px solid var(--color-border);margin:0
 .admin-ingest__loading-line--meta{width:min(200px,48%);height:14px;grid-column:1}
 .admin-ingest__loading-line--action{width:5.5rem;height:44px;justify-self:end}
 .admin-ingest__loading--detail .admin-ingest__loading-line--meta{width:min(240px,60%)}
-.admin-workspace:has(.admin-dashboard){background-color:var(--color-surface-subtle);background-image:radial-gradient(ellipse 46% 34% at 100% -6%,color-mix(in srgb,var(--color-primary-100) 85%,transparent),transparent 70%),radial-gradient(ellipse 28% 24% at 70% 0%,color-mix(in srgb,var(--color-primary-50) 95%,transparent),transparent 68%)}
+.admin-workspace:has(.admin-dashboard){background-color:var(--color-surface-subtle);background-image:radial-gradient(color-mix(in srgb,var(--color-primary-500) 20%,transparent) 1px,transparent 1px),radial-gradient(ellipse 46% 34% at 100% -6%,color-mix(in srgb,var(--color-primary-100) 85%,transparent),transparent 70%),radial-gradient(ellipse 28% 24% at 70% 0%,color-mix(in srgb,var(--color-primary-50) 95%,transparent),transparent 68%);background-size:16px 16px,auto,auto}
 .admin-dashboard{min-width:0}
 .admin-dashboard-focus{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px 24px;min-width:0;min-height:148px;margin:0 0 28px;padding:28px;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:0 8px 28px rgb(24 24 27 / 3%)}
 .admin-dashboard-focus__copy{flex:1 1 12rem;min-width:0}
