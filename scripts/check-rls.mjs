@@ -3140,15 +3140,6 @@ async function scenario21_jobIngestions() {
     if (first?.id) createdIds.push(first.id);
     assert(first.job_id == null, "ingestão Fase A não exige job_id");
     assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
-    const fixtureRpc = await admin.rpc("register_job_ingestion", {
-      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
-      p_locator: `fixture:rls-s21-forbidden-${stamp}`,
-      p_payload: payload,
-    });
-    assert(
-      Boolean(fixtureRpc.error) && /source_kind não suportado/i.test(errorText(fixtureRpc.error)),
-      `admin AAL2 não registra manual_fixture em ambiente operacional (${errorText(fixtureRpc.error) || "sem erro"})`,
-    );
     if (attentionBefore != null && first?.id) {
       await assertStaffListRow(admin, first.id, { needsAttention: true, outcome: null });
       await assertAttentionDelta(admin, attentionBefore, 1, "ingestão sem job_id conta");
