@@ -71,9 +71,9 @@ RPC `process_job_ingestion` (admin AAL2): registra a origem, materializa `jobs` 
 
 `loadJobIngestions` lê a view `job_ingestion_staff_list` em páginas de 24, sem `canonical_payload` e sem o histórico de tentativas. O detalhe usa `loadJobIngestionDetail`. A contagem do painel usa `count_job_ingestions_needing_attention`.
 
-UI staff: atalho **Ingestão** no painel `/admin` (loading / vazio / erro / reprocessar). Fixture fictícia: `fixture:homolog-acme-frontend`.
+UI staff: atalho **Ingestão** no painel `/admin` (loading / vazio / erro / reprocessar). O formulário começa vazio, busca uma empresa cadastrada pelo `AdminCompanyPicker` e usa `staff_replay` como origem. A ingestão não cria empresas; quando não encontra correspondência exata, registra falha redigida. Vagas materializadas permanecem `pending` para curadoria.
 
-Migrations homolog-only: `20260920010148_job_ingestions_source_contract_homolog.sql`, `20260920020100_job_ingestions_register_rpc_homolog.sql`, `20260920040000_job_ingestions_process_homolog.sql` e `20260923140000_job_ingestion_staff_list_homolog.sql`.
+Production inclui as migrations `20261006222032_job_ingestions_source_contract_prod.sql`, `20261006222043_job_ingestions_register_rpc_prod.sql`, `20261006222045_job_ingestions_process_prod.sql` e `20261006222046_job_ingestion_staff_list_prod.sql`, listadas no manifesto. As migrations antigas com sufixo `_homolog.sql` permanecem separadas; a migration atual de processamento também substitui o comportamento antigo de criação de empresas fictícias em homologação.
 
 ## RLS (homologação)
 

@@ -28,6 +28,7 @@ export const INGESTION_OUTCOMES = Object.freeze({
 });
 
 export const INGESTION_FAILURE_CODES = Object.freeze({
+  COMPANY_NOT_FOUND: "company_not_found",
   EXPIRED: "expired",
   PAYLOAD_INVALID: "payload_invalid",
   DUPLICATE_010: "duplicate_010",

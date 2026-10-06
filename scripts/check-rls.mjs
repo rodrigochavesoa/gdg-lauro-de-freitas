@@ -3131,7 +3131,7 @@ async function scenario21_jobIngestions() {
     await assertIngestionStaffListContract(admin);
     const attentionBefore = await readAttentionCount(admin, "admin AAL2 antes da fixture");
     const first = await registerJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator: `  ${locator.toUpperCase()}  `,
       payload,
       expiresAt: "2020-01-01T00:00:00.000Z",
@@ -3140,6 +3140,15 @@ async function scenario21_jobIngestions() {
     if (first?.id) createdIds.push(first.id);
     assert(first.job_id == null, "ingestão Fase A não exige job_id");
     assert(first.normalized_locator === locator, "locator normalizado no INSERT (trim/lower)");
+    const fixtureRpc = await admin.rpc("register_job_ingestion", {
+      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      p_locator: `fixture:rls-s21-forbidden-${stamp}`,
+      p_payload: payload,
+    });
+    assert(
+      Boolean(fixtureRpc.error) && /source_kind não suportado/i.test(errorText(fixtureRpc.error)),
+      `admin AAL2 não registra manual_fixture em ambiente operacional (${errorText(fixtureRpc.error) || "sem erro"})`,
+    );
     if (attentionBefore != null && first?.id) {
       await assertStaffListRow(admin, first.id, { needsAttention: true, outcome: null });
       await assertAttentionDelta(admin, attentionBefore, 1, "ingestão sem job_id conta");
@@ -3152,7 +3161,7 @@ async function scenario21_jobIngestions() {
 
     await assertCannotSeeIngestion(anon, first.id, "anon");
     const anonRpc = await anon.rpc("register_job_ingestion", {
-      p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+      p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
       p_locator: locator,
       p_payload: payload,
     });
@@ -3178,13 +3187,13 @@ async function scenario21_jobIngestions() {
         await assertCannotSeeIngestion(candidate, first.id, "candidato");
         if (attentionBefore != null) await assertStaffListHidden(candidate, first.id, "candidato");
         const candidateInsert = await candidate.from("job_ingestions").insert({
-          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          source_kind: SOURCE_KINDS.STAFF_REPLAY,
           normalized_locator: `fixture:rls-s21-candidate-${stamp}`,
           payload_hash: "a".repeat(64),
         });
         assert(Boolean(candidateInsert.error), "candidato não insere ingestão via tabela");
         const candidateRpc = await candidate.rpc("register_job_ingestion", {
-          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
           p_locator: `fixture:rls-s21-candidate-rpc-${stamp}`,
           p_payload: payload,
         });
@@ -3226,7 +3235,7 @@ async function scenario21_jobIngestions() {
         await assertCannotSeeIngestion(aal1Admin, first.id, "admin AAL1");
         if (attentionBefore != null) await assertStaffListHidden(aal1Admin, first.id, "admin AAL1");
         const aal1Insert = await aal1Admin.from("job_ingestions").insert({
-          source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          source_kind: SOURCE_KINDS.STAFF_REPLAY,
           normalized_locator: `fixture:rls-s21-aal1-${stamp}`,
           payload_hash: "b".repeat(64),
         });
@@ -3236,7 +3245,7 @@ async function scenario21_jobIngestions() {
           `insert ingestão AAL1 recusado (${errorText(aal1Insert.error) || "sem mensagem"})`,
         );
         const aal1Rpc = await aal1Admin.rpc("register_job_ingestion", {
-          p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+          p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
           p_locator: `fixture:rls-s21-aal1-rpc-${stamp}`,
           p_payload: payload,
         });
@@ -3251,7 +3260,7 @@ async function scenario21_jobIngestions() {
     }
 
     const repeat = await registerJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
       payload: { ...payload, stack: ["JavaScript"] },
     });
@@ -3263,7 +3272,7 @@ async function scenario21_jobIngestions() {
     }
 
     const distinctLocator = await registerJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator: `${locator}-other`,
       payload,
     });
@@ -3271,7 +3280,7 @@ async function scenario21_jobIngestions() {
     if (distinctLocator?.id) createdIds.push(distinctLocator.id);
 
     const distinctPayload = await registerJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
       payload: { ...payload, title: `${payload.title} plenor` },
     });
@@ -3279,7 +3288,7 @@ async function scenario21_jobIngestions() {
     if (distinctPayload?.id) createdIds.push(distinctPayload.id);
 
     const fingerprint = await buildIngestionFingerprint({
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
       payload,
     });
@@ -3326,7 +3335,7 @@ async function assertSameTimestampAttemptTie(admin, svc, stamp, createdIds) {
   const lowId = "00000000-0000-4000-8000-0000000000a1";
   const highId = "ffffffff-ffff-4fff-8fff-0000000000a1";
   const inserted = await svc.from("job_ingestions").insert({
-    source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+    source_kind: SOURCE_KINDS.STAFF_REPLAY,
     normalized_locator: `fixture:rls-tie-${stamp}`,
     payload_hash: "d".repeat(64),
   }).select("id").single();
@@ -3393,7 +3402,7 @@ async function scenario22_processJobIngestion() {
   try {
     attention = await readAttentionCount(admin, "admin AAL2 antes do processo");
     const first = await processJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
       payload,
     });
@@ -3411,7 +3420,7 @@ async function scenario22_processJobIngestion() {
     assert((publicJob.data ?? []).length === 0, "pending da ingestão não entra no catálogo público");
 
     const repeat = await processJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
       payload,
     });
@@ -3423,7 +3432,7 @@ async function scenario22_processJobIngestion() {
     }
 
     const failed = await processJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator: `${locator}-fail`,
       payload: { title: `RLS 013 fail ${stamp}`, company_name: "Empresa Fictícia Lab" },
     });
@@ -3451,7 +3460,7 @@ async function scenario22_processJobIngestion() {
         .eq("ingestion_id", failed.ingestion.id);
       assert((curatorRead.data ?? []).length > 0, "curator AAL2 lê tentativas");
       const curatorProcess = await curator.rpc("process_job_ingestion", {
-        p_source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+        p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
         p_locator: `${locator}-curator`,
         p_payload: payload,
       });
@@ -3474,7 +3483,7 @@ async function scenario22_processJobIngestion() {
     if (svc) {
       await assertSameTimestampAttemptTie(admin, svc, stamp, createdIds);
       const expiredInsert = await svc.from("job_ingestions").insert({
-        source_kind: SOURCE_KINDS.MANUAL_FIXTURE,
+        source_kind: SOURCE_KINDS.STAFF_REPLAY,
         normalized_locator: `fixture:rls-s22-expired-${stamp}`,
         payload_hash: "c".repeat(64),
         expires_at: "2020-01-01T00:00:00.000Z",
@@ -3503,7 +3512,7 @@ async function scenario22_processJobIngestion() {
     }
 
     const expiredProcess = await processJobIngestion(admin, {
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator: `${locator}-expired`,
       payload,
       expiresAt: "2020-01-01T00:00:00.000Z",

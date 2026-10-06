@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Filter } from "lucide-react";
 import {
-  HOMOLOG_MANUAL_FIXTURE,
   describeIngestionOutcome,
   latestIngestionAttempt,
   loadJobIngestionDetail,
@@ -17,6 +16,7 @@ import { AdminBackButton } from "../../shared/ui/AdminBackControl.jsx";
 import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
 import { useDebouncedValue } from "../../shared/ui/useDebouncedValue.js";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
+import { AdminCompanyPicker } from "../admin/AdminCompanyPicker.jsx";
 
 const INGESTION_STATUS_FILTERS = [
   ["all", "Todos os status"],
@@ -34,21 +34,23 @@ function ingestionStatusValue(row) {
 }
 
 const emptyForm = {
-  locator: HOMOLOG_MANUAL_FIXTURE.locator,
+  locator: "",
   expiresAt: "",
-  title: HOMOLOG_MANUAL_FIXTURE.payload.title,
-  companyName: HOMOLOG_MANUAL_FIXTURE.payload.company_name,
+  title: "",
   level: "Júnior",
-  description: HOMOLOG_MANUAL_FIXTURE.payload.description,
-  stackText: "React, TypeScript",
-  location: HOMOLOG_MANUAL_FIXTURE.payload.location,
+  description: "",
+  stackText: "",
+  location: "",
   countryCode: "",
   salaryMinText: "",
   salaryMaxText: "",
   workModel: "Remoto",
 };
 
-function toPayload(form) {
+function toPayload(form, selectedCompany) {
+  if (!selectedCompany?.name) {
+    throw new Error("Selecione uma empresa cadastrada antes de continuar.");
+  }
   const structured = structuredJobColumns(form);
   if (structured.errors.length) {
     const error = new Error(structured.errors[0]);
@@ -57,7 +59,7 @@ function toPayload(form) {
   }
   const payload = {
     title: form.title,
-    company_name: form.companyName,
+    company_name: selectedCompany.name,
     description: form.description,
     level: LEVEL_TO_DB[form.level],
     work_model: MODEL_TO_DB[form.workModel],
@@ -92,6 +94,7 @@ function ingestionListStatus(row) {
 
 export function IngestPanel() {
   const [form, setForm] = useState(emptyForm);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [rows, setRows] = useState([]);
   const [page, setPage] = useState(1);
   const [hasNext, setHasNext] = useState(false);
@@ -151,7 +154,7 @@ export function IngestPanel() {
         Fonte
         <select id={`ingest-source-filter-${suffix}`} value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)}>
           <option value="all">Todas as fontes</option>
-          {SOURCE_KINDS.MANUAL_FIXTURE ? <option value={SOURCE_KINDS.MANUAL_FIXTURE}>Fixture manual</option> : null}
+          {SOURCE_KINDS.MANUAL_FIXTURE ? <option value={SOURCE_KINDS.MANUAL_FIXTURE}>Fixture de homologação (histórico)</option> : null}
           {SOURCE_KINDS.STAFF_REPLAY ? <option value={SOURCE_KINDS.STAFF_REPLAY}>Reprocessamento interno</option> : null}
         </select>
       </label>
@@ -270,14 +273,14 @@ export function IngestPanel() {
     event.preventDefault();
     let payload;
     try {
-      payload = toPayload(form);
+      payload = toPayload(form, selectedCompany);
     } catch (err) {
       setMessage("");
       setError(err.errors?.join(" ") || err.message);
       return;
     }
     void runProcess({
-      sourceKind: SOURCE_KINDS.MANUAL_FIXTURE,
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator: form.locator,
       payload,
       expiresAt: expiresAtIso(form.expiresAt),
@@ -302,15 +305,15 @@ export function IngestPanel() {
     <div className="admin-ingest">
       <div className="admin-title">
         <div>
-          <span className="eyebrow">Área administrativa · homologação</span>
-          <h1>{view === "new" ? "Nova fixture" : view === "detail" ? "Detalhe da ingestão" : "Ingestão"}</h1>
+          <span className="eyebrow">Área administrativa</span>
+          <h1>{view === "new" ? "Nova ingestão" : view === "detail" ? "Detalhe da ingestão" : "Ingestão"}</h1>
           <p>
-            {view === "new" ? "Registre uma origem de teste. A vaga criada segue pendente para curadoria." :
+            {view === "new" ? "Registre uma origem controlada. A vaga criada segue pendente para curadoria." :
               view === "detail" ? "Consulte o resultado e as tentativas antes de reprocessar." :
               "Acompanhe as entradas controladas. Nenhuma ingestão publica automaticamente."}
           </p>
         </div>
-        {view === "list" ? <button className="primary small" type="button" onClick={() => { viewGenerationRef.current += 1; setView("new"); setError(""); setMessage(""); }}>Nova fixture</button> :
+        {view === "list" ? <button className="primary small" type="button" onClick={() => { viewGenerationRef.current += 1; setForm(emptyForm); setSelectedCompany(null); setView("new"); setError(""); setMessage(""); }}>Nova ingestão</button> :
           <AdminBackButton type="button" onClick={() => { viewGenerationRef.current += 1; detailRequestRef.current += 1; setView("list"); setError(""); }}>Voltar às ingestões</AdminBackButton>}
       </div>
       {message ? <div className="success" role="status">{message}</div> : null}
@@ -318,7 +321,7 @@ export function IngestPanel() {
       {view === "new" ? (
       <form className="job-form" onSubmit={onSubmit}>
         <div className="form-section">
-          <h2>Origem fictícia</h2>
+          <h2>Dados da vaga</h2>
           <div className="form-grid">
             <label className="wide">
               Localizador
@@ -328,7 +331,7 @@ export function IngestPanel() {
                 required
                 value={form.locator}
                 onChange={field("locator")}
-                placeholder="fixture:homolog-acme-frontend"
+                placeholder="staff:fonte-ou-identificador"
               />
             </label>
             <label>
@@ -345,16 +348,14 @@ export function IngestPanel() {
               Título da vaga
               <input id="ingest-title" name="title" required value={form.title} onChange={field("title")} />
             </label>
-            <label>
-              Empresa fictícia
-              <input
-                id="ingest-company"
-                name="companyName"
-                required
-                value={form.companyName}
-                onChange={field("companyName")}
+            <div className="wide admin-job-company-field">
+              <AdminCompanyPicker
+                selectedCompany={selectedCompany}
+                onSelect={(company) => setSelectedCompany(company)}
+                disabled={busy}
               />
-            </label>
+              <p className="filter-hint">A ingestão usa apenas empresas já cadastradas. Cadastre a empresa pelo fluxo de vagas antes de continuar.</p>
+            </div>
             <label>
               Nível
               <select id="ingest-level" name="level" required value={form.level} onChange={field("level")}>
@@ -440,7 +441,7 @@ export function IngestPanel() {
         </div>
         <div className="form-actions">
           <button className="primary" type="submit" disabled={busy}>
-            {busy ? "Processando ingestão…" : "Ingerir fixture (pendente)"}
+            {busy ? "Processando ingestão…" : "Registrar vaga pendente"}
           </button>
         </div>
       </form>

@@ -5,6 +5,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const loadJobIngestions = vi.hoisted(() => vi.fn(async () => ({ items: [], hasNext: false, page: 1, pageSize: 24 })));
 const loadJobIngestionDetail = vi.hoisted(() => vi.fn(async () => null));
 const processJobIngestion = vi.hoisted(() => vi.fn());
+const loadCompanies = vi.hoisted(() => vi.fn(async () => ({
+  companies: [{ id: "company-existing", name: "Empresa já cadastrada" }],
+  truncated: false,
+})));
+
+vi.mock("../../lib/admin-api.js", async () => {
+  const actual = await vi.importActual("../../lib/admin-api.js");
+  return { ...actual, loadCompanies: (...args) => loadCompanies(...args) };
+});
 
 vi.mock("./ingest-api.js", async () => {
   const actual = await vi.importActual("./ingest-api.js");
@@ -20,6 +29,19 @@ import { IngestPanel } from "./IngestPanel.jsx";
 
 const emptyPage = { items: [], hasNext: false, page: 1, pageSize: 24 };
 
+async function selectExistingCompany() {
+  const input = screen.getByRole("combobox", { name: "Buscar empresa cadastrada" });
+  fireEvent.change(input, { target: { value: "Empresa" } });
+  fireEvent.focus(input);
+  fireEvent.click(await screen.findByRole("option", { name: "Empresa já cadastrada" }));
+}
+
+function fillIngestionFields(title) {
+  fireEvent.change(screen.getByLabelText("Localizador"), { target: { value: "staff:origem-controlada" } });
+  fireEvent.change(screen.getByLabelText("Título da vaga"), { target: { value: title } });
+  fireEvent.change(screen.getByLabelText("Descrição"), { target: { value: "Descrição da vaga para curadoria." } });
+}
+
 describe("IngestPanel", () => {
   beforeEach(() => {
     loadJobIngestions.mockReset();
@@ -27,6 +49,8 @@ describe("IngestPanel", () => {
     loadJobIngestionDetail.mockReset();
     loadJobIngestionDetail.mockResolvedValue(null);
     processJobIngestion.mockReset();
+    loadCompanies.mockReset();
+    loadCompanies.mockResolvedValue({ companies: [{ id: "company-existing", name: "Empresa já cadastrada" }], truncated: false });
   });
 
   it("mostra loading e estado vazio", async () => {
@@ -63,8 +87,10 @@ describe("IngestPanel", () => {
       pageSize: 24,
     };
     render(<IngestPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "Nova fixture" }));
-    fireEvent.click(screen.getByRole("button", { name: "Ingerir fixture (pendente)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nova ingestão" }));
+    fillIngestionFields("Vaga atualizada");
+    await selectExistingCompany();
+    fireEvent.click(screen.getByRole("button", { name: "Registrar vaga pendente" }));
     loadJobIngestions.mockResolvedValueOnce(refreshedPage);
 
     expect(await screen.findByText("Resultado atualizado")).toBeInTheDocument();
@@ -174,7 +200,7 @@ describe("IngestPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Voltar às ingestões" }));
     resolveProcess({ outcome: "registered", job: { status: "pending" } });
 
-    expect(await screen.findByRole("button", { name: "Nova fixture" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Nova ingestão" })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText("Detalhe da ingestão")).not.toBeInTheDocument());
   });
 
@@ -236,18 +262,18 @@ describe("IngestPanel", () => {
     expect(loadJobIngestions).toHaveBeenCalledTimes(1);
   });
 
-  it("ingere fixture e permite reprocessar", async () => {
+  it("ingere vaga de empresa cadastrada e permite reprocessar", async () => {
     loadJobIngestions
       .mockResolvedValueOnce(emptyPage)
       .mockResolvedValue({
         items: [
           {
             id: "ing-1",
-            source_kind: "manual_fixture",
-            normalized_locator: "fixture:homolog-acme-frontend",
-            payload_title: "Pessoa Dev Front-end (fixture homolog)",
+            source_kind: "staff_replay",
+            normalized_locator: "staff:origem-controlada",
+            payload_title: "Pessoa Desenvolvedora Front-end",
             latest_outcome: "materialized",
-            jobs: { id: "job-1", title: "Pessoa Dev Front-end (fixture homolog)", status: "pending" },
+            jobs: { id: "job-1", title: "Pessoa Desenvolvedora Front-end", status: "pending" },
           },
         ],
         hasNext: false,
@@ -256,27 +282,30 @@ describe("IngestPanel", () => {
       });
     loadJobIngestionDetail.mockResolvedValue({
       id: "ing-1",
-      source_kind: "manual_fixture",
-      normalized_locator: "fixture:homolog-acme-frontend",
-      canonical_payload: { title: "Pessoa Dev Front-end (fixture homolog)", company_name: "Empresa Fictícia Lab" },
-      jobs: { id: "job-1", title: "Pessoa Dev Front-end (fixture homolog)", status: "pending" },
+      source_kind: "staff_replay",
+      normalized_locator: "staff:origem-controlada",
+      canonical_payload: { title: "Pessoa Desenvolvedora Front-end", company_name: "Empresa já cadastrada" },
+      jobs: { id: "job-1", title: "Pessoa Desenvolvedora Front-end", status: "pending" },
       job_ingestion_attempts: [
         { id: "a1", outcome: "materialized", created_at: "2026-09-20T12:00:00.000Z" },
       ],
     });
     processJobIngestion.mockResolvedValue({
       ingestion: { id: "ing-1" },
-      job: { id: "job-1", title: "Pessoa Dev Front-end (fixture homolog)", status: "pending" },
+      job: { id: "job-1", title: "Pessoa Desenvolvedora Front-end", status: "pending" },
       outcome: "materialized",
     });
     render(<IngestPanel />);
     expect(await screen.findByText("Nenhuma ingestão registrada.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Localizador")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Nova fixture" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nova ingestão" }));
     expect(screen.getByLabelText("Localizador")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Ingerir fixture (pendente)" }));
+    expect(screen.getByLabelText("Localizador")).toHaveValue("");
+    fillIngestionFields("Pessoa Desenvolvedora Front-end");
+    await selectExistingCompany();
+    fireEvent.click(screen.getByRole("button", { name: "Registrar vaga pendente" }));
     await waitFor(() => expect(processJobIngestion).toHaveBeenCalled());
-    expect(screen.getByText(/Vaga pendente de curadoria · Pessoa Dev Front-end/)).toBeInTheDocument();
+    expect(screen.getByText(/Vaga pendente de curadoria · Pessoa Desenvolvedora Front-end/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Ver detalhes" }));
     expect(await screen.findByText("pending")).toBeInTheDocument();
     expect(screen.getByText(/Localizador:/)).toBeInTheDocument();

@@ -23,5 +23,9 @@
   "20261001120000_ux_community_profiles_01.sql",
   "20261005090000_admin_job_delete_audit.sql",
   "20261006175804_community_f11_production_approval.sql",
-  "20261006175805_community_avatar_production_storage.sql"
+  "20261006175805_community_avatar_production_storage.sql",
+  "20261006222032_job_ingestions_source_contract_prod.sql",
+  "20261006222043_job_ingestions_register_rpc_prod.sql",
+  "20261006222045_job_ingestions_process_prod.sql",
+  "20261006222046_job_ingestion_staff_list_prod.sql"
 ]
