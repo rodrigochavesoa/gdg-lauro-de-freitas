@@ -1251,3 +1251,23 @@ html[data-theme="dark"] .admin-job-detail-actions .admin-job-delete-trigger,html
 html[data-theme="dark"] .admin-job-detail-actions .admin-job-delete-trigger:hover,html[data-theme="system"] .admin-job-detail-actions .admin-job-delete-trigger:hover{background:color-mix(in srgb,var(--color-danger-700) 20%,var(--color-surface));color:var(--color-danger-700)}
 html[data-theme="dark"] .admin-job-delete-confirm{border-color:#fb7185;background:#be123c;color:#fff}
 @media(prefers-color-scheme:dark){html[data-theme="system"] .admin-job-delete-confirm{border-color:#fb7185;background:#be123c;color:#fff}}
+
+/* Admin job form: bounded, keyboard-accessible company search. */
+.admin-job-company-field{display:grid;justify-items:start;gap:var(--space-3);min-width:0}
+.admin-company-picker{position:relative;display:grid;gap:7px;width:100%;min-width:0}
+.job-form .admin-company-picker>label,.admin-job-company-field>label{font-size:var(--font-size-body-2);font-weight:600;color:var(--color-grey-700)}
+.admin-company-picker input,.admin-job-company-field>input{width:100%;min-width:0;min-height:44px}
+.admin-company-picker__selected{display:flex;align-items:center;justify-content:space-between;gap:var(--space-3);width:100%;padding:var(--space-3);border:1px solid var(--color-border);border-radius:var(--radius-sm);background:var(--color-surface-subtle);font-size:var(--font-size-body-2);overflow-wrap:anywhere}
+.admin-company-picker__selected>span{min-width:0}
+.admin-company-picker__selected button{flex:none}
+.admin-company-picker__popup{position:absolute;top:calc(100% + 5px);left:0;right:0;z-index:8;max-height:19rem;overflow:auto;padding:var(--space-2);border:1px solid var(--color-border-strong);border-radius:var(--radius-md);background:var(--color-surface);box-shadow:var(--shadow-card)}
+.admin-company-picker__status{margin:var(--space-2);color:var(--color-text-muted);font-size:var(--font-size-body-2);line-height:1.45}
+.admin-company-picker__options{max-height:14rem;overflow:auto;margin:0;padding:0;list-style:none}
+.admin-company-picker__options li{min-height:44px;padding:var(--space-3);border-radius:var(--radius-sm);color:var(--color-text);cursor:pointer;overflow-wrap:anywhere}
+.admin-company-picker__options li:hover,.admin-company-picker__options li[aria-selected="true"]{background:var(--color-primary-50);color:var(--color-text-link)}
+.admin-job-company-field>.filter-hint{margin:0;color:var(--color-text-muted);font-size:var(--font-size-caption);line-height:1.45}
+@media(max-width:760px){
+  .admin-company-picker__selected{align-items:stretch;flex-direction:column}
+  .admin-company-picker__selected button,.admin-job-company-field>.ghost{width:100%;min-height:44px}
+  .admin-company-picker__popup{max-height:min(19rem,45vh)}
+}
