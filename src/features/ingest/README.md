@@ -15,7 +15,7 @@ As camadas são independentes. Repetir a mesma fonte na 013 é idempotente (mesm
 
 | Coluna | Papel |
 |---|---|
-| `source_kind` | `manual_fixture` ou `staff_replay` nesta sprint |
+| `source_kind` | `staff_replay` nas RPCs operacionais; `manual_fixture` fica restrito a histórico e fixtures de homologação |
 | `normalized_locator` | identidade da fonte já normalizada |
 | `payload_hash` | SHA-256 hex (64) do JSON canônico, **recalculado no banco** |
 | `expires_at` | validade do ciclo; nulo = sem expiração |
@@ -26,7 +26,7 @@ Expiração **não** apaga ingestão, `jobs` nem `job_curation_reviews`. Catálo
 
 ## Normalização do localizador
 
-`manual_fixture` e `staff_replay` usam slug sintético (`fixture:…`, `replay:…`):
+`manual_fixture` histórico e `staff_replay` usam slug sintético (`fixture:…`, `replay:…`):
 
 1. `trim`
 2. colapsar whitespace interno para um espaço
@@ -73,7 +73,7 @@ RPC `process_job_ingestion` (admin AAL2): registra a origem, materializa `jobs` 
 
 UI staff: atalho **Ingestão** no painel `/admin` (loading / vazio / erro / reprocessar). O formulário começa vazio, busca uma empresa cadastrada pelo `AdminCompanyPicker` e usa `staff_replay` como origem. A ingestão não cria empresas; quando não encontra correspondência exata, registra falha redigida. Vagas materializadas permanecem `pending` para curadoria.
 
-Production inclui as migrations `20261006222032_job_ingestions_source_contract_prod.sql`, `20261006222043_job_ingestions_register_rpc_prod.sql`, `20261006222045_job_ingestions_process_prod.sql` e `20261006222046_job_ingestion_staff_list_prod.sql`, listadas no manifesto. As migrations antigas com sufixo `_homolog.sql` permanecem separadas; a migration atual de processamento também substitui o comportamento antigo de criação de empresas fictícias em homologação.
+Production inclui as migrations `20261006222032_job_ingestions_source_contract_prod.sql`, `20261006222043_job_ingestions_register_rpc_prod.sql`, `20261006222045_job_ingestions_process_prod.sql` e `20261006222046_job_ingestion_staff_list_prod.sql`, listadas no manifesto. A RPC recusa novos `manual_fixture`, ainda que o chamador seja admin AAL2. As migrations antigas com sufixo `_homolog.sql` permanecem separadas; a migration atual de processamento também substitui o comportamento antigo de criação de empresas fictícias em homologação.
 
 ## RLS (homologação)
 

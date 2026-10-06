@@ -698,8 +698,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(tabs).getByRole("link", { name: "Vagas" })).toHaveAttribute("href", "/admin/vagas");
     fireEvent.click(within(tabs).getByRole("link", { name: "Ingestão" }));
     expect(await screen.findByRole("heading", { name: "Ingestão" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nova fixture" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ingerir fixture (pendente)" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nova ingestão" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar vaga pendente" })).not.toBeInTheDocument();
     fireEvent.click(within(tabs).getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
     expect(loadApprovedJobsMock).not.toHaveBeenCalled();
