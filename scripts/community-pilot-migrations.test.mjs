@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 const root = join(import.meta.dirname, "..");
 const read = (path) => readFileSync(join(root, path), "utf8").replace(/\r\n/g, "\n");
 
-const held = read("supabase/migrations/held/20261001120000_ux_community_profiles_01.sql");
+const held = read("supabase/migrations/20261001120000_ux_community_profiles_01.sql");
 const pilot = read("supabase/migrations/homolog/20261001130000_community_f11_pilot_homolog.sql");
 const correction = read("supabase/migrations/homolog/20261001160000_community_pilot_gate_correction_homolog.sql");
 const harness = read("scripts/check-rls.mjs");

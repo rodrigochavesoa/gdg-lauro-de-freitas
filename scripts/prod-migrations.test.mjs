@@ -68,7 +68,7 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
   });
 
-  it("usa o manifesto como fonte de verdade — 22 arquivos, sem staff_dedup", () => {
+  it("usa o manifesto como fonte de verdade — 25 arquivos, sem staff_dedup", () => {
     expect(isProdSafeMigration("202608160002_seed_fictitious_catalog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916122300_avatars_storage_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(false);
@@ -92,7 +92,7 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260927080200_apply_rate_limit_preserve_homolog.sql")).toBe(false);
 
     const { prod, homologOnly, camadaB } = validateProdMigrations();
-    expect(prod).toHaveLength(22);
+    expect(prod).toHaveLength(25);
     expect(prod.some((name) => name.includes("job_submission_staff_dedup"))).toBe(false);
     expect(camadaB.some((name) => name.includes("job_submission_staff_dedup"))).toBe(true);
     expect(camadaB.some((name) => name.includes("staff_rls_aal2"))).toBe(true);
