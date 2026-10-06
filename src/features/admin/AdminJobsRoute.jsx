@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useSearchParams } from "react-router-dom";
-import { Filter, Search } from "lucide-react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Filter } from "lucide-react";
 import { FilterSheet } from "../../shared/ui/FilterSheet.jsx";
+import { AdminListSearch } from "../../shared/ui/AdminListSearch.jsx";
 import {
   ADMIN_JOB_PAGE_SIZE,
   ADMIN_JOB_SORT_OLDEST,
@@ -84,7 +85,12 @@ function JobListRow({ job, returnSearch }) {
 }
 
 export function AdminJobsRoute() {
-  const { search } = useLocation();
+  const location = useLocation();
+  const { search } = location;
+  const navigate = useNavigate();
+  const [deletedNotice] = useState(() =>
+    location.state?.deletedJobTitle ? `Vaga “${location.state.deletedJobTitle}” excluída com sucesso.` : "",
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseAdminJobListSearch(searchParams), [searchParams]);
   const [queryInput, setQueryInput] = useState(() => filters.query);
@@ -97,6 +103,11 @@ export function AdminJobsRoute() {
   const [reloadToken, setReloadToken] = useState(0);
   const [filterOpen, setFilterOpen] = useState(false);
   const closeFilters = useCallback(() => setFilterOpen(false), []);
+
+  useEffect(() => {
+    if (!location.state?.deletedJobTitle) return;
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.key, location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     setQueryInput((current) => (current === filters.query ? current : filters.query));
@@ -158,6 +169,11 @@ export function AdminJobsRoute() {
   const applyQuery = (event) => {
     event.preventDefault();
     commitFilters({ query: queryInput, page: 1 });
+  };
+
+  const clearQuery = () => {
+    setQueryInput("");
+    commitFilters({ query: "", page: 1 });
   };
 
   const loadMore = () => {
@@ -223,20 +239,17 @@ export function AdminJobsRoute() {
         </div>
       </FilterSheet>
 
-      <form className="searchbox admin-jobs-searchbox" role="search" aria-label="Buscar vagas na gestão" onSubmit={applyQuery}>
-        <Search size={21} aria-hidden="true" />
-        <input
-          id="admin-jobs-query"
-          name="q"
-          value={queryInput}
-          onChange={(event) => setQueryInput(event.target.value)}
-          placeholder="Título ou empresa"
-          aria-label="Título ou empresa"
-        />
-        <button className="primary" type="submit">
-          Buscar
-        </button>
-      </form>
+      <AdminListSearch
+        id="admin-jobs-query"
+        value={queryInput}
+        onChange={setQueryInput}
+        onSubmit={applyQuery}
+        onClear={clearQuery}
+        label="Buscar vagas na gestão"
+        placeholder="Título ou empresa"
+      />
+
+      {deletedNotice ? <p className="admin-job-delete-success" role="status">{deletedNotice}</p> : null}
 
       {error ? (
         <div className="form-alert" role="alert">

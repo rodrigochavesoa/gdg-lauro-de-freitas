@@ -199,9 +199,14 @@ export function Header({
 
   const baseNavLinks = (onNavigate) => (
     <>
-      <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink>
+      {!showMobileAdminNav ? <NavLink end to="/vagas" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Vagas</NavLink> : null}
       <NavLink to="/eventos" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Eventos</NavLink>
       <NavLink end to="/newsletter" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>Newsletter</NavLink>
+      {logged && !showMobileAdminNav ? (
+        <NavLink to="/comunidade" aria-disabled={needsOnboarding || undefined} onClick={(event) => onGatedClick(event, onNavigate)}>
+          Comunidade
+        </NavLink>
+      ) : null}
     </>
   );
 

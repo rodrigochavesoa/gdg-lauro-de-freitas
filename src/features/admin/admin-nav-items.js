@@ -13,6 +13,7 @@ function isJobsListPath(pathname) {
 export const ADMIN_NAV_ITEMS = [
   { id: "panel", to: "/admin", end: true, label: "Painel", roles: ADMIN_STAFF_ROLES },
   { id: "curation", to: "/admin/curadoria", label: "Curadoria", roles: ADMIN_STAFF_ROLES },
+  { id: "community", to: "/admin/comunidade", label: "Comunidade", roles: ADMIN_STAFF_ROLES },
   { id: "jobs", to: "/admin/vagas", label: "Vagas", roles: ADMIN_JOB_MANAGER_ROLES, isActive: isJobsListPath },
   { id: "publish", to: "/admin/vagas/nova", label: "Nova vaga", roles: ADMIN_JOB_MANAGER_ROLES },
   { id: "ingest", to: "/admin/ingestao", label: "Ingestão", roles: ADMIN_JOB_MANAGER_ROLES },

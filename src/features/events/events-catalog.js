@@ -26,6 +26,8 @@ export function eventSummaries() {
     datetimeLabel: event.datetimeLabel,
     location: event.location,
     bannerThumb: event.banner.src,
+    bannerThumbBase: event.banner.optimizedBase,
+    bannerThumbWidths: event.banner.optimizedWidths,
     bannerWidth: event.banner.width,
     bannerHeight: event.banner.height,
     registerUrl: event.registerUrl,

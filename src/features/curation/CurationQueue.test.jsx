@@ -1,5 +1,6 @@
 import React from "react";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render as testingLibraryRender, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -35,6 +36,15 @@ vi.mock("./curation-api.js", () => ({
 
 import { CurationQueue } from "./CurationQueue.jsx";
 import { mergeCurationQueue } from "./curation-queue.js";
+
+function render(ui, options) {
+  return testingLibraryRender(<MemoryRouter>{ui}</MemoryRouter>, options);
+}
+
+function SearchParamProbe({ name }) {
+  const [searchParams] = useSearchParams();
+  return <output data-testid={`${name}-search-param`}>{searchParams.get(name) ?? ""}</output>;
+}
 
 const queuePayload = {
   queue: [
@@ -196,6 +206,21 @@ describe("CurationQueue", () => {
     expect(unnamed).toEqual([]);
   });
 
+  it("busca localmente por título ou empresa e oferece limpeza rápida sem refetch", async () => {
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("searchbox", { name: "Título ou empresa" }), {
+      target: { value: "inexistente" },
+    });
+    expect(screen.getByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    fireEvent.click(within(screen.getByRole("search", { name: "Buscar na fila de curadoria" })).getByRole("button", { name: "Buscar" }));
+    expect(await screen.findByText("Nenhuma vaga corresponde à busca.")).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(screen.getByRole("region", { name: "Vagas pendentes" })).getByRole("button", { name: "Limpar busca" }));
+    expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
+    expect(loadCurationQueue).toHaveBeenCalledTimes(1);
+  });
+
   it("mantém a vaga selecionada no reload e não troca o detalhe se ela sair da página", async () => {
     const job1 = queuePayload.queue[0];
     const job2 = {
@@ -323,6 +348,7 @@ describe("CurationQueue", () => {
     render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("fila indisponível");
+    expect(screen.queryByText("Nenhuma vaga pendente nesta fila.")).not.toBeInTheDocument();
     curationEvents.notify();
     expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -616,6 +642,24 @@ describe("CurationQueue Sprint 20A", () => {
     expect(screen.queryByRole("button", { name: "Iniciar parecer" })).not.toBeInTheDocument();
   });
 
+  it("abre a visão rejeitada por query param e limpa o parâmetro ao voltar para pendentes", async () => {
+    testingLibraryRender(
+      <MemoryRouter initialEntries={["/admin/curadoria"]}>
+        <>
+          <CurationQueue includeRejected profile={adminProfile} />
+          <SearchParamProbe name="view" />
+        </>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /Rejeitadas/ }));
+    expect(screen.getByTestId("view-search-param")).toHaveTextContent("rejected");
+    expect(await screen.findByRole("button", { name: /Vaga rejeitada/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Pendentes/ }));
+    expect(screen.getByTestId("view-search-param")).toHaveTextContent("");
+  });
+
   it("curator não recebe a vista de rejeitadas nem prioridade admin", async () => {
     render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
     expect(await screen.findByRole("button", { name: /Pessoa Dev Front-end \(fila\)/ })).toBeInTheDocument();
@@ -872,6 +916,38 @@ describe("CurationQueue parecer (UX-CURATION-REVIEW-FEEDBACK-01)", () => {
     fireEvent.click(screen.getByLabelText(/Empresa e oportunidade identificáveis/));
     fireEvent.click(screen.getByRole("button", { name: /^Enviar parecer/i }));
   }
+
+  it("reserva a mesma área de contexto durante o shimmer e após carregar o detalhe", async () => {
+    const pendingRlsJob = {
+      ...normalQueuePayload.queue[0],
+      id: "job-rls",
+      title: "RLS self-review 1790868460202",
+      companies: { name: "Nuvem Lauro Demo" },
+    };
+    loadCurationQueue.mockResolvedValue({ ...normalQueuePayload, queue: [pendingRlsJob] });
+    let resolveDetail;
+    loadCurationJobDetail.mockImplementation(() => new Promise((resolve) => { resolveDetail = resolve; }));
+
+    render(<CurationQueue includeRejected={false} profile={curatorProfile} />);
+    await selectQueueJob(/RLS self-review 1790868460202/);
+
+    const contextSlot = document.querySelector(".curation-workspace__detail-copy");
+    expect(contextSlot).toHaveAttribute("aria-busy", "true");
+    expect(contextSlot.querySelector(".curation-workspace__detail-skeleton")).toBeInTheDocument();
+
+    resolveDetail({
+      id: "job-rls",
+      description: "Vaga fictícia para curadoria.",
+      stack: ["React"],
+      reviews: [],
+    });
+    expect(await within(contextSlot).findByText("Vaga fictícia para curadoria.")).toBeInTheDocument();
+    expect(contextSlot).toHaveAttribute("aria-busy", "false");
+    expect(contextSlot.querySelector(".curation-workspace__detail-skeleton")).not.toBeInTheDocument();
+
+    const css = readFileSync(resolve("src/styles.css"), "utf8");
+    expect(css).toMatch(/\.curation-workspace__detail-copy\{[^}]*min-height:/);
+  });
 
   it("mostra erro didático inline ao falhar o parecer, não só no topo", async () => {
     submitCurationReview.mockRejectedValue(

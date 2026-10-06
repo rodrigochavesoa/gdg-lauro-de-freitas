@@ -132,6 +132,49 @@ describe("CI secrets isolation (SEC-CI-SECRETS-01)", () => {
           expect(secretBindings(quality)).toEqual(new Set());
           expect(privilegedBindings(quality)).toEqual([]);
         });
+
+        it("job rls isola secrets no step RLS (homologação) e fixa actions por SHA com comentário de versão (SEC-CI-RLS-ENV-01)", () => {
+          const rlsRaw = jobBlock(source, PRIVILEGED_JOB_ID);
+          const stepsIndex = rlsRaw.search(/^ {4}steps:\s*$/m);
+          expect(stepsIndex).toBeGreaterThan(0);
+
+          // Nível de job (antes de steps:) não tem bloco env nem secrets
+          const jobLevelHeader = rlsRaw.slice(0, stepsIndex);
+          expect(jobLevelHeader).not.toMatch(/^ {4}env:\s*$/m);
+          expect(privilegedBindings(jobLevelHeader)).toEqual([]);
+
+          // Actions do job rls devem ser fixadas por 40 hex com comentário de versão
+          const actionRegex = /^ {8}uses:\s*([^@\s]+)@([0-9a-f]{40})\s*#\s*(v[0-9.]+)/gm;
+          const pinnedActions = [...rlsRaw.matchAll(actionRegex)].map((m) => ({
+            action: m[1],
+            sha: m[2],
+            version: m[3],
+          }));
+          expect(pinnedActions).toEqual([
+            { action: "actions/checkout", sha: "11bd71901bbe5b1630ceea73d27597364c9af683", version: "v4.2.2" },
+            { action: "pnpm/action-setup", sha: "fe02b34f77f8bc703788d5817da081398fad5dd2", version: "v4.0.0" },
+            { action: "actions/setup-node", sha: "1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a", version: "v4.2.0" },
+          ]);
+
+          // Isola o step Checkout do job rls e valida que persist-credentials: false está dentro de with:
+          const checkoutMatch = rlsRaw.match(/- name: Checkout\s*\n([\s\S]*?)(?=\n\s+- name:|$)/);
+          expect(checkoutMatch).not.toBeNull();
+          const checkoutStep = checkoutMatch[1];
+          expect(checkoutStep).toContain("actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683");
+          expect(checkoutStep).toMatch(/with:\s*\n\s+persist-credentials:\s*false/);
+
+          // Steps preparatórios (Checkout, Setup pnpm, Setup Node.js, Install dependencies) sem secrets
+          const rlsStepIndex = rlsRaw.search(/- name: RLS \(homologação\)/);
+          expect(rlsStepIndex).toBeGreaterThan(0);
+          const setupSteps = rlsRaw.slice(stepsIndex, rlsStepIndex);
+          expect(secretBindings(setupSteps)).toEqual(new Set());
+
+          // Step de teste RLS contém o env com segredos e SUPABASE_SERVICE_ROLE_KEY
+          const rlsStep = rlsRaw.slice(rlsStepIndex);
+          expect(rlsStep).toContain("SUPABASE_SERVICE_ROLE_KEY");
+          expect(privilegedBindings(rlsStep)).toEqual(expect.arrayContaining(["SUPABASE_SERVICE_ROLE_KEY"]));
+          expect(rlsStep).toContain("run: pnpm test:rls");
+        });
       }
     });
   }

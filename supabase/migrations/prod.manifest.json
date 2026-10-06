@@ -19,5 +19,13 @@
   "20260927080300_sec_apply_ratelimit_concurrency.sql",
   "20260928010000_tech_admin_write_atomicity.sql",
   "20260928020000_sec_staff_aal2_prod.sql",
-  "20260928030000_perf_admin_shell_summary.sql"
+  "20260928030000_perf_admin_shell_summary.sql",
+  "20261001120000_ux_community_profiles_01.sql",
+  "20261005090000_admin_job_delete_audit.sql",
+  "20261006175804_community_f11_production_approval.sql",
+  "20261006175805_community_avatar_production_storage.sql",
+  "20261006222032_job_ingestions_source_contract_prod.sql",
+  "20261006222043_job_ingestions_register_rpc_prod.sql",
+  "20261006222045_job_ingestions_process_prod.sql",
+  "20261006222046_job_ingestion_staff_list_prod.sql"
 ]

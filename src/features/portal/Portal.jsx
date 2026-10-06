@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpRight, BriefcaseBusiness, Code2, Compass, Search, Sparkles, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { isCandidateProfile, isD01Complete } from "../auth/profile-completeness.js";
+import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
 
 export function Portal({ logged = false, profile = null, email = "" }) {
   const navigate = useNavigate();
@@ -183,10 +184,16 @@ function PortalAvatar() {
           />
         )}
       </div>
-      <img
+      <ResponsiveAssetImage
         className={`avatar-stage__image ${active ? "is-active" : ""}`}
         src="/avatar-gdgjobs.png"
+        sourceBase="/avatar-gdgjobs"
+        sourceWidths={[480, 768]}
+        sizes="(max-width: 760px) 88vw, 495px"
         alt="Avatar do GDG Jobs com notebook"
+        width={1169}
+        height={987}
+        fetchPriority="high"
         style={{ "--tilt-x": `${tilt.x}deg`, "--tilt-y": `${tilt.y}deg` }}
       />
       {chips.map((chip) => <span className={`portal-chip ${chip.className}`} key={chip.label}>{chip.icon}{chip.label}</span>)}

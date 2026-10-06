@@ -683,7 +683,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Comunidade" })).toHaveAttribute("href", "/comunidade");
     expect(screen.queryByRole("link", { name: /Criar perfil gratuito/i })).not.toBeInTheDocument();
     expect(document.querySelector(".cta")).toBeNull();
   });
@@ -698,8 +698,8 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(within(tabs).getByRole("link", { name: "Vagas" })).toHaveAttribute("href", "/admin/vagas");
     fireEvent.click(within(tabs).getByRole("link", { name: "Ingestão" }));
     expect(await screen.findByRole("heading", { name: "Ingestão" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Nova fixture" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Ingerir fixture (pendente)" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nova ingestão" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Registrar vaga pendente" })).not.toBeInTheDocument();
     fireEvent.click(within(tabs).getByRole("link", { name: "Vagas" }));
     expect(await screen.findByRole("heading", { name: "Gestão de vagas" })).toBeInTheDocument();
     expect(loadApprovedJobsMock).not.toHaveBeenCalled();
@@ -1170,13 +1170,13 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
   });
 
-  it("não aquece preferências de privacidade durante o onboarding", async () => {
+  it("não pré-carrega dados privados sem intenção durante o onboarding", async () => {
     authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
     authState.profile = { full_name: "", role: "candidate" };
     authState.needsOnboarding = true;
     await renderAt("/onboarding");
     expect(await screen.findByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).toBeInTheDocument();
-    await waitFor(() => expect(loadMyApplicationsMock).toHaveBeenCalled());
+    expect(loadMyApplicationsMock).not.toHaveBeenCalled();
     expect(loadPrivacyPreferencesMock).not.toHaveBeenCalled();
   });
 
@@ -1267,7 +1267,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(screen.queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
   });
 
-  it("aquece preferências de privacidade quando o perfil já está completo", async () => {
+  it("pré-carrega preferências somente quando o link recebe foco", async () => {
     authState.session = { user: { id: "u1", email: "ada@example.invalid" } };
     authState.profile = {
       full_name: "Ada Lovelace",
@@ -1277,6 +1277,9 @@ describe("ARQ-01 — caracterização do shell", () => {
     };
     authState.needsOnboarding = false;
     await renderAt("/");
+    expect(loadPrivacyPreferencesMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Ada Lovelace" }));
+    fireEvent.focusIn(screen.getByRole("link", { name: "Privacidade" }));
     await waitFor(() => expect(loadPrivacyPreferencesMock).toHaveBeenCalledWith({ userId: "u1" }));
   });
 

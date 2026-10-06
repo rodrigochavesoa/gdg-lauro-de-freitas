@@ -7,11 +7,14 @@ import { AdminJobFormRoute } from "./AdminJobFormRoute.jsx";
 import { AdminJobsGate } from "./AdminJobsGate.jsx";
 import { AdminIngestRoute } from "./AdminIngestRoute.jsx";
 import { AdminJobsRoute } from "./AdminJobsRoute.jsx";
+import { AdminCommunityRoute } from "./AdminCommunityRoute.jsx";
 
 export const adminChildRoutes = (
   <>
     <Route index element={<AdminHome />} />
     <Route path="curadoria" element={<AdminCurationRoute />} />
+    <Route path="comunidade" element={<AdminCommunityRoute />} />
+    <Route path="comunidade/:publicId" element={<AdminCommunityRoute />} />
     <Route path="ingestao" element={<AdminJobsGate />}>
       <Route index element={<AdminIngestRoute />} />
     </Route>

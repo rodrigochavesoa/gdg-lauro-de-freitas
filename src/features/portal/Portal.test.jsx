@@ -24,7 +24,14 @@ describe("Portal", () => {
 
     const stage = document.querySelector(".avatar-stage--portal");
 
-    expect(screen.getByRole("img", { name: "Avatar do GDG Jobs com notebook" })).toBeInTheDocument();
+    const avatar = screen.getByRole("img", { name: "Avatar do GDG Jobs com notebook" });
+    expect(avatar).toHaveAttribute("width", "1169");
+    expect(avatar).toHaveAttribute("height", "987");
+    expect(avatar).toHaveAttribute("fetchpriority", "high");
+    expect(avatar.closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/avatar-gdgjobs-480.avif 480w, /avatar-gdgjobs-768.avif 768w",
+    );
     expect(stage.querySelector("video")).toBeNull();
 
     fireEvent.pointerEnter(stage, { pointerType: "mouse" });

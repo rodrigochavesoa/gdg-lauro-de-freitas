@@ -6,16 +6,24 @@ describe("admin-nav-items", () => {
     expect(adminNavItemsForRole("admin").map((i) => i.label)).toEqual([
       "Painel",
       "Curadoria",
+      "Comunidade",
       "Vagas",
       "Nova vaga",
       "Ingestão",
     ]);
   });
 
-  it("curator e moderator só Painel e Curadoria", () => {
+  it("curator e moderator recebem Comunidade além de Painel e Curadoria", () => {
     for (const role of ["curator", "moderator"]) {
-      expect(adminNavItemsForRole(role).map((i) => i.label)).toEqual(["Painel", "Curadoria"]);
+      expect(adminNavItemsForRole(role).map((i) => i.label)).toEqual(["Painel", "Curadoria", "Comunidade"]);
     }
+  });
+
+  it("Comunidade fica ativa na lista e no perfil aberto dentro do admin", () => {
+    const community = ADMIN_NAV_ITEMS.find((item) => item.id === "community");
+    expect(isAdminNavItemActive("/admin/comunidade", community)).toBe(true);
+    expect(isAdminNavItemActive("/admin/comunidade/member-1", community)).toBe(true);
+    expect(isAdminNavItemActive("/comunidade", community)).toBe(false);
   });
 
   it("Vagas ativa na lista e no detalhe, não em Nova vaga", () => {

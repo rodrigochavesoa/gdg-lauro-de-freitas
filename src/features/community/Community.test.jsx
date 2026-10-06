@@ -1,0 +1,375 @@
+import React from "react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CommunityRoute } from "./Community.jsx";
+
+const api = vi.hoisted(() => ({
+  listCommunityProfiles: vi.fn(),
+  loadCommunityProfile: vi.fn(),
+  loadMyCommunityPublicationStatus: vi.fn(),
+  setMyCommunityPublication: vi.fn(),
+  getCommunityAvatarObjectUrl: vi.fn(),
+  prefetchCommunityAvatars: vi.fn(),
+  peekCommunityAvatarObjectUrl: vi.fn(() => null),
+  revokeCommunityAvatarObjectUrls: vi.fn(),
+}));
+
+vi.mock("./community-api.js", () => ({
+  listCommunityProfiles: api.listCommunityProfiles,
+  loadCommunityProfile: api.loadCommunityProfile,
+  loadMyCommunityPublicationStatus: api.loadMyCommunityPublicationStatus,
+  setMyCommunityPublication: api.setMyCommunityPublication,
+  getCommunityAvatarObjectUrl: api.getCommunityAvatarObjectUrl,
+  prefetchCommunityAvatars: api.prefetchCommunityAvatars,
+  peekCommunityAvatarObjectUrl: api.peekCommunityAvatarObjectUrl,
+  revokeCommunityAvatarObjectUrls: api.revokeCommunityAvatarObjectUrls,
+}));
+
+function renderCommunity({ auth, authReady = true, route = "/comunidade", viewerAvatarUrl = null, viewerDisplayName = "" }) {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <Routes>
+        <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
+        <Route path="/comunidade/:publicId" element={<CommunityRoute auth={auth} authReady={authReady} viewerAvatarUrl={viewerAvatarUrl} viewerDisplayName={viewerDisplayName} />} />
+        <Route path="/login" element={<h1>Entrar</h1>} />
+        <Route path="/onboarding" element={<h1>Completar perfil</h1>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function communityTree(auth) {
+  return (
+    <MemoryRouter initialEntries={["/comunidade"]}>
+      <Routes>
+        <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady />} />
+        <Route path="/login" element={<h1>Entrar</h1>} />
+      </Routes>
+    </MemoryRouter>
+  );
+}
+
+const authenticatedAuth = {
+  session: { user: { id: "user-a" } },
+  profile: { role: "candidate" },
+  needsOnboarding: false,
+};
+
+describe("CommunityRoute", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({
+      published: false,
+      canPublish: false,
+      reasonCode: "approval_pending",
+    });
+    api.listCommunityProfiles.mockResolvedValue({ items: [], nextCursor: null });
+    api.loadCommunityProfile.mockResolvedValue(null);
+    api.setMyCommunityPublication.mockImplementation(async (enabled) => enabled);
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("https://example.test/community-avatar.jpg");
+    api.prefetchCommunityAvatars.mockResolvedValue(undefined);
+    api.peekCommunityAvatarObjectUrl.mockReturnValue(null);
+    api.revokeCommunityAvatarObjectUrls.mockImplementation(() => {});
+  });
+
+  it("does not request community data until auth is hydrated", () => {
+    renderCommunity({ auth: { session: null }, authReady: false });
+    expect(document.querySelector(".community-skeleton--page")).toBeTruthy();
+    expect(screen.queryByText("Carregando conta…")).not.toBeInTheDocument();
+    expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
+    expect(api.listCommunityProfiles).not.toHaveBeenCalled();
+  });
+
+  it("redirects visitors to login without making any community request", () => {
+    renderCommunity({ auth: { session: null } });
+    expect(screen.getByRole("heading", { name: "Entrar" })).toBeInTheDocument();
+    expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
+    expect(api.listCommunityProfiles).not.toHaveBeenCalled();
+    expect(api.loadCommunityProfile).not.toHaveBeenCalled();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("fails closed while F-11 is pending and does not load profiles or photos", async () => {
+    renderCommunity({ auth: authenticatedAuth });
+    expect(await screen.findByRole("heading", { name: "Compartilhamento ainda não disponível" })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-members-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(screen.getByText(/opcional e visível somente a membros autenticados/i)).toBeInTheDocument();
+    expect(screen.getByText(/Ao retirar a autorização ou excluir a conta/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /finalidades e os registros de privacidade/i })).toHaveAttribute("href", "/preferencias");
+    expect(api.loadMyCommunityPublicationStatus).toHaveBeenCalledTimes(1);
+    expect(api.listCommunityProfiles).not.toHaveBeenCalled();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("shows dotted hero and wave on profile detail", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId: "2e2fbaf7-e292-4c5d-8b77-928639845e01",
+      fullName: "Ana Example",
+      headline: "Desenvolvedora Front-end",
+      skills: ["React"],
+      location: "Salvador, BA",
+      experienceLevel: "junior",
+      workModel: "remote",
+      avatarAvailable: false,
+      bio: null,
+      preferences: {},
+    });
+    renderCommunity({ auth: authenticatedAuth, route: "/comunidade/2e2fbaf7-e292-4c5d-8b77-928639845e01" });
+
+    expect(await screen.findByRole("heading", { name: "Perfil profissional" })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-members-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Ana Example", level: 2 })).toBeInTheDocument();
+  });
+
+  it("shows a prefetched member avatar after list-to-detail navigation without a visibility event", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e02";
+    const cachedUrl = "blob:another-member-avatar";
+    const member = {
+      publicId,
+      fullName: "Outra Pessoa",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      publishedAt: "2026-10-01T12:00:00.000Z",
+      bio: null,
+    };
+    let cacheReady = false;
+    vi.stubGlobal("IntersectionObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    api.peekCommunityAvatarObjectUrl.mockImplementation((id) => cacheReady && id === publicId ? cachedUrl : null);
+    api.prefetchCommunityAvatars.mockImplementation(async () => { cacheReady = true; });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue(cachedUrl);
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.listCommunityProfiles.mockResolvedValue({ items: [member], nextCursor: null });
+    api.loadCommunityProfile.mockResolvedValue(member);
+
+    renderCommunity({ auth: authenticatedAuth });
+    await screen.findByRole("link", { name: "Ver perfil de Outra Pessoa" });
+    await waitFor(() => expect(cacheReady).toBe(true));
+    api.getCommunityAvatarObjectUrl.mockClear();
+    fireEvent.click(screen.getByRole("link", { name: "Ver perfil de Outra Pessoa" }));
+
+    expect(await screen.findByRole("heading", { name: "Outra Pessoa" })).toBeInTheDocument();
+    await act(async () => { await Promise.resolve(); });
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
+    expect(screen.getByRole("img", { name: "Foto de Outra Pessoa" })).toHaveAttribute("src", cachedUrl);
+  });
+
+  it("does not show the viewer's header photo for another member with the same name", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e03";
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Ana Example",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      bio: null,
+    });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:other-member-avatar");
+
+    renderCommunity({
+      auth: authenticatedAuth,
+      route: `/comunidade/${publicId}`,
+      viewerAvatarUrl: "blob:viewer-header-avatar",
+      viewerDisplayName: "Ana Example",
+    });
+
+    expect(await screen.findByRole("img", { name: "Foto de Ana Example" })).toHaveAttribute("src", "blob:other-member-avatar");
+  });
+
+  it("loads the visible detail avatar through the proxy when no cache or visibility event is available", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e04";
+    vi.stubGlobal("IntersectionObserver", class {
+      observe() {}
+      disconnect() {}
+    });
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Pessoa Sem Cache",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: true,
+      bio: null,
+    });
+    api.getCommunityAvatarObjectUrl.mockResolvedValue("blob:detail-avatar");
+
+    renderCommunity({ auth: authenticatedAuth, route: `/comunidade/${publicId}` });
+
+    expect(await screen.findByRole("img", { name: "Foto de Pessoa Sem Cache" })).toHaveAttribute("src", "blob:detail-avatar");
+  });
+
+  it("does not display a cached avatar after the profile reports no photo", async () => {
+    const publicId = "2e2fbaf7-e292-4c5d-8b77-928639845e05";
+    api.peekCommunityAvatarObjectUrl.mockReturnValue("blob:stale-avatar");
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    api.loadCommunityProfile.mockResolvedValue({
+      publicId,
+      fullName: "Pessoa Sem Foto",
+      headline: null,
+      skills: [],
+      location: null,
+      experienceLevel: null,
+      workModel: null,
+      avatarAvailable: false,
+      bio: null,
+    });
+
+    renderCommunity({ auth: authenticatedAuth, route: `/comunidade/${publicId}` });
+
+    expect(await screen.findByLabelText("Sem foto de Pessoa Sem Foto")).toBeInTheDocument();
+    act(() => window.dispatchEvent(new CustomEvent("community-avatar-cache", { detail: { publicId } })));
+    expect(screen.getByLabelText("Sem foto de Pessoa Sem Foto")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Foto de Pessoa Sem Foto" })).not.toBeInTheDocument();
+    expect(api.getCommunityAvatarObjectUrl).not.toHaveBeenCalled();
+  });
+
+  it("loads an allowlisted member card and retrieves its avatar only through the proxy", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: false, canPublish: true, reasonCode: null });
+    api.listCommunityProfiles.mockResolvedValue({
+      items: [{
+        publicId: "2e2fbaf7-e292-4c5d-8b77-928639845e01",
+        fullName: "Ana Example",
+        headline: "Desenvolvedora Front-end",
+        skills: ["React", "CSS"],
+        location: "Salvador, BA",
+        experienceLevel: "junior",
+        workModel: "remote",
+        avatarAvailable: true,
+        publishedAt: "2026-10-01T12:00:00.000Z",
+      }],
+      nextCursor: null,
+    });
+    renderCommunity({ auth: authenticatedAuth });
+
+    expect(await screen.findByRole("heading", { name: "Encontre sua próxima conexão em tech." })).toBeInTheDocument();
+    expect(document.querySelector(".hero.community-browse-hero")).toBeTruthy();
+    expect(document.querySelector(".home-divider__curve")).toBeTruthy();
+    expect(document.querySelector(".home-divider--pair")).toBeTruthy();
+    const communityAvatars = document.querySelectorAll(".home-divider__avatar");
+    expect(communityAvatars).toHaveLength(2);
+    expect(communityAvatars[0]).toHaveAttribute("loading", "lazy");
+    expect(communityAvatars[1]).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
+    expect(communityAvatars[1]).toHaveAttribute("loading", "lazy");
+    expect(communityAvatars[1]).toHaveAttribute("width", "1365");
+    expect(communityAvatars[1]).toHaveAttribute("height", "1152");
+    expect(communityAvatars[1].closest("picture").querySelector('source[type="image/avif"]')).toBeTruthy();
+    expect(document.querySelector(".community-browse-searchbox")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(screen.getByRole("button", { name: /filtros/i }));
+    expect(screen.getByRole("button", { name: /filtros/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByLabelText("Filtrar por nível de experiência")).toBeVisible();
+    expect(screen.getByLabelText("Filtrar por modalidade de trabalho")).toBeVisible();
+    expect(screen.getByLabelText("Filtrar por nível de experiência").tagName).toBe("SELECT");
+    const searchInput = screen.getByRole("searchbox", { name: "Nome, tecnologia ou área de atuação" });
+    fireEvent.change(searchInput, { target: { value: "React" } });
+    fireEvent.click(screen.getByRole("button", { name: /buscar profissionais/i }));
+    expect(await screen.findByText("Ana Example")).toBeInTheDocument();
+    expect(screen.getByText(/visível para os membros autenticados da Comunidade/i)).toBeInTheDocument();
+    expect(screen.getByText(/E-mail, telefone, currículo e dados privados da conta não aparecem/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /preferências de privacidade/i }).length).toBeGreaterThan(0);
+    expect(api.getCommunityAvatarObjectUrl).toHaveBeenCalledWith("2e2fbaf7-e292-4c5d-8b77-928639845e01");
+    expect(screen.getByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeChecked();
+    expect(screen.getByRole("link", { name: "Ver perfil de Ana Example" })).toHaveAttribute(
+      "href",
+      "/comunidade/2e2fbaf7-e292-4c5d-8b77-928639845e01",
+    );
+    expect(screen.getByRole("link", { name: "Ver perfil" })).toHaveClass("primary", "community-person-card__cta");
+  });
+
+  it("shows card-shaped shimmer, not visible loading copy, while the list request is pending", async () => {
+    let resolveList;
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: false, canPublish: true, reasonCode: null });
+    api.listCommunityProfiles.mockReturnValue(new Promise((resolve) => { resolveList = resolve; }));
+    renderCommunity({ auth: authenticatedAuth });
+
+    expect(await screen.findByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /quero compartilhar meu perfil/i })).toBeInTheDocument();
+    expect(document.querySelector(".community-results--loading")).toBeTruthy();
+    expect(document.querySelectorAll(".community-person-card.community-skeleton-card")).toHaveLength(0);
+    expect(document.querySelector(".community-skeleton--page")).not.toBeInTheDocument();
+    expect(screen.queryByText("Carregando comunidade…")).not.toBeInTheDocument();
+
+    resolveList({ items: [], nextCursor: null });
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "A comunidade está começando", level: 3 })).toBeInTheDocument();
+  });
+
+  it("after opt-in, hides the share onboarding panel and shows discovery", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: false, canPublish: true, reasonCode: null });
+    renderCommunity({ auth: authenticatedAuth });
+    const toggle = await screen.findByRole("checkbox", { name: /quero compartilhar meu perfil/i });
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(api.setMyCommunityPublication).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument());
+    expect(screen.getByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.getByText(/seu perfil está visível/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /gerenciar compartilhamento/i })).toHaveAttribute("href", "/preferencias");
+  });
+
+  it("loads discovery without the onboarding panel when already published", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    renderCommunity({ auth: authenticatedAuth });
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeInTheDocument();
+  });
+
+  it("lets admin browse community without loading or rendering personal publication state", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: true, canPublish: true, reasonCode: null });
+    renderCommunity({ auth: { ...authenticatedAuth, profile: { role: "admin" } } });
+
+    expect(await screen.findByRole("heading", { name: "Profissionais da comunidade" })).toBeInTheDocument();
+    expect(api.listCommunityProfiles).toHaveBeenCalledTimes(1);
+    expect(api.loadMyCommunityPublicationStatus).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Escolha se quer aparecer na Comunidade" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/seu perfil está visível/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /quero compartilhar meu perfil/i })).not.toBeInTheDocument();
+  });
+
+  it("remove os dados renderizados ao sair da sessão sem reutilizá-los no visitante", async () => {
+    api.loadMyCommunityPublicationStatus.mockResolvedValue({ published: false, canPublish: true, reasonCode: null });
+    api.listCommunityProfiles.mockResolvedValue({
+      items: [{
+        publicId: "2e2fbaf7-e292-4c5d-8b77-928639845e01",
+        fullName: "Ana Example",
+        headline: null,
+        skills: [],
+        location: null,
+        experienceLevel: null,
+        workModel: null,
+        avatarAvailable: false,
+        publishedAt: "2026-10-01T12:00:00.000Z",
+      }],
+      nextCursor: null,
+    });
+    const view = render(communityTree(authenticatedAuth));
+    expect(await screen.findByText("Ana Example")).toBeInTheDocument();
+
+    view.rerender(communityTree({ session: null }));
+
+    expect(screen.getByRole("heading", { name: "Entrar" })).toBeInTheDocument();
+    expect(screen.queryByText("Ana Example")).not.toBeInTheDocument();
+  });
+});

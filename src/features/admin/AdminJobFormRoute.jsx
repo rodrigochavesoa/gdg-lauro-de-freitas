@@ -4,12 +4,12 @@ import { useSearchParams } from "react-router-dom";
 import {
   createPendingJob,
   loadAdminJob,
-  loadCompanies,
   updatePendingJob,
   validateAdminJob,
 } from "../../lib/admin-api.js";
 import { CATALOG_COUNTRIES } from "../../lib/catalog-url.js";
 import { AutoResizeTextarea, TEXTAREA_LIMITS } from "../../shared/ui/AutoResizeTextarea.jsx";
+import { AdminCompanyPicker } from "./AdminCompanyPicker.jsx";
 import { emptyJobForm, jobToForm } from "./job-form-state.js";
 
 const STRUCTURED_ERROR = /país|salário|faixa/i;
@@ -23,11 +23,12 @@ export function AdminJobFormRoute() {
   const editingFromQuery = searchParams.get("editar") || "";
   const [form, setForm] = useState(emptyJobForm);
   const [editingId, setEditingId] = useState("");
-  const [companies, setCompanies] = useState([]);
-  const [companyQuery, setCompanyQuery] = useState("");
-  const [companySearch, setCompanySearch] = useState("");
-  const [companyTruncated, setCompanyTruncated] = useState(false);
-  const [companyLoadError, setCompanyLoadError] = useState("");
+  const [editLoadStatus, setEditLoadStatus] = useState(() => (editingFromQuery ? "loading" : "idle"));
+  const [editReloadToken, setEditReloadToken] = useState(0);
+  const [loadedEditingQuery, setLoadedEditingQuery] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState(null);
+  const [fictionalCompanyMode, setFictionalCompanyMode] = useState(false);
+  const [companyLinkedByCreation, setCompanyLinkedByCreation] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [formErrors, setFormErrors] = useState([]);
@@ -36,52 +37,45 @@ export function AdminJobFormRoute() {
   const field = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   useEffect(() => {
-    let cancelled = false;
-    loadCompanies({ query: companySearch, includeId: form.companyId })
-      .then((result) => {
-        if (cancelled) return;
-        const page = Array.isArray(result)
-          ? { companies: result, truncated: false }
-          : { companies: result?.companies ?? [], truncated: Boolean(result?.truncated) };
-        setCompanies(page.companies);
-        setCompanyTruncated(page.truncated);
-        setCompanyLoadError("");
-      })
-      .catch((err) => {
-        if (!cancelled) setCompanyLoadError(err.message || "Não foi possível carregar as empresas.");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [companySearch, form.companyId]);
-
-  useEffect(() => {
     if (!editingFromQuery) {
       setEditingId("");
+      setEditLoadStatus("idle");
       return undefined;
     }
     let cancelled = false;
+    setEditLoadStatus("loading");
+    setError("");
     loadAdminJob(editingFromQuery)
       .then((job) => {
         if (cancelled) return;
         if (!job || job.status !== "pending") {
           setMessage(job ? "Edite via nova rodada na Curadoria." : "Vaga não encontrada ou indisponível.");
           setEditingId("");
+          setEditLoadStatus("unavailable");
           return;
         }
         setEditingId(job.id);
         setForm(jobToForm(job));
+        setSelectedCompany(job.company_id ? { id: job.company_id, name: job.companies?.name ?? "Empresa cadastrada" } : null);
+        setFictionalCompanyMode(false);
+        setCompanyLinkedByCreation(false);
         setMessage(`Editando ${job.title}.`);
+        setLoadedEditingQuery(editingFromQuery);
+        setEditLoadStatus("ready");
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message);
+        if (!cancelled) {
+          setError(err.message || "Não foi possível carregar a vaga para edição.");
+          setEditLoadStatus("error");
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [editingFromQuery]);
+  }, [editReloadToken, editingFromQuery]);
 
   const persist = async (asUpdate) => {
+    if (editingFromQuery && editLoadStatus !== "ready") return;
     setBusy(true);
     setError("");
     setFormErrors([]);
@@ -99,6 +93,12 @@ export function AdminJobFormRoute() {
       } else {
         const created = await createPendingJob(form);
         setEditingId(created.id);
+        const createdWithFictionalCompany = !form.companyId && Boolean(form.newCompanyName.trim());
+        setFictionalCompanyMode(false);
+        setCompanyLinkedByCreation(createdWithFictionalCompany);
+        if (createdWithFictionalCompany) {
+          setForm((current) => ({ ...current, newCompanyName: "" }));
+        }
         setMessage("Vaga cadastrada como pendente de curadoria.");
       }
     } catch (err) {
@@ -111,6 +111,20 @@ export function AdminJobFormRoute() {
   const onSubmit = (event) => {
     event.preventDefault();
     persist(Boolean(editingId));
+  };
+
+  const useFictionalCompany = () => {
+    setSelectedCompany(null);
+    setCompanyLinkedByCreation(false);
+    setForm((current) => ({ ...current, companyId: "", newCompanyName: "" }));
+    setFictionalCompanyMode(true);
+  };
+
+  const useRegisteredCompany = () => {
+    setSelectedCompany(null);
+    setCompanyLinkedByCreation(false);
+    setForm((current) => ({ ...current, companyId: "", newCompanyName: "" }));
+    setFictionalCompanyMode(false);
   };
 
   const structuredErrors = formErrors.filter((item) => STRUCTURED_ERROR.test(item));
@@ -127,7 +141,17 @@ export function AdminJobFormRoute() {
           <p>As vagas entram como pendentes e passam pela curadoria da comunidade.</p>
         </div>
       </div>
-      <form className="job-form" onSubmit={onSubmit}>
+      {editingFromQuery && editLoadStatus !== "error" && editLoadStatus !== "unavailable" && loadedEditingQuery !== editingFromQuery ? <p role="status">Carregando vaga para edição…</p> : null}
+      {editingFromQuery && editLoadStatus === "error" ? (
+        <div className="form-alert" role="alert">
+          <p>{error}</p>
+          <button type="button" className="outline small" onClick={() => setEditReloadToken((token) => token + 1)}>
+            Tentar novamente
+          </button>
+        </div>
+      ) : null}
+      {editingFromQuery && editLoadStatus === "unavailable" ? <p role="status">{message}</p> : null}
+      {(!editingFromQuery || (editLoadStatus === "ready" && loadedEditingQuery === editingFromQuery)) ? <form className="job-form" onSubmit={onSubmit}>
         <div className="form-section">
           <h2>Informações da vaga</h2>
           <div className="form-grid">
@@ -135,45 +159,38 @@ export function AdminJobFormRoute() {
               Título da vaga
               <input id="admin-job-title" name="title" required value={form.title} onChange={field("title")} placeholder="Ex.: Pessoa Desenvolvedora Front-end" />
             </label>
-            <label>
-              Buscar empresa
-              <input
-                id="admin-job-company-search"
-                name="companySearch"
-                value={companyQuery}
-                onChange={(event) => setCompanyQuery(event.target.value)}
-                placeholder="Nome da empresa"
-              />
-            </label>
-            <button
-              type="button"
-              className="ghost small"
-              onClick={() => setCompanySearch(companyQuery.trim())}
-            >
-              Buscar
-            </button>
-            {companyLoadError ? <p className="wide" role="alert">{companyLoadError}</p> : null}
-            {companyTruncated ? (
-              <p className="wide" role="status">Há mais empresas. Refine a busca para ver o restante.</p>
-            ) : null}
-            {!companyLoadError && companySearch && companies.length === 0 ? (
-              <p className="wide" role="status">Nenhuma empresa encontrada para esta busca.</p>
-            ) : null}
-            <label>
-              Empresa
-              <select id="admin-job-company" name="companyId" value={form.companyId} onChange={field("companyId")}>
-                <option value="">Selecione uma empresa</option>
-                {companies.map((company) => (
-                  <option key={company.id} value={company.id}>
-                    {company.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Nova empresa fictícia
-              <input id="admin-job-new-company" name="newCompanyName" value={form.newCompanyName} onChange={field("newCompanyName")} placeholder="Opcional se já selecionou" />
-            </label>
+            <div className="wide admin-job-company-field">
+              {fictionalCompanyMode ? (
+                <>
+                  <label htmlFor="admin-job-new-company">Nome da empresa fictícia</label>
+                  <input
+                    id="admin-job-new-company"
+                    name="newCompanyName"
+                    value={form.newCompanyName}
+                    onChange={(event) => setForm((current) => ({ ...current, companyId: "", newCompanyName: event.target.value }))}
+                    placeholder="Digite o nome da empresa"
+                  />
+                  <p className="filter-hint">Use essa opção quando a empresa não estiver cadastrada. O sistema reutiliza um cadastro existente com o mesmo nome.</p>
+                  <button type="button" className="ghost small" onClick={useRegisteredCompany}>Buscar empresa cadastrada</button>
+                </>
+              ) : (
+                <>
+                  {companyLinkedByCreation && !selectedCompany ? (
+                    <p className="filter-hint" role="status">Empresa vinculada ao rascunho. Busque outra empresa cadastrada se precisar alterá-la.</p>
+                  ) : null}
+                  <AdminCompanyPicker
+                    selectedCompany={selectedCompany}
+                    onSelect={(company) => {
+                      setSelectedCompany(company);
+                      setCompanyLinkedByCreation(false);
+                      setForm((current) => ({ ...current, companyId: company?.id ?? "", newCompanyName: "" }));
+                    }}
+                    disabled={busy}
+                  />
+                  {!editingId ? <button type="button" className="ghost small" onClick={useFictionalCompany}>Não encontrou? Informar empresa fictícia</button> : null}
+                </>
+              )}
+            </div>
             <label>
               Nível
               <select id="admin-job-level" name="level" required value={form.level} onChange={field("level")}>
@@ -308,7 +325,7 @@ export function AdminJobFormRoute() {
             <span className="job-form-submit-mobile">Enviar à curadoria</span>
           </button>
         </div>
-      </form>
+      </form> : null}
     </>
   );
 }

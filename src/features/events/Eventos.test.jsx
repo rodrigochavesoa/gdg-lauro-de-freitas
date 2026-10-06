@@ -33,8 +33,12 @@ describe("EventosIndex", () => {
     expect(avatar).toHaveAttribute("src", "/avatar-eventos-lgbtqia.png");
     expect(avatar).toHaveAttribute("loading", "eager");
     expect(avatar).toHaveAttribute("decoding", "async");
-    expect(avatar).toHaveAttribute("width", "1169");
-    expect(avatar).toHaveAttribute("height", "987");
+    expect(avatar).toHaveAttribute("width", "1365");
+    expect(avatar).toHaveAttribute("height", "1152");
+    expect(avatar.closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/avatar-eventos-lgbtqia-480.avif 480w, /avatar-eventos-lgbtqia-768.avif 768w",
+    );
     expect(avatar).not.toHaveAttribute("loading", "lazy");
     expect(document.querySelector(".event-banner")).toBeNull();
     expect(document.querySelector(".marketing-page")).toBeNull();
@@ -58,11 +62,15 @@ describe("EventosIndex", () => {
       expect(thumb).toHaveClass("event-index-card__thumb");
       expect(thumb).not.toHaveClass("event-index-card__thumb--contain");
       const loading = thumb.getAttribute("loading");
-      expect(loading === "eager" || loading === null).toBe(true);
+      expect(loading).toBe(thumb === thumbs[0] ? "eager" : "lazy");
       expect(thumb).toHaveAttribute("decoding", "async");
       expect(thumb).toHaveAttribute("width");
       expect(thumb).toHaveAttribute("height");
     });
+    expect(thumbs[0].closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/events/1788886782636-320.avif 320w, /events/1788886782636-640.avif 640w, /events/1788886782636-1280.avif 1280w",
+    );
 
     const viewLinks = screen.getAllByRole("link", { name: EVENTS_INDEX.viewEventLabel });
     expect(viewLinks).toHaveLength(EVENTS.length);

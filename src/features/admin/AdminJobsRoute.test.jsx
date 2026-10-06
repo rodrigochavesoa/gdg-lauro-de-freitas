@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,5 +51,24 @@ describe("AdminJobsRoute", () => {
     resolvePage(emptyPage);
     expect(await screen.findByText(/Nenhuma vaga/)).toBeInTheDocument();
     expect(document.querySelector(".admin-ingest__loading")).toBeNull();
+  });
+
+  it("limpa o texto e a busca aplicada pelo botão Limpar busca", async () => {
+    renderRoute();
+    const search = screen.getByRole("search", { name: "Buscar vagas na gestão" });
+    const input = within(search).getByRole("searchbox", { name: "Título ou empresa" });
+
+    fireEvent.change(input, { target: { value: "React" } });
+    fireEvent.click(within(search).getByRole("button", { name: "Buscar" }));
+    await waitFor(() => expect(loadAdminJobPage).toHaveBeenLastCalledWith(expect.objectContaining({ query: "React" })));
+
+    fireEvent.click(within(search).getByRole("button", { name: "Limpar busca" }));
+    expect(input).toHaveValue("");
+    await waitFor(() => expect(loadAdminJobPage).toHaveBeenLastCalledWith(expect.objectContaining({ query: "" })));
+  });
+
+  it("mostra feedback ao retornar de uma exclusão confirmada", async () => {
+    renderRoute({ pathname: "/admin/vagas", state: { deletedJobTitle: "Vaga removida" } });
+    expect(await screen.findByText("Vaga “Vaga removida” excluída com sucesso.")).toHaveAttribute("role", "status");
   });
 });

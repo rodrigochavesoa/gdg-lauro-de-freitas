@@ -74,7 +74,7 @@ export function isOwnAvatarStoragePath(userId, path) {
   return rest.length > 0 && !rest.includes("/") && !rest.includes("..");
 }
 
-/** Homologação/Preview: VITE_AVATAR_UPLOAD_ENABLED=true. Production: ausente até Camada B. */
+/** Ligue em Production somente após bucket privado, policies RLS e proxy autenticado estarem implantados. */
 export function isAvatarUploadEnabled() {
   return import.meta.env.VITE_AVATAR_UPLOAD_ENABLED === "true";
 }
@@ -330,6 +330,7 @@ export async function saveOnboardingProfile({
   bio,
   linkedin,
   github,
+  portfolioUrl,
   cvUrl,
 }) {
   const { errors, skills } = validateOnboarding({
@@ -356,6 +357,7 @@ export async function saveOnboardingProfile({
     location: String(location).trim(),
     linkedin: String(linkedin ?? "").trim() || null,
     github: String(github ?? "").trim() || null,
+    portfolio_url: String(portfolioUrl ?? "").trim() || null,
     cv_url: String(cvUrl ?? "").trim() || null,
   };
 

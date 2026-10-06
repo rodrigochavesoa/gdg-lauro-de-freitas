@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { loadCurationProfile, signInCuration } from "./features/curation/curation-api.js";
 import {
   enrollStaffTotp,
@@ -14,6 +14,7 @@ import { AdminNav } from "./features/admin/AdminNav.jsx";
 import { AdminSurfaceCurve } from "./features/admin/AdminSurfaceCurve.jsx";
 import { toCurationProfile } from "./features/admin/staff-access.js";
 import { AdminPanelShimmer } from "./shared/ui/AdminPanelShimmer.jsx";
+import { AdminPointerParticles } from "./features/admin/AdminPointerParticles.jsx";
 
 function AdminBootLoading({ showWorkspaceShell }) {
   const content = (
@@ -53,6 +54,10 @@ function StaffMfaQr({ qrCode }) {
 }
 
 export function Admin({ setLogged, session, authReady = true, authProfile = null, profileHydrated = true, profileHydrateFailed = false }) {
+  const location = useLocation();
+  const loginSceneRef = useRef(null);
+  const workspaceSceneRef = useRef(null);
+  const isDashboardRoute = location.pathname.replace(/\/+$/, "") === "/admin";
   const snapshotStaff = useMemo(() => toCurationProfile(authProfile, session), [authProfile, session]);
   const mfaRequiredAtBoot = isStaffMfaRequired();
   const waitingForShellProfile = Boolean(session) && !profileHydrated && !snapshotStaff;
@@ -251,7 +256,8 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
     if (mfaPending) {
       const needsEnroll = !mfaEnroll && (mfaPending.assurance?.verifiedTotp?.length ?? 0) === 0;
       return (
-        <main id="conteudo" tabIndex={-1} className="admin-page">
+        <main id="conteudo" tabIndex={-1} className="admin-page admin-auth-motion-screen admin-mfa-screen" ref={loginSceneRef}>
+          <AdminPointerParticles containerRef={loginSceneRef} />
           <div className="shell admin-auth-shell">
             <section className="admin-content">
               <div className="admin-title">
@@ -326,7 +332,8 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
       );
     }
     return (
-      <main id="conteudo" tabIndex={-1} className="admin-page">
+      <main id="conteudo" tabIndex={-1} className="admin-page admin-auth-motion-screen admin-login-screen" ref={loginSceneRef}>
+        <AdminPointerParticles containerRef={loginSceneRef} />
         <div className="shell admin-auth-shell">
           <section className="admin-content">
             <div className="admin-title">
@@ -369,11 +376,17 @@ export function Admin({ setLogged, session, authReady = true, authProfile = null
   }
 
   return (
-    <main id="conteudo" tabIndex={-1} className="admin-page admin-workspace">
+    <main
+      id="conteudo"
+      tabIndex={-1}
+      className={`admin-page admin-workspace${isDashboardRoute ? " admin-workspace--dashboard" : ""}`}
+      ref={isDashboardRoute ? workspaceSceneRef : undefined}
+    >
+      {isDashboardRoute ? <AdminPointerParticles containerRef={workspaceSceneRef} /> : null}
       <div className="shell admin-shell">
         <AdminNav profile={profile} />
         <section className="admin-content">
-          <Outlet context={{ profile }} />
+          <Outlet context={{ profile, session }} />
         </section>
       </div>
     </main>

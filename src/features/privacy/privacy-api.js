@@ -66,7 +66,14 @@ function throwIfError(error) {
 }
 
 function sortPurposes(rows) {
-  return [...rows].sort((left, right) => left.purpose_code.localeCompare(right.purpose_code));
+  const latestByCode = new Map();
+  for (const purpose of rows) {
+    const current = latestByCode.get(purpose.purpose_code);
+    if (!current || Number(purpose.version) > Number(current.version)) {
+      latestByCode.set(purpose.purpose_code, purpose);
+    }
+  }
+  return [...latestByCode.values()].sort((left, right) => left.purpose_code.localeCompare(right.purpose_code));
 }
 
 function parseLoadPrivacyOptions(userIdOrOptions) {

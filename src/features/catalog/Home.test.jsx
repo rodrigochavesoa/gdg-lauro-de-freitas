@@ -265,6 +265,10 @@ describe("Home", () => {
     expect(avatar).toHaveAttribute("loading", "eager");
     expect(avatar).toHaveAttribute("width", "1169");
     expect(avatar).toHaveAttribute("height", "987");
+    expect(avatar.closest("picture").querySelector('source[type="image/avif"]')).toHaveAttribute(
+      "srcset",
+      "/avatar-gdgjobs-480.avif 480w, /avatar-gdgjobs-768.avif 768w",
+    );
     expect(avatar).not.toHaveAttribute("loading", "lazy");
   });
 

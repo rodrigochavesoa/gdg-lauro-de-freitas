@@ -7,12 +7,13 @@ import {
 } from "./privacy-catalog.js";
 
 describe("privacy catalog", () => {
-  it("mantém as dez finalidades estáveis e versionadas", () => {
-    expect(PRIVACY_PURPOSES).toHaveLength(10);
+  it("mantém as onze finalidades estáveis e versionadas", () => {
+    expect(PRIVACY_PURPOSES).toHaveLength(11);
     expect(PRIVACY_PURPOSES.map((purpose) => purpose.purpose_code)).toEqual([
-      "F-01", "F-02", "F-03", "F-04", "F-05", "F-06", "F-07", "F-08", "F-09", "F-10",
+      "F-01", "F-02", "F-03", "F-04", "F-05", "F-06", "F-07", "F-08", "F-09", "F-10", "F-11",
     ]);
-    expect(PRIVACY_PURPOSES.every((purpose) => purpose.version === 1)).toBe(true);
+    expect(PRIVACY_PURPOSES.filter((purpose) => purpose.purpose_code !== "F-11").every((purpose) => purpose.version === 1)).toBe(true);
+    expect(PRIVACY_PURPOSES.find((purpose) => purpose.purpose_code === "F-11").version).toBe(2);
     expect(PRIVACY_PURPOSES.every((purpose) => purpose.revocation_effect)).toBe(true);
   });
 
@@ -32,6 +33,18 @@ describe("privacy catalog", () => {
     const newsletter = PRIVACY_PURPOSES.find((purpose) => purpose.purpose_code === "F-05");
     expect(newsletter.status).toBe("inactive");
     expect(isPurposeAuthorized(newsletter, { event_type: "accepted" })).toBe(false);
+  });
+
+  it("mantém o compartilhamento comunitário inativo até aprovação e consentimento", () => {
+    const community = PRIVACY_PURPOSES.find((purpose) => purpose.purpose_code === "F-11");
+    expect(community).toMatchObject({
+      status: "inactive",
+      classification: "optional_consent",
+      legal_basis_status: "pending_dpo",
+      retention_status: "pending_dpo",
+      text_status: "pending_dpo",
+    });
+    expect(isPurposeAuthorized(community, { purpose_version: 2, event_type: "accepted" })).toBe(false);
   });
 
   it("não reaproveita aceite de versão anterior", () => {

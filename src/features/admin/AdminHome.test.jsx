@@ -101,6 +101,16 @@ describe("AdminHome", () => {
     expect(document.querySelector(".admin-dashboard-stat--ingest-attention")).toHaveTextContent("Ingestões pendentes");
   });
 
+  it("leva cada indicador para a respectiva lista filtrada", async () => {
+    loadAdminDashboardSummary.mockResolvedValue(clearCounts);
+    renderHome("admin");
+
+    expect(await screen.findByRole("link", { name: "Publicadas: 4" })).toHaveAttribute("href", "/admin/vagas?status=approved");
+    expect(screen.getByRole("link", { name: "Rejeitadas: 0" })).toHaveAttribute("href", "/admin/vagas?status=rejected");
+    expect(screen.getByRole("link", { name: "Na fila: 0" })).toHaveAttribute("href", "/admin/curadoria?view=rejected");
+    expect(screen.getByRole("link", { name: "Ingestões pendentes: 0" })).toHaveAttribute("href", "/admin/ingestao");
+  });
+
   it("indicador de situação usa dois pontos e não repete Visão geral no foco", async () => {
     loadAdminDashboardSummary.mockResolvedValue({ ...jobCounts, ingestAttention: 1 });
     renderHome("admin");
@@ -228,6 +238,7 @@ describe("AdminHome", () => {
     const published = screen.getByText("Publicadas").closest(".admin-dashboard-stat");
     expect(ingestCard).toHaveTextContent("Indisponível");
     expect(ingestCard).not.toHaveTextContent("0");
+    expect(screen.getByRole("link", { name: "Ingestões pendentes: indisponível" })).toHaveAttribute("href", "/admin/ingestao");
     expect(published).toHaveTextContent("4");
     expect(screen.queryByText("Fila de revisão em dia")).not.toBeInTheDocument();
     expect(focusSection()).toHaveClass("admin-dashboard-focus--unavailable");

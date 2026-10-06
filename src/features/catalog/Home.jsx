@@ -23,6 +23,7 @@ import {
 } from "../../lib/filter-jobs.js";
 import { loadApprovedJobs, peekApprovedJobsPage } from "./jobs-api.js";
 import { Link, useSearchParams } from "react-router-dom";
+import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
 
 function mergeJobsById(current, incoming) {
   const seen = new Set(current.map((job) => String(job.id)));
@@ -209,7 +210,18 @@ export function Home({ logged = false }) {
       <svg className="home-divider__curve" viewBox="0 0 1440 120" preserveAspectRatio="none" focusable="false">
         <path fill="var(--color-surface)" stroke="none" d="M-8 52 C 180 118 380 14 560 64 C 740 112 920 8 1100 58 C 1240 96 1360 22 1448 48 L 1448 128 L -8 128 Z" />
       </svg>
-      <img className="home-divider__avatar" src="/avatar-gdgjobs.png" alt="" width={1169} height={987} loading="eager" decoding="async" />
+      <ResponsiveAssetImage
+        className="home-divider__avatar"
+        src="/avatar-gdgjobs.png"
+        sourceBase="/avatar-gdgjobs"
+        sourceWidths={[480, 768]}
+        sizes="(max-width: 760px) min(42vw, 148px), (max-width: 1024px) min(34vw, 220px), 280px"
+        alt=""
+        width={1169}
+        height={987}
+        loading="eager"
+        decoding="async"
+      />
     </div>
     <section className="shell jobs-layout">
       <FilterSheet open={filterOpen} onClose={() => setFilterOpen(false)} resultCount={displayedCount} titleId="catalog-filters-title">

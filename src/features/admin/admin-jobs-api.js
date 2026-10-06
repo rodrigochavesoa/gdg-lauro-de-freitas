@@ -1,7 +1,8 @@
 import { mapAdminJobListRowToDto } from "../../lib/data-contracts/map-row.js";
 import { ADMIN_JOB_LIST_SELECT, ADMIN_JOB_LIST_SELECT_SEARCH } from "../../lib/data-contracts/selects.js";
 import { throwStaffApiError } from "../../lib/staff-api-errors.js";
-import { buildCatalogSearchPattern, quotePostgrestValue } from "../../lib/jobs-api.js";
+import { buildCatalogSearchPattern, invalidateApprovedJobsCache, quotePostgrestValue } from "../../lib/jobs-api.js";
+import { invalidateCurationJobSurfaces } from "../curation/curation-api.js";
 import { getSupabaseBrowserClient } from "../../lib/supabase-client.js";
 
 export const ADMIN_JOB_PAGE_SIZE = 24;
@@ -19,6 +20,25 @@ function clientOrThrow() {
 
 function throwIfError(error) {
   throwStaffApiError(error);
+}
+
+/** Hard delete autorizado pelo RLS somente para admin com sessão AAL2. */
+export async function deleteAdminJob(jobId) {
+  if (!jobId) throw new Error("Vaga não informada.");
+  const client = clientOrThrow();
+  const { data, error } = await client
+    .from("jobs")
+    .delete()
+    .eq("id", jobId)
+    .select("id")
+    .maybeSingle();
+  throwIfError(error);
+  if (!data) {
+    throwStaffApiError({ message: "AAL2 required: vaga indisponível ou sessão sem permissão." });
+  }
+  invalidateApprovedJobsCache();
+  invalidateCurationJobSurfaces(jobId, { scopes: ["pending", "rejected"], includeDetail: true });
+  return data;
 }
 
 function normalizePage(page) {

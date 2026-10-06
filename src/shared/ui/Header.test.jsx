@@ -85,6 +85,7 @@ describe("Header", () => {
       "Vagas",
       "Eventos",
       "Newsletter",
+      "Comunidade",
       "Minhas candidaturas",
     ]);
     expect(within(desktopNav).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
@@ -92,14 +93,13 @@ describe("Header", () => {
     expect(within(desktopNav).queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(desktopNav).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
-    expect(within(desktopNav).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Abrir menu" }));
     const mobile = document.getElementById("mobile-navigation");
     expect(within(mobile).getByRole("link", { name: "Minhas candidaturas" })).toHaveAttribute("href", "/minhas-candidaturas");
     expect(within(mobile).getByRole("link", { name: "Privacidade" })).toHaveAttribute("href", "/preferencias");
     expect(within(mobile).queryByRole("link", { name: "Área admin" })).not.toBeInTheDocument();
     expect(within(mobile).queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
-    expect(within(mobile).queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    expect(within(mobile).getByRole("link", { name: "Comunidade" })).toHaveAttribute("href", "/comunidade");
   });
 
   it("Privacidade fica no popover e no drawer, não na nav desktop", () => {
@@ -119,7 +119,7 @@ describe("Header", () => {
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Para empresas" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Comunidade" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Comunidade" })).toHaveAttribute("href", "/comunidade");
     fireEvent.click(screen.getByRole("button", { name: "Ada Admin" }));
     expect(screen.queryByRole("link", { name: "Editar perfil" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Minhas candidaturas" })).not.toBeInTheDocument();
@@ -458,6 +458,7 @@ describe("Header", () => {
       "Vagas",
       "Eventos",
       "Newsletter",
+      "Comunidade",
     ]);
     expect(within(mobile).getByRole("button", { name: "Alterar foto" })).toBeInTheDocument();
     expect(within(mobile).getAllByRole("button", { name: /Sair/i })).toHaveLength(1);
@@ -525,13 +526,15 @@ describe("Header", () => {
       expect(within(mobile).getAllByRole("link").map((el) => el.textContent)).toEqual([
         "Painel",
         "Curadoria",
+        "Comunidade",
         "Vagas",
         "Nova vaga",
         "Ingestão",
-        "Vagas",
         "Eventos",
         "Newsletter",
       ]);
+      expect(within(mobile).getAllByRole("link", { name: "Comunidade" })).toHaveLength(1);
+      expect(within(mobile).getAllByRole("link", { name: "Vagas" })).toHaveLength(1);
       fireEvent.click(within(mobile).getByRole("link", { name: "Curadoria" }));
       expect(screen.getByTestId("pathname")).toHaveTextContent("/admin/curadoria");
       expect(document.getElementById("mobile-navigation")).toBeNull();
@@ -580,7 +583,7 @@ describe("Header", () => {
     }
   });
 
-  it("curator em /admin/curadoria no drawer vê só Painel e Curadoria na administração", () => {
+  it("curator em /admin/curadoria no drawer vê Comunidade na administração", () => {
     const originalMatchMedia = window.matchMedia;
     window.matchMedia = vi.fn((query) => ({
       matches: String(query).includes("1024"),
@@ -601,7 +604,7 @@ describe("Header", () => {
       const mobile = document.getElementById("mobile-navigation");
       const adminSection = mobile.querySelector(".mobile-nav__admin");
       const adminLinks = within(adminSection).getAllByRole("link");
-      expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria"]);
+      expect(adminLinks.map((el) => el.textContent)).toEqual(["Painel", "Curadoria", "Comunidade"]);
       expect(within(adminSection).queryByRole("link", { name: "Nova vaga" })).not.toBeInTheDocument();
     } finally {
       window.matchMedia = originalMatchMedia;
