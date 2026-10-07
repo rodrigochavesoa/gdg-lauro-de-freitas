@@ -70,6 +70,12 @@ describe("parseCatalogSearch", () => {
     expect(params.has("salaryMax")).toBe(false);
   });
 
+  it("aceita a ordenação por afinidade como preferência de apresentação", () => {
+    const parsed = parseCatalogSearch("?sort=match&tech=React&country=BR");
+    expect(parsed).toMatchObject({ sort: "match", tech: ["React"], country: "BR" });
+    expect(serializeCatalogSearch(parsed).toString()).toBe("tech=React&sort=match&country=BR");
+  });
+
   it("writeCatalogSearch preserva a query ao trocar o país", () => {
     const next = writeCatalogSearch("?query=React&country=BR", { country: "US" });
     expect(next.get("query")).toBe("React");

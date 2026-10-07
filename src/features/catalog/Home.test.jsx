@@ -1,6 +1,6 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, useNavigate } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter, useNavigate, useSearchParams } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { filterJobs } from "../../lib/filter-jobs.js";
 
@@ -30,12 +30,26 @@ const extraJob = {
 
 const peekApprovedJobsPage = vi.hoisted(() => vi.fn());
 const loadApprovedJobs = vi.hoisted(() => vi.fn());
+const privacyMocks = vi.hoisted(() => ({
+  authorized: vi.fn(),
+  subscribe: vi.fn(),
+  listeners: [],
+}));
 
 vi.mock("./jobs-api.js", () => ({
   peekApprovedJobsPage: (...args) => peekApprovedJobsPage(...args),
   loadApprovedJobs: (...args) => loadApprovedJobs(...args),
   CATALOG_PAGE_SIZE: 24,
 }));
+
+vi.mock("../privacy/privacy-api.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    isPrivacyPurposeAuthorizedForCurrentUser: (...args) => privacyMocks.authorized(...args),
+    subscribePrivacyPreferencesInvalidation: (...args) => privacyMocks.subscribe(...args),
+  };
+});
 
 import { Home } from "./Home.jsx";
 
@@ -49,6 +63,18 @@ function CatalogHistory({ to }) {
   );
 }
 
+function SearchParamsSnapshot() {
+  const [params] = useSearchParams();
+  return <output data-testid="search-params">{params.toString()}</output>;
+}
+
+const completeCandidate = {
+  role: "candidate",
+  full_name: "Ana Pessoa",
+  skills: ["React"],
+  preferences: { experience_level: "mid", work_model: "remote", location: "Lauro de Freitas" },
+};
+
 function pageFor(options = {}) {
   const filtered = filterJobs([cachedJob], options);
   return { jobs: filtered, count: filtered.length };
@@ -58,6 +84,16 @@ describe("Home", () => {
   beforeEach(() => {
     peekApprovedJobsPage.mockReset();
     loadApprovedJobs.mockReset();
+    privacyMocks.authorized.mockReset();
+    privacyMocks.subscribe.mockClear();
+    privacyMocks.listeners.length = 0;
+    privacyMocks.subscribe.mockImplementation((listener) => {
+      privacyMocks.listeners.push(listener);
+      return () => {
+        privacyMocks.listeners = privacyMocks.listeners.filter((item) => item !== listener);
+      };
+    });
+    privacyMocks.authorized.mockResolvedValue(false);
     peekApprovedJobsPage.mockImplementation((params) => {
       const query = params?.query ?? "";
       const tech = params?.tech ?? [];
@@ -77,6 +113,244 @@ describe("Home", () => {
       return { jobs: [cachedJob], count: 1 };
     });
     loadApprovedJobs.mockImplementation(async (options = {}) => pageFor(options));
+  });
+
+  it("falha fechado em F-06 e não lê skills ou preferências do perfil", async () => {
+    const profile = {
+      role: "candidate",
+      get skills() { throw new Error("skills devem permanecer sem leitura enquanto F-06 não autoriza"); },
+      get preferences() { throw new Error("preferences devem permanecer sem leitura enquanto F-06 não autoriza"); },
+    };
+
+    render(
+      <MemoryRouter>
+        <Home logged userId="candidate-1" profile={profile} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Descubra vagas alinhadas ao seu perfil" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Configurar privacidade/i })).toHaveAttribute("href", "/preferencias");
+    expect(screen.queryByText(/aguarda liberação de privacidade/i)).not.toBeInTheDocument();
+    expect(privacyMocks.authorized).toHaveBeenCalledWith("F-06");
+    fireEvent.click(screen.getByRole("button", { name: /Mais recentes/i }));
+    expect(screen.getByRole("option", { name: "Mais compatíveis nesta lista" })).toBeDisabled();
+  });
+
+  it("usa mensagens distintas para visitante e perfil incompleto", async () => {
+    const { rerender } = render(
+      <MemoryRouter>
+        <Home />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("heading", { name: "Encontre vagas que combinam com você" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Entrar ou criar conta/i })).toHaveAttribute("href", "/login");
+
+    privacyMocks.authorized.mockResolvedValue(true);
+    rerender(
+      <MemoryRouter>
+        <Home logged userId="candidate-2" profile={{ ...completeCandidate, skills: [] }} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Complete seu perfil para encontrar vagas compatíveis" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Completar perfil/i })).toHaveAttribute("href", "/perfil");
+  });
+
+  it("ranqueia o conjunto filtrado acumulado ao carregar mais e anuncia a reordenação", async () => {
+    privacyMocks.authorized.mockResolvedValue(true);
+    peekApprovedJobsPage.mockReturnValue(null);
+    const lowMatch = { ...cachedJob, id: "low", title: "Correspondência parcial", stack: ["React", "Node.js"] };
+    const highMatch = { ...cachedJob, id: "high", title: "Correspondência forte", stack: ["React"] };
+    loadApprovedJobs.mockImplementation(async ({ offset = 0 } = {}) => ({
+      jobs: offset ? [highMatch] : [lowMatch],
+      count: 2,
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=match&tech=React&country=BR"]}>
+        <Home logged userId="candidate-3" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Correspondência parcial" })).toBeInTheDocument();
+    expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ tech: ["React"], country: "BR", offset: 0 }));
+    const loadMoreButton = screen.getByRole("button", { name: "Carregar mais" });
+    loadMoreButton.focus();
+    fireEvent.click(loadMoreButton);
+    expect(await screen.findByRole("heading", { name: "Correspondência forte" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("reordenado por compatibilidade. 2 vagas"));
+    expect([...document.querySelectorAll(".job-title h3")].map((heading) => heading.textContent)).toEqual([
+      "Correspondência forte",
+      "Correspondência parcial",
+    ]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Todas as vagas carregadas" }));
+  });
+
+  it("preserva vagas e cursor de paginação ao mudar apenas a ordenação", async () => {
+    privacyMocks.authorized.mockResolvedValue(true);
+    peekApprovedJobsPage.mockReturnValue(null);
+    const partial = { ...cachedJob, id: "old-a", title: "Match parcial carregado primeiro", stack: ["React", "Node.js"] };
+    const exact = { ...cachedJob, id: "old-b", title: "Match exato carregado depois", stack: ["React"], levelCode: "mid", workModelCode: "remote" };
+    loadApprovedJobs.mockImplementation(async ({ offset = 0 } = {}) => ({ jobs: [offset ? exact : partial], count: 2 }));
+
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=oldest&tech=React"]}>
+        <Home logged userId="candidate-5" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Match parcial carregado primeiro" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("heading", { name: "Match exato carregado depois" })).toBeInTheDocument();
+    expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ offset: 1, sort: "oldest" }));
+    const callsBeforeSort = loadApprovedJobs.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Mais antigas" }));
+    fireEvent.click(screen.getByRole("option", { name: "Mais compatíveis nesta lista" }));
+
+    expect(loadApprovedJobs).toHaveBeenCalledTimes(callsBeforeSort);
+    expect([...document.querySelectorAll(".job-title h3")].map((heading) => heading.textContent)).toEqual([
+      "Match exato carregado depois",
+      "Match parcial carregado primeiro",
+    ]);
+  });
+
+  it("reinicia a paginação ao alternar entre ordenações cronológicas", async () => {
+    peekApprovedJobsPage.mockReturnValue(null);
+    const jobsBySortAndOffset = {
+      "recent:0": { ...cachedJob, id: "recent-1", title: "Mais recente 1" },
+      "recent:1": { ...cachedJob, id: "recent-2", title: "Mais recente 2" },
+      "oldest:0": { ...cachedJob, id: "oldest-1", title: "Mais antiga 1" },
+      "oldest:1": { ...cachedJob, id: "oldest-2", title: "Mais antiga 2" },
+    };
+    loadApprovedJobs.mockImplementation(async ({ sort = "recent", offset = 0 } = {}) => ({
+      jobs: [jobsBySortAndOffset[`${sort}:${offset}`]],
+      count: 4,
+    }));
+
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=recent"]}>
+        <Home />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Mais recente 1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("heading", { name: "Mais recente 2" })).toBeInTheDocument();
+    expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ offset: 1, sort: "recent" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Mais recentes" }));
+    fireEvent.click(screen.getByRole("option", { name: "Mais antigas" }));
+
+    expect(await screen.findByRole("heading", { name: "Mais antiga 1" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Mais recente 2" })).not.toBeInTheDocument();
+    expect(loadApprovedJobs).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 0, sort: "oldest" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Carregar mais" }));
+    expect(await screen.findByRole("heading", { name: "Mais antiga 2" })).toBeInTheDocument();
+    expect(loadApprovedJobs).toHaveBeenLastCalledWith(expect.objectContaining({ offset: 1, sort: "oldest" }));
+  });
+
+  it("remove sort=match de visitante mantendo filtros manuais na URL", async () => {
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=match&tech=React&query=Node"]}>
+        <SearchParamsSnapshot />
+        <Home />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(screen.getByTestId("search-params")).toHaveTextContent("query=Node&tech=React"));
+    expect(loadApprovedJobs).toHaveBeenCalledWith(expect.objectContaining({ query: "Node", tech: ["React"] }));
+  });
+
+  it("fecha o matching imediatamente após invalidação do cache de privacidade", async () => {
+    privacyMocks.authorized.mockResolvedValue(true);
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=match&tech=React&country=BR"]}>
+        <SearchParamsSnapshot />
+        <Home logged userId="candidate-4" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Tecnologias em comum: React")).toBeInTheDocument();
+    act(() => privacyMocks.listeners[0]?.(null));
+    expect(await screen.findByRole("heading", { name: "Descubra vagas alinhadas ao seu perfil" })).toBeInTheDocument();
+    expect(screen.queryByText(/aguarda liberação de privacidade/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("search-params")).toHaveTextContent("tech=React&country=BR"));
+    expect(screen.queryByText("Tecnologias em comum: React")).not.toBeInTheDocument();
+  });
+
+  it("mantém a ordenação personalizada enquanto revalida F-06 ao recuperar o foco", async () => {
+    let resolveRevalidation;
+    privacyMocks.authorized
+      .mockResolvedValueOnce(true)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRevalidation = resolve; }));
+
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=match"]}>
+        <Home logged userId="candidate-5" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Tecnologias em comum: React")).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(privacyMocks.authorized).toHaveBeenCalledTimes(2));
+
+    expect(screen.getByText("Tecnologias em comum: React")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRevalidation(true);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Tecnologias em comum: React")).toBeInTheDocument();
+  });
+
+  it("destaca o matching para perfil autorizado sem mostrar aviso de privacidade", async () => {
+    privacyMocks.authorized.mockResolvedValue(true);
+    render(
+      <MemoryRouter initialEntries={["/vagas"]}>
+        <SearchParamsSnapshot />
+        <Home logged userId="candidate-7" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Encontre vagas que combinam com você" })).toBeInTheDocument();
+    expect(screen.queryByText(/aguarda liberação de privacidade/i)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Ver vagas compatíveis/i }));
+
+    expect(await screen.findByRole("heading", { name: "Estas vagas combinam com você" })).toBeInTheDocument();
+    expect(screen.getByTestId("search-params")).toHaveTextContent("sort=match");
+    expect(screen.getByRole("button", { name: /Voltar à ordem recente/i })).toBeInTheDocument();
+  });
+
+  it("fecha o matching após revalidação de foco quando F-06 foi revogado", async () => {
+    let resolveRevalidation;
+    privacyMocks.authorized
+      .mockResolvedValueOnce(true)
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveRevalidation = resolve; }));
+
+    render(
+      <MemoryRouter initialEntries={["/vagas?sort=match"]}>
+        <SearchParamsSnapshot />
+        <Home logged userId="candidate-6" profile={completeCandidate} profileReady email="ana@example.test" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Tecnologias em comum: React")).toBeInTheDocument();
+    act(() => window.dispatchEvent(new Event("focus")));
+    await waitFor(() => expect(privacyMocks.authorized).toHaveBeenCalledTimes(2));
+    expect(screen.getByText("Tecnologias em comum: React")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveRevalidation(false);
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByRole("heading", { name: "Descubra vagas alinhadas ao seu perfil" })).toBeInTheDocument();
+    expect(screen.queryByText(/aguarda liberação de privacidade/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("search-params")).not.toHaveTextContent("sort=match"));
+    expect(screen.queryByText("Tecnologias em comum: React")).not.toBeInTheDocument();
   });
 
   it("mostra shimmer no contador no cold miss sem 0 oportunidades", async () => {

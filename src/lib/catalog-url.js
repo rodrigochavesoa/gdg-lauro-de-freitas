@@ -3,6 +3,7 @@ import {
   CATALOG_TECHNOLOGIES,
   CATALOG_WORK_MODELS,
   SORT_OLDEST,
+  SORT_MATCH,
   SORT_RECENT,
 } from "./filter-jobs.js";
 
@@ -75,7 +76,11 @@ export function parseCatalogSearch(searchParams) {
     tech: lists.tech,
     level: lists.level,
     workModel: lists.workModel,
-    sort: params.get("sort") === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+    sort: params.get("sort") === SORT_OLDEST
+      ? SORT_OLDEST
+      : params.get("sort") === SORT_MATCH
+        ? SORT_MATCH
+        : SORT_RECENT,
     country: normalizeCountryCode(params.get("country")),
     place: normalizePlace(params.get("place")),
     salaryMin,
@@ -89,7 +94,7 @@ export function serializeCatalogSearch(filters = {}) {
     tech: filters.tech ?? [],
     level: filters.level ?? [],
     workModel: filters.workModel ?? [],
-    sort: filters.sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT,
+    sort: filters.sort === SORT_OLDEST || filters.sort === SORT_MATCH ? filters.sort : SORT_RECENT,
     country: normalizeCountryCode(filters.country),
     place: normalizePlace(filters.place),
     salaryMin: normalizeSalaryCents(filters.salaryMin),
@@ -106,6 +111,7 @@ export function serializeCatalogSearch(filters = {}) {
     for (const value of parsed[key]) params.append(key, value);
   }
   if (parsed.sort === SORT_OLDEST) params.set("sort", SORT_OLDEST);
+  if (parsed.sort === SORT_MATCH) params.set("sort", SORT_MATCH);
   if (parsed.country) params.set("country", parsed.country);
   if (parsed.place) params.set("place", parsed.place);
   if (parsed.salaryMin != null) params.set("salaryMin", String(parsed.salaryMin));

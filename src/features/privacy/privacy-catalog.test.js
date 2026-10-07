@@ -12,7 +12,8 @@ describe("privacy catalog", () => {
     expect(PRIVACY_PURPOSES.map((purpose) => purpose.purpose_code)).toEqual([
       "F-01", "F-02", "F-03", "F-04", "F-05", "F-06", "F-07", "F-08", "F-09", "F-10", "F-11",
     ]);
-    expect(PRIVACY_PURPOSES.filter((purpose) => purpose.purpose_code !== "F-11").every((purpose) => purpose.version === 1)).toBe(true);
+    expect(PRIVACY_PURPOSES.filter((purpose) => !["F-06", "F-11"].includes(purpose.purpose_code)).every((purpose) => purpose.version === 1)).toBe(true);
+    expect(PRIVACY_PURPOSES.find((purpose) => purpose.purpose_code === "F-06").version).toBe(2);
     expect(PRIVACY_PURPOSES.find((purpose) => purpose.purpose_code === "F-11").version).toBe(2);
     expect(PRIVACY_PURPOSES.every((purpose) => purpose.revocation_effect)).toBe(true);
   });

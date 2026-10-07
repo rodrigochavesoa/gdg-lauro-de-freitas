@@ -101,6 +101,7 @@ export function formOptionId(group, value) {
 
 export const SORT_RECENT = "recent";
 export const SORT_OLDEST = "oldest";
+export const SORT_MATCH = "match";
 
 function postedTime(job) {
   const parsed = Date.parse(job?.postedAt ?? "");

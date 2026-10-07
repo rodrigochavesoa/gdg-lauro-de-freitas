@@ -52,6 +52,8 @@ Detalhes operacionais: [`docs-local.example/clickup/setup.md`](docs-local.exampl
 | 5c. Link do Preview (obrigatório) | **Plan ou Executor** deve entregar ao PO/mantenedor o **link direto do deploy da branch** (URL `*.vercel.app` do Preview — não a Production) **antes** de pedir **Sim** para merge. Copiar do comentário **Vercel** na PR (botão *Preview*) ou de Vercel → Deployments → deploy da branch. Formato típico: `https://<projeto>-git-<branch>-<team>.vercel.app`. |
 | 6. Merge | Squash merge pelo **mantenedor** após CI verde, revisão, **link Preview entregue** e aceite PO (Sim no PR) |
 
+**Estabilidade de layout no frontend:** qualquer aviso, banner ou bloco de feedback cujo conteúdo dependa de consulta assíncrona deve renderizar desde o primeiro paint em uma região reservada com altura compatível com o maior texto esperado. Troque placeholder por conteúdo no mesmo espaço; não insira o bloco depois que a página já carregou nem deixe o conteúdo abaixo saltar quando chegar a resposta. Inclua estado vazio/indisponível e confira desktop e mobile. Se a mensagem puder aparecer apenas após uma checagem, planeje o slot e seu comportamento antes de implementar a condição.
+
 **Regra do Executor:** criar a branch (**etapa 2**) **antes** de editar qualquer arquivo de código ou documentação versionada. Trabalhar somente na branch da história. **Nunca** commitar em `main` local — push direto em `main` é bloqueado pelo ruleset.
 
 Template de PR: [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md).

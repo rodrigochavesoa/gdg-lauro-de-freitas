@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight, BadgeCheck, BriefcaseBusiness,
   Check, ChevronDown, CircleDollarSign, Filter,
@@ -17,6 +17,7 @@ import {
   CATALOG_TECHNOLOGIES,
   CATALOG_WORK_MODELS,
   SORT_OLDEST,
+  SORT_MATCH,
   SORT_RECENT,
   formOptionId,
   toggleFilterValue,
@@ -24,6 +25,12 @@ import {
 import { loadApprovedJobs, peekApprovedJobsPage } from "./jobs-api.js";
 import { Link, useSearchParams } from "react-router-dom";
 import { ResponsiveAssetImage } from "../../shared/ui/ResponsiveAssetImage.jsx";
+import { isCandidateProfile, isD01Complete } from "../auth/profile-completeness.js";
+import {
+  isPrivacyPurposeAuthorizedForCurrentUser,
+  subscribePrivacyPreferencesInvalidation,
+} from "../privacy/privacy-api.js";
+import { rankJobsByCompatibility } from "../../lib/matching/deterministic-match.js";
 
 function mergeJobsById(current, incoming) {
   const seen = new Set(current.map((job) => String(job.id)));
@@ -45,7 +52,25 @@ function toLoadParams(filters, query) {
   };
 }
 
-export function Home({ logged = false }) {
+function sortAccumulatedJobs(jobs, sort) {
+  return [...jobs].sort((left, right) => {
+    const leftDate = Date.parse(left.postedAt ?? "") || 0;
+    const rightDate = Date.parse(right.postedAt ?? "") || 0;
+    const dateDifference = sort === SORT_OLDEST ? leftDate - rightDate : rightDate - leftDate;
+    if (dateDifference) return dateDifference;
+    const leftId = String(left.id ?? "");
+    const rightId = String(right.id ?? "");
+    return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
+  });
+}
+
+function catalogFilterParams(params) {
+  const filters = { ...params };
+  delete filters.sort;
+  return filters;
+}
+
+export function Home({ logged = false, userId = null, profile = null, email = "", authReady = true, profileReady = true }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const searchKey = searchParams.toString();
   const urlFilters = useMemo(() => parseCatalogSearch(searchKey), [searchKey]);
@@ -56,14 +81,129 @@ export function Home({ logged = false }) {
   const [salaryMaxDraft, setSalaryMaxDraft] = useState(() => reaisInputFromCents(urlFilters.salaryMax));
   const [salaryError, setSalaryError] = useState("");
   const [filterOpen, setFilterOpen] = useState(false);
-  const initialPage = peekApprovedJobsPage(toLoadParams(urlFilters, urlQuery));
+  const initialLoadParams = toLoadParams(urlFilters, urlQuery);
+  const initialPage = peekApprovedJobsPage(initialLoadParams);
   const [jobs, setJobs] = useState(() => initialPage?.jobs ?? []);
   const [resultCount, setResultCount] = useState(() => initialPage?.count ?? null);
   const [catalogStatus, setCatalogStatus] = useState(() => (initialPage ? "ready" : "loading"));
   const [loadingMore, setLoadingMore] = useState(false);
+  const [paginationWasUsed, setPaginationWasUsed] = useState(false);
+  const [catalogReorderAnnouncement, setCatalogReorderAnnouncement] = useState("");
   const [reloadNonce, setReloadNonce] = useState(0);
-  const loadParams = useMemo(() => toLoadParams(urlFilters, urlQuery), [urlFilters, urlQuery]);
+  const loadParams = toLoadParams(urlFilters, urlQuery);
+  const loadParamsRef = useRef(loadParams);
+  loadParamsRef.current = loadParams;
+  const paginationSortRef = useRef(initialLoadParams.sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT);
+  const requestedCatalogSort = urlFilters.sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT;
+  const loadSortKey = urlFilters.sort === SORT_MATCH
+    ? paginationSortRef.current
+    : requestedCatalogSort;
+  const loadFilterKey = JSON.stringify({
+    query: loadParams.query,
+    tech: loadParams.tech,
+    level: loadParams.level,
+    workModel: loadParams.workModel,
+    country: loadParams.country,
+    place: loadParams.place,
+    salaryMin: loadParams.salaryMin,
+    salaryMax: loadParams.salaryMax,
+    sort: loadSortKey,
+  });
   const loadGenerationRef = useRef(0);
+  const privacyGenerationRef = useRef(0);
+  const [privacyGate, setPrivacyGate] = useState({ userId: null, status: "idle", authorized: false });
+  const privacyGateRef = useRef(privacyGate);
+  privacyGateRef.current = privacyGate;
+  const candidate = logged && isCandidateProfile(profile);
+
+  const refreshPrivacyGate = useCallback(({ preserveAuthorizationWhileChecking = false } = {}) => {
+    const generation = ++privacyGenerationRef.current;
+    if (!authReady || !logged || !profileReady || !userId || !candidate) {
+      const nextGate = { userId: userId ?? null, status: "idle", authorized: false };
+      privacyGateRef.current = nextGate;
+      setPrivacyGate(nextGate);
+      return;
+    }
+
+    const previousGate = privacyGateRef.current;
+    const keepCurrentAuthorization = preserveAuthorizationWhileChecking &&
+      previousGate.userId === userId && previousGate.status === "ready" && previousGate.authorized;
+    if (!keepCurrentAuthorization) {
+      const loadingGate = { userId, status: "loading", authorized: false };
+      privacyGateRef.current = loadingGate;
+      setPrivacyGate(loadingGate);
+    }
+    isPrivacyPurposeAuthorizedForCurrentUser("F-06")
+      .then((authorized) => {
+        if (generation !== privacyGenerationRef.current) return;
+        const nextGate = { userId, status: "ready", authorized: authorized === true };
+        privacyGateRef.current = nextGate;
+        setPrivacyGate(nextGate);
+      })
+      .catch(() => {
+        if (generation !== privacyGenerationRef.current) return;
+        const unavailableGate = { userId, status: "unavailable", authorized: false };
+        privacyGateRef.current = unavailableGate;
+        setPrivacyGate(unavailableGate);
+      });
+  }, [authReady, candidate, logged, profileReady, userId]);
+
+  useEffect(() => {
+    refreshPrivacyGate();
+    return () => { privacyGenerationRef.current += 1; };
+  }, [refreshPrivacyGate]);
+
+  useEffect(() => subscribePrivacyPreferencesInvalidation((invalidatedUserId) => {
+    if (!invalidatedUserId || invalidatedUserId === userId) {
+      // Cache invalidation closes personalization immediately; revalidation happens on focus/remount.
+      const revokedGate = { userId: userId ?? null, status: "ready", authorized: false };
+      privacyGateRef.current = revokedGate;
+      setPrivacyGate(revokedGate);
+    }
+  }), [userId]);
+
+  useEffect(() => {
+    if (!userId || !logged || !candidate) return undefined;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshPrivacyGate({ preserveAuthorizationWhileChecking: true });
+      }
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [candidate, logged, refreshPrivacyGate, userId]);
+
+  const gateMatchesCurrentUser = Boolean(userId && privacyGate.userId === userId);
+  const matchingAuthorized = Boolean(
+    authReady && logged && profileReady && candidate && gateMatchesCurrentUser &&
+    privacyGate.status === "ready" && privacyGate.authorized,
+  );
+  // Perfil só é lido para personalização após confirmação do gate F-06.
+  const matchingProfileComplete = matchingAuthorized && isD01Complete(profile, email);
+  const matchingAvailable = matchingProfileComplete;
+  const matchingState = !authReady
+    ? "loading"
+    : !logged
+      ? "guest"
+      : !profileReady
+        ? "loading"
+        : !candidate
+          ? "not-candidate"
+          : !gateMatchesCurrentUser || ["idle", "loading"].includes(privacyGate.status)
+            ? "loading"
+            : !matchingAuthorized
+              ? "privacy"
+              : !matchingProfileComplete
+                ? "incomplete"
+                : "ready";
+  const matchingActive = matchingAvailable && urlFilters.sort === SORT_MATCH;
+  const matchingActiveRef = useRef(matchingActive);
+  matchingActiveRef.current = matchingActive;
+  const displayedSort = matchingActive ? SORT_MATCH : urlFilters.sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT;
 
   useEffect(() => {
     setQuery((current) => (current === urlQuery ? current : urlQuery));
@@ -89,8 +229,12 @@ export function Home({ logged = false }) {
 
   useEffect(() => {
     loadGenerationRef.current += 1;
+    const currentParams = loadParamsRef.current;
+    const { sort, ...requestParams } = currentParams;
+    const requestSort = sort === SORT_OLDEST ? SORT_OLDEST : SORT_RECENT;
+    paginationSortRef.current = requestSort;
     let cancelled = false;
-    const peeked = peekApprovedJobsPage(loadParams);
+    const peeked = peekApprovedJobsPage(currentParams);
     if (peeked) {
       setJobs(peeked.jobs);
       setResultCount(peeked.count);
@@ -102,7 +246,7 @@ export function Home({ logged = false }) {
     }
     setLoadingMore(false);
 
-    loadApprovedJobs({ ...loadParams, offset: 0 })
+    loadApprovedJobs({ ...requestParams, sort: requestSort, offset: 0 })
       .then((page) => {
         if (cancelled) return;
         setJobs(page.jobs);
@@ -114,22 +258,43 @@ export function Home({ logged = false }) {
         setCatalogStatus("error");
       });
     return () => { cancelled = true; };
-  }, [loadParams, reloadNonce]);
+  }, [loadFilterKey, reloadNonce]);
+
+  useEffect(() => {
+    if (urlFilters.sort !== SORT_MATCH || !authReady || matchingState === "loading" || matchingAvailable) return;
+    setSearchParams((current) => writeCatalogSearch(current, { sort: SORT_RECENT }), { replace: true });
+  }, [authReady, matchingAvailable, matchingState, setSearchParams, urlFilters.sort]);
+
+  useEffect(() => {
+    setPaginationWasUsed(false);
+    setCatalogReorderAnnouncement("");
+  }, [loadFilterKey, reloadNonce]);
+
+  useEffect(() => {
+    if (!matchingActive) setCatalogReorderAnnouncement("");
+  }, [matchingActive]);
 
   const loadMore = async () => {
     if (loadingMore || catalogStatus !== "ready") return;
     if (resultCount != null && jobs.length >= resultCount) return;
     const generation = loadGenerationRef.current;
-    const paramsAtClick = loadParams;
+    const paramsAtClick = catalogFilterParams(loadParamsRef.current);
     const offset = jobs.length;
+    setCatalogReorderAnnouncement("");
     setLoadingMore(true);
     try {
       const page = await loadApprovedJobs({
         ...paramsAtClick,
+        sort: paginationSortRef.current,
         offset,
       });
       if (generation !== loadGenerationRef.current) return;
-      setJobs((current) => mergeJobsById(current, page.jobs));
+      const accumulated = mergeJobsById(jobs, page.jobs);
+      setJobs(accumulated);
+      if (matchingActiveRef.current) {
+        setCatalogReorderAnnouncement(`Catálogo acumulado atualizado e reordenado por compatibilidade. ${accumulated.length} vagas nesta lista.`);
+      }
+      setPaginationWasUsed(true);
       setResultCount(page.count);
     } catch {
       /* mantém a lista já carregada */
@@ -201,6 +366,13 @@ export function Home({ logged = false }) {
           ? "Nenhuma vaga encontrada"
           : "";
   const retryCatalog = () => setReloadNonce((n) => n + 1);
+  const displayedJobs = useMemo(
+    () => matchingActive
+      ? rankJobsByCompatibility(jobs, profile)
+      : sortAccumulatedJobs(jobs, displayedSort),
+    [displayedSort, jobs, matchingActive, profile],
+  );
+  const showPaginationControl = hasMore || paginationWasUsed;
 
   const standardHero = <section className="hero"><div className="shell hero-content"><div className="eyebrow"><Sparkles size={15}/> Vagas curadas pela comunidade</div><h1>Encontre o próximo passo<br/>da sua <em>carreira em tech.</em></h1><p>Oportunidades em empresas incríveis, selecionadas para quem quer construir o futuro.</p><form className="searchbox" role="search" aria-label="Buscar vagas no catálogo" onSubmit={(event) => { event.preventDefault(); commitQueryToUrl(query); }}><Search size={21} aria-hidden="true"/><input id="catalog-query" name="q" value={query} onChange={e => setQuery(e.target.value)} placeholder="Cargo, tecnologia ou empresa" aria-label="Cargo, tecnologia ou empresa"/><button className="primary" type="submit">Buscar vagas <ArrowUpRight size={17}/></button></form><div className="popular">Populares: <button type="button" onClick={() => applyQuery("React")}>React</button><button type="button" onClick={() => applyQuery("Node")}>Node.js</button><button type="button" onClick={() => applyQuery("Python")}>Python</button><button type="button" onClick={() => applyQuery("Designer")}>Product Design</button></div>    </div></section>;
 
@@ -263,12 +435,25 @@ export function Home({ logged = false }) {
             </p>
           </div>
           <button className="filter-mobile" type="button" onClick={() => setFilterOpen(true)}><Filter size={16}/> Filtros {activeFilterCount > 0 && <b>{activeFilterCount}</b>}</button>
-          <SortMenu value={urlFilters.sort} onChange={(sort) => replaceFilters({ sort })} />
+          <SortMenu
+            value={displayedSort}
+            matchAvailable={matchingAvailable}
+            className={matchingAvailable ? "sort-wrap--matching" : ""}
+            onChange={(sort) => replaceFilters({ sort })}
+          />
         </div>
+        {matchingState !== "not-candidate" ? (
+          <MatchingFeature
+            state={matchingState}
+            active={matchingActive}
+            onToggle={() => replaceFilters({ sort: matchingActive ? SORT_RECENT : SORT_MATCH })}
+          />
+        ) : null}
         <div className="cards">
           {catalogAnnouncement ? <p className="sr-only" role="status">{catalogAnnouncement}</p> : null}
+          {catalogReorderAnnouncement ? <p className="sr-only" role="status" aria-live="polite">{catalogReorderAnnouncement}</p> : null}
           {initialCatalogLoading ? [1, 2, 3, 4].map((slot) => <article key={slot} className="job-card job-card--skeleton job-card--skeleton-static" aria-hidden="true" />) : null}
-          {jobs.map(job => <JobCard key={job.id} job={job} />)}
+          {displayedJobs.map(job => <JobCard key={job.id} job={job} showMatchReasons={matchingActive} />)}
           {catalogStatus === "error" && jobs.length === 0 && (
             <div className="empty">
               <Search size={32} aria-hidden="true"/>
@@ -285,10 +470,10 @@ export function Home({ logged = false }) {
           )}
           {catalogStatus === "ready" && jobs.length === 0 && <div className="empty"><Search size={32} aria-hidden="true"/><h3>Nenhuma vaga encontrada</h3><p>Tente remover alguns filtros ou buscar outro termo.</p><button className="outline" type="button" onClick={reset}>Limpar filtros</button></div>}
         </div>
-        {hasMore ? (
+        {showPaginationControl ? (
           <div className="catalog-more">
-            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? "Carregando…" : "Carregar mais"}
+            <button type="button" className="outline" onClick={loadMore} disabled={loadingMore || !hasMore}>
+              {loadingMore ? "Carregando…" : hasMore ? "Carregar mais" : "Todas as vagas carregadas"}
             </button>
           </div>
         ) : null}
@@ -300,10 +485,81 @@ export function Home({ logged = false }) {
   </main>;
 }
 
-function SortMenu({ value, onChange }) {
+function MatchingFeature({ state, active, onToggle }) {
+  if (state === "loading") {
+    return (
+      <div className="catalog-match-feature catalog-match-feature--loading" aria-hidden="true">
+        <span className="catalog-match-feature__icon" />
+        <span className="catalog-match-feature__skeleton">
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="catalog-match-feature__action-skeleton" />
+      </div>
+    );
+  }
+
+  const copy = state === "ready"
+    ? {
+        eyebrow: active ? "Sua lista personalizada" : "Recomendações do seu perfil",
+        title: active ? "Estas vagas combinam com você" : "Encontre vagas que combinam com você",
+        description: "Compare tecnologias, nível e modalidade. Os motivos mostram por que cada vaga combina com seu perfil.",
+        action: active ? "Voltar à ordem recente" : "Ver vagas compatíveis",
+      }
+    : state === "privacy"
+      ? {
+          eyebrow: "Recomendações personalizadas",
+          title: "Descubra vagas alinhadas ao seu perfil",
+          description: "Escolha essa personalização em Privacidade para comparar tecnologias, nível e modalidade nas vagas.",
+          action: "Configurar privacidade",
+          href: "/preferencias",
+        }
+      : state === "incomplete"
+        ? {
+            eyebrow: "Recomendações personalizadas",
+            title: "Complete seu perfil para encontrar vagas compatíveis",
+            description: "Informe suas tecnologias, nível e modalidade para ativar a ordenação por afinidade.",
+            action: "Completar perfil",
+            href: "/perfil",
+          }
+        : {
+            eyebrow: "Recomendações personalizadas",
+            title: "Encontre vagas que combinam com você",
+            description: "Entre para comparar seu perfil com as oportunidades e ver os motivos de compatibilidade.",
+            action: "Entrar ou criar conta",
+            href: "/login",
+          };
+
+  return (
+    <section className={`catalog-match-feature catalog-match-feature--${state}${active ? " catalog-match-feature--active" : ""}`} aria-labelledby="catalog-match-title">
+      <span className="catalog-match-feature__icon" aria-hidden="true"><Sparkles size={21} /></span>
+      <div className="catalog-match-feature__copy">
+        <span className="catalog-match-feature__eyebrow">{copy.eyebrow}</span>
+        <h3 id="catalog-match-title">{copy.title}</h3>
+        <p>{copy.description}</p>
+      </div>
+      {state === "ready" ? (
+        <button className={active ? "outline catalog-match-feature__action" : "primary catalog-match-feature__action"} type="button" onClick={onToggle}>
+          <Sparkles size={16} aria-hidden="true" /> {copy.action}
+        </button>
+      ) : (
+        <Link className="outline catalog-match-feature__action" to={copy.href}>
+          {copy.action} <ArrowUpRight size={16} aria-hidden="true" />
+        </Link>
+      )}
+    </section>
+  );
+}
+
+function SortMenu({ value, onChange, matchAvailable = false, className = "" }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
-  const label = value === SORT_OLDEST ? "Mais antigas" : "Mais recentes";
+  const label = value === SORT_OLDEST
+    ? "Mais antigas"
+    : value === SORT_MATCH
+      ? "Mais compatíveis nesta lista"
+      : "Mais recentes";
 
   useEffect(() => {
     if (!open) return undefined;
@@ -327,7 +583,10 @@ function SortMenu({ value, onChange }) {
   };
 
   return (
-    <div className="sort-wrap" ref={rootRef}>
+    <div className={[
+      "sort-wrap",
+      className,
+    ].filter(Boolean).join(" ")} ref={rootRef}>
       <button
         type="button"
         className="sort"
@@ -345,6 +604,9 @@ function SortMenu({ value, onChange }) {
           </li>
           <li>
             <button type="button" role="option" aria-selected={value === SORT_OLDEST} onClick={() => choose(SORT_OLDEST)}>Mais antigas</button>
+          </li>
+          <li>
+            <button type="button" role="option" aria-selected={value === SORT_MATCH} disabled={!matchAvailable} onClick={() => choose(SORT_MATCH)}>Mais compatíveis nesta lista</button>
           </li>
         </ul>
       )}
@@ -453,7 +715,7 @@ function FilterGroup({ name, label, values, active, toggle }) {
   );
 }
 
-function JobCard({ job }) {
+function JobCard({ job, showMatchReasons = false }) {
   return (
     <Link className="job-card" to={`/jobs/${job.id}`} state={{ from: "/vagas" }}>
       <div className="company-logo" style={{ background: job.color }}>{job.logo}</div>
@@ -469,6 +731,11 @@ function JobCard({ job }) {
           <span><CircleDollarSign size={15}/>{job.salary}</span>
         </div>
         <div className="tags">{(job.stack ?? []).map((t) => <span key={t}>{t}</span>)}</div>
+        {showMatchReasons && job.matchReasons?.length ? (
+          <div className="tags match-reasons" role="group" aria-label="Motivos de afinidade">
+            {job.matchReasons.map((reason) => <span key={reason.key}>{reason.label}</span>)}
+          </div>
+        ) : null}
       </div>
       <div className="job-side">
         <span>{job.posted}</span>

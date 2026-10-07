@@ -547,7 +547,7 @@ describe("ARQ-01 — caracterização do shell", () => {
 
   it("abre o Login a partir de Entrar ou criar conta", async () => {
     await renderHome();
-    fireEvent.click(screen.getByRole("link", { name: "Entrar ou criar conta" }));
+    fireEvent.click(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]);
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Entrar ou criar conta com Google/i })).toBeInTheDocument();
   });
@@ -653,7 +653,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     expect(dark).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement).toHaveAttribute("data-theme", "dark");
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
-    fireEvent.click(screen.getByRole("link", { name: "Entrar ou criar conta" }));
+    fireEvent.click(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]);
     expect(screen.getByRole("heading", { name: "Entre na sua conta" })).toBeInTheDocument();
   });
 
@@ -1226,7 +1226,7 @@ describe("ARQ-01 — caracterização do shell", () => {
     });
     await Promise.resolve();
     await Promise.resolve();
-    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ada Stale" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Seu perfil já está pronto para novas oportunidades." })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: /Complete seus dados para usar o GDGJobs/i })).not.toBeInTheDocument();
@@ -1285,7 +1285,7 @@ describe("ARQ-01 — caracterização do shell", () => {
 
   it("sincroniza o Header no login sem flash de CTA e hidrata links de candidato depois", async () => {
     await renderAt("/");
-    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]).toBeInTheDocument();
 
     await waitFor(() => expect(authListener).toEqual(expect.any(Function)));
     authListener({
@@ -1343,7 +1343,7 @@ describe("ARQ-01 — caracterização do shell", () => {
 
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Criar perfil gratuito/i })).toBeInTheDocument();
     expect(placeholderLabels()).toEqual([]);
     expect(signOutUser).toHaveBeenCalledTimes(1);
@@ -1563,14 +1563,14 @@ describe("ARQ-01 — caracterização do shell", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Sair/i }));
     expect(screen.queryByRole("button", { name: /Sair/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]).toBeInTheDocument();
 
     resolveUrl("https://signed.example/stale");
     await Promise.resolve();
     await Promise.resolve();
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.queryByRole("button", { name: "Ana Demo" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Entrar ou criar conta" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Entrar ou criar conta" })[0]).toBeInTheDocument();
   });
 
   it("troca de usuário não mantém a foto anterior", async () => {

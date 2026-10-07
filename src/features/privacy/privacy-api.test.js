@@ -16,10 +16,13 @@ vi.mock("../../lib/supabase-client.js", () => ({
 import { PRIVACY_PURPOSES } from "./privacy-catalog.js";
 import {
   invalidatePrivacyPreferencesCache,
+  getMatchingPilotStatus,
+  isPrivacyPurposeAuthorizedForCurrentUser,
   loadPrivacyPreferences,
   peekPrivacyPreferencesCache,
   PRIVACY_PREFERENCES_CACHE_TTL_MS,
   savePrivacyDecision,
+  subscribePrivacyPreferencesInvalidation,
 } from "./privacy-api.js";
 
 const samplePurpose = {
@@ -143,6 +146,36 @@ describe("privacy-api cache", () => {
   });
 });
 
+describe("privacy pilot and current-user authorization", () => {
+  afterEach(() => {
+    supabaseState.enabled = true;
+    supabaseState.rpc.mockReset();
+  });
+
+  it("consulta o gate autorizado no servidor para o usuário da sessão", async () => {
+    supabaseState.rpc.mockResolvedValue({ data: true, error: null });
+
+    await expect(isPrivacyPurposeAuthorizedForCurrentUser("F-06")).resolves.toBe(true);
+    expect(supabaseState.rpc).toHaveBeenCalledWith("privacy_purpose_is_authorized", { p_purpose_code: "F-06" });
+  });
+
+  it("falha fechado quando o RPC de autorização está ausente", async () => {
+    supabaseState.rpc.mockResolvedValue({ data: null, error: { code: "PGRST202", message: "function not found" } });
+
+    await expect(isPrivacyPurposeAuthorizedForCurrentUser("F-06")).resolves.toBe(false);
+  });
+
+  it("lê somente estado e expiração do piloto", async () => {
+    supabaseState.rpc.mockResolvedValue({ data: { enabled: true, expires_at: "2026-11-06T17:09:02Z" }, error: null });
+
+    await expect(getMatchingPilotStatus()).resolves.toEqual({
+      enabled: true,
+      expiresAt: "2026-11-06T17:09:02Z",
+    });
+    expect(supabaseState.rpc).toHaveBeenCalledWith("get_matching_pilot_status");
+  });
+});
+
 describe("privacy-api schema unavailable", () => {
   afterEach(() => {
     invalidatePrivacyPreferencesCache();
@@ -154,6 +187,18 @@ describe("privacy-api schema unavailable", () => {
 
   beforeEach(() => {
     vi.spyOn(console, "info").mockImplementation(() => {});
+  });
+
+  it("notifica superfícies abertas ao invalidar preferências", () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribePrivacyPreferencesInvalidation(listener);
+
+    invalidatePrivacyPreferencesCache("u1");
+    invalidatePrivacyPreferencesCache();
+    unsubscribe();
+    invalidatePrivacyPreferencesCache("u2");
+
+    expect(listener.mock.calls).toEqual([["u1"], [null]]);
   });
 
   it("devolve schema-unavailable para PGRST205 sem catálogo local", async () => {

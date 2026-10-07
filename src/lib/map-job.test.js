@@ -26,7 +26,9 @@ describe("mapJob", () => {
   it("traduz nível, local e responsabilidades do seed", () => {
     const job = mapJob(row);
     expect(job.level).toBe("Pleno");
+    expect(job.levelCode).toBe("mid");
     expect(job.place).toBe("Brasil · Remoto");
+    expect(job.workModelCode).toBe("remote");
     expect(job.company).toBe("Nuvem Lauro Demo");
     expect(job.responsibilities).toEqual(["Construir interfaces acessíveis e performáticas"]);
     expect(job.status).toBe("approved");

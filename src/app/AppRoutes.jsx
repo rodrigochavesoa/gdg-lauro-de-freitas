@@ -29,7 +29,14 @@ export function AppRoutes({
   return (
     <Routes>
       <Route path="/" element={<CatalogGate auth={auth}><Portal logged={logged} profile={auth.profile} email={auth.session?.user?.email} /></CatalogGate>} />
-      <Route path="/vagas" element={<CatalogGate auth={auth}><Home logged={logged} /></CatalogGate>} />
+      <Route path="/vagas" element={<CatalogGate auth={auth}><Home
+        logged={logged}
+        userId={userId}
+        profile={auth.profile}
+        email={auth.session?.user?.email ?? ""}
+        authReady={authReady}
+        profileReady={!logged || hydratedUserId === userId || hydrateFailedUserId === userId}
+      /></CatalogGate>} />
       <Route path="/eventos" element={<CatalogGate auth={auth}><EventosIndex logged={logged} /></CatalogGate>} />
       <Route path="/eventos/:slug" element={<CatalogGate auth={auth}><EventLandingRoute /></CatalogGate>} />
       <Route path="/comunidade" element={<CommunityRoute auth={auth} authReady={authReady} />} />
