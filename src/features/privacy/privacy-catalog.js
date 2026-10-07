@@ -63,7 +63,7 @@ export const PRIVACY_PURPOSES = [
     purpose_code: "F-06",
     version: 2,
     title: "Receber recomendações com base no perfil",
-    specific_description: "Usar suas skills, nível, localidade, modalidade e preferências para ordenar vagas relevantes. O cálculo determinístico acontece no navegador; pontuações e ordenação personalizada não são armazenadas. Esta escolha é opcional e revogável.",
+    specific_description: "Usar as tecnologias (skills) e o nível informados no seu perfil e a modalidade de trabalho para ordenar vagas aprovadas com critérios determinísticos. A localização em texto livre não compõe a pontuação; os filtros de localidade escolhidos no catálogo continuam valendo. O cálculo ocorre no seu navegador; pontuações e ordenação personalizada não são salvas. A escolha é opcional e pode ser revogada.",
     classification: "optional_consent",
     status: "active",
     legal_basis_status: "pending_dpo",
