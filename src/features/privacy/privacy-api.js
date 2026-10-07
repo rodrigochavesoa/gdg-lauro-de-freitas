@@ -12,6 +12,16 @@ const privacyPreferencesCache = createMemoryCache({
   ttlMs: PRIVACY_PREFERENCES_CACHE_TTL_MS,
   name: "privacy",
 });
+const privacyInvalidationListeners = new Set();
+
+export function subscribePrivacyPreferencesInvalidation(listener) {
+  privacyInvalidationListeners.add(listener);
+  return () => privacyInvalidationListeners.delete(listener);
+}
+
+function notifyPrivacyPreferencesInvalidation(userId) {
+  for (const listener of privacyInvalidationListeners) listener(userId ?? null);
+}
 
 function clientOrThrow() {
   const client = getSupabaseBrowserClient();
@@ -89,16 +99,40 @@ function parseLoadPrivacyOptions(userIdOrOptions) {
 export function invalidatePrivacyPreferencesCache(userId) {
   if (userId) {
     privacyPreferencesCache.invalidateKey(userId);
-    return;
+  } else {
+    privacyPreferencesCache.clear();
+    privacySchemaUnavailable = false;
+    privacySchemaUnavailableReported = false;
   }
-  privacyPreferencesCache.clear();
-  privacySchemaUnavailable = false;
-  privacySchemaUnavailableReported = false;
+  notifyPrivacyPreferencesInvalidation(userId);
 }
 
 export function peekPrivacyPreferencesCache(userId) {
   if (!userId) return null;
   return privacyPreferencesCache.peek(userId);
+}
+
+export async function isPrivacyPurposeAuthorizedForCurrentUser(purposeCode) {
+  const client = getSupabaseBrowserClient();
+  if (!client) return false;
+  const { data, error } = await client.rpc("privacy_purpose_is_authorized", {
+    p_purpose_code: purposeCode,
+  });
+  if (isPrivacySchemaUnavailableError(error)) return false;
+  throwIfError(error);
+  return data === true;
+}
+
+export async function getMatchingPilotStatus() {
+  const client = getSupabaseBrowserClient();
+  if (!client) return { enabled: false, expiresAt: null };
+  const { data, error } = await client.rpc("get_matching_pilot_status");
+  if (isPrivacySchemaUnavailableError(error)) return { enabled: false, expiresAt: null };
+  throwIfError(error);
+  return {
+    enabled: data?.enabled === true,
+    expiresAt: typeof data?.expires_at === "string" ? data.expires_at : null,
+  };
 }
 
 async function fetchPrivacyPreferences() {

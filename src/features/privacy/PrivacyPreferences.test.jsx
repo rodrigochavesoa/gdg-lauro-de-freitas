@@ -6,12 +6,14 @@ import { PrivacyPreferences } from "./PrivacyPreferences.jsx";
 
 const {
   loadPrivacyPreferences,
+  getMatchingPilotStatus,
   peekPrivacyPreferencesCache,
   recordPrivacyNotice,
   saveOptionalChoice,
   revokePurpose,
 } = vi.hoisted(() => ({
   loadPrivacyPreferences: vi.fn(),
+  getMatchingPilotStatus: vi.fn(() => Promise.resolve({ enabled: false, expiresAt: null })),
   peekPrivacyPreferencesCache: vi.fn(() => null),
   recordPrivacyNotice: vi.fn(),
   saveOptionalChoice: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock("./privacy-api.js", () => ({
     return result;
   }, {}),
   loadPrivacyPreferences,
+  getMatchingPilotStatus,
   peekPrivacyPreferencesCache,
   recordPrivacyNotice,
   saveOptionalChoice,
@@ -58,6 +61,8 @@ function renderPage(events = [], { cached } = {}) {
 describe("PrivacyPreferences", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    getMatchingPilotStatus.mockReset();
+    getMatchingPilotStatus.mockResolvedValue({ enabled: false, expiresAt: null });
     peekPrivacyPreferencesCache.mockReturnValue(null);
   });
 
@@ -71,6 +76,15 @@ describe("PrivacyPreferences", () => {
     expect(screen.getByRole("checkbox", { name: "Desativada" })).toHaveAttribute("id", "privacy-F-06");
     expect(screen.getByRole("checkbox", { name: "Desativada" })).toHaveAttribute("name", "privacy-F-06");
     expect(screen.getAllByText("pending_dpo").length).toBeGreaterThan(0);
+  });
+
+  it("explica que o piloto de Preview exige aceite e não muda os estados formais", async () => {
+    getMatchingPilotStatus.mockResolvedValue({ enabled: true, expiresAt: "2026-11-06T17:09:02Z" });
+    renderPage();
+
+    expect(await screen.findByText(/Piloto temporário de recomendações ativo neste ambiente de Preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/F-06 continua opcional: o matching só começa após seu aceite/i)).toBeInTheDocument();
+    expect(screen.getByText(/Os estados formais de privacidade continuam pendentes; Production permanece desligado/i)).toBeInTheDocument();
   });
 
   it("registra aceite explícito da finalidade opcional", async () => {

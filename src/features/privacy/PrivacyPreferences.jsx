@@ -3,6 +3,7 @@ import { CheckCircle2, CircleAlert, History, LockKeyhole, ShieldCheck } from "lu
 import { Link } from "react-router-dom";
 import {
   groupCurrentPrivacyEvents,
+  getMatchingPilotStatus,
   loadPrivacyPreferences,
   peekPrivacyPreferencesCache,
   recordPrivacyNotice,
@@ -122,10 +123,20 @@ export function PrivacyPreferences({ userId }) {
   const [status, setStatus] = useState(() => (cached ? statusFromPayload(cached) : "loading"));
   const [error, setError] = useState("");
   const [busyCode, setBusyCode] = useState(null);
+  const [matchingPilot, setMatchingPilot] = useState(() => ({
+    userId,
+    status: userId ? "loading" : "ready",
+    enabled: false,
+    expiresAt: null,
+  }));
+  const matchingPilotLoading = Boolean(userId) && (
+    matchingPilot.userId !== userId || matchingPilot.status === "loading"
+  );
 
   useEffect(() => {
     if (!userId) return undefined;
     let cancelled = false;
+    setMatchingPilot({ userId, status: "loading", enabled: false, expiresAt: null });
     const hadCache = peekPrivacyPreferencesCache(userId) != null;
     if (!hadCache) {
       setStatus("loading");
@@ -143,6 +154,13 @@ export function PrivacyPreferences({ userId }) {
         setError(loadError.message || "Não foi possível carregar suas preferências.");
         setStatus("error");
       });
+    getMatchingPilotStatus()
+      .then((pilotStatus) => {
+        if (!cancelled) setMatchingPilot({ userId, status: "ready", ...pilotStatus });
+      })
+      .catch(() => {
+        if (!cancelled) setMatchingPilot({ userId, status: "ready", enabled: false, expiresAt: null });
+      });
     return () => { cancelled = true; };
   }, [userId]);
 
@@ -159,9 +177,13 @@ export function PrivacyPreferences({ userId }) {
     setError("");
     try {
       await action();
-      const payload = await loadPrivacyPreferences({ userId, forceRefresh: true });
+      const [payload, pilotStatus] = await Promise.all([
+        loadPrivacyPreferences({ userId, forceRefresh: true }),
+        getMatchingPilotStatus(),
+      ]);
       setData(payload);
       setStatus(statusFromPayload(payload));
+      setMatchingPilot({ userId, status: "ready", ...pilotStatus });
     } catch (actionError) {
       setError(actionError.message || "Não foi possível atualizar essa finalidade.");
     } finally {
@@ -183,6 +205,21 @@ export function PrivacyPreferences({ userId }) {
           <Link className="outline" to="/">Voltar ao início</Link>
         </div>
         {data.source === "fallback" ? <p className="privacy-page__note" role="status">As preferências serão salvas quando o ambiente Supabase estiver configurado.</p> : null}
+        {matchingPilotLoading || matchingPilot.enabled ? (
+          <div className="privacy-pilot-slot" aria-busy={matchingPilotLoading}>
+            {matchingPilotLoading ? (
+              <div className="privacy-pilot-placeholder" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            ) : (
+              <p className="privacy-page__note" role="status">
+                Piloto temporário de recomendações ativo neste ambiente de Preview{matchingPilot.expiresAt ? ` até ${formatDate(matchingPilot.expiresAt)}` : ""}. F-06 continua opcional: o matching só começa após seu aceite. O cálculo acontece no navegador e não salva pontuação nem ordem personalizada. Os estados formais de privacidade continuam pendentes; Production permanece desligado.
+              </p>
+            )}
+          </div>
+        ) : null}
         {status === "unavailable" ? (
           <p className="privacy-page__note" role="status">Preferências temporariamente indisponíveis</p>
         ) : null}
@@ -207,7 +244,7 @@ export function PrivacyPreferences({ userId }) {
         {status !== "unavailable" ? (
           <div className="privacy-footer-note">
             <CheckCircle2 size={18} aria-hidden="true" />
-            <p>As escolhas opcionais começam desativadas. Bases legais, textos e prazos marcados como <code>pending_dpo</code> ainda aguardam revisão e não liberam novos tratamentos.</p>
+            <p>As escolhas opcionais começam desativadas. Estados <code>pending_dpo</code> continuam indicando pendências formais; qualquer piloto ativo deve ter autorização explícita, prazo e aceite individual.</p>
           </div>
         ) : null}
       </div>
