@@ -2089,24 +2089,40 @@ async function scenario16_privacyConsent() {
   assert(!catalog.error, `catálogo de privacidade acessível sem dados pessoais (${errorText(catalog.error) || "ok"})`);
   if (catalog.error) return;
 
-  assert(catalog.data?.length === 11, "catálogo contém F-01 a F-11");
+  const latestPurposeByCode = new Map();
+  for (const row of catalog.data ?? []) {
+    const current = latestPurposeByCode.get(row.purpose_code);
+    if (!current || Number(row.version) > Number(current.version)) {
+      latestPurposeByCode.set(row.purpose_code, row);
+    }
+  }
+  const latestPurposes = [...latestPurposeByCode.values()];
+  assert(latestPurposes.length === 11, "catálogo contém uma versão atual para F-01 a F-11");
   const communityPilot = await isHomologCommunityPilotActive();
-  const communityPurpose = catalog.data?.find((row) => row.purpose_code === "F-11");
+  const communityPurpose = latestPurposeByCode.get("F-11");
   const communitySchemaApplied = communityPurpose?.version === 2;
   const communityFormallyApproved = communityPurpose?.status === "active" &&
     communityPurpose?.legal_basis_status === "approved" &&
     communityPurpose?.retention_status === "approved" &&
     communityPurpose?.text_status === "approved";
   assert(
-    catalog.data?.every((row) => {
-      if (row.purpose_code === "F-11") return row.version === 1 || row.version === 2;
+    latestPurposes.every((row) => {
+      if (row.purpose_code === "F-11") return row.version === 1 || row.version === 2 || row.version === 3;
+      if (row.purpose_code === "F-06") {
+        return (
+          (row.version === 1 || row.version === 2) &&
+          row.legal_basis_status === "pending_dpo" &&
+          row.retention_status === "pending_dpo" &&
+          row.text_status === "pending_dpo"
+        );
+      }
       return (
         row.version === 1 &&
         row.legal_basis_status === "pending_dpo" &&
         row.retention_status === "pending_dpo"
       );
     }),
-    "catálogo mantém F-01–F-10 em v1 pending_dpo; F-11 em v1 ou v2 conforme migrations aplicadas",
+    "catálogo mantém os metadados formais pending_dpo e aceita as versões implantadas de F-06/F-11",
   );
   const inactive = catalog.data?.find((row) => row.purpose_code === "F-05");
   assert(inactive?.status === "inactive", "newsletter permanece inativa");
