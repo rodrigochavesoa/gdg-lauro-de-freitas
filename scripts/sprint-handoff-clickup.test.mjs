@@ -188,6 +188,53 @@ describe("parseHandoffConfig", () => {
 });
 
 describe("sprintHandoffClickUp", () => {
+  it("preserves closed tasks unless reopening is explicitly allowed", async () => {
+    const { fetchImpl, store } = createHandoffMemory();
+    store.tasksByList["list-01"].push(
+      { id: "task-closed", name: "Delivered task", status: "complete" },
+      { id: "task-reopen", name: "Intentionally reopened task", status: "complete" },
+    );
+    const client = createClickUpClient({ token: "t", fetchImpl });
+    const handoff = parseHandoffConfig({
+      spaceName: "Meu Produto MVP",
+      sprintNotes: [],
+      moveTasks: [],
+      tasks: [
+        {
+          list: "Sprint 01",
+          name: "Delivered task",
+          clickupId: "task-closed",
+          status: "Backlog",
+          fields: { PR: "—" },
+        },
+        {
+          list: "Sprint 01",
+          name: "Intentionally reopened task",
+          clickupId: "task-reopen",
+          status: "Backlog",
+          allowReopen: true,
+        },
+      ],
+    });
+
+    await sprintHandoffClickUp({
+      client,
+      teamId: "1",
+      handoff,
+      log: () => {},
+      bootstrapConfig: null,
+    });
+
+    expect(store.tasksByList["list-01"].find((task) => task.id === "task-closed").status).toBe(
+      "complete",
+    );
+    expect(store.updates.find((update) => update.taskId === "task-closed")).toBeUndefined();
+    expect(store.fieldValues).toHaveLength(0);
+    expect(store.tasksByList["list-01"].find((task) => task.id === "task-reopen").status).toBe(
+      "to do",
+    );
+  });
+
   it("cria Sprint Note, move task e abre tasks da próxima list (idempotente na 2ª passagem)", async () => {
     const { fetchImpl, store } = createHandoffMemory();
     const client = createClickUpClient({ token: "t", fetchImpl });

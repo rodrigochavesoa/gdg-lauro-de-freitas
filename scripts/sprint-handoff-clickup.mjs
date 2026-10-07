@@ -64,6 +64,7 @@ export function parseHandoffConfig(raw) {
       taskName: task?.taskName?.trim() || name,
       status: task.status ? String(task.status).trim() : "Backlog",
       clickupId: task.clickupId ? String(task.clickupId).trim() : null,
+      allowReopen: task.allowReopen === true,
       storyId: task.storyId ? String(task.storyId).trim() : null,
       priority: task.priority ? String(task.priority).trim() : null,
       pr: task.pr != null ? String(task.pr) : undefined,
@@ -243,7 +244,33 @@ async function upsertTask({
     }
   }
 
-  const resolvedStatus = resolveTaskStatus(taskCfg.status, resolvedListStatuses);
+  let resolvedStatus = resolveTaskStatus(taskCfg.status, resolvedListStatuses);
+  const currentStatus = typeof task?.status === "object" ? task.status.status : task?.status;
+  const currentStatusDefinition = resolvedListStatuses.find(
+    (item) =>
+      String(item.status ?? "").trim().toLowerCase() ===
+      String(currentStatus ?? "").trim().toLowerCase(),
+  );
+  const desiredStatusDefinition = resolvedListStatuses.find(
+    (item) =>
+      String(item.status ?? "").trim().toLowerCase() ===
+      String(resolvedStatus ?? "").trim().toLowerCase(),
+  );
+  const currentStatusType = String(
+    task?.status?.type ?? currentStatusDefinition?.type ?? "",
+  ).toLowerCase();
+  const desiredStatusType = String(desiredStatusDefinition?.type ?? "").toLowerCase();
+  if (
+    task &&
+    ["closed", "done"].includes(currentStatusType) &&
+    desiredStatusType === "open" &&
+    !taskCfg.allowReopen
+  ) {
+    log(`preserved closed task; skipped stale open handoff config: ${name}`);
+    taskIds[name] = String(task.id);
+    skipped.updated += 1;
+    return;
+  }
   const isNew = !task;
 
   if (task) {

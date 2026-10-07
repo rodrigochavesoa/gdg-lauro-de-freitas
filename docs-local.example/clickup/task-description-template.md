@@ -78,6 +78,8 @@ Depois: `pnpm clickup:sync`.
 | In review | `fields.PR` = `#nnn` + sync |
 | Done | `closedAt`, Veredito, `delivery` + sync |
 
+**Proteção contra reabertura acidental:** o sync não aplica configuração aberta sobre uma task já fechada no ClickUp, nem altera seus campos/metadados nesse conflito. Para reabrir intencionalmente, defina `allowReopen: true` na entrada da task e ajuste o status desejado.
+
 ---
 
 ## 4. Proibido
