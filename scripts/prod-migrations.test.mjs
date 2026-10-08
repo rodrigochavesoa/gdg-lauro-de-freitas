@@ -62,6 +62,38 @@ describe("prod migrations", () => {
     }
   });
 
+  it("inclui SEC-04 na cadeia Production preservando os gates da ingestão", () => {
+    const migration = "20261007230000_job_ingestion_country_salary_prod.sql";
+    const sql = readFileSync(join(MIGRATIONS_DIR, migration), "utf8");
+    const { prod } = validateProdMigrations();
+
+    expect(prod.at(-1)).toBe(migration);
+    expect(sql).toContain("'country_code'");
+    expect(sql).toContain("'salary_min'");
+    expect(sql).toContain("'salary_max'");
+    expect(sql).toContain("v_salary_numeric <> trunc(v_salary_numeric)");
+    expect(sql).toContain("v_salary_min > v_salary_max");
+    expect(sql).toContain("country_code,");
+    expect(sql).toContain("salary_min,");
+    expect(sql).toContain("salary_max,");
+    expect(sql).toContain("'pending'");
+    expect(sql).toContain("security definer");
+    expect(sql).toContain("set search_path = public, extensions");
+    expect(sql).toContain("private.is_admin_aal2()");
+    expect(sql).toContain("v_outcome := 'duplicate_010'");
+    expect(sql).not.toMatch(/update\s+public\.jobs/i);
+    expect(sql).not.toMatch(/insert\s+into\s+public\.companies/i);
+    const canonicalFunction = sql.match(
+      /create or replace function private\.canonicalize_job_ingestion_payload[\s\S]*?as \$\$([\s\S]*?)\$\$;/i,
+    )?.[1] ?? "";
+    const canonicalDeclare = canonicalFunction.match(/declare([\s\S]*?)begin/i)?.[1] ?? "";
+    expect(canonicalDeclare).toMatch(/\bv_salary_numeric\s+numeric\b/i);
+    expect(canonicalFunction).toMatch(/v_salary_numeric\s*:=/i);
+    const canonicalKeys = sql.match(/v_keys text\[\] := array\[([\s\S]*?)\n  \];/)?.[1] ?? "";
+    expect(canonicalKeys).toContain("'work_model',\n    'country_code',\n    'salary_min',\n    'salary_max'");
+    expect(canonicalKeys).not.toContain("salary_currency");
+  });
+
   it("classifica seed fictício e avatars como homolog-only por pattern", () => {
     expect(isHomologOnlyMigration("202608160002_seed_fictitious_catalog.sql")).toBe(true);
     expect(isHomologOnlyMigration("20260916122300_avatars_storage_homolog.sql")).toBe(true);
@@ -82,7 +114,7 @@ describe("prod migrations", () => {
     expect(isHomologOnlyMigration("20260915154949_job_submission_staff_dedup.sql")).toBe(false);
   });
 
-  it("usa o manifesto como fonte de verdade — 30 arquivos, sem staff_dedup", () => {
+  it("usa o manifesto como fonte de verdade — 31 arquivos, sem staff_dedup", () => {
     expect(isProdSafeMigration("202608160002_seed_fictitious_catalog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916122300_avatars_storage_homolog.sql")).toBe(false);
     expect(isProdSafeMigration("20260916153000_avatars_single_object_homolog.sql")).toBe(false);
@@ -106,7 +138,7 @@ describe("prod migrations", () => {
     expect(isProdSafeMigration("20260927080200_apply_rate_limit_preserve_homolog.sql")).toBe(false);
 
     const { prod, homologOnly, camadaB } = validateProdMigrations();
-    expect(prod).toHaveLength(30);
+    expect(prod).toHaveLength(31);
     expect(prod.some((name) => name.includes("job_submission_staff_dedup"))).toBe(false);
     expect(camadaB.some((name) => name.includes("job_submission_staff_dedup"))).toBe(true);
     expect(camadaB.some((name) => name.includes("staff_rls_aal2"))).toBe(true);

@@ -3294,6 +3294,86 @@ async function scenario21_jobIngestions() {
     assert(distinctPayload.idempotent === false && distinctPayload.id !== first.id, "payload distinto cria linha nova");
     if (distinctPayload?.id) createdIds.push(distinctPayload.id);
 
+    const structuredLocator = `${locator}-structured`;
+    const structuredPayload = {
+      ...payload,
+      country_code: "br",
+      salary_min: "0800000",
+      salary_max: 1200000,
+      salary_currency: "USD",
+    };
+    const structured = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: structuredPayload,
+    });
+    if (structured?.id) createdIds.push(structured.id);
+    assert(structured.idempotent === false, "país e faixa estruturados criam fingerprint próprio");
+    const normalizedEquivalent = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: {
+        ...payload,
+        country_code: " BR ",
+        salary_min: 800000,
+        salary_max: "1200000",
+        salary_currency: "EUR",
+      },
+    });
+    assert(
+      normalizedEquivalent.idempotent === true && normalizedEquivalent.id === structured.id,
+      "normalização mantém idempotência e salary_currency fica fora do fingerprint",
+    );
+    const changedCountry = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: { ...structuredPayload, country_code: "US" },
+    });
+    const changedMinimum = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: { ...structuredPayload, salary_min: 800001 },
+    });
+    const changedMaximum = await registerJobIngestion(admin, {
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: { ...structuredPayload, salary_max: 1200001 },
+    });
+    for (const [row, dimension] of [
+      [changedCountry, "país"],
+      [changedMinimum, "salário mínimo"],
+      [changedMaximum, "salário máximo"],
+    ]) {
+      if (row?.id) createdIds.push(row.id);
+      assert(
+        row.idempotent === false && row.payload_hash !== structured.payload_hash,
+        `mudança isolada em ${dimension} altera o fingerprint`,
+      );
+    }
+    const structuredFingerprint = await buildIngestionFingerprint({
+      sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+      locator: structuredLocator,
+      payload: structuredPayload,
+    });
+    assert(
+      structuredFingerprint.payload_hash === structured.payload_hash,
+      "hash SQL coincide com o contrato JS para país e faixa estruturados",
+    );
+
+    for (const [suffix, invalidPayload] of [
+      ["country", { ...payload, country_code: "Brasil" }],
+      ["range", { ...payload, salary_min: 1200000, salary_max: 800000 }],
+      ["fraction", { ...payload, salary_min: 800000.5 }],
+      ["overflow", { ...payload, salary_max: 2147483648 }],
+    ]) {
+      const invalid = await admin.rpc("register_job_ingestion", {
+        p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
+        p_locator: `${locator}-invalid-${suffix}`,
+        p_payload: invalidPayload,
+      });
+      assert(Boolean(invalid.error), `SQL rejeita payload estruturado inválido (${suffix})`);
+    }
+
     const fingerprint = await buildIngestionFingerprint({
       sourceKind: SOURCE_KINDS.STAFF_REPLAY,
       locator,
@@ -3400,9 +3480,15 @@ async function scenario22_processJobIngestion() {
 
   const stamp = Date.now();
   const locator = `fixture:rls-s22-${stamp}`;
-  const payload = ingestionFixturePayload(`RLS 013 process ${stamp}`);
+  const payload = {
+    ...ingestionFixturePayload(`RLS 013 process ${stamp}`),
+    country_code: "br",
+    salary_min: "0800000",
+    salary_max: 1200000,
+  };
   const createdIds = [];
   const createdJobIds = [];
+  const duplicateJobIds = [];
   const svc = createServiceClient();
   let attention = null;
 
@@ -3418,6 +3504,19 @@ async function scenario22_processJobIngestion() {
     assert(first.job?.id, "devolve job_id pending");
     if (first.ingestion?.id) createdIds.push(first.ingestion.id);
     if (first.job?.id) createdJobIds.push(first.job.id);
+    const structuredJob = await admin
+      .from("jobs")
+      .select("country_code,salary_min,salary_max,status")
+      .eq("id", first.job.id)
+      .maybeSingle();
+    assert(
+      !structuredJob.error &&
+        structuredJob.data?.country_code === "BR" &&
+        structuredJob.data?.salary_min === 800000 &&
+        structuredJob.data?.salary_max === 1200000 &&
+        structuredJob.data?.status === "pending",
+      `materializa país e salários estruturados sem publicar (${errorText(structuredJob.error) || "ok"})`,
+    );
     if (attention != null && first.ingestion?.id) {
       await assertStaffListRow(admin, first.ingestion.id, { needsAttention: false, outcome: "materialized" });
       attention = await assertAttentionDelta(admin, attention, 0, "materializada com sucesso não conta");
@@ -3531,6 +3630,77 @@ async function scenario22_processJobIngestion() {
       await assertStaffListRow(admin, expiredProcess.ingestion.id, { needsAttention: true, outcome: "expired" });
       await assertAttentionDelta(admin, attention, 1, "tentativa expired conta");
     }
+
+    for (const [suffix, invalidPayload] of [
+      ["country", { ...payload, country_code: "Brasil" }],
+      ["range", { ...payload, salary_min: 1200000, salary_max: 800000 }],
+    ]) {
+      const invalidLocator = `${locator}-invalid-${suffix}`;
+      const invalid = await admin.rpc("process_job_ingestion", {
+        p_source_kind: SOURCE_KINDS.STAFF_REPLAY,
+        p_locator: invalidLocator,
+        p_payload: invalidPayload,
+      });
+      assert(Boolean(invalid.error), `processamento rejeita payload inválido (${suffix}) antes de registrar`);
+      const rows = await admin
+        .from("job_ingestions")
+        .select("id")
+        .eq("normalized_locator", invalidLocator);
+      assert(!rows.error && (rows.data ?? []).length === 0, `payload inválido (${suffix}) não deixa ingestão parcial`);
+    }
+
+    if (svc) {
+      const duplicateTitle = `RLS 013 010 ${stamp}`;
+      const existing = await svc.from("jobs").insert({
+        company_id: SEED_COMPANY,
+        title: duplicateTitle,
+        description: "Conteúdo preexistente que não pode ser alterado.",
+        stack: ["Legacy"],
+        level: "junior",
+        work_model: "remote",
+        location: "Localidade original",
+        country_code: "US",
+        salary_min: 100,
+        salary_max: 200,
+        requirements: { mandatory: [], desirable: [] },
+        status: "pending",
+      }).select("id").single();
+      assert(!existing.error && existing.data?.id, `cria vaga-base de teste para duplicata 010 (${errorText(existing.error) || "ok"})`);
+      if (existing.data?.id) duplicateJobIds.push(existing.data.id);
+      if (!existing.error && existing.data?.id) {
+        const duplicate = await processJobIngestion(admin, {
+          sourceKind: SOURCE_KINDS.STAFF_REPLAY,
+          locator: `${locator}-duplicate-010`,
+          payload: {
+            ...payload,
+            title: duplicateTitle,
+            company_name: "Nuvem Lauro Demo",
+            description: "Conteúdo novo que deve ser ignorado.",
+            country_code: "BR",
+            salary_min: 500000,
+            salary_max: 900000,
+          },
+        });
+        if (duplicate.ingestion?.id) createdIds.push(duplicate.ingestion.id);
+        assert(duplicate.outcome === "duplicate_010", `colisão 010 é classificada (${duplicate.outcome})`);
+        assert(duplicate.job?.id === existing.data.id, "colisão 010 referencia a vaga original");
+        const unchanged = await svc
+          .from("jobs")
+          .select("description,location,country_code,salary_min,salary_max,status")
+          .eq("id", existing.data.id)
+          .single();
+        assert(
+          !unchanged.error &&
+            unchanged.data?.description === "Conteúdo preexistente que não pode ser alterado." &&
+            unchanged.data?.location === "Localidade original" &&
+            unchanged.data?.country_code === "US" &&
+            unchanged.data?.salary_min === 100 &&
+            unchanged.data?.salary_max === 200 &&
+            unchanged.data?.status === "pending",
+          `colisão 010 não altera a vaga existente (${errorText(unchanged.error) || "ok"})`,
+        );
+      }
+    }
   } catch (error) {
     if (/could not find the function|PGRST202/i.test(error.message || "")) {
       skipRequired(22, "RPC process_job_ingestion não aplicada no ambiente");
@@ -3541,6 +3711,9 @@ async function scenario22_processJobIngestion() {
     await deleteIngestions(createdIds);
     for (const jobId of createdJobIds) {
       await deleteJob(admin, jobId);
+    }
+    for (const jobId of duplicateJobIds) {
+      await deleteJob(svc, jobId);
     }
     await admin.auth.signOut();
   }

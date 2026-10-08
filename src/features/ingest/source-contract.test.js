@@ -112,6 +112,39 @@ describe("fingerprint estável", () => {
     );
   });
 
+  it("inclui cada campo estruturado no fingerprint e ignora moeda fora do contrato", async () => {
+    const base = await hashIngestionPayload(BASE_PAYLOAD);
+    const country = await hashIngestionPayload({ ...BASE_PAYLOAD, country_code: "BR" });
+    const minimum = await hashIngestionPayload({ ...BASE_PAYLOAD, salary_min: 800000 });
+    const maximum = await hashIngestionPayload({ ...BASE_PAYLOAD, salary_max: 1200000 });
+    const withCurrency = await hashIngestionPayload({
+      ...BASE_PAYLOAD,
+      salary_currency: "USD",
+    });
+
+    expect(country).not.toBe(base);
+    expect(minimum).not.toBe(base);
+    expect(maximum).not.toBe(base);
+    expect(withCurrency).toBe(base);
+  });
+
+  it("normaliza código e centavos antes do hash", async () => {
+    const normalized = await hashIngestionPayload({
+      ...BASE_PAYLOAD,
+      country_code: " br ",
+      salary_min: "0800000",
+      salary_max: "1200000",
+    });
+    const canonical = await hashIngestionPayload({
+      ...BASE_PAYLOAD,
+      country_code: "BR",
+      salary_min: 800000,
+      salary_max: 1200000,
+    });
+
+    expect(normalized).toBe(canonical);
+  });
+
   it("recusa país textual, centavos inválidos e mínimo maior que o máximo", () => {
     expect(() => canonicalizeIngestionPayload({ ...BASE_PAYLOAD, country_code: "Brasil" })).toThrow(/country_code/);
     expect(() => canonicalizeIngestionPayload({ ...BASE_PAYLOAD, salary_min: 800000.5 })).toThrow(/salary_min/);
