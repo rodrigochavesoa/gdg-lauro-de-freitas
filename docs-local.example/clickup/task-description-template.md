@@ -27,14 +27,14 @@ No handoff, use **`sections`**; o repo gera o markdown (`scripts/clickup-task-de
 ```json
 {
   "clickupId": "86abcdefgh",
-  "storyId": "SEC-EXAMPLE-01",
-  "name": "SEC-EXAMPLE-01 — título curto",
+  "storyId": "FEATURE-EXAMPLE-01",
+  "name": "FEATURE-EXAMPLE-01 — título curto",
   "list": "Sprint NN",
   "status": "Ready",
   "openedAt": "2026-09-20",
   "deliveryStatus": "planejamento",
   "fields": {
-    "História ID": "SEC-EXAMPLE-01",
+    "História ID": "FEATURE-EXAMPLE-01",
     "PR": "—",
     "Veredito Plan": "—",
     "Prioridade": "P1"

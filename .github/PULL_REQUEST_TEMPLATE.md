@@ -1,41 +1,11 @@
-## Contexto
-<!-- Código de história (ex.: UX-EVENTOS-SCROLL-01) e sprint, se aplicável. -->
-
-ClickUp: xxxxxxxxx
-<!-- ID da task na URL do ClickUp (não é o código de história). Ver docs-local.example/clickup/setup.md § Identificação -->
-
-## Alterações
+## Summary
 -
 
-## Como validar
-1.
-2. Se o PR altera frontend, `vercel.json` ou deploy: abrir o **Preview Vercel** e testar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge.
+## Validation
+- [ ] Relevant checks completed
+- [ ] If the change affects the frontend or deployment, the Vercel Preview was reviewed
+- [ ] Acceptance criteria and tracked task updated when applicable
+- [ ] No credentials or real personal data added
 
-**Preview Vercel (link direto da branch — obrigatório quando houver deploy):**
-
-```text
-https://<projeto>-git-<branch>-<team>.vercel.app
-```
-
-Copie a URL do bot **Vercel** na PR ou de Deployments → Preview. **Não** use a URL de Production para validar PR aberta.
-
-## Segurança e dados
-- [ ] Não introduz segredo no repositório
-- [ ] RLS/policies revisadas, quando aplicável
-- [ ] Entrada validada no servidor, quando aplicável
-
-## Evidências
-- [ ] Testes automatizados (`pnpm lint`, `pnpm test`, `pnpm run build` no `pwsh`)
-- [ ] Captura de tela ou vídeo, se houver mudança de UI
-- [ ] Migration e rollback, quando aplicável
-- [ ] Se UI: seguir tokens e componentes em `src/styles.css` (não inventar paleta paralela)
-- [ ] Se layout / juntas de seção: reutilizar as ondas canônicas; DS completo só em `docs-local/` (mantenedor)
-
-## Checklist
-- [ ] Branch a partir de `main` — **sem push direto em `main`**
-- [ ] Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/)
-- [ ] Preview Vercel validado (`/`, `/vagas`, `/login`) **antes** do merge, quando o diff tocar frontend, `vercel.json` ou deploy
-- [ ] Critérios de aceitação atendidos
-- [ ] Documentação pública atualizada (`README.md`, `SETUP.md`, `CONTRIBUTING.md`) quando o clone precisar
-- [ ] Task ClickUp atualizada (In review → Done após merge), se aplicável
-- [ ] Sem mudanças fora do escopo
+## Screenshots
+<!-- Add screenshots for interface changes when useful. -->

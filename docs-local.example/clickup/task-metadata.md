@@ -1,178 +1,21 @@
-# ClickUp — metadados de task (agentes)
+# Task metadata template
 
-Contrato **obrigatório** para **`pnpm clickup:sync`**. Configs reais em **`docs-local/clickup/`** (gitignored). Modelos genéricos em `*.example.json`.
+Use this checklist when preparing a task for the local ClickUp sync configuration. The exact status labels and available custom fields depend on the destination list; confirm them in the workspace before syncing.
 
-**GOV-CLICKUP-03 (implementado):** `bootstrap-clickup.mjs`, `sprint-handoff-clickup.mjs` e `clickup-task-metadata.mjs` aplicam **assignee**, **tags** (1–3) e **datas** em cada task. Reexecução idempotente — contadores `skipped.assignees`, `skipped.tags`, `skipped.dates` quando já estiver correto.
+## Suggested fields
 
----
-
-## Regra de ouro (todos os agentes)
-
-| Quem | Obrigação |
+| Field | Purpose |
 |---|---|
-| **Plan** | Ao definir handoff/sprint, toda task nova no JSON local **deve** incluir `tags`, `openedAt` e (`closedAt` se Done). Assignee humano via `defaults` + `clickup.env`. |
-| **Executor** | Ao criar task no config ou rodar sync: **nunca** omitir metadados; validar 2ª execução (`skipped`, sem duplicar tags). |
-| **Qualquer agente** | **Não** colocar nome/e-mail real, Sprint 09/10 ou IDs CU-xxx em arquivos versionados — só `docs-local/`. |
+| Story or task key | Stable product reference, when one exists |
+| Priority | Relative delivery priority |
+| Status | Current workflow state supported by the destination list |
+| Opened date | Date the work entered the planning flow |
+| Closed date | Date the work was completed |
+| Pull request | Link or number for the implementation review |
+| Acceptance criteria | Observable conditions for completion |
 
-Task **sem** `tags` / datas / assignee resolvível → sync incompleto; corrigir config local antes de declarar sprint fechada.
+## Description sections
 
-## Convenção de nomes de Sprint
+Follow the structure in `task-description-template.md`: problem, objective, scope, out of scope, definition of done, dependencies, references, and governance notes.
 
-- O nome da **List** deve ser curto e conter apenas `Sprint NN` (por exemplo, `Sprint 19`).
-- O contexto da sprint fica na **Sprint Note** ou na task: `📋 Sprint Note — Sprint 19 (Observabilidade)`.
-- Não usar o tema, produto ou descrição no nome da List; isso prejudica a leitura do sidebar e não substitui a descrição estruturada.
-
----
-
-## Scripts no Git vs dados locais
-
-| Versionado (`scripts/`) | Local (`docs-local/clickup/`) |
-|---|---|
-| Lógica genérica de sync (API ClickUp, idempotência, retry 429) | `bootstrap.config.json`, `sprint-handoff.config.json` |
-| `clickup-task-metadata.mjs` — taxonomia de tags, assignee, datas | Nome do PO, e-mail, sprints, tasks, datas reais |
-| Fixtures em `scripts/fixtures/clickup/` (Sprint 01, `you@example.com`) | `clickup.env` (token + `CLICKUP_ASSIGNEE_*`) |
-
-**Por que os scripts ficam públicos:** são **ferramentas** reutilizáveis (como `check-rls.mjs`), rodam no CI (`pnpm test` 24 testes) e não carregam dados do squad. O risco de vazamento está no **config**, não no código — por isso configs ficam gitignored. **Não** mover scripts ClickUp para `docs-local/` sem decisão PO (quebraria CI e clone limpo).
-
-Arquivos públicos ClickUp:
-
-| Script | Função |
-|---|---|
-| `scripts/bootstrap-clickup.mjs` | Space, lists, fields, tasks iniciais |
-| `scripts/sprint-handoff-clickup.mjs` | Sprint Note, move, tasks da próxima sprint |
-| `scripts/clickup-task-metadata.mjs` | Assignee, tags, datas (módulo compartilhado) |
-
----
-
-## 1. Assignee (humano condutor)
-
-| Campo | Onde | Regra |
-|---|---|---|
-| Nome exibido | `docs-local/clickup.env` → `CLICKUP_ASSIGNEE_NAME` | PO/mantenedor que conduz o processo no ClickUp |
-| Resolução na API | `CLICKUP_ASSIGNEE_EMAIL` ou `CLICKUP_ASSIGNEE_USER_ID` | E-mail do membro no workspace ClickUp (preferido) ou id numérico |
-
-Preencher nome/e-mail **somente** no `clickup.env` e nos configs de `docs-local/clickup/` (nunca no Git).
-
-- Toda task criada/atualizada pelo sync **deve** ter esse assignee (idempotente: não duplicar).
-- Tasks 100% agente ainda registram o **humano PO** como assignee (accountability).
-- Override por task: `"assignee": { "email": "..." }` ou `{ "name": "..." }` no JSON (raro).
-
----
-
-## 2. Datas (abertura e fechamento)
-
-| Campo no config | Significado | Quando preencher |
-|---|---|---|
-| `openedAt` | Task **aberta** (início trabalho) | ISO `YYYY-MM-DD` |
-| `closedAt` | Task **fechada** | ISO `YYYY-MM-DD` quando status → **Done** |
-
-**Regras:**
-
-- **Done**: `openedAt` ≠ `closedAt` (validar no ClickUp).
-- **Blocked / Backlog / Ready**: só `openedAt`; sem `closedAt`.
-- **Sprint Note** Done: intervalo da sprint; corpo ganha `**Intervalo:** YYYY-MM-DD → YYYY-MM-DD` (API `date_closed` é só leitura).
-- Custom fields **Aberta em** / **Fechada em** (tipo date) — bootstrap tenta criar; script preenche quando existirem.
-- API: `start_date` em ms; retry **429** no client HTTP.
-
----
-
-## 3. Tags (taxonomia)
-
-Cada task: **1–3 tags** (`tags[]`). Fora da lista → erro de validação / log. Script cria tag no Space se ausente.
-
-| Tag | Quando usar |
-|---|---|
-| `Frontend` | UI React, rotas, componentes, CSS |
-| `Backend` | API, Edge Functions, server, e-mail server-side |
-| `Banco de dados` | Migrations, RLS, Postgres, Supabase |
-| `Segurança` | RLS, auth, segredos, hardening |
-| `QA` | Testes manuais, Visual QA, aceite PO visual |
-| `Arquitetura` | Decisões estruturais, refactors transversais |
-| `DevOps` | CI, deploy, scripts infra, GitHub Actions |
-| `Governança` | Repo, processo, ClickUp, CONTRIBUTING |
-| `UX` | Navegação, fluxo usuário, copy de interface |
-| `Integração` | Serviços externos (e-mail, ClickUp, OAuth) |
-| `Ops manual` | Credencial, domínio, aceite PO sem PR de código |
-
-Mapeie entregas do squad **somente** em `docs-local/clickup/*.config.json`.
-
----
-
-## 4. Descrição da task (contrato fixo)
-
-Toda task de entrega usa o markdown de [`task-description-template.md`](task-description-template.md). **Problema**, **DoD/aceite** e, ao **Done**, **O que foi resolvido** / **O que foi alterado** ficam na descrição — não só em comentários. Custom fields espelham PR, datas e Veredito Plan.
-
----
-
-## 5. Schema JSON (por task)
-
-```json
-{
-  "list": "Sprint 01",
-  "name": "Exemplo — entrega",
-  "status": "Done",
-  "assignee": { "email": "you@example.com" },
-  "tags": ["Frontend", "UX"],
-  "openedAt": "2026-01-10",
-  "closedAt": "2026-01-20",
-  "fields": { "História ID": "EXEMPLO-01" }
-}
-```
-
-**Defaults** (topo de `bootstrap.config.json` / `sprint-handoff.config.json`):
-
-```json
-"defaults": {
-  "assignee": { "email": "you@example.com" },
-  "tags": []
-}
-```
-
-Env `CLICKUP_ASSIGNEE_*` completa o que faltar nos defaults.
-
----
-
-## 6. Idempotência (2ª execução esperada)
-
-Exemplo saudável após handoff já aplicado:
-
-```json
-{
-  "created": { "assignees": 0, "tags": 0, "dates": 0 },
-  "skipped": { "assignees": 4, "tags": 4, "dates": 4 }
-}
-```
-
-`updated` pode refletir PUT de descrição — normal. **Não** deve recriar task movida (bootstrap busca por nome em **qualquer** list antes de criar).
-
----
-
-## 7. Checklist do agente
-
-- [ ] Nova task em `docs-local/clickup/` → `tags` + datas + assignee (via defaults).
-- [ ] `*.example.json` / fixtures só placeholders genéricos.
-- [ ] `pnpm test` scripts ClickUp (24/24).
-- [ ] `pnpm clickup:sync` → validar no ClickUp; 2ª vez → `skipped` em metadados.
-- [ ] Nenhum dado squad no diff versionado.
-
----
-
-## 8. Inserção mid-sprint (trabalho não programado)
-
-**Obrigatório** quando surgir tarefa fora do plano — ver também `CONTRIBUTING.md` § *Trabalho não programado*.
-
-| Quem | Ação |
-|---|---|
-| **Plan / PO** | Task na sprint atual (ou list adequada) + doc do assunto em `docs-local/` + Sprint Note se mudar ordem |
-| **Plan** | `pnpm clickup:sync` **antes** do ONE-LINER ao Executor |
-| **Executor** | **Não** iniciar sem task ClickUp; PR com `ClickUp: <id da URL>` + código de história no título/contexto (ver `setup.md` § Identificação) |
-
-Checklist mínimo da task no JSON:
-
-- [ ] `História ID` único (ex.: `UX-MOBILE-OVERFLOW-01`, `GOV-PREVIEW-01`)
-- [ ] `description`: corpo completo [`task-description-template.md`](task-description-template.md) (Problema, DoD, Referências; Entrega ao Done)
-- [ ] `fields`: História ID, PR, Prioridade, Veredito Plan (e datas via `openedAt`/`closedAt`)
-- [ ] `tags` + `openedAt` (+ assignee via defaults)
-- [ ] Sync idempotente validado
-
-Referências: [`setup.md`](setup.md) § *Trabalho surgido fora do plano* · [`../../CONTRIBUTING.md`](../../CONTRIBUTING.md) · [`../clickup.env.example`](../clickup.env.example)
+Store workspace-specific identifiers and personal assignee data only in ignored local configuration. Do not copy private security findings, credentials, or personal data into tracked examples.
