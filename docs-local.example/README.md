@@ -1,58 +1,9 @@
-# docs-local — modelo (copiar para uso local)
+# Local workspace templates
 
-Esta pasta **é commitada** apenas como **exemplo**. Copie para `docs-local/` na raiz do repositório.
+This directory contains optional examples for configuring a local contributor workspace. Copy only the templates needed for your work into the ignored `docs-local/` directory and keep real credentials and personal data out of the repository.
 
 ```powershell
 Copy-Item -Recurse docs-local.example docs-local
 ```
 
-Se o clone ainda tiver `docs/` no histórico local (antes deste recorte público):
-
-```powershell
-pwsh scripts/migrate-docs-to-local.ps1
-```
-
-A pasta `docs-local/` está no `.gitignore` e **não** vai para o GitHub. `AGENTS.md` na raiz e `.cursor/` também estão ignorados — use as cópias em `docs-local/`.
-
-**Skills Matt Pocock** (`code-review`, etc.): config genérica versionada em [`docs/agents/`](../docs/agents/) (`issue-tracker.md`, `domain.md`). Não duplicar em `docs-local/`. Bootstrap: `/setup-matt-pocock-skills` se o clone for anterior a esses arquivos.
-
-## Estrutura sugerida
-
-```
-docs-local/
-  AGENTS.md                 ← papéis Plan / Executor / Visual QA (copie AGENTS.md.example)
-  system-design-roadmap.md             ← camada NFR sobre sprints (copie system-design-roadmap.example.md + expanda)
-  security-project-bootstrap.md        ← setup inicial de segurança (copie security-project-bootstrap.example.md + expanda)
-  guideline-credentials-lifecycle.md   ← ciclo de vida de credenciais (copie do exemplo + expanda local)
-  guideline-agents-secret-hygiene.md   ← regras agents (gerar na cópia local; ver exemplo)
-  cursor/
-    rules/                  ← rules Cursor (copie public-docs-boundary.mdc + demais de docs-local.example/cursor/rules/)
-    mcp.json
-  clickup/                  ← configs de sprint + handoff (copie *.example.json de docs-local.example/clickup/)
-  clickup/task-description-template.md ← contrato fixo campos + descrição (versionado em docs-local.example/clickup/)
-  environments.md           ← mapa homolog vs prod (copie environments.md.example; refs só na cópia local)
-  assets/                   ← evidências Visual QA (PNG, audit-log.json)
-  design-system/            ← DS-06/DS-07 e referências
-  *-test-user.md            ← credenciais de homologação (nunca commitar)
-  staff-mfa-totp-secrets.md ← secrets TOTP staff (copie staff-mfa-totp-secrets.example.md; nunca commitar)
-  rls-homolog-auth-troubleshooting.md ← rate limit Auth vs TOTP / CI homolog-rls (copie do .example)
-  contributing.md           ← se migrou do docs/ antigo (a pública é CONTRIBUTING.md na raiz)
-```
-
-## ClickUp (squad solo+IA)
-
-Modelo em [`clickup/`](clickup/) — copie `*.example.json` para `docs-local/clickup/` e preencha com sprints/tasks do squad. Token: [`clickup.env.example`](clickup.env.example) → `docs-local/clickup.env`. Sync: `pnpm clickup:sync`. Integração GitHub continua **manual** (OAuth) — [`clickup/setup.md`](clickup/setup.md) §3.
-
-## O que pode ficar em docs-local/
-
-- Anotações operacionais **sem** colar segredos quando evitável (preferir “entregue via 1Password em DD/MM”).
-- Backlog, assessment QA, runbooks, design system.
-- Links internos da equipe (ClickUp, Trello) se forem restritos.
-
-## O que NÃO deve estar nem em docs-local/ sem controle
-
-- Dados pessoais reais de usuários ou candidatos.
-- Exports de banco com PII.
-- Arquivos compartilhados por e-mail público — usar canal seguro.
-
-Stubs neste exemplo **não** republicam o backlog. Quem já tinha `docs/` no disco: rode o script de migração **antes** de apagar a pasta do working tree.
+`docs-local/` is excluded from Git. These examples are not required to build or run the application; use [SETUP.md](../SETUP.md) for the public development setup.

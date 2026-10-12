@@ -1,315 +1,34 @@
-# Contribuição — GDGJobs
+# Contributing to GDGJobs
 
-Padrões da comunidade para branch, Pull Request e mensagens de commit.
+Thanks for helping improve the project. Start with the [project overview](README.md) and [local setup](SETUP.md), then keep each change focused and easy to review.
 
-Documentação **pública** (este arquivo, `README.md`, `SETUP.md`, `LICENSE`) fica no Git. Backlog, design system, evidências QA e rules de agentes ficam em `docs-local/` (gitignored) — modelo em `docs-local.example/`.
+## Before opening a pull request
 
-## Regra de ouro — fronteira público vs `docs-local`
+- Create a branch for your change; do not push directly to `main`.
+- Follow the repository's existing style and avoid unrelated edits.
+- Run the relevant checks for the changed area. The common checks are:
 
-**Todo agente (Plan, Executor, Visual QA) deve tratar isto como prioridade máxima antes de criar ou mover arquivos.**
+  ```powershell
+  pnpm lint
+  pnpm test
+  pnpm build
+  ```
 
-1. **Inspecionar primeiro** — ler o que já existe no repo (`git ls-files`, `docs-local.example/`, `.gitignore`, seções deste arquivo). Não reinventar paths nem duplicar doc operacional no Git.
-2. **Default ao criar documentação** — rascunho e operação do squad vão para **`docs-local/`** (nunca commitados). Só depois o PO/mantenedor decide se algo vira template genérico em `docs-local.example/` ou texto público em `README` / `SETUP` / `CONTRIBUTING`.
-3. **`docs-local.example/`** — apenas **modelos** (`.example.json`, stubs, checklists genéricos). **Proibido** sprint vivo, handoff, backlog, credenciais, IDs ClickUp reais ou histórico de entregas do squad.
-4. **Git público** — código, testes, onboarding mínimo e ferramentas **genéricas** (ex.: `scripts/*clickup*.mjs` leem config de `docs-local/clickup/`; módulo `clickup-task-metadata.mjs` sem dados do squad). Dados e configs operacionais ficam locais.
-5. **Exceção — allowlist fixa de QA.** Uma ferramenta de medição pode versionar um valor fixo quando ele é trava fail-closed: o script recusa qualquer destino que não seja exatamente esse valor, para não enviar credencial de teste a outro projeto. Não é segredo, não é config de squad e não pode ser lido de ambiente como destino livre. O caso vigente é o hostname de homolog em `scripts/measure-target.mjs`. Credenciais, URLs de sessão e o restante da operação continuam em `docs-local/`.
-6. **Antes de abrir PR** — revisar o diff: nada operacional/squad-specific versionado por engano, salvo a exceção do item 5.
+- For interface changes, include a short description of the affected screens and screenshots when useful.
+- For behavior or data changes, describe expected behavior and how it was validated.
+- Keep credentials, personal information, and private operational material out of commits and pull requests.
 
-Rule Cursor (copiar para `.cursor/rules/` ou `docs-local/cursor/rules/`): [`docs-local.example/cursor/rules/public-docs-boundary.mdc`](docs-local.example/cursor/rules/public-docs-boundary.mdc) — `alwaysApply: true`.
+## Pull request description
 
-**Agent skills (Matt Pocock):** rastreador e domínio para `code-review` e afins em [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) e [`docs/agents/domain.md`](docs/agents/domain.md). Bootstrap em clone antigo: `/setup-matt-pocock-skills`.
+Include:
 
-**ClickUp (comunicação humana):** sprints e status para PO/stakeholders — setup em [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md); **contrato fixo** de registro (custom fields + descrição com Problema, DoD, Entrega ao concluir) em [`docs-local.example/clickup/task-description-template.md`](docs-local.example/clickup/task-description-template.md) — **não alterar o formato** sem decisão Plan. Metadados (assignee, tags, datas, `fields.História ID`) em [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md). Campo **História ID** + título para o código (`SEC-*`, `UX-*`); **ID da URL** no PR (`ClickUp: 86a…`). Sync: `pnpm clickup:sync` · configs em `docs-local/clickup/`. Execução: ONE-LINER + Cursor + GitHub.
+1. The problem and the intended change.
+2. Relevant validation performed and any known limitation.
+3. Screenshots for visual changes, when useful.
 
-## Trabalho não programado (mid-sprint)
+Use a clear commit or pull request title. Conventional Commit prefixes such as `feat`, `fix`, `docs`, `test`, and `chore` are encouraged.
 
-**Regra obrigatória para Plan, Executor e PO:** qualquer tarefa que **não estava no plano da sprint** — bug, correção UX, decisão de segurança, ajuste de doc, follow-up de PR — **não** fica só no chat.
+## Scope and review
 
-| Passo | O que fazer |
-|---|---|
-| 1. Sprint | Colocar na **sprint atual** (default) ou na list mais adequada (ex.: bloqueio humano permanece em Sprint 10). |
-| 2. ClickUp | Registrar em `docs-local/clickup/sprint-handoff.config.json` (`fields`, `sections`, `clickupId` se já existir) e rodar **`pnpm clickup:sync`** — campos e descrição **automáticos** ([template](docs-local.example/clickup/task-description-template.md)). |
-| 3. Documentação | Problema/DoD em `sections` no JSON; decisões grandes em **`docs-local/`**. Ao **Done**, atualizar JSON (`fields.PR`, `delivery`, `closedAt`) e **sync** — não preencher ClickUp na mão. |
-| 4. Ordem | Se alterar a sequência da sprint, atualizar a **Sprint Note** (fluxo numerado) antes do Executor. |
-| 5. Execução | Só depois: ONE-LINER ao agente correto; PR com `ClickUp: CU-xxx`. |
-
-**Proibido:** Executor implementar mid-sprint sem task ClickUp rastreável; Plan declarar “feito” sem sync; trabalho invisible só em conversa.
-
-Detalhes operacionais: [`docs-local.example/clickup/setup.md`](docs-local.example/clickup/setup.md) § *Trabalho surgido fora do plano* · [`docs-local.example/clickup/task-metadata.md`](docs-local.example/clickup/task-metadata.md) § *Inserção mid-sprint*.
-
-## Git — branch e PR
-
-**`main` é branch protegida.** O Executor Agent **nunca** commita, faz merge ou `git push origin main`.
-
-| Etapa | Comando / ação |
-|---|---|
-| 1. Atualizar base | `git checkout main` → `git pull origin main` |
-| 2. Branch | `git checkout -b docs/s1-04-pr-conventions` (prefixos: `feat/`, `fix/`, `chore/`, `docs/`) |
-| 3. Validar (`pwsh`) | `pnpm lint` → `pnpm test` → `pnpm run build` |
-| 4. Publicar | `git push -u origin <branch>` — **somente a branch** |
-| 5. Revisão | PR **base: `main`** ← compare: `<branch>` |
-| 5b. Preview Vercel | Quando o diff tocar frontend, `vercel.json` ou deploy: validar rotas SPA — `/`, `/vagas`, `/login` — no browser ou celular **antes** do squash merge. Preview usa homologação; Production só muda após merge em `main` (ver [`SETUP.md`](SETUP.md)). |
-| 5c. Link do Preview (obrigatório) | **Plan ou Executor** deve entregar ao PO/mantenedor o **link direto do deploy da branch** (URL `*.vercel.app` do Preview — não a Production) **antes** de pedir **Sim** para merge. Copiar do comentário **Vercel** na PR (botão *Preview*) ou de Vercel → Deployments → deploy da branch. Formato típico: `https://<projeto>-git-<branch>-<team>.vercel.app`. |
-| 6. Merge | Squash merge pelo **mantenedor** após CI verde, revisão, **link Preview entregue** e aceite PO (Sim no PR) |
-
-**Estabilidade de layout no frontend:** qualquer aviso, banner ou bloco de feedback cujo conteúdo dependa de consulta assíncrona deve renderizar desde o primeiro paint em uma região reservada com altura compatível com o maior texto esperado. Troque placeholder por conteúdo no mesmo espaço; não insira o bloco depois que a página já carregou nem deixe o conteúdo abaixo saltar quando chegar a resposta. Inclua estado vazio/indisponível e confira desktop e mobile. Se a mensagem puder aparecer apenas após uma checagem, planeje o slot e seu comportamento antes de implementar a condição.
-
-**Regra do Executor:** criar a branch (**etapa 2**) **antes** de editar qualquer arquivo de código ou documentação versionada. Trabalhar somente na branch da história. **Nunca** commitar em `main` local — push direto em `main` é bloqueado pelo ruleset.
-
-Template de PR: [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md).
-
-### Aceite de merge — link Preview Vercel (obrigatório)
-
-Quando a entrega alterar **frontend**, **`vercel.json`** ou **deploy**, o **Plan** (na revisão) ou o **Executor** (ao reportar “pronto para merge”) **deve** incluir na mensagem ao PO:
-
-1. **Número da PR** (ex.: `#91`)
-2. **Link direto do Preview** — URL completa do deploy **desta branch** (não `main`/Production)
-3. **Rotas a validar** — no mínimo `/`, `/vagas`, `/login` quando couber SPA
-4. Entregas **MVP-014 / observabilidade:** checklist Console `ops.*` (~5 min) em [`docs-local.example/ops-observability-qa.example.md`](docs-local.example/ops-observability-qa.example.md); bloco colável ClickUp em `docs-local/mvp-014-preview-qa-checklist.md` (mantenedor)
-5. Pedido explícito de **Sim** no PR após validação no celular ou DevTools mobile
-
-**Proibido** pedir merge só com “valide no Preview” sem colar a URL. **Production** (`https://gdg-lauro-de-freitas.vercel.app`) só reflete a branch **depois** do squash merge — não usar para validar PR aberta.
-
-Exemplo (Plan → PO):
-
-```text
-PR #91 — Preview: https://gdg-lauro-de-freitas-git-fix-ux-mobile-overflow-x-gdg-jobs-prod.vercel.app
-Validar no celular (ou DevTools ≤760px): /, /vagas, /login — sem scroll lateral.
-Responda Sim no PR para autorizar squash merge.
-```
-
-## Tamanho e escopo do Pull Request
-
-Cada PR deve ser **uma entrega coesa**. Para facilitar revisão e rastreabilidade, classifique o tamanho e separe tipos de mudança conforme a tabela abaixo.
-
-### Classificação de tamanho
-
-| Tamanho | Linhas (+/−) | Arquivos | Escopo | Revisão típica |
-|---|---|---|---|---|
-| **Pequeno** | até ~150 | 1–5 | Uma mudança clara (fix, doc pontual, chore) | 10–20 min |
-| **Médio** | ~150–400 | 5–10 | Uma história ou pacote docs + código alinhado | 20–45 min |
-| **Grande** | 400+ | 10+ | Sprint inteira ou várias preocupações distintas | 45 min+ |
-
-PRs **grandes** são aceitáveis no fechamento de sprint, mas exigem revisão mais cuidadosa (RLS, auth, segredos). Prefira **médio** como padrão.
-
-### Como dividir mudanças (obrigatório da Sprint 3 em diante)
-
-| Tipo | O que incluir | Branch / PR |
-|---|---|---|
-| **1. Infra e segurança** | Manuais de ambiente, políticas de segredos, decisões de hospedagem, templates `.env.example` globais — ex.: `docs-local/supabase-dev-env.md`, `docs-local/security-and-documentation.md`, `SETUP.md` | PR **`chore/…`**, **antes** ou **em paralelo** ao código que depende delas. Docs operacionais ficam em `docs-local/` (não versionado) |
-| **2. Integração funcional** | Código, migration, testes, script de validação (ex.: RLS) e **documentação estrita da feature** (docstrings, schemas de API, README do módulo, `docs-local/s2-catalog-rls.md` ligado à migration da mesma entrega) | PR `feat/…` / `fix/…` — código e doc **interna da feature** no **mesmo PR** para não defasar |
-| **3. Governança e backlog** | Revisão Tech Lead, atualização de `docs-local/project-backlog-scrum.md`, aprovações de sprint, registro de ADR aceita | PR **`chore/`** separado **ou** atualização só local em `docs-local/`; alternativa: corpo do squash merge **após** merge do PR funcional — **não** misturar com `feat/` |
-
-**Ressalva — docs de infra vs. docs da feature**
-
-- **Infra/segurança/arquitetura** (ambiente, políticas, decisões transversais): PR separado (item 1).
-- **Documentação técnica da própria feature** (contrato da API, schema, doc do módulo, rollback da migration entregue): permanece no PR funcional (item 2).
-
-**Ressalva — revisão Tech Lead**
-
-- Registros de aprovação de sprint e atualizações de backlog **não inflam** PRs funcionais.
-- Preferir PR de governança (`chore(process): …`, `docs(backlog): …`) ou registrar a revisão no merge commit / PR doc imediatamente após o squash do `feat/`.
-
-### Anti-padrão observado (Sprint 2)
-
-O PR #4 misturou integração Supabase com docs de ambiente/segurança também presentes no PR #3, gerando overlap e PR **grande**. Da Sprint 3 em diante: mergear ou fechar o PR de infra **antes** do `feat/` dependente, ou rebasear para eliminar duplicação.
-
-## Handoff ONE-LINER ao Executor (Tech Lead)
-
-O Tech Lead publica **um único bloco** copiável — sem exigir seleção parcial na conversa. Formato fixo:
-
-```md
-### ONE-LINER AO EXECUTOR
-
-**Função / Agente:** (obrigatório) quem executa — ex.: Executor frontend, **Frontend Visual QA**, Executor / Shell (pwsh), Humano (PO), subagent security-review, Plan Tech Lead only
-**Modelo indicado:** (obrigatório quando agente ≠ humano puro) família no seletor do Cursor — ex.: **Grok 4.6** · **Grok 4.7** · **Composer 2.5** · **—** (humano/scripts)
-**Effort:** (obrigatório junto com Modelo indicado, exceto humano/`—`) **low** · **medium** · **high** · **xhigh** — ver tabela do Plan em `docs-local/guideline-cursor-models-one-liner.md` (modelo genérico: [`docs-local.example/guideline-cursor-models-one-liner.example.md`](docs-local.example/guideline-cursor-models-one-liner.example.md))
-**Modelo / ferramenta:** (obrigatório quando agente ≠ humano) *como* executar — ex.: Cursor Agent standard · shell `pnpm test`/`test:rls` (sem delegar CI ao LLM) · Playwriter CLI · subagent security-review
-**Perfil:** ... (opcional — competência: Fullstack Engineer, etc.)
-**História:** Sx-xx — ...
-**Tarefa:** ...
-**Branch:** feat/... ou docs/...
-**Squash merge:** tipo(escopo): descrição
-**Critério de pronto:**
-- ...
-**Fora de escopo:**
-- ...
-**Dependências humanas:**
-- ...
-**Referências obrigatórias:**
-- ... (UI Executor: `docs-local/design-system-communication.md` — **DS-06** + `docs-local/design-system/section-curves.md` — **DS-07**; tokens públicos em `src/styles.css`)
-- ... (Visual QA: [`docs-local/AGENTS.md`](docs-local/AGENTS.md) + [`docs-local/setup-visual-qa-tools.md`](docs-local/setup-visual-qa-tools.md) + rule local `docs-local/cursor/rules/frontend-visual-qa.mdc`)
-```
-
-Regras: bloco completo entre \`\`\`md e \`\`\`; critérios em lista; branch e título de squash explícitos; detalhes longos no backlog (`docs-local/project-backlog-scrum.md`), não espalhados no chat.
-
-**Regra de ouro (ONE-LINER — função do executor):** todo ONE-LINER **deve** declarar **quem executa** (`**Função / Agente:**`), **qual modelo o PO deve selecionar no Agent** (`**Modelo indicado:**` + `**Effort:**` logo abaixo) e **como executa** (`**Modelo / ferramenta:**`). ONE-LINER **sem** esses campos é **inválido** — o Executor **não inicia**; o Plan republica o bloco completo antes de dar **Sim**. O mantenedor **troca modelo/effort no Cursor** conforme o ONE-LINER antes de colar o bloco (não é decisão do Executor).
-
-**Referência Plan (Grok 4.6 vs 4.7, custo I/O, funções GDG Jobs):** `docs-local/guideline-cursor-models-one-liner.md` — resumo público em [`docs-local.example/guideline-cursor-models-one-liner.example.md`](docs-local.example/guideline-cursor-models-one-liner.example.md).
-
-## Papéis — Plan Tech Lead vs Executor (obrigatório)
-
-Respeitar a função de cada agente. **Confusão de papéis invalida a entrega** (ex.: baseline QA preenchido pelo Plan sem reexecução do Executor).
-
-| Papel | Faz | **Não faz** |
-|---|---|---|
-| **Executor frontend** | ONE-LINER de UI; implementar; Vitest/smoke; `lint`/`test`/`build`; PR após **Sim** | Auditoria visual browser; parecer “layout ok” só lendo TSX; preencher assessment *Pass* sem evidência |
-| **Frontend Visual QA** | ONE-LINER de homolog/DS-05; **Playwriter CLI** + scripts (`_audit.mjs`, `pnpm qa:a11y`); screenshots e JSON light/dark em `docs-local/assets/`; relatório + assessment — **não** browser MCP no chat (§ tokens em [`docs-local/setup-visual-qa-tools.md`](docs-local/setup-visual-qa-tools.md)) | Implementar features; push em `main`; substituir Plan; Playwright MCP; auditoria completa via chrome-devtools-mcp no chat; declarar certificação WCAG |
-| **Plan Tech Lead** | ONE-LINER; **revisão** de entregas do Executor (aprovar / reprovar / aprovar com ressalvas); diagnóstico; backlog; decisões técnicas; **Sim** antes de push/PR | **Executar** `pnpm test`, `pnpm test:rls`, `pnpm lint`, `build`; editar código de produto; preencher assessment/checklist de execução; commit; push; abrir PR de implementação |
-| **Executor** | Branch → implementar ou **executar** ONE-LINER (comandos, docs preenchidos com log real) → validar → commit na branch → PR após **Sim** | Decisão de negócio; segredos reais; push em `main`; iniciar sem ONE-LINER |
-| **Humano (PO/mantenedor)** | C-05, credenciais, merge squash, testes manuais browser quando ONE-LINER pedir; aceite DS-05/PO | — |
-
-`pnpm qa:a11y` gera baseline axe-core **report-only** em `docs-local/assets/a11y-gov-01/`. É ferramenta local (como `pnpm qa:admin-nav`): **não** entra no CI, **não** é declaração pública e **não** afirma certificação WCAG.
-
-**Regra explícita:** se o ONE-LINER diz “Executor roda X”, o **Plan não roda X** — só publica o ONE-LINER e revisa o resultado. Se o Plan executou por engano, o Executor **reexecuta** e corrige artefatos (registrar no PR: “Revalidado pelo Executor”).
-
-**Regra de ouro (Plan Tech Lead):** se o humano pedir ao Plan uma tarefa **fora da função Plan** (executar comandos, implementar, preencher assessment/checklist de execução, commit, push, PR de código/docs preenchidos por execução), o Plan **recusa educadamente**, **não executa**, e responde com **ONE-LINER completo** para o agente correto (Executor, Shell, Humano ou subagent indicado). Nunca “fazer rápido” por conveniência.
-
-**Exceção:** tarefa rotulada **“Plan Tech Lead only”** no ONE-LINER (ex.: revisão de PR, parecer de merge, atualização de backlog pós-merge) — aí o Executor **não** substitui o Plan.
-
-### Revisão Plan (padrão de parecer)
-
-Quando o Executor reporta **“pronto na branch / PR #N”**, o Plan **revisa** (sem reexecutar, salvo amostragem opcional do humano):
-
-| Veredito | Quando usar |
-|---|---|
-| **APROVADO** | ONE-LINER cumprido; CI verde; escopo isolado; critérios de aceite ok; se UI/deploy: **link direto Preview Vercel da branch** entregue ao PO |
-| **APROVADO com ressalvas** | Entrega válida; polish ou follow-up documentado (não bloqueia merge se P0 ok) |
-| **REPROVADO** | Fora de escopo; falha CI; critério P0 não atendido; divergência do ONE-LINER; **ONE-LINER sem `Função / Agente`, `Modelo indicado`/`Effort` (quando couber) e `Modelo / ferramenta`** |
-
-Formato: tabela critério × resultado + veredito final + squash sugerido (se aprovado). Se UI/deploy: incluir **link direto Preview Vercel da branch** na mensagem ao PO (não pedir merge sem URL). Registrar revisões relevantes em `docs-local/project-backlog-scrum.md` quando for marco de sprint.
-
-**Ressalva não bloqueante ≠ “só no chat”.** Se ficar só na conversa, vira **dívida técnica invisível** — ninguém executa, ninguém fecha. Toda ressalva do Plan **deve** sair do chat no mesmo ciclo de revisão (antes ou no merge).
-
-#### Onde registrar ressalvas (obrigatório)
-
-| Tipo de ressalva | Onde registrar | Quem executa | Quando fechar |
-|---|---|---|---|
-| **Polish P2/P3** (UX, DRY, doc menor) | Tabela **Polish / follow-up opcional** em [`docs-local/project-backlog-scrum.md`](docs-local/project-backlog-scrum.md) — linha com **ID** (ex.: `PERF-CAT-02`, `DRY-STAFF`) | Executor em sprint futuro ou PO prioriza | Item removido ou marcado concluído no backlog + PR de closeout |
-| **Follow-up técnico** (medir de novo, script, baseline) | Mesma tabela no backlog **ou** ONE-LINER dedicado se tiver critério de pronto | Executor | Critério do ONE-LINER atendido |
-| **Finding resolvido** (F-xxx) | [`docs-local/qa-security-assessment.md`](docs-local/qa-security-assessment.md) — seção *Findings resolvidos* | Já mergeado | Assessment atualizado localmente (não versionar) |
-| **QA manual pendente** | [`docs-local/qa-test-plan-homolog.md`](docs-local/qa-test-plan-homolog.md) + coluna *Resultado* no assessment | **Humano** PO/QA | Linha *Pass* com evidência no assessment |
-| **Decisão do merge** (incluir arquivo, nota metodológica) | **Corpo do PR** — seção `## Ressalvas (não bloqueantes)` | Executor no merge ou PR doc follow-up | PR mergeado com seção preenchida |
-| **Trabalho novo com escopo** | **ONE-LINER** ao Executor (história nova, branch, critérios) | Executor | Revisão Plan APROVADO |
-| **Trabalho não programado (mid-sprint)** | Task ClickUp + doc em `docs-local/` + atualizar Sprint Note se mudar ordem; **depois** ONE-LINER | Plan (sync) → Executor | Ver [`CONTRIBUTING.md`](CONTRIBUTING.md) § *Trabalho não programado* |
-| **Marco de sprint / handoff** | [`docs-local/project-backlog-scrum.md`](docs-local/project-backlog-scrum.md) § *Handoff* | Plan TL | Próximo handoff referencia PRs e pendências |
-
-#### Regra anti-dívida (Plan + Executor + PO)
-
-1. **Plan:** em **APROVADO com ressalvas**, listar ressalvas numeradas (`R1`, `R2`…) e **apontar o destino** de cada uma (backlog ID, ONE-LINER, PR body, humano).
-2. **Executor:** antes do merge, copiar ressalvas `R*` para o destino indicado; **não** fechar PR só com “ok no chat”.
-3. **PO:** revisar tabela *Polish / follow-up* no handoff; ressalva sem linha no backlog = **dívida não rastreada** — reabrir com Plan.
-4. **Chat:** serve para **decisão imediata** (Sim / não commitar); **não** substitui registro durável.
-
-#### Exemplo (parecer Plan)
-
-```md
-**Veredito:** APROVADO com ressalvas
-
-| R | Ressalva | Destino |
-|---|---|---|
-| R1 | Mediana cold load home >900 ms | Backlog `PERF-CAT-02` (P2) |
-| R2 | Playwright homolog não rodou | Humano QA-ADM-07..09 |
-| R3 | `STAFF_ROLES` duplicado | Backlog `DRY-STAFF` (P3) |
-```
-
-**Sim** para commit/merge — desde que R1 e R3 estejam no backlog antes do squash (ou no PR #46 doc-only).
-
-## Conventional Commits (obrigatório)
-
-Seguir a [especificação Conventional Commits](https://www.conventionalcommits.org/pt-br/v1.0.0-beta.4/#especifica%c3%a7%c3%a3o):
-
-```
-<tipo>[escopo opcional]: <descrição>
-
-[corpo opcional]
-
-[rodapé opcional]
-```
-
-### Tipos usados no GDGJobs
-
-| Tipo | Quando usar |
-|---|---|
-| `feat` | Novo recurso ou comportamento de produto |
-| `fix` | Correção de bug |
-| `docs` | Só documentação |
-| `chore` | Manutenção, organização de ativos, deps de tooling |
-| `test` | Testes (sem mudança de produto) |
-| `ci` | Pipeline, GitHub Actions, lint config |
-| `refactor` | Refatoração sem mudar comportamento |
-
-Escopos recomendados: `lgpd`, `ci`, `jobs`, `auth`, `ui`, `s1-03`, etc.
-
-### Exemplos válidos
-
-```text
-docs(lgpd): add S1-03 personal data inventory for DPO review
-
-chore(s1-02): remove duplicate nested favicons package
-
-ci: add eslint vitest and github actions workflow
-
-feat(jobs): connect home listing to approved jobs
-```
-
-### Regras
-
-- Descrição curta em **minúsculas** (exceto nomes próprios), **sem ponto final**.
-- Um commit = uma intenção coesa (história ou fix isolado).
-- `BREAKING CHANGE:` no corpo ou rodapé quando houver incompatibilidade.
-- No **squash merge**, o mantenedor usa título no formato Conventional Commits (título do PR ou mensagem editada no merge).
-- Commits fora do padrão não entram em Done; o revisor pode pedir rebase ou ajuste do título no merge.
-
-### Histórico bootstrap (não repetir)
-
-Commits iniciais em `main` (S1-01/S1-02) foram exceção autorizada. Da S1-03 em diante: branch + PR + Conventional Commits.
-
-## Definition of Done (Git)
-
-- Branch a partir de `main`; sem push direto em `main`
-- Mensagens de commit no padrão Conventional Commits
-- PR aberto; CI verde
-- Revisão humana e squash merge pelo mantenedor
-
-## Higiene de branches (obrigatório após merge ou fechamento de PR)
-
-Evitar “lixo visual” local e remoto. **Tech Lead ou mantenedor** revisa branches ao fechar sprint ou mergear PR.
-
-| Situação | Ação |
-|---|---|
-| PR **mergeado** ou **fechado** | Apagar branch remota e local da feature |
-| PR **aberto** | Manter só `main` + branch do PR ativo |
-| Branch local com `[gone]` no tracking | `git fetch --prune` → apagar local |
-
-Comandos (`pwsh`), após `git checkout main` e `git pull origin main`:
-
-```powershell
-git fetch --prune origin
-git branch -vv
-git branch -r --merged origin/main
-git branch -r --no-merged origin/main
-# Apagar local (mergeada ou obsoleta):
-git branch -d nome-da-branch
-# Se Git recusar e a branch estiver obsoleta:
-git branch -D nome-da-branch
-# Apagar remota:
-git push origin --delete nome-da-branch
-```
-
-**Estado saudável:** `main` + no máximo uma branch por PR aberto (ex.: `docs/backlog-s3-handoff` enquanto o PR #6 estiver aberto).
-
-## Proteção de `main` (GitHub) — habilitada em 2026-08-16; required checks atualizados em 2026-09-16 (SEC-CI-SECRETS-01)
-
-Ruleset **Protect main** (id `20903173`): PR obrigatório, check **Lint, test and build**, sem force-push e sem exclusão de `main`. O job **RLS homolog** (`pnpm test:rls`) corre só após o merge (`push` ou `workflow_dispatch` em `main`), com secrets no GitHub Environment `homolog-rls` — **não** é required check da PR e **não** injeta `service_role` nem senhas staff no checkout de PR. Falha de `RLS homolog` em `main` **não** bloqueia o deploy automático da Vercel neste recorte; torna o release **não confiável** e exige rollback (`docs-local/sec-ci-secrets-01-rollback.md`). Squash merge é o único método permitido no repositório. Zero aprovações humanas obrigatórias (único mantenedor).
-
-**RLS homolog — atenção operacional:** falhas com `Request rate limit reached` no Auth de homolog **não** são, por si só, TOTP errado; evite `test:rls` local e re-runs de CI em rajada. Secrets TOTP: `.env.local` / `homolog-rls` (CI não lê `staff-mfa-totp-secrets.md`). Ver `SETUP.md` (§ rate limit vs TOTP), `pnpm verify:staff-mfa` e runbook local `docs-local/rls-homolog-auth-troubleshooting.md` (modelo em `docs-local.example/`).
-
-### Baseline de segurança para novos workflows de CI (Dia 0)
-
-Todo workflow novo ou alterado deve seguir o princípio de menor privilégio: declarar `permissions` explicitamente; fixar Actions de terceiros por SHA completo de 40 caracteres com comentário de versão; manter secrets apenas no step que os consome e em jobs protegidos por Environment quando aplicável; e definir `persist-credentials: false` no checkout quando nenhum passo posterior precisar de Git autenticado. Não executar código de PR não confiável em jobs que recebem secrets. Atualizações de Actions devem preservar o SHA fixo e passar pela CI.
-
-Essas medidas reduzem exposição e risco de supply chain; não substituem revisão do código executado junto aos secrets nem controles de branch e Environment. Para o checklist completo de bootstrap e os testes de regressão, consulte [`docs-local.example/security-project-bootstrap.example.md`](docs-local.example/security-project-bootstrap.example.md). O job `quality` deste workflow ainda usa referências de Actions por tag; a migração desse job para SHA deve ser acompanhada como follow-up antes de considerar o padrão aplicado a todo o workflow.
-
-Evidência (mantenedor): [`docs-local/s1-04-branch-protection.md`](docs-local/s1-04-branch-protection.md). UI: https://github.com/rodrigochavesoa/gdg-lauro-de-freitas/rules/20903173
+Prefer small, cohesive pull requests. Changes that affect data contracts, authentication, or external services should explain their impact and validation clearly so maintainers can review them.
 

@@ -1,6 +1,6 @@
 /**
  * Seletores PostgREST por superfície. Listas não trazem texto longo, payload nem PII de detalhe.
- * A matriz humana está em docs/tech/DATA-CONTRACTS.md.
+ * A matriz humana detalhada é mantida em documentação local do projeto.
  */
 
 export const JOB_DETAIL_SELECT = `

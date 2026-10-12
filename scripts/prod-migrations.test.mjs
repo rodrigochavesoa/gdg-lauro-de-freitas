@@ -90,7 +90,9 @@ describe("prod migrations", () => {
     expect(canonicalDeclare).toMatch(/\bv_salary_numeric\s+numeric\b/i);
     expect(canonicalFunction).toMatch(/v_salary_numeric\s*:=/i);
     const canonicalKeys = sql.match(/v_keys text\[\] := array\[([\s\S]*?)\n  \];/)?.[1] ?? "";
-    expect(canonicalKeys).toContain("'work_model',\n    'country_code',\n    'salary_min',\n    'salary_max'");
+    expect(canonicalKeys).toMatch(
+      /'work_model',\r?\n    'country_code',\r?\n    'salary_min',\r?\n    'salary_max'/,
+    );
     expect(canonicalKeys).not.toContain("salary_currency");
   });
 
