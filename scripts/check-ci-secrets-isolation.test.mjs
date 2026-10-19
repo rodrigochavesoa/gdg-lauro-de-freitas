@@ -176,6 +176,21 @@ describe("CI secrets isolation (SEC-CI-SECRETS-01)", () => {
           expect(rlsStep).toContain("run: pnpm test:rls");
         });
       }
+
+      if (fileName === "keepalive.yml") {
+        it("usa secrets próprios, sem homolog-rls nem VITE_", () => {
+          const ping = jobBlock(jobsBody, "keepalive");
+          expect(secretBindings(ping)).toEqual(new Set([
+            "HOMOLOG_SUPABASE_URL",
+            "HOMOLOG_SUPABASE_PUBLISHABLE_KEY",
+            "PROD_SUPABASE_URL",
+            "PROD_SUPABASE_PUBLISHABLE_KEY",
+          ]));
+          expect(withoutComments(source)).toMatch(/workflow_dispatch:/);
+          expect(ping).not.toMatch(/VITE_SUPABASE_/);
+          expect(ping).not.toMatch(/environment:/);
+        });
+      }
     });
   }
 
