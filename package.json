@@ -9,6 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "check:bundle": "node scripts/check-bundle-secrets.mjs",
+    "keepalive:supabase": "node scripts/keepalive-supabase.mjs",
     "migrations:prod": "node scripts/prod-migrations.mjs",
     "types:database": "node scripts/gen-database-types.mjs",
     "types:client": "tsc -p tsconfig.client.json --noEmit",

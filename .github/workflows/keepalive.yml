@@ -1,0 +1,36 @@
+# Paliativo Free: leitura REST em homolog e prod. Sem backup automático.
+# Secrets no repositório (Repository secrets). Não usar homolog-rls.
+# O botão Run workflow só existe depois deste arquivo estar em main.
+name: Keepalive
+
+on:
+  schedule:
+    - cron: "0 11,23 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  keepalive:
+    name: Ping homolog and prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@1d0ff469b7ec7b3cb9d8673fde0c81c44821de2a # v4.2.0
+        with:
+          node-version: 22
+
+      - name: Ping
+        env:
+          HOMOLOG_SUPABASE_URL: ${{ secrets.HOMOLOG_SUPABASE_URL }}
+          HOMOLOG_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.HOMOLOG_SUPABASE_PUBLISHABLE_KEY }}
+          PROD_SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+          PROD_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.PROD_SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/keepalive-supabase.mjs
