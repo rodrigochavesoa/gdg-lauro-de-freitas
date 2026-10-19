@@ -187,6 +187,7 @@ describe("CI secrets isolation (SEC-CI-SECRETS-01)", () => {
             "PROD_SUPABASE_PUBLISHABLE_KEY",
           ]));
           expect(withoutComments(source)).toMatch(/workflow_dispatch:/);
+          expect(ping).toContain("github.ref == 'refs/heads/main'");
           expect(ping).not.toMatch(/VITE_SUPABASE_/);
           expect(ping).not.toMatch(/environment:/);
         });
